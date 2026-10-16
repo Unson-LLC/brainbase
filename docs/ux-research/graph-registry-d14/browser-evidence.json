@@ -1,0 +1,122 @@
+{
+  "wide": {
+    "tabs": [
+      "すべて",
+      "人\n20",
+      "会社\n8",
+      "プロジェクト\n15"
+    ],
+    "rowText": "山本 二郎 | 人 | 説明の記録なし",
+    "afterClick": {
+      "hash": "#graph?entity_id=per_1",
+      "heading": "人 | 山本 二郎",
+      "headingTop": 82,
+      "inView": true,
+      "focus": true,
+      "parts": [
+        "何者か",
+        "つながり",
+        "根拠と履歴",
+        "直す"
+      ],
+      "listShown": false
+    },
+    "followed": "雲孫合同会社",
+    "afterFollow": {
+      "hash": "#graph?entity_id=org_0",
+      "heading": "会社 | 雲孫合同会社 |  | 「山本 二郎」のつながりからたどっています。"
+    },
+    "afterBrowserBack": {
+      "hash": "#graph?entity_id=per_1",
+      "heading": "人 | 山本 二郎"
+    },
+    "afterBackToList": {
+      "hash": "",
+      "listShown": true,
+      "focusedRow": "per_1",
+      "rowInView": true
+    },
+    "afterEscape": {
+      "hash": "",
+      "listShown": true,
+      "focusedRow": "prj_2"
+    },
+    "filtered": {
+      "rows": 1,
+      "chips": [
+        "名前・別名: 田中\n×",
+        "種類: 人\n×"
+      ],
+      "focus": "bb-gr-q"
+    },
+    "chipsWithDay": [
+      "名前・別名: 田中\n×",
+      "種類: 人\n×",
+      "2026-09-01 の状態で見ています\n×"
+    ],
+    "cleared": {
+      "rows": 43,
+      "chips": 0
+    }
+  },
+  "narrow": {
+    "tabs": [
+      "すべて",
+      "人\n20",
+      "会社\n8",
+      "プロジェクト\n15"
+    ],
+    "rowText": "山本 二郎 | 人 | 説明の記録なし",
+    "afterClick": {
+      "hash": "#graph?entity_id=per_1",
+      "heading": "人 | 山本 二郎",
+      "headingTop": 17,
+      "inView": true,
+      "focus": true,
+      "parts": [
+        "何者か",
+        "つながり",
+        "根拠と履歴",
+        "直す"
+      ],
+      "listShown": false
+    },
+    "followed": "雲孫合同会社",
+    "afterFollow": {
+      "hash": "#graph?entity_id=org_0",
+      "heading": "会社 | 雲孫合同会社 |  | 「山本 二郎」のつながりからたどっています。"
+    },
+    "afterBrowserBack": {
+      "hash": "#graph?entity_id=per_1",
+      "heading": "人 | 山本 二郎"
+    },
+    "afterBackToList": {
+      "hash": "",
+      "listShown": true,
+      "focusedRow": "per_1",
+      "rowInView": true
+    },
+    "afterEscape": {
+      "hash": "",
+      "listShown": true,
+      "focusedRow": "prj_2"
+    },
+    "filtered": {
+      "rows": 1,
+      "chips": [
+        "名前・別名: 田中\n×",
+        "種類: 人\n×"
+      ],
+      "focus": "bb-gr-q"
+    },
+    "chipsWithDay": [
+      "名前・別名: 田中\n×",
+      "種類: 人\n×",
+      "2026-09-01 の状態で見ています\n×"
+    ],
+    "cleared": {
+      "rows": 43,
+      "chips": 0
+    }
+  }
+}

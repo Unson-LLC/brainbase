@@ -1159,10 +1159,25 @@ const meta = (name) => document.querySelector(\`meta[name="\${name}"]\`)?.getAtt
 // Keep the query portion intact; the shell parses the Graph entity query and
 // only treats the entity id as a target of the Graph screen.
 const screenFromHash = () => location.hash.replace(/^#/, '') || undefined;
-const shell = createLocalWebShell({
+// A screen that opened its own address (a record of 情報と関係) goes back with the
+// browser's history, so 「一覧に戻る」 and the back button land on the same list.
+// Each entry remembers how many records deep it is, which stays right when the
+// owner also uses the browser's back and forward.
+const depth = () => (Number.isInteger(history.state?.bbDepth) ? history.state.bbDepth : 0);
+let shell = null;
+const navigate = (target, { back = false } = {}) => {
+  if (back && depth() > 0) {
+    history.go(-depth());
+    return;
+  }
+  history.pushState({ bbDepth: back ? 0 : depth() + 1 }, '', \`#\${target}\`);
+  shell?.show(target);
+};
+shell = createLocalWebShell({
   root: document.getElementById('brainbase-local-web'),
   token: meta('brainbase-web-token'),
   initialScreen: screenFromHash(),
+  onNavigate: navigate,
   meetingMinutesStorage: ${JSON.stringify(meetingMinutesStorage ?? null)},
   meetingMinutesLineage: ${JSON.stringify(meetingMinutesLineage ?? null)},
   screens: ${leading ? `[${leading}, ...LOCAL_WEB_SCREENS${trailing ? `, ${trailing}` : ''}]` : '[...LOCAL_WEB_SCREENS, ...extensionScreens]'}

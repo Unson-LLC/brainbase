@@ -5,17 +5,57 @@
  * Uses only the shared tokens in brainbase-tokens.css.
  */
 .bb-gr-search-section {
-  margin-bottom: 30px;
+  margin: 22px 0 30px;
 }
 
 .bb-gr-search {
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: end;
 }
 
-.bb-gr-type-combobox,
-.bb-gr-type-combobox .bb-ws-combobox-trigger {
-  width: 100%;
+/* The kinds as tabs, with their counts. */
+.bb-gr-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 14px;
+  border-bottom: 1px solid var(--bb-color-border);
+}
+
+.bb-gr-tab {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 8px 12px;
+  background: transparent;
+  color: var(--bb-color-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.bb-gr-tab:hover {
+  color: var(--bb-color-ink);
+}
+
+.bb-gr-tab.is-selected {
+  border-bottom-color: var(--bb-color-accent);
+  color: var(--bb-color-ink);
+  font-weight: 680;
+}
+
+.bb-gr-tab:focus-visible {
+  outline: 2px solid var(--bb-color-focus);
+  outline-offset: -2px;
+}
+
+.bb-gr-tab-count {
+  color: var(--bb-color-quiet);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* 詳しい条件: the day filter, kept out of the way. */
@@ -107,48 +147,6 @@
   transition: opacity .12s ease;
 }
 
-/* The open record, right below its row. */
-.bb-gr-detail-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  border-bottom: 1px solid var(--bb-color-border);
-}
-
-.bb-gr-detail-head > .bb-ws-rail-head {
-  flex: 1;
-  min-width: 0;
-  border-bottom: 0;
-  outline: none;
-}
-
-.bb-gr-detail-head > .bb-ws-rail-head > small {
-  color: var(--bb-color-accent);
-}
-
-.bb-gr-detail-close {
-  flex: none;
-  margin-top: 14px;
-}
-
-.bb-graph .bb-gr-detail-trail {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 10px;
-  margin: 0 0 8px;
-  color: var(--bb-color-muted);
-  font-size: 12px;
-}
-
-.bb-gr-results > .bb-gr-detail {
-  margin-bottom: 18px;
-  border: 1px solid var(--bb-color-border-strong);
-  border-left: 3px solid var(--bb-color-accent);
-  padding: 4px 16px 20px;
-}
-
 .bb-graph .bb-gr-caption {
   margin: 0 0 10px;
   color: var(--bb-color-muted);
@@ -174,6 +172,15 @@
 }
 
 .bb-graph-entity-ledger .bb-ws-ledger-row {
+  grid-template-columns: minmax(0, 1.2fr) 112px minmax(0, 2fr);
+}
+
+.bb-graph-entity-ledger.has-updated .bb-ws-ledger-row {
+  grid-template-columns: minmax(0, 1.2fr) 112px minmax(0, 2fr) 112px;
+}
+
+/* An own-share ledger keeps its four columns (name, kind, summary, period). */
+.bb-graph-entity-ledger.bb-graph-own-ledger .bb-ws-ledger-row {
   grid-template-columns: minmax(0, 1.2fr) 112px minmax(0, 1.6fr) minmax(0, 1fr);
 }
 
@@ -203,25 +210,33 @@
 }
 
 @media (max-width: 760px) {
-  .bb-gr-search {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .bb-gr-detail-head {
-    flex-direction: column-reverse;
-  }
-
-  .bb-gr-detail-close {
-    align-self: flex-end;
-    margin-top: 8px;
-  }
-
-  .bb-graph-entity-ledger .bb-ws-ledger-row {
-    grid-template-columns: minmax(0, 1fr) 96px minmax(0, .9fr);
+  /* Name and kind on one line; the description under them; no last-updated column. */
+  .bb-graph-entity-ledger .bb-ws-ledger-row,
+  .bb-graph-entity-ledger.has-updated .bb-ws-ledger-row {
+    grid-template-columns: minmax(0, 1fr) 96px;
   }
 
   .bb-graph-entity-ledger .bb-ws-ledger-row > :nth-child(3) {
+    grid-column: 1 / -1;
+    padding-top: 0;
+    white-space: normal;
+  }
+
+  .bb-graph-entity-ledger .bb-ws-ledger-head > :nth-child(3),
+  .bb-graph-entity-ledger .bb-ws-ledger-row > :nth-child(4) {
     display: none;
+  }
+
+  .bb-graph-entity-ledger.bb-graph-own-ledger .bb-ws-ledger-row {
+    grid-template-columns: minmax(0, 1fr) 96px minmax(0, .9fr);
+  }
+
+  .bb-graph-entity-ledger.bb-graph-own-ledger .bb-ws-ledger-row > :nth-child(3) {
+    display: none;
+  }
+
+  .bb-gr-fix-relation {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .bb-graph-relation-type-ledger .bb-ws-ledger-row {
@@ -237,30 +252,154 @@
   }
 }
 
-/* The open record reads like the rail did, inside the workspace. */
-.bb-gr-detail .bb-ws-notice {
+/* The open record as its own screen. */
+.bb-gr-detail-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-bottom: 18px;
+  font-size: 13px;
+}
+
+.bb-gr-detail-head {
+  margin-bottom: 26px;
+  border-bottom: 1px solid var(--bb-color-border-strong);
+  padding-bottom: 20px;
+}
+
+.bb-gr-detail-kind {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--bb-color-accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.bb-gr-detail-head h1 {
+  margin: 0 0 8px;
+  color: var(--bb-color-ink);
+  font-size: 28px;
+  letter-spacing: -.02em;
+  overflow-wrap: anywhere;
+  outline: none;
+}
+
+.bb-graph .bb-gr-detail-trail {
+  margin: 8px 0 0;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-gr-page-section {
+  margin-bottom: 30px;
+}
+
+.bb-graph .bb-gr-page-title {
+  margin: 0 0 12px;
+  color: var(--bb-color-ink);
+  font-size: 15px;
+}
+
+.bb-gr-connection-group + .bb-gr-connection-group {
+  margin-top: 16px;
+}
+
+.bb-graph .bb-gr-connection-kind {
+  margin: 0 0 6px;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.bb-gr-connection-list,
+.bb-gr-evidence-list,
+.bb-gr-fix-relations {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bb-gr-connection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  border-bottom: 1px solid var(--bb-color-border);
+  padding: 8px 0;
+  font-size: 13px;
+}
+
+.bb-gr-connection.is-ended .bb-gr-sentence {
+  color: var(--bb-color-muted);
+}
+
+.bb-gr-sentence {
+  color: var(--bb-color-ink);
+  overflow-wrap: anywhere;
+}
+
+.bb-gr-sentence-note {
+  margin-left: 4px;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-gr-evidence > summary {
+  width: fit-content;
+  color: var(--bb-color-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.bb-gr-evidence-body {
+  display: grid;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.bb-gr-evidence-body .bb-ws-notice {
+  margin: 0;
+  white-space: pre-line;
+}
+
+.bb-gr-evidence-item {
+  border-left: 2px solid var(--bb-color-border);
+  padding: 4px 0 4px 12px;
+  font-size: 12px;
+}
+
+.bb-gr-fix .bb-ws-notice {
   margin: 16px 0;
   white-space: pre-line;
 }
 
-.bb-gr-detail .bb-ws-rail-head {
-  overflow-wrap: anywhere;
+.bb-gr-reach {
+  margin: 8px 0 14px;
+  color: var(--bb-color-ink);
+  font-size: 13px;
 }
 
-.bb-gr-detail > .bb-ws-actions,
-.bb-gr-detail > .bb-graph-history {
+.bb-gr-fix-relations {
+  margin-top: 16px;
+}
+
+.bb-gr-fix-relation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
   border-bottom: 1px solid var(--bb-color-border);
-  padding-block: 18px;
-}
-
-.bb-gr-detail > .bb-graph-history {
+  padding: 6px 0;
   font-size: 13px;
 }
 
-.bb-gr-detail .bb-ws-rail-block > .bb-graph-block-lead {
-  margin-bottom: 12px;
+.bb-gr-fix-relation > :not(.bb-gr-sentence):not(.bb-ws-button) {
+  grid-column: 1 / -1;
 }
 
-.bb-gr-detail .bb-ws-rail-block > .bb-graph-empty {
-  font-size: 13px;
+.bb-gr-connection-validity {
+  color: var(--bb-color-quiet);
+  font-size: 12px;
 }

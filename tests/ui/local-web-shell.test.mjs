@@ -112,12 +112,12 @@ afterEach(() => {
   else globalThis.document = previousDocument;
 });
 
-function mount(fetcher, initialScreen) {
+function mount(fetcher, initialScreen, options = {}) {
   const doc = new FakeDocument();
   // The Objective editor renders with the page document.
   globalThis.document = doc;
   const root = new FakeElement('div');
-  const shell = createLocalWebShell({ root, document: doc, fetcher, token: 'launch-token-0123456789', initialScreen });
+  const shell = createLocalWebShell({ root, document: doc, fetcher, token: 'launch-token-0123456789', initialScreen, ...options });
   return { root, shell };
 }
 
@@ -416,12 +416,31 @@ describe('local Web shell', () => {
       '/api/graph/ontology': () => jsonResponse(200, UX06_GRAPH_ONTOLOGY),
       '/api/graph/entities/project-atlas': () => jsonResponse(200, graphEntityPayload()),
     });
-    const { root, shell } = mount(fetcher, '#graph?entity_id=project-atlas');
+    const targets = [];
+    const { root, shell } = mount(fetcher, '#graph?entity_id=project-atlas', { onNavigate: (target, options) => targets.push([target, options]) });
     await flushMany();
     expect(shell.state.active).toBe('graph');
     expect(calls).toContain('/api/graph/entities/project-atlas');
-    expect(collectText(screen(root, 'graph'))).toContain(UX06_GRAPH_ENTITY.name);
-    expect(collectText(findAll(root, (node) => node.attributes?.['data-rail'] === 'graph')[0])).toContain(UX06_GRAPH_ENTITY.id);
+    // The record opens as its own screen inside 情報と関係; the screen has no rail.
+    const detail = () => findAll(screen(root, 'graph'), (node) => node.attributes?.id === 'bb-gr-detail')[0];
+    expect(collectText(detail())).toContain(UX06_GRAPH_ENTITY.name);
+    expect(collectText(detail())).toContain(UX06_GRAPH_ENTITY.id);
+    expect(findAll(root, (node) => node.attributes?.['data-rail'] === 'graph')).toEqual([]);
+    // Opening an address reports nothing back; 一覧に戻る asks the host to go back.
+    expect(targets).toEqual([]);
+    const fire = (node, name) => node.listeners.get(name)?.({ preventDefault() {}, target: node });
+    fire(findAll(detail(), (node) => node.tagName === 'BUTTON' && node.textContent === '← 情報と関係の一覧に戻る')[0], 'click');
+    expect(targets).toEqual([['graph', { back: true }]]);
+    expect(detail()).toBeUndefined();
+    // The browser's back to `#graph` closes a record still open; a row asks for its address.
+    shell.show('#graph?entity_id=project-atlas');
+    await flushMany();
+    expect(detail()).toBeDefined();
+    shell.show('#graph');
+    expect(detail()).toBeUndefined();
+    const row = findAll(screen(root, 'graph'), (node) => node.attributes?.['data-key'] === 'project-atlas')[0];
+    fire(row, 'click');
+    expect(targets.at(-1)).toEqual(['graph?entity_id=project-atlas', { back: false }]);
   });
 
   it('mounts 判断の履歴 without a summary band and keeps a selectable detail rail', async () => {

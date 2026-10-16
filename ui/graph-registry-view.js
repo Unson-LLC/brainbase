@@ -2,15 +2,14 @@
  * 「情報と関係」: what the local Graph holds, how records are connected, and
  * where to correct a mistake so the next MCP use sees the fix.
  *
- * Built on the organization edition's screen pattern (workspace kit): the
- * workspace has the page head, the source notice, the search, the results
- * ledger and the kinds of information as two ledgers.  A record picked from
- * the results opens right below its row — its outline, the relations going
- * out and coming in, and the corrections — so the owner sees what the click
- * did where they clicked (story-graph-registry-immediate-feedback-v1).  The
- * right rail only says which record is open and moves there.  The search
- * applies as the conditions change, and the conditions in force show as
- * chips that each remove themselves.
+ * 「調べる」 (premise ledger D14, story-graph-registry-immediate-feedback-v1):
+ * the list has the search, the kinds as tabs with counts, 詳しい条件 (an
+ * earlier day), the conditions in force as removable chips and the results.
+ * Everything applies as it changes.  A record opens as its own screen with an
+ * address the host keeps (`onRouteChange`): what it is, its connections read
+ * as sentences and grouped by the other record's kind, 根拠と履歴 (folded:
+ * source, period, corrections, ids) and 直す, which first shows what a fix
+ * reaches.  The right rail stays empty.
  *
  * Reads `GET {base}/search`, `GET {base}/entities/:id` and `GET {base}/ontology`
  * and corrects through `POST {base}/corrections` (see `graph-view-shared.js`).
@@ -25,13 +24,13 @@
 
 import {
   activityBadge,
-  badge,
   button,
   createGraphClient,
   createGraphCorrection,
   createGraphLayout,
   dayToRfc3339,
   focusLedgerRow,
+  formatDay,
   getDocument,
   graphCommandList,
   graphCorrectionScope,
@@ -58,7 +57,6 @@ import {
   validityLabel,
   validityText,
   GRAPH_CORRECTION_FIELDS,
-  GRAPH_ENTITY_TYPE_LABELS,
   GRAPH_ENTITY_TYPE_MEANINGS,
   GRAPH_RELATION_LABELS,
   graphHostEmptyNotice,
@@ -67,40 +65,67 @@ import { graphOwnShareSource, ownEntityDetail, ownShareSection, ownShareStateNot
 import {
   workspaceActions,
   workspaceButton,
-  workspaceCombobox,
   workspaceDefinition,
-  workspaceDetailEmpty,
   workspaceHostNotice,
   workspaceLedger,
   workspaceNotice,
   workspacePageHeader,
-  workspaceRailBlock,
-  workspaceRailHead,
   workspaceSectionTitle,
 } from './workspace-kit.js';
 
 export const GRAPH_REGISTRY_VIEW_CONTRACT_VERSION = 'brainbase.graph-registry-view.v2';
 export const GRAPH_SEARCH_LIMIT = 50;
-export const GRAPH_ENTITY_LEDGER_COLUMNS = Object.freeze(['名前', '種類', '要約', '有効期間']);
+export const GRAPH_ENTITY_LEDGER_COLUMNS = Object.freeze(['名前', '種類', '説明', '最終更新']);
+const OWN_LEDGER_COLUMNS = Object.freeze(['名前', '種類', '要約', '有効期間']);
 export const GRAPH_RELATION_TYPE_LEDGER_COLUMNS = Object.freeze(['関係', '起点 → 終点', '意味', '件数']);
 export const GRAPH_ENTITY_TYPE_LEDGER_COLUMNS = Object.freeze(['種類', '意味', '件数']);
 
 const INVALID = Object.freeze({ state: 'invalid', reason: '応答の形式が不正です' });
 const DETAIL_ID = 'bb-gr-detail';
-const ALL_TYPES = Object.freeze(['', 'すべての種類']);
-const TYPE_FILTERS = Object.freeze([ALL_TYPES, ...Object.entries(GRAPH_ENTITY_TYPE_LABELS)]);
 
 /**
- * The kinds the search can filter by: the entity types the host's `/ontology`
- * answer lists (an unknown type shows its raw id), or the local Graph's four
- * kinds until that answer has been read.
+ * The kinds this screen names, in the order of its tabs: people, companies and
+ * projects first.  Any other type id is internal and is never shown.
  */
-function graphTypeFilters(ontologyState) {
-  const types = ontologyState?.state === 'ok' && Array.isArray(ontologyState.payload?.entityTypes) ? ontologyState.payload.entityTypes : [];
-  if (types.length === 0) return TYPE_FILTERS;
-  return [ALL_TYPES, ...types.map((item) => [item.id, typeLabel(item.id)])];
+const KIND_LABELS = Object.freeze({
+  person: '人',
+  org: '会社',
+  project: 'プロジェクト',
+  decision: '判断',
+  glossary_term: '用語',
+  document: '資料',
+  philosophy: '哲学',
+  objective: '目的',
+  model: '世界モデル',
+  app: 'アプリ',
+  brand: 'ブランド',
+});
+const KIND_ORDER = Object.freeze(Object.keys(KIND_LABELS));
+const DEFAULT_KIND_TABS = Object.freeze(['person', 'org', 'project', 'decision']);
+
+function kindLabel(type) {
+  return ownLabel(KIND_LABELS, type) ?? 'その他の記録';
 }
 
+/** Relations another host names differently, read as the local relation they mean. */
+const RELATION_PHRASES = Object.freeze({
+  belongs_to: GRAPH_RELATION_LABELS.member_of,
+  works_for: GRAPH_RELATION_LABELS.member_of,
+  owns: Object.freeze({ outgoing: 'を所有', incoming: 'が所有' }),
+});
+
+/** How a relation reads from this record's side; a relation without a Japanese name only says they connect. */
+function relationPhrase(edge) {
+  const labels = ownLabel(GRAPH_RELATION_LABELS, edge.relation) ?? ownLabel(RELATION_PHRASES, edge.relation);
+  if (!labels) return 'とつながる';
+  return edge.direction === 'outgoing' ? labels.outgoing : labels.incoming;
+}
+
+/** The day a record last changed, when the host says so. */
+function updatedDay(entity) {
+  const value = textOrNull(entity?.updatedAt) ?? textOrNull(entity?.updated_at);
+  return value ? (formatDay(value) ?? value.slice(0, 10)) : null;
+}
 /** A type's meaning: the plain Japanese one for a local kind, otherwise what the host's answer says. */
 function typeMeaning(item) {
   return ownLabel(GRAPH_ENTITY_TYPE_MEANINGS, item.id) ?? textOrNull(item.meaning) ?? '';
@@ -270,7 +295,7 @@ function textCell(value, fallback) {
  *
  * @param {object} options
  * @param {Element} options.root Where the workspace is drawn.
- * @param {Element} [options.rail] The host's right rail; without it the rail content follows the workspace inside `root`.
+ * @param {Element} [options.rail] The host's right rail.  It is left empty: the record opens in the workspace.
  * @param {{ crumbs?: string[], source?: string }} [options.page] Breadcrumb and source label of the page head.
  * @param {Document} [options.document] The document to build elements with (default: the global one).
  * @param {Function} [options.fetcher] `fetch`-compatible function for the Graph routes.
@@ -280,6 +305,10 @@ function textCell(value, fallback) {
  * @param {boolean} [options.autoLoad=true] Runs the empty search and reads the kinds on mount.
  * @param {number} [options.searchDelayMs=300] How long the name field waits after the last keystroke
  *   before it searches (never while a Japanese conversion is still being composed).
+ * @param {(entityId: string | null, options: { back: boolean }) => void} [options.onRouteChange]
+ *   Called when the owner opens a record (its id) or goes back to the list (null, `back: true`), so the
+ *   host can give the record's screen an address.  When that address changes from outside (the
+ *   browser's back), the host calls `openEntity(id)` or `closeEntity()`; neither reports back.
  * @param {string} [options.initialEntityId] Opens this exact entity after the initial Graph read.
  * @param {() => Date} [options.now] The owner's clock.
  * @param {boolean} [options.canCorrect=true] When false, no correction control is drawn anywhere
@@ -292,11 +321,12 @@ function textCell(value, fallback) {
  *   such a correction before sending it.  Without it every correction is allowed.
  * @param {string | ((record: { id: string, type: string | null, metadata: object } | null) => string | Element | null)} [options.readOnlyNote]
  *   With `canCorrect: false`, or where `correctionScope` withholds a
- *   control of the selected record, a note shown in the rail where the correction buttons would be.
- *   Without it the rail says nothing about corrections.
+ *   control of the open record, a note shown under 直す where the correction buttons would be.
+ *   Without it nothing is said about corrections.
  * @param {{ label?: string, text: string | Element }} [options.emptyNotice] Replaces the 未登録 notice
  *   and its `brainbase onboard:*` commands when the host's Graph has nothing registered.
- * @param {{ label?: string, text: string | Element }} [options.sourceNotice] Replaces the default 出典 notice.
+ * @param {{ label?: string, text: string | Element }} [options.sourceNotice] Replaces the default 出典 notice
+ *   inside the open record's 根拠と履歴.
  * @param {{ basePath: string, fetcher?: Function, label?: string }} [options.ownShare]
  *   The owner's own snapshot the host keeps for them (`graph-own-share.js`): the same search runs on
  *   `{basePath}/search` and its results are shown read-only in a separate section after the host's
@@ -305,12 +335,14 @@ function textCell(value, fallback) {
  *   enter the host's results or rail, and a failed read shows only in that section.  The host's
  *   results are then captioned as the organization's.  Without it nothing of the kind is drawn or read.
  *
- * The type filter lists the entity types of the `/ontology` answer once it has
- * been read (the four local kinds until then).  A type without a plain label
- * shows its raw id in the filter, the results ledger and the rail.
+ * The kind tabs list the entity types of the `/ontology` answer that have a
+ * plain name, people, companies and projects first (the four local kinds until
+ * it has been read).  A type without one is never named: it is listed under
+ * すべて as その他の記録.
  *
  * @returns The controller: `state`, `correction`, `render()`, `load()`, `search()`,
- *   `refreshResults()`, `loadEntity(id)`, `openEntity(id)`, `back()`, `loadOntology()`, and with
+ *   `clearFilter(key)`, `clearFilters()`, `refreshResults()`, `loadEntity(id)`, `navigate(id)`,
+ *   `openEntity(id)`, `closeEntity()`, `backToList()`, `back()`, `loadOntology()`, and with
  *   `ownShare` `searchOwn()` and `openOwnEntity(id)`.
  */
 export function createGraphRegistryView({
@@ -325,6 +357,7 @@ export function createGraphRegistryView({
   autoLoad = true,
   searchDelayMs = 300,
   initialEntityId,
+  onRouteChange,
   now = () => new Date(),
   canCorrect = true,
   correctionScope,
@@ -434,7 +467,7 @@ export function createGraphRegistryView({
       wrap.append(makeElement(doc, 'label', { text: label, attrs: { for: id } }), control);
       return wrap;
     };
-    const q = makeElement(doc, 'input', { attrs: { id: 'bb-gr-q', name: 'q', type: 'search', maxlength: 200, placeholder: '例: 田中', autocomplete: 'off', 'data-focus-key': 'q' } });
+    const q = makeElement(doc, 'input', { attrs: { id: 'bb-gr-q', name: 'q', type: 'search', maxlength: 200, placeholder: '名前・別名で探す（例: 田中）', autocomplete: 'off', 'data-focus-key': 'q' } });
     q.value = state.query.q;
     q.addEventListener('input', (event) => {
       state.query.q = event?.target?.value ?? q.value;
@@ -448,23 +481,8 @@ export function createGraphRegistryView({
       scheduleSearch();
       if (renderDeferred) controller.render();
     });
-    const typeField = makeElement(doc, 'div', { className: 'bb-graph-field' });
-    const typeBox = workspaceCombobox(doc, {
-      label: '種類',
-      options: graphTypeFilters(state.ontology).map(([value, label]) => ({ value, label })),
-      value: state.query.type,
-      placeholder: 'すべての種類',
-      className: 'bb-gr-type-combobox',
-      onChange: (value) => {
-        state.query.type = value;
-        cancelScheduledSearch();
-        void controller.search();
-      },
-    });
-    typeBox.trigger.setAttribute('id', 'bb-gr-type');
-    typeBox.trigger.setAttribute('data-focus-key', 'type');
-    typeField.append(makeElement(doc, 'label', { text: '種類', attrs: { for: 'bb-gr-type' } }), typeBox.root);
-    // The day filter is kept out of the way: few owners need to look at another day.
+    form.append(field('bb-gr-q', '名前・別名', q));
+    // Looking at another day is rare: it stays under 詳しい条件.
     const asOf = makeElement(doc, 'input', { attrs: { id: 'bb-gr-as-of', name: 'as_of', type: 'date', 'data-focus-key': 'as_of' } });
     asOf.value = state.query.asOfDay;
     asOf.addEventListener('change', (event) => {
@@ -477,15 +495,47 @@ export function createGraphRegistryView({
     advanced.addEventListener('toggle', () => { state.advancedOpen = Boolean(advanced.open); });
     advanced.append(
       makeElement(doc, 'summary', { text: '詳しい条件' }),
-      field('bb-gr-as-of', 'この日に有効だった記録だけ（空なら今日）', asOf, 'bb-gr-as-of-field'),
-      makeElement(doc, 'p', { className: 'bb-gr-hint', text: '日付を選ぶと、その日にはまだ始まっていない記録と、もう終わっていた記録を外して見ます。' }),
+      field('bb-gr-as-of', '過去のある日の状態で見る', asOf, 'bb-gr-as-of-field'),
+      makeElement(doc, 'p', { className: 'bb-gr-hint', text: '日付を選ぶと、その日に有効だった記録だけを、その日の状態で見ます。空なら今日です。' }),
     );
-    form.append(field('bb-gr-q', '名前・別名', q), typeField);
-    section.append(form, advanced);
+    section.append(form, renderTypeTabs(), advanced);
     if (state.queryMessage) section.append(workspaceNotice(doc, { label: '入力', text: state.queryMessage, tone: 'danger' }));
     const chips = renderActiveFilters();
     if (chips) section.append(chips);
     return section;
+  }
+
+  /**
+   * The kinds as tabs with their counts: people, companies and projects first.
+   * Only kinds with a plain name become tabs (an internal type id is never
+   * shown); an unread or unfinished count is left off rather than shown as 0.
+   */
+  function renderTypeTabs() {
+    const read = state.ontology.state === 'ok' && Array.isArray(state.ontology.payload?.entityTypes) ? state.ontology.payload.entityTypes : null;
+    const counts = new Map((read ?? []).map((item) => [item.id, item]));
+    const selected = state.query.type;
+    const ids = (read ? KIND_ORDER.filter((id) => counts.has(id)) : DEFAULT_KIND_TABS)
+      .filter((id) => id === selected || counts.get(id)?.count !== 0);
+    const tabs = makeElement(doc, 'div', { className: 'bb-gr-tabs', attrs: { role: 'tablist', 'aria-label': '種類' } });
+    for (const id of ['', ...ids]) {
+      const item = counts.get(id);
+      const count = Number.isInteger(item?.count) ? String(item.count)
+        : item?.countStatus === 'at_least' && Number.isInteger(item.atLeast) ? `${item.atLeast}+` : null;
+      const tab = makeElement(doc, 'button', {
+        className: `bb-gr-tab${id === selected ? ' is-selected' : ''}`,
+        attrs: { type: 'button', role: 'tab', 'aria-selected': id === selected ? 'true' : 'false', 'data-type': id, 'data-focus-key': `type:${id}` },
+      });
+      tab.append(makeElement(doc, 'span', { text: id ? kindLabel(id) : 'すべて' }));
+      if (count) tab.append(makeElement(doc, 'span', { className: 'bb-gr-tab-count', text: count }));
+      tab.addEventListener('click', () => {
+        if (state.query.type === id) return;
+        state.query.type = id;
+        cancelScheduledSearch();
+        void controller.search();
+      });
+      tabs.append(tab);
+    }
+    return tabs;
   }
 
   /** The conditions the results were read with, each removable, and すべて外す. */
@@ -493,8 +543,8 @@ export function createGraphRegistryView({
     const applied = state.applied;
     const items = [
       applied.q.trim() ? ['q', `名前・別名: ${applied.q.trim()}`] : null,
-      applied.type ? ['type', `種類: ${typeLabel(applied.type)}`] : null,
-      applied.asOfDay ? ['asOfDay', `${applied.asOfDay} の時点で有効なもの`] : null,
+      applied.type ? ['type', `種類: ${kindLabel(applied.type)}`] : null,
+      applied.asOfDay ? ['asOfDay', `${applied.asOfDay} の状態で見ています`] : null,
     ].filter(Boolean);
     if (items.length === 0) return null;
     const bar = makeElement(doc, 'div', { className: 'bb-gr-filters', attrs: { role: 'group', 'aria-label': '今の絞り込み' } });
@@ -509,21 +559,11 @@ export function createGraphRegistryView({
     return bar;
   }
 
-  /** Where the open record hangs: under its row when the results list it, otherwise above them. */
-  function anchoredRow() {
-    if (!state.detail || state.search.state !== 'ok') return null;
-    const key = state.anchor ?? state.detail.id;
-    return state.search.payload.results.some((entity) => entity.id === key) ? key : null;
-  }
-
   function renderResults() {
     const section = makeElement(doc, 'section', { className: 'bb-gr-results', attrs: { 'aria-label': '検索結果', 'aria-busy': state.searching ? 'true' : 'false' } });
     const stateNotice = graphStateNotice(doc, state.search, { onRetry: () => controller.search(), loadingText: '記録を探しています。' });
-    const rowKey = anchoredRow();
-    // A record not among the results (an address that named it, or a search still being read) opens above them.
-    const detailAbove = state.detail && !rowKey ? renderDetail() : null;
     if (stateNotice) {
-      section.append(...[detailAbove, stateNotice].filter(Boolean));
+      section.append(stateNotice);
       return section;
     }
     const { payload } = state.search;
@@ -549,31 +589,25 @@ export function createGraphRegistryView({
       className: 'bb-gr-caption',
       attrs: { role: 'status' },
       // Next to the owner's own share, these results are named as the organization's.
-      text: `${own ? '組織のGraphの' : ''}${Number.isInteger(payload.total) ? `検索結果 ${payload.total}件` : `検索結果 ${payload.results.length}件を表示（全体の件数は未確認）`}${asOfDay ? `（${asOfDay} の時点で有効なもの）` : ''}${state.searching ? '。新しい条件で探しています…' : ''}`,
+      text: `${own ? '組織のGraphの' : ''}${Number.isInteger(payload.total) ? `検索結果 ${payload.total}件` : `検索結果 ${payload.results.length}件を表示（全体の件数は未確認）`}${asOfDay ? `（${asOfDay} の状態）` : ''}${state.searching ? '。新しい条件で探しています…' : ''}`,
     }));
-    if (detailAbove) section.append(detailAbove);
+    // 最終更新 is a column only when the host says when records changed; it is never filled with guesses.
+    const updated = payload.results.some((entity) => updatedDay(entity));
     section.append(workspaceLedger(doc, {
-      className: 'bb-graph-entity-ledger',
+      className: `bb-graph-entity-ledger${updated ? ' has-updated' : ''}`,
       ariaLabel: '検索結果の一覧',
-      columns: GRAPH_ENTITY_LEDGER_COLUMNS,
+      columns: updated ? GRAPH_ENTITY_LEDGER_COLUMNS : GRAPH_ENTITY_LEDGER_COLUMNS.slice(0, 3),
       empty: '条件に合う記録はありません。名前・別名や種類、日付の条件を変えるか、上の「すべて外す」で条件を外してください。',
       rows: payload.results.map((entity) => ({
         key: entity.id,
-        selected: entity.id === rowKey,
         className: entity.active ? '' : 'is-ended',
-        expandable: true,
-        // Pressing the open row again closes its detail.
-        onSelect: (id) => {
-          focusRow = id;
-          if (id === rowKey) controller.closeEntity();
-          else void controller.openEntity(id);
-        },
-        ...(entity.id === rowKey ? { detail: renderDetail(), detailId: DETAIL_ID } : {}),
+        label: `${entity.name}（${kindLabel(entity.type)}）を開く`,
+        onSelect: (id) => { void controller.navigate(id); },
         cells: [
-          { primary: entity.name, secondary: entity.id },
-          typeLabel(entity.type),
-          textCell(entity.summary, '要約は未登録'),
-          validityLabel(entity, asOf ?? now().toISOString()),
+          entity.active ? { primary: entity.name } : { primary: entity.name, secondary: validityLabel(entity, asOf ?? now().toISOString()) },
+          kindLabel(entity.type),
+          textCell(entity.summary, '説明の記録なし'),
+          ...(updated ? [updatedDay(entity) ?? { text: '未確認', className: 'is-unresolved' }] : []),
         ],
       })),
     }));
@@ -660,18 +694,23 @@ export function createGraphRegistryView({
     return entity ? { id: entity.id, type: entity.type, metadata: entity.metadata ?? {} } : null;
   }
 
-  function renderWorkspace() {
+  /** Where the records come from: the host's notice, or this Mac's Graph. */
+  function sourceNoticeElement() {
     const dir = state.search.state === 'ok' ? textOrNull(state.search.payload.source?.dataDir) : null;
+    return workspaceHostNotice(doc, hostSourceNotice(sourceNotice, sourceSubject())) ?? workspaceNotice(doc, {
+      label: '出典',
+      text: `このMacのGraph${dir ? `（${dir}）` : ''}だけを表示します。ここで直した内容は、同じGraphを読むMCPの search・get_context・resolve_entity で次から使われます。`,
+    });
+  }
+
+  function renderWorkspace() {
+    if (state.detail) return [renderDetailPage()];
     return [
       workspacePageHeader(doc, {
         crumbs: context.crumbs,
         title: '情報と関係',
         lead: writable ? 'Graphに何がどう登録されているかを確かめ、誤りを直します。' : 'Graphに何がどう登録されているかを確かめます。',
         source: context.source,
-      }),
-      workspaceHostNotice(doc, hostSourceNotice(sourceNotice, sourceSubject())) ?? workspaceNotice(doc, {
-        label: '出典',
-        text: `このMacのGraph${dir ? `（${dir}）` : ''}だけを表示します。ここで直した内容は、同じGraphを読むMCPの search・get_context・resolve_entity で次から使われます。`,
       }),
       renderSearchForm(),
       renderResults(),
@@ -695,7 +734,7 @@ export function createGraphRegistryView({
       children.push(workspaceLedger(doc, {
         className: 'bb-graph-entity-ledger bb-graph-own-ledger',
         ariaLabel: `${own.label}の検索結果`,
-        columns: GRAPH_ENTITY_LEDGER_COLUMNS,
+        columns: OWN_LEDGER_COLUMNS,
         empty: '条件に合う記録は、この束にはありません。',
         rows: payload.results.map((entity) => ({
           key: entity.id,
@@ -722,217 +761,233 @@ export function createGraphRegistryView({
   }
 
   // -------------------------------------------------------------------------
-  // Right rail
-
-  function relationItem(edge, entity, asOf) {
-    const labels = ownLabel(GRAPH_RELATION_LABELS, edge.relation);
-    const item = makeElement(doc, 'li', { className: `bb-graph-compact${edge.active ? '' : ' is-ended'}` });
-    const head = makeElement(doc, 'div', { className: 'bb-graph-compact-head' });
-    const phrase = makeElement(doc, 'span', { className: 'bb-graph-relation' });
-    phrase.append(
-      badge(doc, relationLabel(edge.relation), 'accent'),
-      button(doc, edge.counterpart.name, () => controller.openEntity(edge.counterpart.id, {
-        from: entity,
-        pending: { id: edge.counterpart.id, name: edge.counterpart.name, type: edge.counterpart.type },
-      }), { className: 'bb-graph-link' }),
-      makeElement(doc, 'span', { text: labels ? (edge.direction === 'outgoing' ? labels.outgoing : labels.incoming) : '' }),
-    );
-    head.append(phrase, activityBadge(doc, edge, asOf));
-    item.append(head, workspaceDefinition(doc, [
-      ['関係の意味', labels?.meaning ?? edge.relation],
-      ['相手の種類', typeLabel(edge.counterpart.type)],
-      ['役割', textOrNull(edge.role)],
-      ...(textOrNull(edge.context) ? [['文脈', edge.context]] : []),
-      ['有効期間', validityText(edge.validFrom, edge.validTo)],
-      ['出典', renderProvenance(doc, edge.provenance)],
-    ]));
-    const subject = edge.direction === 'outgoing'
-      ? `${entity.name} → ${relationLabel(edge.relation)} → ${edge.counterpart.name}`
-      : `${edge.counterpart.name} → ${relationLabel(edge.relation)} → ${entity.name}`;
-    if (edgesWritable) {
-      item.append(workspaceActions(doc, [
-        workspaceButton(doc, { text: 'この関係を直す', variant: 'quiet', onClick: () => openCorrection(edge.id, () => correction.openEdge(edge, { mode: 'edit', subject })) }),
-      ]));
-    }
-    item.append(recordDetails(doc, [
-      ['関係ID', edge.id],
-      ['関係の種類ID', edge.relation],
-      ['起点ID', edge.fromId],
-      ['終点ID', edge.toId],
-      ['出典ID', edge.provenance.sourceId],
-      ['digest', edge.digest],
-    ], { title: 'この関係のID（技術情報）' }));
-    if (edgesWritable && state.panelAt === edge.id) {
-      const panel = correction.render(doc);
-      if (panel) item.append(panel);
-    }
-    return item;
-  }
-
-  function renderRelations(payload, direction) {
-    const { entity } = payload;
-    const kind = typeLabel(entity.type);
-    const outgoing = direction === 'outgoing';
-    const content = [makeElement(doc, 'p', {
-      className: 'bb-graph-block-lead',
-      text: outgoing
-        ? `この${kind}が起点になっている関係です。相手の名前を押すと、その記録を開きます。`
-        : `ほかの記録からこの${kind}へ向かう関係です。相手の名前を押すと、その記録を開きます。`,
-    })];
-    const edges = payload[direction];
-    if (edges.length === 0) {
-      const availability = relationAvailability(payload, direction);
-      if (availability.state === 'unknown') {
-        content.push(workspaceNotice(doc, {
-          label: '未確認',
-          tone: 'warning',
-          role: 'status',
-          text: availability.reason,
-        }));
-        content.push(workspaceActions(doc, [workspaceButton(doc, {
-          text: '再試行',
-          variant: 'quiet',
-          onClick: () => controller.loadEntity(entity.id, { keep: true }),
-        })]));
-      } else {
-        content.push(makeElement(doc, 'p', { className: 'bb-graph-empty', text: outgoing ? 'この記録から出る関係はありません。' : 'この記録へ入る関係はありません。' }));
-      }
-    } else {
-      const list = makeElement(doc, 'ul', { className: 'bb-graph-compact-list' });
-      for (const edge of edges) list.append(relationItem(edge, entity, payload.asOf));
-      content.push(list);
-    }
-    return workspaceRailBlock(doc, { title: outgoing ? '出る関係' : '入る関係', content });
-  }
-
-  function validityValue(entity, asOf) {
-    const wrap = makeElement(doc, 'span', { className: 'bb-graph-inline-value' });
-    wrap.append(makeElement(doc, 'span', { text: validityText(entity.validFrom, entity.validTo) }), activityBadge(doc, entity, asOf));
-    return wrap;
-  }
-
-  /** What the rail says: which record is open below its row, and a way there. */
-  function renderRail() {
-    // A host without a rail draws nothing after the workspace: the record is already open in it.
-    if (layout.inline) return [];
-    const detail = state.detail;
-    if (!detail) {
-      return [workspaceDetailEmpty(doc, {
-        mark: 'G',
-        title: '記録を選択',
-        text: '検索結果の行を押すと、その行のすぐ下に、別名・要約と、出る関係・入る関係を出典つきで開きます。',
-      })];
-    }
-    const entity = openEntityHead();
-    return [workspaceRailBlock(doc, {
-      title: '開いている記録',
-      className: 'bb-gr-rail-open',
-      content: [
-        workspaceRailHead(doc, { kicker: entity.type ? typeLabel(entity.type) : '記録', title: entity.name, sub: entity.id }),
-        makeElement(doc, 'p', { className: 'bb-graph-block-lead', text: '詳細は、検索結果のこの記録の行のすぐ下に開いています。' }),
-        workspaceActions(doc, [
-          workspaceButton(doc, { text: '詳細へ移る', variant: 'quiet', onClick: () => controller.revealDetail() }),
-          workspaceButton(doc, { text: '閉じる', variant: 'quiet', onClick: () => controller.closeEntity() }),
-        ]),
-      ],
-    })];
-  }
+  // The record's own screen: what it is, how it connects, the evidence, and how to fix it.
 
   function openEntityHead() {
     const detail = state.detail;
     return (detail.state === 'ok' ? detail.payload.entity : null) ?? detail.pending ?? { id: detail.id, name: detail.id, type: null };
   }
 
-  /** The open record, right below the row the owner pressed: its name heads it so it is clear what it details. */
-  function renderDetail() {
-    const detail = state.detail;
-    const panel = makeElement(doc, 'section', { className: 'bb-gr-detail', attrs: { id: DETAIL_ID, 'aria-label': '選んだ記録の詳細' } });
+  function pageSection(title, children, className = '') {
+    const section = makeElement(doc, 'section', { className: `bb-gr-page-section${className ? ` ${className}` : ''}`, attrs: { 'aria-label': title } });
+    section.append(makeElement(doc, 'h2', { className: 'bb-gr-page-title', text: title }), ...children.filter(Boolean));
+    return section;
+  }
+
+  /** A relation read as a sentence about this record: 「Acme に所属」「田中 太郎 が参加」. */
+  function relationSentence(edge, entity, { link = true } = {}) {
+    const line = makeElement(doc, 'span', { className: 'bb-gr-sentence' });
+    const name = link
+      ? button(doc, edge.counterpart.name, () => controller.navigate(edge.counterpart.id, {
+        from: entity,
+        pending: { id: edge.counterpart.id, name: edge.counterpart.name, type: edge.counterpart.type },
+      }), { className: 'bb-graph-link' })
+      : makeElement(doc, 'strong', { text: edge.counterpart.name });
+    line.append(name, makeElement(doc, 'span', { text: relationPhrase(edge) }));
+    const notes = [textOrNull(edge.role) ? `役割: ${edge.role}` : null, textOrNull(edge.context)].filter(Boolean);
+    if (notes.length > 0) line.append(makeElement(doc, 'span', { className: 'bb-gr-sentence-note', text: `（${notes.join('・')}）` }));
+    return line;
+  }
+
+  /** つながり: every relation in one list, grouped by the kind of the other record. */
+  function renderConnections(payload) {
+    const { entity } = payload;
+    const edges = [...payload.outgoing, ...payload.incoming];
     const children = [];
-    const loaded = detail.state === 'ok' ? detail.payload : null;
-    const entity = openEntityHead();
-    const head = makeElement(doc, 'div', { className: 'bb-gr-detail-head' });
-    const heading = workspaceRailHead(doc, {
-      kicker: `選んだ記録の詳細・${entity.type ? typeLabel(entity.type) : '記録'}`,
-      title: entity.name,
-      sub: entity.id,
-    });
-    heading.setAttribute('tabindex', '-1');
-    heading.setAttribute('data-detail-heading', '');
-    head.append(heading, button(doc, '閉じる', () => controller.closeEntity(), { className: 'bb-ws-button is-quiet bb-gr-detail-close', attrs: { 'aria-label': `「${entity.name}」の詳細を閉じる` } }));
-    children.push(head);
-    // Followed from a relation: say where it started and how to go back.
-    const previous = state.trail[state.trail.length - 1];
-    if (previous) {
-      const origin = state.trail[0];
-      const trail = makeElement(doc, 'p', { className: 'bb-gr-detail-trail' });
-      trail.append(
-        makeElement(doc, 'span', { text: `「${origin.name}」の関係からたどっています。` }),
-        button(doc, `← 前の記録（${previous.name}）に戻る`, () => controller.back(), { className: 'bb-graph-link bb-graph-back' }),
-      );
-      children.push(trail);
+    const unknown = ['outgoing', 'incoming'].map((direction) => relationAvailability(payload, direction)).find((item) => item.state === 'unknown');
+    if (unknown) {
+      children.push(workspaceNotice(doc, { label: '確認できない', tone: 'warning', role: 'status', text: unknown.reason }));
+      children.push(workspaceActions(doc, [workspaceButton(doc, { text: '再試行', variant: 'quiet', onClick: () => controller.loadEntity(entity.id, { keep: true }) })]));
     }
-    if (!loaded) {
-      children.push(graphStateNotice(doc, detail, { onRetry: () => controller.loadEntity(detail.id), loadingText: 'この記録を読み込んでいます。' }));
-      panel.append(...children.filter(Boolean));
-      return panel;
+    if (edges.length === 0) {
+      if (!unknown) children.push(makeElement(doc, 'p', { className: 'bb-graph-empty', text: 'この記録とつながる記録はありません。' }));
+      return pageSection('つながり', children, 'bb-gr-connections');
     }
-    children.push(renderGraphIssues(doc, loaded.issues));
-    // The record a host's read-only note may point at.
-    const noteSubject = { id: entity.id, type: entity.type, metadata: loaded.entity?.metadata ?? {} };
-    const summaryRows = [
-      ['別名', entity.aliases.length > 0 ? entity.aliases.join('、') : { text: 'なし', className: 'is-unrecorded' }],
-      ['要約', textOrNull(entity.summary) ?? { text: '要約は未登録', className: 'is-unrecorded' }],
-      ['有効期間', validityValue(entity, loaded.asOf)],
-      ...(entity.type === 'project' ? [['目的', textOrNull(entity.goal)], ['状態', textOrNull(entity.status)]] : []),
-      ...(state.applied.asOfDay ? [['見ている時点', `${state.applied.asOfDay} の時点で有効なものを見ています`]] : []),
-    ];
-    children.push(workspaceRailBlock(doc, {
-      title: '概要',
-      content: [
-        workspaceDefinition(doc, summaryRows),
-        recordDetails(doc, [['記録ID', entity.id], ['種類ID', entity.type], ['digest', entity.digest], ['読み取った時点', loaded.asOf]], { title: 'この記録のID（技術情報）' }),
-      ],
-    }));
-    if (writable) {
-      const canFix = scope.entity(entity.type) && scope.fields(graphEntityCorrectionFields(entity.type)).length > 0;
-      const relatable = newRelationOptions(entity.type).length > 0;
-      const related = loaded.outgoing.length + loaded.incoming.length > 0;
-      const correctionEntries = [
-        canFix ? '「この記録を直す」' : null,
-        relatable && scope.createEdges ? '「関係を加える」' : null,
-        related && scope.edges ? '関係ごとの「この関係を直す」' : null,
-      ].filter(Boolean);
-      if (correctionEntries.length > 0) {
-        const lastEntry = correctionEntries.at(-1);
-        const entries = correctionEntries.length === 1
-          ? lastEntry
-          : `${correctionEntries.slice(0, -1).join('、')}、または${lastEntry}`;
-        children.push(workspaceRailBlock(doc, {
-          title: '訂正の流れ',
-          content: makeElement(doc, 'p', {
-            text: `誤りを見つけたときの訂正入口です。${entries}から変更案を入力します。承認待ちの提出ではなく、保存するとその場でGraphに反映され、理由と変更前後が履歴に残ります。保存後に読み直して一致を確かめ、確認できた内容は、次のMCPの search・get_context・resolve_entity で使われます。`,
-          }),
-        }));
+    const groups = new Map();
+    for (const edge of edges) {
+      const kind = kindLabel(edge.counterpart.type);
+      if (!groups.has(kind)) groups.set(kind, []);
+      groups.get(kind).push(edge);
+    }
+    const order = (kind) => {
+      const index = KIND_ORDER.findIndex((id) => KIND_LABELS[id] === kind);
+      return index < 0 ? KIND_ORDER.length : index;
+    };
+    for (const [kind, items] of [...groups].sort(([left], [right]) => order(left) - order(right))) {
+      const group = makeElement(doc, 'div', { className: 'bb-gr-connection-group', attrs: { role: 'group', 'aria-label': kind } });
+      group.append(makeElement(doc, 'h3', { className: 'bb-gr-connection-kind', text: `${kind}（${items.length}）` }));
+      const list = makeElement(doc, 'ul', { className: 'bb-gr-connection-list' });
+      for (const edge of items) {
+        const item = makeElement(doc, 'li', { className: `bb-gr-connection${edge.active ? '' : ' is-ended'}` });
+        item.append(relationSentence(edge, entity));
+        // An ended or future relation says when, not only that it is not in effect.
+        if (!edge.active) item.append(makeElement(doc, 'span', { className: 'bb-gr-connection-validity', text: validityLabel(edge, payload.asOf) }));
+        list.append(item);
       }
-      const actions = [
-        canFix ? workspaceButton(doc, { text: 'この記録を直す', onClick: () => openCorrection('entity', () => correction.openEntity(entity, { title: 'この記録を直す' })) }) : null,
-        relatable && scope.createEdges
-          ? workspaceButton(doc, { text: '関係を加える', onClick: () => openCorrection('entity', () => correction.openCreate(entity, { title: '関係を加える' })) })
-          : null,
-      ].filter(Boolean);
-      if (actions.length > 0) children.push(workspaceActions(doc, actions));
-      // A correction opened on a relation shows inside that relation; any other shows here.
-      const inRelation = [...loaded.outgoing, ...loaded.incoming].some((edge) => edge.id === state.panelAt);
-      if (!inRelation) children.push(correction.render(doc));
-      // The host's reason for a control it withholds, where that control would be.
-      if (!canFix || (relatable && !scope.createEdges) || (related && !scope.edges)) children.push(hostReadOnlyNote(doc, readOnlyNote, noteSubject));
-    } else {
+      group.append(list);
+      children.push(group);
+    }
+    return pageSection('つながり', children, 'bb-gr-connections');
+  }
+
+  /** 根拠と履歴, folded: where each fact came from, its period, the corrections and the ids. */
+  function renderEvidence(payload) {
+    const { entity } = payload;
+    const edges = [...payload.outgoing, ...payload.incoming];
+    const details = makeElement(doc, 'details', { className: 'bb-gr-evidence' });
+    details.append(makeElement(doc, 'summary', { text: '出典・有効期間・訂正の履歴を見る' }));
+    const body = makeElement(doc, 'div', { className: 'bb-gr-evidence-body' });
+    body.append(...[
+      sourceNoticeElement(),
+      renderGraphIssues(doc, payload.issues),
+      workspaceDefinition(doc, [
+        ['有効期間', validityText(entity.validFrom, entity.validTo)],
+        ['読み取った日', formatDay(payload.asOf) ?? textOrNull(payload.asOf)],
+      ]),
+    ].filter(Boolean));
+    if (edges.length > 0) {
+      const list = makeElement(doc, 'ul', { className: 'bb-gr-evidence-list', attrs: { 'aria-label': '関係ごとの出典' } });
+      for (const edge of edges) {
+        const item = makeElement(doc, 'li', { className: 'bb-gr-evidence-item' });
+        item.append(relationSentence(edge, entity, { link: false }), workspaceDefinition(doc, [
+          ['有効期間', validityText(edge.validFrom, edge.validTo)],
+          ['出典', renderProvenance(doc, edge.provenance)],
+        ]), recordDetails(doc, [
+          ['関係ID', edge.id],
+          ['関係の種類ID', edge.relation],
+          ['起点ID', edge.fromId],
+          ['終点ID', edge.toId],
+          ['出典ID', edge.provenance.sourceId],
+          ['digest', edge.digest],
+        ], { title: 'この関係のID（技術情報）' }));
+        list.append(item);
+      }
+      body.append(list);
+    }
+    body.append(...[
+      renderCorrectionHistory(doc, payload.history),
+      recordDetails(doc, [['記録ID', entity.id], ['種類ID', entity.type], ['digest', entity.digest], ['読み取った時点', payload.asOf]], { title: 'この記録のID（技術情報）' }),
+    ].filter(Boolean));
+    details.append(body);
+    return pageSection('根拠と履歴', [details], 'bb-gr-evidence-section');
+  }
+
+  /** 直す: first what a fix reaches, then the entries; a correction opens where it was asked for. */
+  function renderFix(payload) {
+    const { entity } = payload;
+    const noteSubject = { id: entity.id, type: entity.type, metadata: payload.entity?.metadata ?? {} };
+    const edges = [...payload.outgoing, ...payload.incoming];
+    if (!writable) {
+      const note = hostReadOnlyNote(doc, readOnlyNote, noteSubject);
+      return note ? pageSection('直す', [note], 'bb-gr-fix') : null;
+    }
+    const canFix = scope.entity(entity.type) && scope.fields(graphEntityCorrectionFields(entity.type)).length > 0;
+    const relatable = newRelationOptions(entity.type).length > 0 && scope.createEdges;
+    const editableEdges = scope.edges ? edges : [];
+    const children = [];
+    const counterparts = [...new Set(edges.map((edge) => edge.counterpart.name))];
+    const reach = makeElement(doc, 'ul', { className: 'bb-graph-plain-list bb-gr-reach' });
+    reach.append(makeElement(doc, 'li', { text: `この${kindLabel(entity.type)}を名前・別名で探す検索と、MCPの search・get_context・resolve_entity（次の呼び出しから）` }));
+    if (counterparts.length > 0) {
+      const shown = counterparts.slice(0, 5).join('、');
+      reach.append(makeElement(doc, 'li', { text: `つながる${counterparts.length}件の記録（${shown}${counterparts.length > 5 ? ' ほか' : ''}）の詳細に出る、この記録の名前とつながり` }));
+    }
+    children.push(makeElement(doc, 'p', { className: 'bb-graph-block-lead', text: '直す前に、影響する先を確かめてください。直した内容は次に効きます。' }), reach);
+    const entries = [
+      canFix ? '「この記録を直す」' : null,
+      relatable ? '「関係を加える」' : null,
+      edgesWritable && editableEdges.length > 0 ? '関係ごとの「この関係を直す」' : null,
+    ].filter(Boolean);
+    if (entries.length > 0) {
+      const last = entries.at(-1);
+      const list = entries.length === 1 ? last : `${entries.slice(0, -1).join('、')}、または${last}`;
+      children.push(makeElement(doc, 'p', {
+        className: 'bb-gr-fix-flow',
+        text: `誤りを見つけたときの訂正入口です。${list}から変更案を入力します。承認待ちの提出ではなく、保存するとその場でGraphに反映され、理由と変更前後が履歴に残ります。保存後に読み直して一致を確かめ、確認できた内容は、次のMCPの search・get_context・resolve_entity で使われます。`,
+      }));
+    }
+    const actions = [
+      canFix ? workspaceButton(doc, { text: 'この記録を直す', onClick: () => openCorrection('entity', () => correction.openEntity(entity, { title: 'この記録を直す' })) }) : null,
+      relatable ? workspaceButton(doc, { text: '関係を加える', onClick: () => openCorrection('entity', () => correction.openCreate(entity, { title: '関係を加える' })) }) : null,
+    ].filter(Boolean);
+    if (actions.length > 0) children.push(workspaceActions(doc, actions));
+    // A correction opened on a relation shows inside that relation; any other shows here.
+    const inRelation = editableEdges.some((edge) => edge.id === state.panelAt);
+    if (!inRelation) children.push(correction.render(doc));
+    if (edgesWritable && editableEdges.length > 0) {
+      const list = makeElement(doc, 'ul', { className: 'bb-gr-fix-relations', attrs: { 'aria-label': '関係を直す' } });
+      for (const edge of editableEdges) {
+        const item = makeElement(doc, 'li', { className: 'bb-gr-fix-relation' });
+        const subject = edge.direction === 'outgoing'
+          ? `${entity.name} → ${relationLabel(edge.relation)} → ${edge.counterpart.name}`
+          : `${edge.counterpart.name} → ${relationLabel(edge.relation)} → ${entity.name}`;
+        item.append(relationSentence(edge, entity, { link: false }), workspaceButton(doc, {
+          text: 'この関係を直す',
+          variant: 'quiet',
+          onClick: () => openCorrection(edge.id, () => correction.openEdge(edge, { mode: 'edit', subject })),
+        }));
+        if (state.panelAt === edge.id) {
+          const panel = correction.render(doc);
+          if (panel) item.append(panel);
+        }
+        list.append(item);
+      }
+      children.push(list);
+    }
+    // The host's reason for a control it withholds, where that control would be.
+    if (!canFix || (newRelationOptions(entity.type).length > 0 && !scope.createEdges) || (edges.length > 0 && !scope.edges)) {
       children.push(hostReadOnlyNote(doc, readOnlyNote, noteSubject));
     }
-    children.push(renderRelations(loaded, 'outgoing'), renderRelations(loaded, 'incoming'));
-    children.push(renderCorrectionHistory(doc, loaded.history));
-    panel.append(...children.filter(Boolean));
-    return panel;
+    return pageSection('直す', children, 'bb-gr-fix');
+  }
+
+  /**
+   * The open record as its own screen: back to the list, its name and kind, then
+   * 何者か → つながり → 根拠と履歴 → 直す.  使われた場所 is not drawn: no read path
+   * reaches the work, judgments and minutes that mention a record yet.
+   */
+  function renderDetailPage() {
+    const detail = state.detail;
+    const loaded = detail.state === 'ok' ? detail.payload : null;
+    const entity = openEntityHead();
+    const page = makeElement(doc, 'article', { className: 'bb-gr-detail', attrs: { id: DETAIL_ID, 'aria-label': `${entity.name}の詳細` } });
+    const nav = makeElement(doc, 'nav', { className: 'bb-gr-detail-nav', attrs: { 'aria-label': '戻る' } });
+    nav.append(button(doc, '← 情報と関係の一覧に戻る', () => controller.backToList(), { className: 'bb-graph-link bb-gr-detail-back' }));
+    const previous = state.trail[state.trail.length - 1];
+    if (previous) nav.append(button(doc, `← 前の記録（${previous.name}）に戻る`, () => controller.back(), { className: 'bb-graph-link bb-gr-detail-back' }));
+    page.append(nav);
+    const head = makeElement(doc, 'header', { className: 'bb-gr-detail-head' });
+    head.append(makeElement(doc, 'small', { className: 'bb-gr-detail-kind', text: entity.type ? kindLabel(entity.type) : '記録' }));
+    // The heading keeps focus across the redraw that follows the record's read.
+    const title = makeElement(doc, 'h1', { text: entity.name, attrs: { tabindex: '-1', 'data-detail-heading': '', 'data-focus-key': 'detail-heading' } });
+    head.append(title);
+    if (loaded && !loaded.entity.active) head.append(activityBadge(doc, loaded.entity, loaded.asOf));
+    if (state.trail.length > 0) head.append(makeElement(doc, 'p', { className: 'bb-gr-detail-trail', text: `「${state.trail[0].name}」のつながりからたどっています。` }));
+    page.append(head);
+    if (!loaded) {
+      page.append(graphStateNotice(doc, detail, { onRetry: () => controller.loadEntity(detail.id), loadingText: 'この記録を読み込んでいます。' }));
+      return page;
+    }
+    const record = loaded.entity;
+    page.append(
+      pageSection('何者か', [workspaceDefinition(doc, [
+        ['種類', kindLabel(record.type)],
+        ['説明', textOrNull(record.summary) ?? { text: '説明の記録なし', className: 'is-unrecorded' }],
+        ['別名', record.aliases.length > 0 ? record.aliases.join('、') : { text: 'なし', className: 'is-unrecorded' }],
+        ...(record.type === 'project' ? [['目的', textOrNull(record.goal)], ['状態', textOrNull(record.status)]] : []),
+        ...(state.applied.asOfDay ? [['見ている日', `${state.applied.asOfDay} の状態`]] : []),
+      ])], 'bb-gr-identity'),
+      renderConnections(loaded),
+      renderEvidence(loaded),
+    );
+    const fix = renderFix(loaded);
+    if (fix) page.append(fix);
+    return page;
+  }
+
+  /** The rail stays empty: the record opens as its own screen in the workspace. */
+  function renderRail() {
+    return [];
   }
 
   function closeCorrection() {
@@ -946,22 +1001,6 @@ export function createGraphRegistryView({
 
   async function readSearch(query) {
     return normalizeSearch(await client.read('/search', searchParams(query)));
-  }
-
-  /** Keeps the open record only while the row it hangs from is among the new results. */
-  async function followResults() {
-    const detail = state.detail;
-    if (!detail) return;
-    const key = state.anchor ?? detail.id;
-    const listed = state.search.state === 'ok' && state.search.payload.results.some((entity) => entity.id === key);
-    if (!listed) {
-      closeCorrection();
-      state.detail = null;
-      state.anchor = null;
-      state.trail = [];
-      return;
-    }
-    await controller.loadEntity(detail.id, { keep: true });
   }
 
   /** The focused search control, so a redraw (which rebuilds the form) can give focus back. */
@@ -982,14 +1021,21 @@ export function createGraphRegistryView({
     }
   }
 
-  /** Brings the open record's heading into view and onto focus, once after the owner opened it. */
-  function showDetail({ focus = false } = {}) {
+  /** Puts the opened record's screen at the top, with focus on its name. */
+  function showDetail() {
     if (typeof root.querySelector !== 'function') return;
     const heading = root.querySelector('[data-detail-heading]');
     if (!heading) return;
-    heading.scrollIntoView?.({ block: 'nearest' });
-    if (focus) heading.focus?.({ preventScroll: true });
+    heading.scrollIntoView?.({ block: 'start' });
+    heading.focus?.({ preventScroll: true });
   }
+
+  // Escape on the record's screen goes back to the list, like 「← 一覧に戻る」.
+  root.addEventListener?.('keydown', (event) => {
+    if (event?.key !== 'Escape' || !state.detail || correction.form) return;
+    event.preventDefault?.();
+    controller.backToList();
+  });
 
   const controller = {
     get state() { return state; },
@@ -1003,8 +1049,11 @@ export function createGraphRegistryView({
       renderDeferred = false;
       const saved = focusedControl();
       layout.render(renderWorkspace(), renderRail());
-      if (focusRow) {
+      if (focusRow && !state.detail) {
+        // Back on the list: the row of the record just left, in view and focused.
         focusLedgerRow(root, focusRow);
+        [...(root.querySelectorAll?.('.bb-ws-ledger-row[data-key]') ?? [])]
+          .find((row) => row.getAttribute('data-key') === focusRow)?.scrollIntoView?.({ block: 'center' });
         focusRow = null;
       } else {
         restoreFocus(saved);
@@ -1017,7 +1066,7 @@ export function createGraphRegistryView({
     },
     /**
      * Runs the search in the form.  The last results stay on screen while the
-     * new ones are read; the open record stays while its row is among them.
+     * new ones are read.
      */
     async search() {
       cancelScheduledSearch();
@@ -1041,7 +1090,6 @@ export function createGraphRegistryView({
       }
       state.searching = false;
       state.search = result;
-      await followResults();
       controller.render();
       await owning;
       return state.search;
@@ -1061,8 +1109,13 @@ export function createGraphRegistryView({
       root.querySelector?.('[data-focus-key="q"]')?.focus?.({ preventScroll: true });
       return result;
     },
-    /** Closes the open record. */
+    /**
+     * Closes the record's screen and shows the list again, with the row of the
+     * record that was opened from it focused.  The host calls this when its
+     * address no longer names a record (the browser's back).
+     */
     closeEntity() {
+      if (!state.detail) return null;
       closeCorrection();
       const anchor = state.anchor;
       state.detail = null;
@@ -1072,9 +1125,17 @@ export function createGraphRegistryView({
       controller.render();
       return null;
     },
-    /** Moves to the open record below its row (the rail's 詳細へ移る). */
-    revealDetail() {
-      showDetail({ focus: true });
+    /** 「← 一覧に戻る」 and Escape: closes the record and tells the host the address is the list again. */
+    backToList() {
+      controller.closeEntity();
+      onRouteChange?.(null, { back: true });
+      return null;
+    },
+    /** Opens a record the owner chose (a row, or a connection) and tells the host its address. */
+    async navigate(id, options = {}) {
+      // The address first, while the list is still where the owner left it (the browser keeps that scroll for 戻る).
+      onRouteChange?.(id, { back: false });
+      return controller.openEntity(id, options);
     },
     /** Runs the applied search on the owner's own share (with `ownShare`); a failure stays in that section. */
     async searchOwn() {
@@ -1142,12 +1203,14 @@ export function createGraphRegistryView({
       return state.detail;
     },
     /**
-     * Opens a record in the rail.  `from` (the record being left) makes 戻る
-     * return to it; a row of the results starts a new trail.
+     * Opens a record as its own screen.  `from` (the record being left) makes
+     * 前の記録に戻る return to it; otherwise a new trail starts.  The host calls
+     * this for an address that names a record; it does not report back.
      */
     async openEntity(id, { from, pending } = {}) {
+      // The host's address catching up with a record already open changes nothing.
+      if (!from && state.detail?.id === id) return state.detail;
       closeCorrection();
-      // A relation followed from the open record keeps opening below the same row.
       if (from) state.trail.push({ id: from.id, name: from.name, type: from.type });
       else {
         state.trail = [];
@@ -1162,6 +1225,7 @@ export function createGraphRegistryView({
       const previous = state.trail.pop();
       if (!previous) return state.detail;
       revealDetail = true;
+      onRouteChange?.(previous.id, { back: false });
       return controller.loadEntity(previous.id, { pending: previous });
     },
     async loadOntology({ keep = false } = {}) {
