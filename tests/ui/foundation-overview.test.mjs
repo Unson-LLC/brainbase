@@ -428,3 +428,144 @@ test('collection reports one pending state without per-project loading bands or 
   assert.match(textOf(root), /catalog unavailable/);
   assert.doesNotMatch(textOf(root), /取得済みの範囲|読み込んでいます/);
 });
+
+function unscopedPhilosophy(id, overrides = {}) {
+  return {
+    kind: 'philosophy', id, version: 1, applicability: null, applicability_state: 'unrecorded',
+    payload: { title: '見えなければ価値ではない', statement: '利用者の画面に見えなければ価値ではない。', status: 'active' },
+    ...overrides,
+  };
+}
+
+test('shows philosophies without recorded applicability instead of reporting none registered', async () => {
+  const root = new FakeElement('main');
+  const port = { readCatalog: async () => catalog({ philosophies: [], philosophies_without_applicability: [unscopedPhilosophy('phi_visible_or_not_value')] }) };
+  const controller = createFoundationOverview({ root, port, scopeId: 'project-alpha', document: doc, autoLoad: false });
+  await controller.load();
+  const visible = textOf(root);
+
+  assert.doesNotMatch(visible, /登録された哲学がありません/);
+  assert.match(visible, /次の1件は、判断への適用範囲が記録されていない哲学です/);
+  assert.match(visible, /見えなければ価値ではない/);
+  assert.match(visible, /利用者の画面に見えなければ価値ではない。/);
+  assert.match(visible, /適用範囲.*未記録/s);
+  assert.equal(byClass(root, 'bb-fov-philosophy-card').length, 1);
+});
+
+test('keeps an older host without the unscoped list from claiming no philosophy exists', async () => {
+  const root = new FakeElement('main');
+  const port = { readCatalog: async () => catalog({ philosophies: [] }) };
+  const controller = createFoundationOverview({ root, port, scopeId: 'project-alpha', document: doc, autoLoad: false });
+  await controller.load();
+  const visible = textOf(root);
+  assert.doesNotMatch(visible, /この対象範囲には登録された哲学がありません/);
+  assert.match(visible, /適用範囲が未記録の哲学があるかは確認できていません/);
+
+  const known = new FakeElement('main');
+  const empty = createFoundationOverview({ root: known, port: { readCatalog: async () => catalog({ philosophies: [], philosophies_without_applicability: [] }) }, scopeId: 'project-alpha', document: doc, autoLoad: false });
+  await empty.load();
+  assert.match(textOf(known), /この対象範囲には登録された哲学がありません/);
+});
+
+test('rejects a malformed unscoped philosophy instead of dropping it', () => {
+  assert.throws(
+    () => normalizeFoundationCatalog(catalog({ philosophies_without_applicability: [unscopedPhilosophy('x', { applicability_state: 'recorded' })] }), 'project-alpha'),
+    /適用範囲が未記録の哲学/,
+  );
+  assert.throws(
+    () => normalizeFoundationCatalog(catalog({ philosophies_without_applicability: [unscopedPhilosophy('x', { payload: { statement: '' } })] }), 'project-alpha'),
+    /適用範囲が未記録の哲学/,
+  );
+});
+
+test('collection merges unscoped philosophies with their project provenance', () => {
+  const root = doc.createElement('div');
+  const a = catalog({ philosophies: [], philosophies_without_applicability: [unscopedPhilosophy('phi-a')] });
+  const b = catalog({ scopeId: 'project-beta', philosophies: [], philosophies_without_applicability: [unscopedPhilosophy('phi-b', { payload: { title: 'Beta哲学', statement: 'Betaの本文' } })] });
+  const sources = [a, b].map((value, i) => ({ scopeId: value.scopeId, label: i ? 'Beta' : 'Alpha', state: { status: 'ready', catalog: value } }));
+  renderFoundationCollectionOverview(root, sources, { document: doc });
+  assert.equal(byClass(root, 'bb-fov-philosophy-card').length, 2);
+  assert.match(textOf(root), /次の2件は/);
+  assert.match(textOf(root), /Beta哲学/);
+  assert.doesNotMatch(textOf(root), /登録された哲学がありません/);
+});
+
+// What a reader sees without opening a record's details: section disclosures count as open,
+// the per-record "記録の詳細" disclosures do not.
+const frontText = (node) => {
+  if (!node) return '';
+  if (node.tagName === 'DETAILS' && !String(node.className).split(' ').includes('bb-ws-disclosure')) {
+    return textOf(node.children.find((child) => child.tagName === 'SUMMARY'));
+  }
+  return `${node.textContent ?? ''}${(node.children ?? []).map(frontText).join('')}`;
+};
+
+test('keeps record ids, digests, field names and secondary states behind the record details', async () => {
+  const root = new FakeElement('main');
+  const objective = objectiveRecord({
+    id: 'fnd_objective_7f3a',
+    provenance: [
+      { sourceId: 'foundation-objective-editor', sourceKind: 'candidate', evidenceIds: [] },
+      { sourceId: 'foundation-adoption:fnd_objective_7f3a@1', sourceKind: 'decision', evidenceIds: ['dec_91ab'] },
+    ],
+  });
+  const model = foundationRecord('model', 'fnd_model_c0ffee', '3', {
+    meaning: '施策が利益に影響する',
+    adoptionState: 'approved',
+    authorizedUses: ['judgment', 'evaluation'],
+    epistemicState: 'hypothesis',
+    validationState: 'in_progress',
+    inputVariableRefs: [{ id: 'variable-profit', type: 'variable', revision: '1' }],
+    outputVariableRefs: [{ id: 'fnd_variable_missing', type: 'variable', revision: '2' }],
+    applicability: { subjectIds: ['prj_8d2e'], validFrom: '2026-01-01T00:00:00.000Z', validUntil: '2026-12-31T00:00:00.000Z' },
+    relationship: '施策が利益へ影響する',
+    uncertainty: '因果関係は未検証',
+  });
+  model.details = { applicability_text: 'AI生成資料・要約・提案書' };
+  const unnamed = foundationRecord('model', 'fnd_model_unnamed', '1', { meaning: undefined });
+  delete unnamed.definition.meaning;
+  const controller = createFoundationOverview({
+    root,
+    port: { readCatalog: async () => catalog({ objectives: [objective], models: [model, unnamed] }) },
+    scopeId: 'project-alpha',
+    document: doc,
+    autoLoad: false,
+  });
+  await controller.load();
+  doc.body.replaceChildren();
+  byAttr(root, 'data-key', 'fnd_objective_7f3a@2')[0].dispatch('click');
+  const front = frontText(root) + frontText(doc.body);
+  const everything = textOf(root) + textOf(doc.body);
+
+  // Ids and secondary states move behind the details, where correction and tracing still find them.
+  for (const internal of ['fnd_objective_7f3a', 'fnd_model_c0ffee', 'fnd_variable_missing', 'variable-profit@1', 'sha256:', 'prj_8d2e',
+    'foundation-adoption', 'dec_91ab', '許可用途', '登録状態']) {
+    assert.equal(front.includes(internal), false, `${internal} is visible before opening the record details: ${front.slice(Math.max(0, front.indexOf(internal) - 80), front.indexOf(internal) + 40)}`);
+    assert.equal(everything.includes(internal), true, `${internal} stays reachable in the record details`);
+  }
+  // Field names of the stored shape are never the words of the screen.
+  for (const field of ['validFrom', 'validUntil', 'subjectIds', '{"']) {
+    assert.equal(front.includes(field), false, `${field} is visible before opening the record details`);
+  }
+  assert.match(front, /候補からの登録/);
+  assert.match(front, /決定（証拠1件）/);
+  // The record's own words say where it applies; the stored scope is ids and a registration time.
+  assert.match(front, /適用範囲AI生成資料・要約・提案書/);
+  assert.match(front, /範囲の説明は記録されていません/);
+  assert.doesNotMatch(front, /2026-01-01 から/);
+  assert.match(everything, /登録上の開始日時2026-01-01 から 2026-12-31 まで/);
+  assert.match(front, /確からしさ: 仮説/);
+  assert.match(front, /名前の記録がない変数/);
+  assert.match(front, /名前の記録なし/);
+});
+
+test('keeps the id of an unnamed unscoped philosophy in its record details', () => {
+  const root = doc.createElement('div');
+  const unnamed = unscopedPhilosophy('phi_internal_id', { payload: { statement: '名前の無い哲学の本文' } });
+  const sources = [{ scopeId: 'project-alpha', label: 'Alpha', state: { status: 'ready', catalog: catalog({ philosophies: [], philosophies_without_applicability: [unnamed] }) } }];
+  renderFoundationCollectionOverview(root, sources, { document: doc });
+  const heading = textOf(byClass(root, 'bb-fov-philosophy-card')[0].children.find((child) => child.tagName === 'H3'));
+  assert.equal(heading, '名前の記録なし');
+  assert.doesNotMatch(frontText(root), /phi_internal_id/);
+  assert.match(textOf(root), /phi_internal_id/);
+});

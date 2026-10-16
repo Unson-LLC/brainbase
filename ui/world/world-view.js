@@ -672,7 +672,7 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear, 
   const highlightedMaterials = new Set();
 
   // --- plaza ---------------------------------------------------------------
-  function buildPlaza(rows, rowItems, waitingOf, now) {
+  function buildPlaza(rows, rowItems, waitingOf, now, { state = null } = {}) {
     const plaza = new THREE.Group();
     plaza.add(mesh(new THREE.CylinderGeometry(PLAZA_RADIUS + 2.2, PLAZA_RADIUS + 2.6, 0.3, 64), standard(0x9fbf9d, { roughness: 1 }), { y: 0.15 }));
     plaza.add(mesh(new THREE.CylinderGeometry(PLAZA_RADIUS, PLAZA_RADIUS + 0.4, 0.7, 64), standard(0xf3efe6, { roughness: 0.9 }), { y: 0.35 }));
@@ -694,7 +694,16 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear, 
     }
     scene.add(plaza);
     register(plaza, { kind: 'plaza' });
-    addLabel('広場（判断）', new THREE.Vector3(0, 0.8, PLAZA_RADIUS + 2.8), 'is-plaza', { priority: LABEL_PRIORITY.plaza });
+    // The name says when the judgments are not there to stand (未接続), so an empty plaza is not read as zero.
+    const plazaLabel = addLabel(state ? `広場（判断：${state}）` : '広場（判断）', new THREE.Vector3(0, 0.8, PLAZA_RADIUS + 2.8), 'is-plaza', { priority: LABEL_PRIORITY.plaza, owner: plaza });
+    // The name is a way in too, as a city's name is: pressing it opens what the plaza is.
+    plazaLabel.node.classList.add('is-enterable');
+    plazaLabel.node.title = '広場が何かを見る';
+    plazaLabel.node.setAttribute('data-enter', '広場を見る');
+    plazaLabel.node.addEventListener('click', () => {
+      select(plaza);
+      onPick(plaza.userData, new THREE.Vector3(0, 0, 0));
+    });
     for (let i = 0; i < 10; i += 1) {
       const angle = (i / 10) * Math.PI * 2 + 0.3;
       tree(Math.cos(angle) * (PLAZA_RADIUS + 1.3), Math.sin(angle) * (PLAZA_RADIUS + 1.3), 0.7);
@@ -1413,6 +1422,10 @@ function renderFallbackList(doc, root, businesses, rows, exitSlot = null) {
 const JUDGMENT_UNAVAILABLE_TEXT = Object.freeze({
   judgment_journal_not_connected: '判断の記録は各メンバーのMacにあり、組織版には送らないため未接続です',
 });
+/** The same, short enough to stand in the row of the waiting list (story-world-clickable-honesty-v1 AC-03). */
+const JUDGMENT_UNAVAILABLE_SHORT = Object.freeze({
+  judgment_journal_not_connected: '各メンバーのMacにあり、組織版には送っていません',
+});
 
 /**
  * Where the selected city and work site are kept: the page address (`world_business`, `world_site`),
@@ -1602,8 +1615,24 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
   };
   function updateDistrictNotes(work) {
     for (const key of canvasNotes.keys()) if (key.startsWith('district:')) canvasNotes.delete(key);
-    if (work) for (const [index, note] of workCanvasNotes(work).entries()) canvasNotes.set(`district:${index}`, note);
+    if (work) {
+      for (const [index, { opens, ...note }] of workCanvasNotes(work).entries()) {
+        canvasNotes.set(`district:${index}`, opens === 'city' ? { ...note, action: { label: '詳細を開く', onClick: openCurrentCityRail } } : note);
+      }
+    }
     renderCanvasNotes();
+  }
+  /** The details of the city the viewer is in, in the opened rail (a way down from its quests and its hall). */
+  function openCurrentCityRail() {
+    const business = current.code ? businessOf(current.code) : null;
+    if (!business) return;
+    // The whole city, not a street or a gap chosen before.
+    if (current.focus) {
+      current.focus = null;
+      district?.focus(null);
+    }
+    renderCityRail(business, { revealFocus: true });
+    canvasUI?.openRail();
   }
   root.append(wrap);
   let scene = null;
@@ -1742,6 +1771,13 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
   // The businesses are not known yet here (the list is drawn again once the world is built).
   showRail([workspaceDetailEmpty(doc, { mark: '◇', title: '都市や建物を選ぶと、ここに出ます', text: 'ドラッグで移動、ホイールで寄る・離れる、右ドラッグで回転します。Escで全体に戻ります。' })]);
 
+  /** The entrances of the districts, the ones with the most work to check first, in the opened rail. */
+  function showEntrances() {
+    if (current.level !== 'world') goToWorld();
+    clearAll();
+    canvasUI?.openRail();
+  }
+
   function enterFromRail(business) {
     const picked = scene?.selectKey({ code: business.code });
     openCity(business, picked?.center ?? null);
@@ -1753,11 +1789,18 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
   let withheld = 0;
   /** Whether the host gave judgments at all (an organization web does not: they stay on each Mac). */
   let judgmentsConnected = false;
+  /** Why the judgments could not be read, for the plaza: `{ title, text, short }`, or null when read. */
+  let judgmentsUnavailable = null;
 
   function judgmentText(item, fallback) {
     const textValue = item?.proof?.interruption?.question_display_text ?? item?.proof?.decision?.summary ?? fallback;
     const suffix = item?.conversation_moved_on_at ? '（会話で先に進んだ）' : item?.answer ? '（回答済み）' : isWaiting(item) ? '（あなたを待っています）' : '';
     return `${textValue}${suffix}`;
+  }
+
+  /** 判断の履歴 itself, by the host's own route (`#value-proofs` here, `?screen=value-proofs` in an organization web). */
+  function historyLink() {
+    return el(doc, 'a', { className: 'bb-world-rail-link', text: '「判断の履歴」で開く', attrs: { href: judgmentHref(null) } });
   }
 
   /** Descends to the same judgment in the host's 判断の履歴. */
@@ -1930,7 +1973,17 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
   /** Brings a rail block the viewer just asked for into view (the rail may be scrolled down, or below the city). */
   function reveal(node) {
     try {
-      node?.scrollIntoView?.({ block: 'start', behavior: reducedMotion ? 'auto' : 'smooth' });
+      // Only the rail's own scroller moves: scrollIntoView also scrolled the stage (overflow: hidden) and
+      // shifted the whole map up.  Without such a scroller (a host rail in the page) the page scrolls.
+      const style = (box) => globalThis.getComputedStyle?.(box)?.overflowY ?? '';
+      let box = node?.parentElement ?? null;
+      while (box && !/^(auto|scroll)$/u.test(style(box))) box = box.parentElement;
+      if (!box) {
+        node?.scrollIntoView?.({ block: 'start', behavior: reducedMotion ? 'auto' : 'smooth' });
+        return;
+      }
+      const top = node.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop;
+      box.scrollTo({ top, behavior: reducedMotion ? 'auto' : 'smooth' });
     } catch {
       // Without scrolling the block is still in the rail.
     }
@@ -1941,13 +1994,13 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     let focusBlock = null;
     const work = workCache.get(business.code);
     if (current.focus && work?.status === 'ok') {
-      const ids = new Set(current.focus.kind
-        ? work.summary.gaps?.[current.focus.kind] ?? []
-        : work.sites.filter((site) => site.work.open && site.work.status === current.focus.status).map((site) => site.task_id));
+      const ids = new Set(focusIdsFor(work, current.focus));
       const sites = work.sites.filter((site) => ids.has(site.task_id));
-      const label = current.focus.kind
-        ? sites[0]?.gaps.find((gap) => gap.kind === current.focus.kind)?.label ?? current.focus.kind
-        : `記録上の状態「${WORK_STATES.find((state) => state.key === current.focus.status)?.label ?? current.focus.status}」`;
+      const label = 'purpose' in current.focus
+        ? current.focus.purpose ? `通り「${current.focus.purpose}」の仕事` : '何のための仕事か未記録の仕事'
+        : current.focus.kind
+          ? sites[0]?.gaps.find((gap) => gap.kind === current.focus.kind)?.label ?? current.focus.kind
+          : `記録上の状態「${WORK_STATES.find((state) => state.key === current.focus.status)?.label ?? current.focus.status}」`;
       blocks.push(focusBlock = workPickBlock(doc, {
         title: `${label} ${sites.length}件`,
         sites,
@@ -1982,9 +2035,16 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
   /** The open tasks a focus picks: a kind of gap, or a recorded state; null for all. */
   function focusIdsFor(work, focus) {
     if (!focus || work?.status !== 'ok') return null;
+    // A street's sign (story-world-clickable-honesty-v1 AC-05): the work the sign counts, done or not.
+    if ('purpose' in focus) return work.sites.filter((site) => site.work.status !== 'cancelled' && purposeOf(site) === focus.purpose).map((site) => site.task_id);
     return focus.kind
       ? work.summary.gaps?.[focus.kind] ?? []
       : work.sites.filter((site) => site.work.open && site.work.status === focus.status).map((site) => site.task_id);
+  }
+
+  /** What a work is for, as the district groups it into streets (null for the unlabelled by the gate). */
+  function purposeOf(site) {
+    return typeof site.purpose_label === 'string' && site.purpose_label.trim() ? site.purpose_label.trim() : null;
   }
 
   function showFocus(business, focus) {
@@ -2087,6 +2147,18 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
       onProjectSelection: (anchor) => {
         if (anchor.taskId === current.siteId && current.detachedSiteId !== current.siteId) canvasUI?.setTaskAnchor(anchor);
         else if (!anchor.visible && !current.siteId) canvasUI?.setTaskAnchor({ visible: false });
+      },
+      // A street's sign lists its work; the hall and its plaza open what the business is for.
+      onPickStreet: ({ label }) => {
+        const owner = businessOf(current.code);
+        if (!owner) return;
+        if (current.level === 'site') goUp();
+        showFocus(owner, { purpose: label });
+        canvasUI?.openRail();
+      },
+      onPickHall: () => {
+        if (current.level === 'site') goUp();
+        openCurrentCityRail();
       },
       ...(exitsEnabled ? {
         exitLegend: exitLegend(worldVocabulary),
@@ -2325,7 +2397,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
       if (!openKnown) note('仕事の件数', '読めた仕事の要約に未完了件数の記録がありません。0件とは確認できません。', 'warning', '未完了の件数：未確認');
       if (unreadable) note('仕事の読込', `仕事を読めなかった事業${unreadable}件。0件とは確認できません。`, 'warning', `仕事が読めない事業 ${unreadable}件`);
       if (partial) note('仕事の範囲', `一部だけ読めた事業${partial}件。件数は読めた範囲です。`, 'warning', `仕事が一部だけ読めた事業 ${partial}件`);
-      if (needs) note('仕事の記録', `読めた未完了の仕事${needs}件（${cities}事業）に、記録から把握できていないことがあります。仕事の失敗や停止を意味しません。`, 'attention', `記録の要確認 ${needs}件・${cities}事業`);
+      if (needs) note('仕事の記録', `読めた未完了の仕事${needs}件（${cities}事業）に、記録から把握できていないことがあります。仕事の失敗や停止を意味しません。`, 'attention', `記録の要確認 ${needs}件・${cities}事業`, null, { action: { label: '区画を選ぶ', onClick: showEntrances } });
     }
   }
 
@@ -2359,6 +2431,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
         workspaceRailBlock(doc, { title: '', content: workspaceButton(doc, { text: `${business.name}の区画に入る`, variant: 'primary', onClick: () => openCity(business, position) }) }),
         cityJudgmentBlock(business),
       ]);
+      canvasUI?.openRail();
       return;
     }
     if (data.kind === 'cityJudgments') {
@@ -2368,8 +2441,9 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
       showRail([
         workspaceRailHead(doc, { kicker: `${business.name} の判断所`, title: `判断 ${data.judgments.length}件`, lead: business.purpose ?? undefined }),
         cityJudgmentBlock(business),
-        workspaceRailBlock(doc, { title: '詳しく見る', content: workspaceButton(doc, { text: '「判断の履歴」で開く', variant: 'primary', onClick: () => { globalThis.location.hash = judgmentHref(null); } }) }),
+        workspaceRailBlock(doc, { title: '詳しく見る', content: historyLink() }),
       ]);
+      canvasUI?.openRail();
       return;
     }
     if (data.kind === 'judgment') {
@@ -2399,9 +2473,10 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
       blocks.push(workspaceRailBlock(doc, { title: '判断（新しい順）', content: items.length ? ul : { text: '判断はありません' } }));
       blocks.push(workspaceRailBlock(doc, {
         title: '詳しく見る',
-        content: workspaceButton(doc, { text: '「判断の履歴」で開く', variant: 'primary', onClick: () => { globalThis.location.hash = judgmentHref(null); } }),
+        content: historyLink(),
       }));
       showRail(blocks);
+      canvasUI?.openRail();
       return;
     }
     if (data.kind === 'plaza') {
@@ -2410,8 +2485,18 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
       const blocks = [workspaceRailHead(doc, {
         kicker: '広場',
         title: '判断の種類（全体）',
-        lead: '建物1つが判断の種類1つで、全事業の判断をまとめています。高さは件数、色は任せ方の状態です。事業ごとの判断は、各都市の判断所にあります。',
+        lead: '広場には、判断の種類1つにつき建物が1つ建ちます。全事業の判断をまとめたもので、高さは件数、色は任せ方の状態です。事業ごとの判断は、各都市の判断所にあります。',
       })];
+      if (judgmentsUnavailable) {
+        // Not connected or unreadable: an empty plaza here is not zero judgments (P9).
+        blocks.push(workspaceRailBlock(doc, {
+          title: judgmentsUnavailable.title,
+          content: { text: `${judgmentsUnavailable.text}広場に建物が無いのは、判断が0件だからではありません。` },
+        }));
+        showRail(blocks);
+        canvasUI?.openRail();
+        return;
+      }
       blocks.push(workspaceRailBlock(doc, {
         title: `どの事業にも置けない判断（${placement.unplaced.length}件）`,
         content: placement.unplaced.length
@@ -2424,7 +2509,9 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
           content: { text: 'この組織の事業で作業したと確かめられない判断です。ほかの会社の仕事が混ざるため、内容も作業場所も出しません。「判断の履歴」では見られます。' },
         }));
       }
+      blocks.push(workspaceRailBlock(doc, { title: '詳しく見る', content: historyLink() }));
       showRail(blocks);
+      canvasUI?.openRail();
     }
   }
 
@@ -2453,9 +2540,9 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     }
     if (disposed) return;
     notices.replaceChildren();
-    const note = (label, textValue, tone = 'info', summary = null, link = null) => {
+    const note = (label, textValue, tone = 'info', summary = null, link = null, { action = null, reason = null } = {}) => {
       if (canvasUI) {
-        setCanvasNote(`${label}:${summary ?? 'detail'}`, { label, text: textValue, tone, summary, link });
+        setCanvasNote(`${label}:${summary ?? 'detail'}`, { label, text: textValue, tone, summary, link, action, reason });
         return;
       }
       const line = el(doc, 'p', { className: `bb-world-hud-line is-${tone}`, attrs: tone === 'info' ? {} : { role: 'alert' } });
@@ -2489,8 +2576,11 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     const rows = readable ? home.delegation_map.rows : [];
     if (!homeResult.ok || !readable) {
       const reason = homeResult.ok ? home?.reason ?? home?.status ?? '状態不明' : homeResult.error;
-      if (JUDGMENT_UNAVAILABLE_TEXT[reason]) note('判断', `${JUDGMENT_UNAVAILABLE_TEXT[reason]}。事業だけを描いています。`, 'warning', '判断の記録：未接続');
-      else note('判断', `判断の記録を読めません（${reason}）。判断の記録の件数は未確認です。0件とは確認できません。`, 'warning', '判断の記録：読めない');
+      judgmentsUnavailable = JUDGMENT_UNAVAILABLE_TEXT[reason]
+        ? { title: '判断の記録：未接続', text: `${JUDGMENT_UNAVAILABLE_TEXT[reason]}。`, short: JUDGMENT_UNAVAILABLE_SHORT[reason] }
+        : { title: '判断の記録：読めない', text: `判断の記録を読めません（${reason}）。判断の記録の件数は未確認です。0件とは確認できません。`, short: `理由：${reason}` };
+      if (JUDGMENT_UNAVAILABLE_TEXT[reason]) note('判断', `${JUDGMENT_UNAVAILABLE_TEXT[reason]}。事業だけを描いています。`, 'warning', '判断の記録：未接続', null, { reason: judgmentsUnavailable.short });
+      else note('判断', judgmentsUnavailable.text, 'warning', '判断の記録：読めない', null, { reason: judgmentsUnavailable.short });
     } else {
       proofs = proofIndex(home);
       judgmentsConnected = true;
@@ -2539,7 +2629,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     }
     scene = createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear: clearAll, onEscape: goUp });
     scene.setSky(SKY_MODES[skyIndex][0]);
-    scene.buildPlaza(rows, rowItems, (row) => (rowItems.get(row.key) ?? []).filter((ref) => isWaiting(proofs.get(ref.decision_attempt_id))).length, Date.now());
+    scene.buildPlaza(rows, rowItems, (row) => (rowItems.get(row.key) ?? []).filter((ref) => isWaiting(proofs.get(ref.decision_attempt_id))).length, Date.now(), { state: judgmentsUnavailable ? judgmentsUnavailable.title.replace('判断の記録：', '') : null });
     scene.buildCities(layoutWorld(businesses), placement.byBusiness);
     showChangesSinceLastVisit(note, businesses, rows);
     knownBusinesses = businesses;

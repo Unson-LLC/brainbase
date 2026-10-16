@@ -128,6 +128,23 @@ describe('Graph foundation history reader', () => {
     });
   });
 
+  it('projects only a world model\'s own applicability words beside its definition', async () => {
+    const definition = foundationDefinition({
+      id: 'model-1', type: 'model', beneficiaryIds: undefined, desiredState: undefined, criteria: undefined, evaluationPeriod: undefined,
+      epistemicState: 'hypothesis', validationState: 'unverified', inputVariableRefs: [], outputVariableRefs: [],
+      applicability: { subjectIds: ['project-1'], validFrom }, relationship: 'r', uncertainty: 'u'
+    } as Partial<FoundationDefinition>);
+    const payload = { foundation: definition, applicability_text: 'AI生成資料・要約・提案書', title: 'not a model detail', private_secret: 'never projected' };
+    const row = { ...foundationRow({ history: definition, current: definition }), payload, storage_digest: storageDigest(payload) };
+    const { store } = createGraphFoundationReaders({ context: trustedContext(), query: queryReturning(row) });
+
+    await expect(store.read({ id: 'model-1', type: 'model', revision: '1' }, trustedContext())).resolves.toEqual({
+      definition,
+      digest: digestFoundationDefinition(definition),
+      details: { applicability_text: 'AI生成資料・要約・提案書' }
+    });
+  });
+
   it('rejects a read whose supplied principal is different from the trusted context', async () => {
     const calls: Array<{ text: string; values: readonly unknown[] }> = [];
     const { store } = createGraphFoundationReaders({ context: trustedContext(), query: queryReturning(foundationRow(), calls) });

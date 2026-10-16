@@ -151,14 +151,6 @@
   line-height: 1.55;
 }
 
-.bb-fov-record-id {
-  display: block;
-  margin-top: 7px;
-  color: var(--bb-color-quiet);
-  font-family: var(--bb-font-mono);
-  font-size: 10px;
-  overflow-wrap: anywhere;
-}
 
 .bb-fov-ref-list {
   display: grid;
@@ -254,4 +246,5 @@
 @media (max-width: 760px) { .bb-fov-objective-ledger { overflow-x: auto; } .bb-fov-objective-ledger .bb-ws-ledger-row { min-width: 760px; } }
 @media (max-width: 480px) { .bb-fov-reading .bb-ws-definition { grid-template-columns: 1fr; gap: 4px; } .bb-fov-reading dd { margin-bottom: 12px; } }
 .bb-fov-philosophy-card .bb-fov-original { border-top: 0; padding-top: 0; }
+.bb-fov-model-card .bb-fov-original { margin-top: 12px; padding-top: 10px; overflow-wrap: anywhere; }
 .bb-fov-objective-ledger .bb-ws-ledger-row:focus-visible { outline: 2px solid var(--bb-color-focus); outline-offset: 2px; }

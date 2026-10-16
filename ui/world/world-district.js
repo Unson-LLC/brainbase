@@ -98,8 +98,11 @@ const STATION_YARD = Object.freeze({ xFrom: 6, xTo: 21.5, zFrom: 1.5, zTo: 12.5 
  * `exitLegend` (lines as DISTRICT_LEGEND) turns on the station yard for the tools of a business:
  * stations come from `setExits`, and a picked station calls `onPickExit(id)`.  Without it nothing of
  * the yard is drawn or listed.
+ * `onPickStreet({ label, count })` makes each street's sign pressable (label null for the unlabelled work by
+ * the gate), and `onPickHall()` the hall, the plaza in front of it and the hall's name; without them they
+ * are scenery, as before (story-world-clickable-honesty-v1).
  */
-export function createDistrictView({ doc, stage, reducedMotion = false, focusSelection = true, showChrome = true, onPick, onClear, onEscape, onProjectSelection, exitLegend = null, onPickExit }) {
+export function createDistrictView({ doc, stage, reducedMotion = false, focusSelection = true, showChrome = true, onPick, onClear, onEscape, onProjectSelection, exitLegend = null, onPickExit, onPickStreet, onPickHall }) {
   const stationsEnabled = Array.isArray(exitLegend);
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio ?? 1, 2));
@@ -349,6 +352,8 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
   // The tools of the business (from the host), and their stations once the district is built.
   let exitsData = [];
   let stations = new Map();
+  /** The hall and its plaza, pressable when the host listens (`onPickHall`). */
+  let civic = [];
   let stationLayer = null;
   let stationLabels = [];
   let gateAt = 0;
@@ -378,6 +383,17 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
     const label = { node, position, owner, near, priority, size: null };
     labels.push(label);
     return label;
+  }
+
+  /** A label that is a way in: pointer, a title saying where it goes, and a press. */
+  function enterable(label, title, onPress, enter) {
+    label.node.classList.add('is-enterable');
+    label.node.title = title;
+    label.node.setAttribute('data-enter', enter);
+    label.node.addEventListener('click', (event) => {
+      event.stopPropagation?.();
+      onPress();
+    });
   }
 
   // --- people (records: worker, person named in the text; atmosphere: walkers) ---------------------
@@ -613,6 +629,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
     labels = [];
     lots = new Map();
     stations = new Map();
+    civic = [];
     stationLayer = null;
     stationLabels = [];
     walkers = [];
@@ -705,7 +722,9 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
       root.add(mesh(new THREE.CylinderGeometry(0.06, 0.08, 2.5, 8), material(0x3f4844, { roughness: 0.6, metalness: 0.4 }), { x: -DISTRICT_STREETS.main - 0.5, y: 1.25, z: signZ }));
       root.add(mesh(new THREE.BoxGeometry(1.1, 0.34, 0.05), material(block.label ? 0x2f6e4f : 0xbfb8a8, { roughness: 0.6 }), { x: -DISTRICT_STREETS.main - 0.5, y: 2.2, z: signZ }));
       const text = block.label ? `${block.label}（${block.count}件）` : `未分類の空き地：何のための仕事か未記録（${block.count}件）`;
-      addLabel(text, new THREE.Vector3(-DISTRICT_STREETS.main - 0.5, 2.9, signZ), `is-street${block.label ? '' : ' is-unlabelled'}`, { priority: 2 });
+      const sign = addLabel(text, new THREE.Vector3(-DISTRICT_STREETS.main - 0.5, 2.9, signZ), `is-street${block.label ? '' : ' is-unlabelled'}`, { priority: 2 });
+      // The count is a way down: pressing the sign lists the work of this street (AC-05).
+      if (onPickStreet) enterable(sign, `${block.label ?? '何のための仕事か未記録の空き地'}の仕事${block.count}件を見る`, () => onPickStreet({ label: block.label, count: block.count }), '仕事を見る');
     });
     // Trees along the main street and lamps between them; a belt of trees round the district (scenery).
     const trees = [];
@@ -754,10 +773,17 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
     root.add(box(0.4, 0.9, 0.4, 0x9c7a62, { x: 2.8, y: 4.3, z: hallZ - 1.2 }));
     const hallChimney = new THREE.Vector3(2.8, 5.2, hallZ - 1.2);
     const purposeText = work?.status === 'ok' ? (work.purpose.text ?? '目的は未登録') : '目的を読めません';
-    addLabel(`庁舎：${business.name}（${purposeText}）`, new THREE.Vector3(0, 5.6, hallZ), 'is-plaza', { priority: 1 });
+    const hallLabel = addLabel(`庁舎：${business.name}（${purposeText}）`, new THREE.Vector3(0, 5.6, hallZ), 'is-plaza', { priority: 1 });
     const plaza = mesh(new THREE.CircleGeometry(plazaRadius - 0.25, 48), material(0xf1ece1, { roughness: 1 }), { y: 0.24, z: plazaZ, shadow: false });
     plaza.rotation.x = -Math.PI / 2;
     root.add(plaza);
+    if (onPickHall) {
+      // The hall, its plaza and its name open what this business is for and its policies (AC-06).
+      hall.userData = { kind: 'hall' };
+      plaza.userData = { kind: 'hall' };
+      civic = [hall, plaza];
+      enterable(hallLabel, `${business.name}の目的と方針を見る`, () => onPickHall(), '目的と方針を見る');
+    }
     const ring = mesh(new THREE.RingGeometry(plazaRadius - 0.25, plazaRadius, 48), material(0xcfc8b8, { roughness: 1 }), { y: 0.25, z: plazaZ, shadow: false });
     ring.rotation.x = -Math.PI / 2;
     root.add(ring);
@@ -897,7 +923,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
     pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
-    const targets = [...lots.values(), ...stations.values()];
+    const targets = [...lots.values(), ...stations.values(), ...civic];
     for (const hit of raycaster.intersectObjects(targets, true)) {
       let object = hit.object;
       while (object && !targets.includes(object)) object = object.parent;
@@ -915,7 +941,10 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
   renderer.domElement.addEventListener('pointerup', (event) => {
     if (!downAt || Math.hypot(event.clientX - downAt.x, event.clientY - downAt.y) > 5) return;
     const group = pickAt(event.clientX, event.clientY);
-    if (group?.userData.kind === 'exit') {
+    if (group?.userData.kind === 'hall') {
+      select(null);
+      onPickHall?.();
+    } else if (group?.userData.kind === 'exit') {
       // A station selects its tool in the city details; it never leaves the world.
       select(group, { focus: false });
       onPickExit?.(group.userData.exit.id);

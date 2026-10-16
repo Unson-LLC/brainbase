@@ -511,6 +511,34 @@ describe('Graph foundation history through the public provider and HTTP boundary
     const projectA = createReaderForProject('project-a');
     const available = await projectA.readers.listPhilosophies(projectA.context);
     expect(available.map((record) => record.id)).toEqual(['principle']);
+    // The judgment frame catalog still reads the legacy row, so the overview
+    // reports it separately as applicability unrecorded.
+    expect(await projectA.readers.listUnscopedPhilosophies(projectA.context)).toEqual([{
+      kind: 'philosophy',
+      id: 'legacy-principle',
+      version: 1,
+      applicability: null,
+      applicability_state: 'unrecorded',
+      payload: { statement: 'Imported before applicability was recorded' }
+    }]);
+
+    await setOwner();
+    await sql(
+      `INSERT INTO public.graph_entities
+        (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+       VALUES
+        ('retired-principle', 'philosophy', 'project-a', $1::jsonb, 'reader', 'normal', 'retired', 1),
+        ('superseded-principle', 'philosophy', 'project-a', $2::jsonb, 'reader', 'normal', 'active', 2),
+        ('other-project-principle', 'philosophy', 'project-b', $3::jsonb, 'reader', 'normal', 'active', 1)`,
+      [
+        graphPayload({ statement: 'Retired legacy philosophy' }),
+        graphPayload({ statement: 'Replaced legacy philosophy', status: 'superseded' }),
+        graphPayload({ statement: 'Another project philosophy' })
+      ]
+    );
+    await setRuntimeProject('project-a');
+    const unscopedIds = (await projectA.readers.listUnscopedPhilosophies(projectA.context)).map((record) => record.id);
+    expect(unscopedIds).toEqual(['legacy-principle']);
 
     await setOwner();
     await sql(
@@ -525,6 +553,37 @@ describe('Graph foundation history through the public provider and HTTP boundary
       code: 'corrupt_catalog',
       message: 'Philosophy payload requires judgmentApplicability'
     });
+  });
+
+  it('keeps a retired record without history from failing the current lists', async () => {
+    await createDatabase();
+    await setRuntimeProject('project-a');
+    const projectA = createReaderForProject('project-a');
+    const objectivesBefore = (await projectA.readers.store.list('objective', projectA.context)).map((record) => record.definition.id);
+
+    // Production 2026-10-16: two replaced unson philosophies were retired with
+    // applicability but no foundation history, and the whole catalog failed.
+    // The production policy keeps retired rows visible (Graph lists them), so
+    // the reader itself must not depend on RLS hiding them.
+    await setOwner();
+    await sql(`ALTER POLICY graph_entities_runtime_access ON public.graph_entities
+      USING (project_id = current_setting('app.project_id', true))`);
+    await sql(
+      `INSERT INTO public.graph_entities
+        (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+       VALUES
+        ('replaced-principle', 'philosophy', 'project-a', $1::jsonb, 'reader', 'normal', 'retired', 3),
+        ('replaced-goal', 'objective', 'project-a', $2::jsonb, 'reader', 'normal', 'retired', 3)`,
+      [
+        graphPayload(philosophyPayload('Replaced by a newer philosophy')),
+        graphPayload({ foundation: objective({ id: 'replaced-goal' }) })
+      ]
+    );
+
+    await setRuntimeProject('project-a');
+    expect((await projectA.readers.listPhilosophies(projectA.context)).map((record) => record.id)).toEqual(['principle']);
+    expect((await projectA.readers.store.list('objective', projectA.context)).map((record) => record.definition.id))
+      .toEqual(objectivesBefore);
   });
 
   it('reads the newest history revision while retaining the current Graph authorization check', async () => {

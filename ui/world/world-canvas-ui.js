@@ -34,6 +34,8 @@ const nodeList = (nodes) => (Array.isArray(nodes) ? nodes : [nodes]).filter((nod
  * focus unless its optional second argument is { focus: true }.
  * addNote shows a quest only for an explicit nonempty summary; its full text
  * remains in help. No summary is inferred from a long or nonurgent notice.
+ * A quest with a `link` or an `action` is pressable as a whole row; one without
+ * is drawn flat and may say its `reason` (why nothing opens from it).
  */
 export function createWorldCanvasUI({
   doc,
@@ -385,15 +387,17 @@ export function createWorldCanvasUI({
     activate('help', help);
     focus(helpTitle);
   }
-  function addNote({ label = '', text = '', tone = '', summary, link = null } = {}) {
+  function addNote({ label = '', text = '', tone = '', summary, link = null, action = null, reason = null } = {}) {
     if (disposed) return;
     const note = element('section', 'bb-world-canvas-note');
     if (label) note.append(element('h3', '', label));
     if (text || summary) note.append(element('p', '', text || summary));
     if (label || text || summary) notes.append(note);
     if (typeof summary !== 'string' || !summary.trim()) return;
-    // A link (already checked by the caller) follows the summary so the quest is a way down, not only a sign.
-    const quest = element('p', 'bb-world-canvas-quest');
+    // A quest is a way down (a link already checked by the caller, or an action in this page) and then the
+    // whole row is pressable; without one it is drawn flat, so it never looks pressable (story-world-clickable-honesty-v1).
+    const way = link?.href ? 'link' : typeof action?.onClick === 'function' ? 'action' : null;
+    const quest = element('p', `bb-world-canvas-quest ${way ? 'has-way' : 'is-static'}`);
     const icon = tone === 'attention' || tone === 'warning' ? '!' : 'i';
     quest.append(
       element('span', 'bb-world-canvas-quest-symbol', icon, { 'aria-hidden': 'true' }),
@@ -402,7 +406,16 @@ export function createWorldCanvasUI({
     // The accessible name contains the unabridged summary even when visual text
     // is ellipsized on a narrow canvas; the long explanation remains in help.
     quest.setAttribute('aria-label', summary.trim());
-    if (link?.href) quest.append(element('a', link.className ?? '', link.label ?? summary.trim(), { href: link.href }));
+    if (way === 'link') {
+      quest.append(element('a', link.className ?? '', link.label ?? summary.trim(), { href: link.href }));
+    } else if (way === 'action') {
+      const press = element('button', `bb-world-canvas-quest-action ${action.className ?? ''}`.trim(), action.label ?? summary.trim(), { type: 'button' });
+      listen(press, 'click', () => action.onClick());
+      quest.append(press);
+    } else if (typeof reason === 'string' && reason.trim()) {
+      // Why nothing opens from here (未接続 and the like), said in the row instead of only in help.
+      quest.append(element('span', 'bb-world-canvas-quest-reason', reason.trim()));
+    }
     quests.append(quest);
   }
   function clearNotes() {

@@ -170,14 +170,59 @@
   font-size: 11px;
   font-weight: 700;
 }
-.bb-world-canvas-ui .bb-world-canvas-quest-text { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-/* A quest with a way down (候補の確認) is clickable even though the quest list lets the map take the pointer. */
-.bb-world-canvas-ui .bb-world-canvas-quest a {
+.bb-world-canvas-ui .bb-world-canvas-quest-text { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+/* A quest with a way down (候補の確認, 区画の入口) is pressable as a whole row even though the quest list lets
+   the map take the pointer: its one link or button stretches over the row. */
+.bb-world-canvas-ui .bb-world-canvas-quest.has-way {
+  position: relative;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+.bb-world-canvas-ui .bb-world-canvas-quest.has-way:hover,
+.bb-world-canvas-ui .bb-world-canvas-quest.has-way:focus-within {
+  border-color: rgb(155 232 145 / 55%);
+  background: linear-gradient(110deg, rgb(20 44 62 / 94%), rgb(20 44 62 / 84%));
+}
+.bb-world-canvas-ui .bb-world-canvas-quest a,
+.bb-world-canvas-ui .bb-world-canvas-quest-action {
   flex: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
   color: #b5f2ab;
+  font: inherit;
   text-decoration: underline;
   text-underline-offset: 2px;
+  cursor: pointer;
   pointer-events: auto;
+}
+.bb-world-canvas-ui .bb-world-canvas-quest a::after,
+.bb-world-canvas-ui .bb-world-canvas-quest-action::after { content: " ›"; }
+.bb-world-canvas-ui .bb-world-canvas-quest a::before,
+.bb-world-canvas-ui .bb-world-canvas-quest-action::before { content: ""; position: absolute; inset: 0; border-radius: 4px; }
+.bb-world-canvas-ui .bb-world-canvas-quest a:focus-visible,
+.bb-world-canvas-ui .bb-world-canvas-quest-action:focus-visible { outline: none; }
+.bb-world-canvas-ui .bb-world-canvas-quest a:focus-visible::before,
+.bb-world-canvas-ui .bb-world-canvas-quest-action:focus-visible::before { outline: 2px solid #9be891; outline-offset: 1px; }
+/* A quest with nowhere to go: flat and dashed, so it reads as a sign, not a button, with its reason. */
+.bb-world-canvas-ui .bb-world-canvas-quest.is-static {
+  border-style: dashed;
+  border-left-style: solid;
+  background: rgb(13 25 46 / 58%);
+  box-shadow: none;
+}
+/* On a narrow canvas the reason gives way before the row's own words. */
+.bb-world-canvas-ui .bb-world-canvas-quest.is-static .bb-world-canvas-quest-text { flex: none; }
+.bb-world-canvas-ui .bb-world-canvas-quest-reason {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: rgb(255 255 255 / 68%);
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .bb-world-canvas-ui .bb-world-canvas-edge {

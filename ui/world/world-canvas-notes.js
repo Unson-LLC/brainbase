@@ -23,7 +23,8 @@ export function workCanvasNotes(work) {
   const summary = work.summary;
   if (summary?.state === 'complete' || summary?.state === 'partial') {
     const needs = summary.needs_check?.length;
-    if (needs > 0) notes.push({ label: '記録の確認', tone: 'attention', summary: `記録の要確認 ${needs}件`, text: `読めた未完了の仕事のうち${needs}件に、記録から把握できていないことがあります。仕事が止まっているという意味ではありません。詳細の絞り込みから根拠を確認できます。` });
+    // `opens: 'city'`: the host lets the quest open the city details, where these records are listed.
+    if (needs > 0) notes.push({ label: '記録の確認', tone: 'attention', opens: 'city', summary: `記録の要確認 ${needs}件`, text: `読めた未完了の仕事のうち${needs}件に、記録から把握できていないことがあります。仕事が止まっているという意味ではありません。詳細の絞り込みから根拠を確認できます。` });
   }
   const at = work.reads?.tasks?.read_at;
   notes.push({ label: '区画の時点', tone: 'info', text: `仕事の読み込み：${shortTime(at) ?? '時点不明'}。表示は読み込んだ時点の記録です。` });
