@@ -342,6 +342,8 @@
     "./ui/graph-projects-view.css": "./ui/graph-projects-view.css",
     "./ui/graph-registry-view": "./ui/graph-registry-view.js",
     "./ui/graph-registry-view.css": "./ui/graph-registry-view.css",
+    "./ui/graph-ontology-view": "./ui/graph-ontology-view.js",
+    "./ui/graph-ontology-view.css": "./ui/graph-ontology-view.css",
     "./ui/meeting-minutes-storage": "./ui/meeting-minutes-storage.js",
     "./ui/meeting-minutes-storage.css": "./ui/meeting-minutes-storage.css",
     "./ui/brainbase-tokens.css": "./ui/brainbase-tokens.css",

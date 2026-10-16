@@ -17,6 +17,7 @@
 
 import { createGraphProjectsView } from './graph-projects-view.js';
 import { createGraphRegistryView } from './graph-registry-view.js';
+import { createGraphOntologyView } from './graph-ontology-view.js';
 import { createPeopleAndCompaniesView } from './people-and-companies-view.js';
 import { createObjectiveEditorController } from './objective-editor.js';
 import { createObjectiveEditorHttpPort } from './objective-editor-http-port.js';
@@ -51,6 +52,8 @@ const NAV_ICON_PATHS = Object.freeze({
   minutes: ['M6 3.5h9l3 3V20.5H6z', 'M15 3.5v4h3', 'M9 12h6m-6 3h6'],
   // Two people (the organization edition's 人と会社 uses the same shape).
   people: ['M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z', 'M2.5 20a6.5 6.5 0 0 1 13 0', 'M16 4.5a3.5 3.5 0 0 1 0 6.5', 'M18 14a6.5 6.5 0 0 1 3.5 6'],
+  // Kinds of information and how they connect (settings, ledger D14): three linked boxes.
+  ontology: ['M4 4h6v6H4z', 'M14 14h6v6h-6z', 'M14 4h6v6h-6z', 'M10 7h4', 'M17 10v4'],
   // World view (extension id `world`, ledger P17).
   world: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M3 12h18', 'M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z'],
 });
@@ -66,7 +69,7 @@ const NAV_AREAS = Object.freeze([
   Object.freeze({ id: 'work', label: '仕事', order: ['projects', 'minutes'] }),
   Object.freeze({ id: 'outcomes', label: '成果', order: ['value-proofs'] }),
   Object.freeze({ id: 'information', label: '情報と関係', order: ['graph', 'people'] }),
-  Object.freeze({ id: 'settings', label: '設定', order: [] }),
+  Object.freeze({ id: 'settings', label: '設定', order: ['ontology'] }),
 ]);
 
 // Menu order only: the screens' own order (and so the first screen) stays as given.
@@ -311,6 +314,8 @@ export const LOCAL_WEB_SCREENS = Object.freeze([
   Object.freeze({ id: 'projects', label: 'プロジェクトと関係者', area: 'work', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('projects', createGraphProjectsView) }),
   Object.freeze({ id: 'graph', label: '情報と関係', area: 'information', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('graph', createGraphRegistryView) }),
   Object.freeze({ id: 'people', label: '人と会社', area: 'information', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('people', createPeopleAndCompaniesView, { canCorrect: true }) }),
+  // The definitions behind 情報と関係: infrequent management work, so under settings (ledger D14).
+  Object.freeze({ id: 'ontology', label: '情報の種類とつながり方', area: 'settings', usesGraph: true, rail: false, source: '手元のGraph', mount: mountGraphScreen('ontology', createGraphOntologyView, { canCorrect: true }) }),
 ]);
 
 function renderGraphGate(doc, slot, status, onRecheck, label) {

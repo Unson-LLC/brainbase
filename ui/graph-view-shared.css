@@ -364,6 +364,38 @@
   margin-top: 14px;
 }
 
+/* 根拠と履歴: one fold per record, after its relations (ledger D14). */
+.bb-graph-rail > .bb-graph-evidence {
+  border-bottom: 1px solid var(--bb-color-border);
+  padding-block: 18px;
+  font-size: 13px;
+}
+
+.bb-graph-evidence > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--bb-space-2);
+  color: var(--bb-color-ink);
+  font-weight: 690;
+  cursor: pointer;
+}
+
+.bb-graph-evidence-part {
+  margin-top: var(--bb-space-3);
+}
+
+.bb-graph-evidence-part > h4 {
+  margin: 0 0 var(--bb-space-1);
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  font-weight: 690;
+}
+
+.bb-graph-evidence-part > p {
+  margin: 0 0 var(--bb-space-1);
+  overflow-wrap: anywhere;
+}
+
 .bb-graph-rail > .bb-graph-history {
   border-bottom: 1px solid var(--bb-color-border);
   padding-block: 18px;
