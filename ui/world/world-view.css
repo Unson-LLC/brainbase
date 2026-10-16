@@ -159,6 +159,12 @@
   color: #ffffff;
 }
 
+/* Other names that are ways in (the plaza, a street's sign, the hall) say where they go (story-world-clickable-honesty-v1). */
+.bb-world-label.is-enterable[data-enter]:hover::after,
+.bb-world-label.is-enterable[data-enter].is-hover::after {
+  content: '　' attr(data-enter) ' ›';
+}
+
 /* With nothing chosen, the rail lists the ways in (AC-19). */
 .bb-world-entrances {
   list-style: none;
