@@ -272,9 +272,14 @@ export interface FoundationObjectiveDetails {
   readonly current_state?: unknown;
 }
 
-/** Runtime shape used by the overview contract for Objective records. */
+/** The words a World Model record gives for where it applies. */
+export interface FoundationModelDetails {
+  readonly applicability_text?: unknown;
+}
+
+/** Runtime shape used by the overview contract for Objective and World Model records. */
 export interface FoundationOverviewObjectiveRecord extends FoundationCatalogRecord {
-  readonly details?: FoundationObjectiveDetails;
+  readonly details?: FoundationObjectiveDetails | FoundationModelDetails;
 }
 
 export interface GraphFoundationReaders {
@@ -693,11 +698,10 @@ function validateFoundationRecord(
     definition: cloneFoundationDefinition(history.definition),
     digest: digestFoundationDefinition(history.definition)
   };
-  if (reference.type === 'objective') {
-    const details = projectObjectiveDetails(history.payload);
-    if (details !== undefined) return { ...record, details };
-  }
-  return record;
+  const details = reference.type === 'objective'
+    ? projectDetails(history.payload, OBJECTIVE_DETAIL_KEYS)
+    : reference.type === 'model' ? projectDetails(history.payload, MODEL_DETAIL_KEYS) : undefined;
+  return details === undefined ? record : { ...record, details };
 }
 
 const OBJECTIVE_DETAIL_KEYS = [
@@ -709,21 +713,25 @@ const OBJECTIVE_DETAIL_KEYS = [
   'current_state'
 ] as const satisfies readonly (keyof FoundationObjectiveDetails)[];
 
-function projectObjectiveDetails(payload: Record<string, unknown>): FoundationObjectiveDetails | undefined {
+// A model's foundation scope carries ids and a registration time; its own words for where it
+// applies live beside the definition.
+const MODEL_DETAIL_KEYS = ['applicability_text'] as const satisfies readonly (keyof FoundationModelDetails)[];
+
+function projectDetails(payload: Record<string, unknown>, keys: readonly string[]): Record<string, unknown> | undefined {
   const nestedDetails = isPlainRecord(payload.details) ? payload.details : undefined;
   const foundation = isPlainRecord(payload.foundation) ? payload.foundation : undefined;
   // Graphify payloads historically carried these descriptive fields at the
   // payload root. Keep the two known nested forms compatible while exposing
-  // only the six fields in the overview contract.
+  // only the listed fields in the overview contract.
   const candidates = [payload, nestedDetails, foundation].filter(
     (candidate): candidate is Record<string, unknown> => candidate !== undefined
   );
   const projected: Record<string, unknown> = {};
-  for (const key of OBJECTIVE_DETAIL_KEYS) {
+  for (const key of keys) {
     const source = candidates.find((candidate) => Object.prototype.hasOwnProperty.call(candidate, key));
     if (source !== undefined && source[key] !== undefined) projected[key] = source[key];
   }
-  return Object.keys(projected).length === 0 ? undefined : projected as FoundationObjectiveDetails;
+  return Object.keys(projected).length === 0 ? undefined : projected;
 }
 
 function rowReference(row: GraphFoundationHistoryRow): FoundationRevision {
