@@ -55,6 +55,8 @@ describe('OSS共通UIの公開契約', () => {
       './ui/project-graph-vendor.js': './ui/project-graph-vendor.js',
       './ui/graph-registry-view': './ui/graph-registry-view.js',
       './ui/graph-registry-view.css': './ui/graph-registry-view.css',
+      './ui/graph-ontology-view': './ui/graph-ontology-view.js',
+      './ui/graph-ontology-view.css': './ui/graph-ontology-view.css',
       './ui/brainbase-tokens.css': './ui/brainbase-tokens.css',
     });
   });
@@ -99,6 +101,8 @@ describe('OSS共通UIの公開契約', () => {
       'project-graph.js',
       'graph-registry-view.js',
       'graph-registry-view.css',
+      'graph-ontology-view.js',
+      'graph-ontology-view.css',
     ].map((file) => readFile(new URL(`../ui/${file}`, import.meta.url), 'utf8')));
 
     for (const source of sources) {
@@ -122,14 +126,14 @@ describe('OSS共通UIの公開契約', () => {
     })) {
       expect(tokens).toContain(`${name}: ${value};`);
     }
-    for (const file of ['world-model-view.css', 'local-web-shell.css', 'meeting-minutes.css', 'workspace-kit.css', 'graph-view-shared.css', 'graph-projects-view.css', 'project-workspace.css', 'graph-registry-view.css']) {
+    for (const file of ['world-model-view.css', 'local-web-shell.css', 'meeting-minutes.css', 'workspace-kit.css', 'graph-view-shared.css', 'graph-projects-view.css', 'project-workspace.css', 'graph-registry-view.css', 'graph-ontology-view.css']) {
       const css = await readFile(new URL(`../ui/${file}`, import.meta.url), 'utf8');
       // Colors and font families come only from the shared tokens.
       expect(css, file).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);
       expect(css, file).not.toMatch(/font-family:(?!\s*var\(--bb-font-)/);
     }
     const defined = new Set([...tokens.matchAll(/(--bb-[a-z0-9-]+):/g)].map((match) => match[1]));
-    for (const file of ['graph-view-shared.css', 'graph-projects-view.css', 'meeting-minutes.css', 'project-workspace.css', 'graph-registry-view.css']) {
+    for (const file of ['graph-view-shared.css', 'graph-projects-view.css', 'meeting-minutes.css', 'project-workspace.css', 'graph-registry-view.css', 'graph-ontology-view.css']) {
       const css = await readFile(new URL(`../ui/${file}`, import.meta.url), 'utf8');
       const used = [...css.matchAll(/var\((--[a-z0-9-]+)\)/g)].map((match) => match[1]);
       // The Graph screens read only tokens that brainbase-tokens.css defines.

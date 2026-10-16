@@ -4,9 +4,9 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openOwnerPrivateGraph } from '../../src/graph-web.js';
 import { createGraphProjectsView } from '../../ui/graph-projects-view.js';
-import { createGraphRegistryView } from '../../ui/graph-registry-view.js';
 import {
   createOwnObjectivesView,
+  createOwnShareView,
   GRAPH_OWN_OBJECTIVES_LABEL,
   GRAPH_OWN_SHARE_COMMANDS,
   GRAPH_OWN_SHARE_LABEL,
@@ -210,55 +210,84 @@ describe('プロジェクトと関係者 with the owner\'s own share', () => {
   });
 });
 
-async function mountRegistry(host) {
-  api = await startGraphApi(dataDir);
+async function mountOwnShare(host) {
   const root = new FakeElement('div');
-  const rail = new FakeElement('div');
-  const view = createGraphRegistryView({
-    root, rail, document: new FakeDocument(), fetcher: combinedFetcher(host), autoLoad: false, canCorrect: false,
-    ownShare: { basePath: OWN_BASE },
-  });
-  await view.load();
-  return { root, rail, view };
+  const view = createOwnShareView({ root, document: new FakeDocument(), fetcher: host.fetch, autoLoad: false, now: () => new Date(FIXTURE_NOW) });
+  await view.search('');
+  return { root, view };
 }
 
-describe('情報と関係 with the owner\'s own share', () => {
-  it('runs the same search on the own share and shows its results apart from the organization results', async () => {
-    await writeGraphV2(dataDir);
+/*
+ * 引き継いだ自分の分 on its own (ledger D14): the owner's snapshot is not part of
+ * 情報と関係; a host places it where the owner takes records in (候補の確認).
+ */
+describe('引き継いだ自分の分 on its own', () => {
+  it('says what the snapshot is, lists it read-only with self shown by the owner name, and searches it', async () => {
     const host = ownHost();
-    const { root } = await mountRegistry(host);
+    const { root, view } = await mountOwnShare(host);
     const own = ownSection(root);
+    expect(own.attributes['data-authority']).toBe('owner_private');
+    const lead = visibleText(own);
+    expect(lead).toContain('手元のOSSから送った最新の束です');
+    expect(lead).toContain('組織の記録ではなく、あなたにだけ表示しています');
+    expect(lead).toContain('組織の事実へ昇格します');
+    expect(lead).toContain('読み取りのみ');
+    expect(lead).toContain(ownShareHandoverText(HANDOVER));
+    expect(lead).not.toContain('snapshot-1');
+    expect(collectText(own)).toContain('snapshot-1');
     expect(keysIn(own)).toContain(OWNER_PERSON_ID);
     expect(keysIn(own)).not.toContain('self');
-    expect(keysIn(hostPart(root))).not.toContain(OWNER_PERSON_ID);
-    expect(visibleText(hostPart(root))).toContain('組織のGraphの検索結果');
-    expect(visibleText(own)).toContain(OWNER_NAME);
+    expect(lead).toContain(OWNER_NAME);
+    expect(lead).toMatch(/束の中の記録 \d+件/u);
+    expect(host.requests).toEqual([`${OWN_BASE}/search?limit=50`]);
+    // Read-only: no correction anywhere.
+    expect(buttonsNamed(root, 'この記録を直す')).toEqual([]);
 
     type(root, 'q', '手元');
-    await findAll(root, (node) => node.tagName === 'FORM' && String(node.className).includes('bb-gr-search'))[0].dispatch('submit');
+    await findAll(root, (node) => node.tagName === 'FORM' && String(node.className).includes('bb-graph-own-search'))[0].dispatch('submit');
     await waitFor(() => keysIn(ownSection(root)).join() === 'project-own-only');
     expect(host.requests.at(-1)).toBe(`${OWN_BASE}/search?q=${encodeURIComponent('手元')}&limit=50`);
-    expect(keysIn(hostPart(root))).toEqual([]);
+    expect(view.state.applied).toBe('手元');
   });
 
-  it('opens a decision of the own share with its judgment record, and follows its relations inside the section', async () => {
-    await writeGraphV2(dataDir);
-    const { root, rail } = await mountRegistry(ownHost());
-    const railBefore = collectText(rail);
+  it('opens a decision with its judgment record and follows its relations inside the section', async () => {
+    const { root } = await mountOwnShare(ownHost());
     rowsIn(ownSection(root)).find((row) => row.attributes['data-key'] === 'decision-scope').dispatch('click');
     await waitFor(() => visibleText(ownSection(root)).includes('最初の利用者の手戻りを小さくするため'));
     const detail = byClass(ownSection(root), 'bb-graph-own-detail')[0];
     expect(visibleText(section(detail, '判断根拠'))).toContain('判断小さく始める');
-    expect(collectText(rail)).toBe(railBefore);
     buttonsNamed(detail, 'Atlas導入')[0].dispatch('click');
     await waitFor(() => visibleText(byClass(ownSection(root), 'bb-graph-own-detail')[0]).includes('プロジェクト（引き継いだ自分の分）'));
+    buttonsNamed(byClass(ownSection(root), 'bb-graph-own-detail')[0], '閉じる')[0].dispatch('click');
+    expect(byClass(ownSection(root), 'bb-graph-own-detail')).toEqual([]);
   });
 
-  it('keeps the organization search when the own share fails', async () => {
-    await writeGraphV2(dataDir);
-    const { root } = await mountRegistry(ownHost('failed'));
-    expect(visibleText(ownSection(root))).toContain('読み取り失敗');
-    expect(keysIn(hostPart(root)).length).toBeGreaterThan(0);
+  it('says it has not been handed over with the commands, and never shows a failure as zero items', async () => {
+    const none = visibleText((await mountOwnShare(ownHost('none'))).root);
+    expect(none).toContain('まだ引き継いでいません');
+    for (const command of GRAPH_OWN_SHARE_COMMANDS) expect(none).toContain(command);
+
+    const host = ownHost('failed');
+    const { root } = await mountOwnShare(host);
+    const failed = visibleText(ownSection(root));
+    expect(failed).toContain('読み取り失敗');
+    expect(failed).toContain('0件ではありません');
+    expect(failed).not.toContain('束の中の記録');
+    host.mode = 'ok';
+    buttonsNamed(ownSection(root), '再試行')[0].dispatch('click');
+    await waitFor(() => keysIn(ownSection(root)).includes('project-own-only'));
+  });
+
+  it('takes the host label and lead, and stops drawing after destroy', async () => {
+    const root = new FakeElement('div');
+    let resolveRead;
+    const view = createOwnShareView({ root, document: new FakeDocument(), fetcher: () => new Promise((resolve) => { resolveRead = resolve; }), autoLoad: false, label: '自分の束', lead: 'ホストの説明' });
+    const pending = view.search('');
+    expect(visibleText(section(root, '自分の束'))).toContain('ホストの説明');
+    view.destroy();
+    resolveRead(jsonResponse(200, { status: 'not_handed_over', source: OWN_SOURCE }));
+    await pending;
+    expect(root.children.length).toBe(0);
   });
 });
 

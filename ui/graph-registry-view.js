@@ -11,15 +11,18 @@
  * source, period, corrections, ids) and 直す, which first shows what a fix
  * reaches.  The right rail stays empty.
  *
+ * This screen answers what the Graph knows (ledger D14).  The kinds of
+ * information and relations (the ontology) are definitions, drawn by
+ * `graph-ontology-view.js` under the host's settings; the owner's own snapshot
+ * is drawn by `createOwnShareView` (`graph-own-share.js`) where the owner takes
+ * records in.  Neither is drawn here.
+ *
  * Reads `GET {base}/search`, `GET {base}/entities/:id` and `GET {base}/ontology`
- * and corrects through `POST {base}/corrections` (see `graph-view-shared.js`).
- * The kinds of information and relations are shown read-only; there is no
- * change proposal here.  The part reads only the Graph routes the host serves
- * at its base path (the local Graph on the OSS host).  The host injects the
- * fetcher, base path, launch token, right rail and page context; this module
- * keeps no global state.  Another host composes it unchanged and adds only its
- * own controls through the options of `createGraphRegistryView`, including the
- * owner's own share in a separate section (`graph-own-share.js`).
+ * (for the kinds and their counts) and corrects through `POST {base}/corrections`
+ * (see `graph-view-shared.js`).  The host injects the fetcher, base path, launch
+ * token, page context and the record's address; this module keeps no global
+ * state.  Another host composes it unchanged and adds only its own controls
+ * through the options of `createGraphRegistryView`.
  */
 
 import {
@@ -41,27 +44,23 @@ import {
   hostSourceNotice,
   isEdgeView,
   isEntityView,
-  isRecord,
   makeElement,
   newRelationOptions,
   ownLabel,
   readOnlyGraphClient,
   recordDetails,
   relationLabel,
-  renderCorrectionHistory,
-  renderGraphIssues,
+  renderEvidenceAndHistory,
   renderProvenance,
   shellArg,
   textOrNull,
   typeLabel,
   validityLabel,
   validityText,
-  GRAPH_CORRECTION_FIELDS,
-  GRAPH_ENTITY_TYPE_MEANINGS,
   GRAPH_RELATION_LABELS,
   graphHostEmptyNotice,
 } from './graph-view-shared.js';
-import { graphOwnShareSource, ownEntityDetail, ownShareSection, ownShareStateNotice } from './graph-own-share.js';
+import { normalizeOntology } from './graph-ontology-view.js';
 import {
   workspaceActions,
   workspaceButton,
@@ -70,53 +69,43 @@ import {
   workspaceLedger,
   workspaceNotice,
   workspacePageHeader,
-  workspaceSectionTitle,
 } from './workspace-kit.js';
 
-export const GRAPH_REGISTRY_VIEW_CONTRACT_VERSION = 'brainbase.graph-registry-view.v2';
+export const GRAPH_REGISTRY_VIEW_CONTRACT_VERSION = 'brainbase.graph-registry-view.v3';
 export const GRAPH_SEARCH_LIMIT = 50;
 export const GRAPH_ENTITY_LEDGER_COLUMNS = Object.freeze(['名前', '種類', '説明', '最終更新']);
-const OWN_LEDGER_COLUMNS = Object.freeze(['名前', '種類', '要約', '有効期間']);
-export const GRAPH_RELATION_TYPE_LEDGER_COLUMNS = Object.freeze(['関係', '起点 → 終点', '意味', '件数']);
-export const GRAPH_ENTITY_TYPE_LEDGER_COLUMNS = Object.freeze(['種類', '意味', '件数']);
 
 const INVALID = Object.freeze({ state: 'invalid', reason: '応答の形式が不正です' });
 const DETAIL_ID = 'bb-gr-detail';
 
 /**
- * The kinds this screen names, in the order of its tabs: people, companies and
- * projects first.  Any other type id is internal and is never shown.
+ * People, companies and projects lead the tabs, under the names owners use for
+ * them (ledger D14).  Every other kind uses the shared plain name; a kind
+ * without one is internal and is never named.
  */
-const KIND_LABELS = Object.freeze({
-  person: '人',
-  org: '会社',
-  project: 'プロジェクト',
-  decision: '判断',
-  glossary_term: '用語',
-  document: '資料',
-  philosophy: '哲学',
-  objective: '目的',
-  model: '世界モデル',
-  app: 'アプリ',
-  brand: 'ブランド',
-});
-const KIND_ORDER = Object.freeze(Object.keys(KIND_LABELS));
+const LEADING_KINDS = Object.freeze({ person: '人', org: '会社', project: 'プロジェクト' });
 const DEFAULT_KIND_TABS = Object.freeze(['person', 'org', 'project', 'decision']);
 
 function kindLabel(type) {
-  return ownLabel(KIND_LABELS, type) ?? 'その他の記録';
+  const leading = ownLabel(LEADING_KINDS, type);
+  if (leading) return leading;
+  const shared = typeLabel(type);
+  return typeof type === 'string' && shared !== type ? shared : 'その他の記録';
 }
 
-/** Relations another host names differently, read as the local relation they mean. */
-const RELATION_PHRASES = Object.freeze({
-  belongs_to: GRAPH_RELATION_LABELS.member_of,
-  works_for: GRAPH_RELATION_LABELS.member_of,
-  owns: Object.freeze({ outgoing: 'を所有', incoming: 'が所有' }),
-});
+function hasKindLabel(type) {
+  return kindLabel(type) !== 'その他の記録';
+}
+
+/** Leading kinds first, the rest in the order given. */
+function kindRank(type) {
+  const index = Object.keys(LEADING_KINDS).indexOf(type);
+  return index < 0 ? Object.keys(LEADING_KINDS).length : index;
+}
 
 /** How a relation reads from this record's side; a relation without a Japanese name only says they connect. */
 function relationPhrase(edge) {
-  const labels = ownLabel(GRAPH_RELATION_LABELS, edge.relation) ?? ownLabel(RELATION_PHRASES, edge.relation);
+  const labels = ownLabel(GRAPH_RELATION_LABELS, edge.relation);
   if (!labels) return 'とつながる';
   return edge.direction === 'outgoing' ? labels.outgoing : labels.incoming;
 }
@@ -126,11 +115,6 @@ function updatedDay(entity) {
   const value = textOrNull(entity?.updatedAt) ?? textOrNull(entity?.updated_at);
   return value ? (formatDay(value) ?? value.slice(0, 10)) : null;
 }
-/** A type's meaning: the plain Japanese one for a local kind, otherwise what the host's answer says. */
-function typeMeaning(item) {
-  return ownLabel(GRAPH_ENTITY_TYPE_MEANINGS, item.id) ?? textOrNull(item.meaning) ?? '';
-}
-
 /** Results are `ok` when well formed; no match is shown only when the whole Graph was searched. */
 export function normalizeSearch(result) {
   if (result?.state !== 'ok') return result ?? INVALID;
@@ -258,33 +242,7 @@ function relationAvailability(payload, direction) {
   return { state: 'confirmed_empty' };
 }
 
-// A host that could not finish counting sends null (with countStatus
-// 'unknown', or 'at_least' plus atLeast) rather than a number it cannot vouch for.
-function isCount(value) {
-  return value === null || Number.isInteger(value);
-}
-
-function countText(item, key = 'count') {
-  if (Number.isInteger(item[key])) return `${item[key]}件`;
-  if (key === 'count' && item.countStatus === 'at_least' && Number.isInteger(item.atLeast)) return `${item.atLeast}件以上`;
-  return '件数は未確認';
-}
-
-export function normalizeOntology(result) {
-  if (result?.state !== 'ok') return result ?? INVALID;
-  const payload = result.payload;
-  const entityTypesOk = Array.isArray(payload.entityTypes) && payload.entityTypes.every((item) => isRecord(item)
-    && typeof item.id === 'string' && isCount(item.count));
-  const relationsOk = Array.isArray(payload.relations) && payload.relations.every((item) => isRecord(item)
-    && typeof item.id === 'string' && typeof item.from === 'string' && typeof item.to === 'string'
-    && isCount(item.count) && isCount(item.activeCount));
-  if (!entityTypesOk || !relationsOk || !isRecord(payload.ontology)) return INVALID;
-  return { state: 'ok', payload };
-}
-
-function fieldNames(fields) {
-  return (Array.isArray(fields) ? fields : []).map((field) => GRAPH_CORRECTION_FIELDS[field]?.label ?? field).join('・');
-}
+export { normalizeOntology };
 
 function textCell(value, fallback) {
   return textOrNull(value) ?? { text: fallback, className: 'is-unresolved' };
@@ -327,13 +285,8 @@ function textCell(value, fallback) {
  *   and its `brainbase onboard:*` commands when the host's Graph has nothing registered.
  * @param {{ label?: string, text: string | Element }} [options.sourceNotice] Replaces the default 出典 notice
  *   inside the open record's 根拠と履歴.
- * @param {{ basePath: string, fetcher?: Function, label?: string }} [options.ownShare]
- *   The owner's own snapshot the host keeps for them (`graph-own-share.js`): the same search runs on
- *   `{basePath}/search` and its results are shown read-only in a separate section after the host's
- *   results, labelled 「引き継いだ自分の分（組織には未反映）」 unless `label` says otherwise; a record
- *   opens below them from `{basePath}/entities/:id`, with a decision's judgment record.  They never
- *   enter the host's results or rail, and a failed read shows only in that section.  The host's
- *   results are then captioned as the organization's.  Without it nothing of the kind is drawn or read.
+ * @param {unknown} [options.ownShare] Ignored.  The owner's own snapshot is not part of this screen
+ *   (ledger D14); a host mounts `createOwnShareView` from `graph-own-share.js` where the owner takes records in.
  *
  * The kind tabs list the entity types of the `/ontology` answer that have a
  * plain name, people, companies and projects first (the four local kinds until
@@ -342,8 +295,7 @@ function textCell(value, fallback) {
  *
  * @returns The controller: `state`, `correction`, `render()`, `load()`, `search()`,
  *   `clearFilter(key)`, `clearFilters()`, `refreshResults()`, `loadEntity(id)`, `navigate(id)`,
- *   `openEntity(id)`, `closeEntity()`, `backToList()`, `back()`, `loadOntology()`, and with
- *   `ownShare` `searchOwn()` and `openOwnEntity(id)`.
+ *   `openEntity(id)`, `closeEntity()`, `backToList()`, `back()`, `loadOntology()`.
  */
 export function createGraphRegistryView({
   root,
@@ -364,12 +316,10 @@ export function createGraphRegistryView({
   readOnlyNote,
   sourceNotice,
   emptyNotice,
-  ownShare,
 } = {}) {
   if (!root) throw new TypeError('root is required');
   const doc = getDocument(explicitDocument);
   const graphClient = createGraphClient({ fetcher, basePath, token, ...(tokenHeader ? { tokenHeader } : {}) });
-  const own = graphOwnShareSource(ownShare, { fetcher });
   const writable = canCorrect !== false;
   const client = writable ? graphClient : readOnlyGraphClient(graphClient);
   const scope = graphCorrectionScope(correctionScope);
@@ -400,8 +350,6 @@ export function createGraphRegistryView({
     ontology: { state: 'loading' },
     // Where the open correction shows: a relation id (inside that relation) or anything else (below the record actions).
     panelAt: null,
-    // The owner's own share: the same search on its own routes, and its own open record.
-    own: own ? { search: { state: 'loading' }, detail: null } : null,
   };
   let focusRow = null;
   // The control to keep focused across a redraw, and the open record to bring into view once.
@@ -514,7 +462,10 @@ export function createGraphRegistryView({
     const read = state.ontology.state === 'ok' && Array.isArray(state.ontology.payload?.entityTypes) ? state.ontology.payload.entityTypes : null;
     const counts = new Map((read ?? []).map((item) => [item.id, item]));
     const selected = state.query.type;
-    const ids = (read ? KIND_ORDER.filter((id) => counts.has(id)) : DEFAULT_KIND_TABS)
+    const ids = (read ? read.map((item) => item.id).filter(hasKindLabel) : DEFAULT_KIND_TABS)
+      .map((id, index) => ({ id, index }))
+      .sort((left, right) => kindRank(left.id) - kindRank(right.id) || left.index - right.index)
+      .map(({ id }) => id)
       .filter((id) => id === selected || counts.get(id)?.count !== 0);
     const tabs = makeElement(doc, 'div', { className: 'bb-gr-tabs', attrs: { role: 'tablist', 'aria-label': '種類' } });
     for (const id of ['', ...ids]) {
@@ -588,8 +539,7 @@ export function createGraphRegistryView({
     section.append(makeElement(doc, 'p', {
       className: 'bb-gr-caption',
       attrs: { role: 'status' },
-      // Next to the owner's own share, these results are named as the organization's.
-      text: `${own ? '組織のGraphの' : ''}${Number.isInteger(payload.total) ? `検索結果 ${payload.total}件` : `検索結果 ${payload.results.length}件を表示（全体の件数は未確認）`}${asOfDay ? `（${asOfDay} の状態）` : ''}${state.searching ? '。新しい条件で探しています…' : ''}`,
+      text: `${Number.isInteger(payload.total) ? `検索結果 ${payload.total}件` : `検索結果 ${payload.results.length}件を表示（全体の件数は未確認）`}${asOfDay ? `（${asOfDay} の状態）` : ''}${state.searching ? '。新しい条件で探しています…' : ''}`,
     }));
     // 最終更新 is a column only when the host says when records changed; it is never filled with guesses.
     const updated = payload.results.some((entity) => updatedDay(entity));
@@ -619,75 +569,6 @@ export function createGraphRegistryView({
     return section;
   }
 
-  function renderOntology() {
-    const section = makeElement(doc, 'section', { className: 'bb-gr-ontology', attrs: { 'aria-label': '情報の種類とつながり方' } });
-    section.append(workspaceSectionTitle(doc, {
-      title: '情報の種類とつながり方',
-      lead: 'Graphに登録できる情報の種類と、種類どうしのつながり方です。この欄は表示だけです。',
-    }));
-    const stateNotice = graphStateNotice(doc, state.ontology, { onRetry: () => controller.loadOntology(), loadingText: '情報の種類を読み込んでいます。' });
-    if (stateNotice) {
-      section.append(stateNotice);
-      return section;
-    }
-    const { payload } = state.ontology;
-    const ontology = payload.ontology;
-    const version = textOrNull(ontology.version);
-    const currentVersion = textOrNull(ontology.currentVersion);
-    const freshness = ontology.upToDate === false && currentVersion
-      ? `最新ではありません。最新は ${currentVersion}`
-      : ontology.upToDate === true && version ? '最新' : '最新性は未確認';
-    section.append(makeElement(doc, 'p', {
-      className: 'bb-gr-caption',
-      text: `定義の版 ${version ?? '未確認'}（${freshness}）`,
-    }));
-    section.append(makeElement(doc, 'h3', { className: 'bb-gr-subheading', text: 'つながり方' }));
-    section.append(workspaceLedger(doc, {
-      className: 'bb-graph-relation-type-ledger',
-      ariaLabel: 'つながり方',
-      columns: GRAPH_RELATION_TYPE_LEDGER_COLUMNS,
-      rows: payload.relations.map((item) => ({
-        key: item.id,
-        cells: [
-          relationLabel(item.id),
-          `${typeLabel(item.from)} → ${typeLabel(item.to)}`,
-          ownLabel(GRAPH_RELATION_LABELS, item.id)?.meaning ?? textOrNull(item.meaning) ?? '',
-          Number.isInteger(item.count) && Number.isInteger(item.activeCount)
-            ? `${item.count}件（うち有効 ${item.activeCount}件）`
-            : countText(item),
-        ],
-      })),
-    }));
-    section.append(makeElement(doc, 'h3', { className: 'bb-gr-subheading', text: '情報の種類' }));
-    section.append(workspaceLedger(doc, {
-      className: 'bb-graph-entity-type-ledger',
-      ariaLabel: '情報の種類',
-      columns: GRAPH_ENTITY_TYPE_LEDGER_COLUMNS,
-      rows: payload.entityTypes.map((item) => ({
-        key: item.id,
-        cells: [typeLabel(item.id), typeMeaning(item), countText(item)],
-      })),
-    }));
-    const corrections = writable && isRecord(payload.corrections) ? payload.corrections : null;
-    if (corrections) {
-      section.append(makeElement(doc, 'h3', { className: 'bb-gr-subheading', text: 'この画面で直せること' }));
-      const list = makeElement(doc, 'ul', { className: 'bb-graph-plain-list' });
-      list.append(
-        makeElement(doc, 'li', { text: `記録: ${fieldNames(corrections.entityFields)}（プロジェクトは${fieldNames(corrections.projectFields)}も）` }),
-        makeElement(doc, 'li', { text: `関係: ${fieldNames(corrections.edgeFields)}` }),
-        makeElement(doc, 'li', { text: `新しく加えられる関係: ${(Array.isArray(corrections.newEdgeRelations) ? corrections.newEdgeRelations : []).map(relationLabel).join('・')}` }),
-        makeElement(doc, 'li', { text: '記録と関係は削除しません。終わったものは終了日で表します。関係の種類や相手を変えるときは、今の関係を終えてから新しく加えます。' }),
-      );
-      section.append(list);
-    }
-    section.append(recordDetails(doc, [
-      ['定義ID', textOrNull(ontology.id) ?? '未確認'],
-      ['定義の版', version ?? '未確認'],
-      ['release digest', textOrNull(ontology.releaseDigest) ?? '未確認'],
-    ], { title: 'この定義のID（技術情報）' }));
-    return section;
-  }
-
   /** The record a host's 出典 notice may point at: the selected record once it is read. */
   function sourceSubject() {
     const entity = state.detail?.state === 'ok' ? state.detail.payload.entity : null;
@@ -714,50 +595,7 @@ export function createGraphRegistryView({
       }),
       renderSearchForm(),
       renderResults(),
-      own ? renderOwnShare() : null,
-      renderOntology(),
     ];
-  }
-
-  /** The owner's own share: the same search on its own routes, never among the host's results. */
-  function renderOwnShare() {
-    const ownState = state.own;
-    const notice = ownShareStateNotice(doc, ownState.search, { onRetry: () => controller.searchOwn(), loadingText: '引き継いだ自分の分を探しています。' });
-    if (notice) return ownShareSection(doc, { label: own.label, children: [notice] });
-    const { payload } = ownState.search;
-    const asOf = payload.query?.asOf ?? null;
-    const children = [makeElement(doc, 'p', {
-      className: 'bb-gr-caption',
-      text: `${payload.graphEmpty === true ? '束に記録がありません' : `検索結果 ${payload.total}件`}${payload.truncated ? `（うち${payload.results.length}件を表示）` : ''}`,
-    })];
-    if (payload.graphEmpty !== true) {
-      children.push(workspaceLedger(doc, {
-        className: 'bb-graph-entity-ledger bb-graph-own-ledger',
-        ariaLabel: `${own.label}の検索結果`,
-        columns: OWN_LEDGER_COLUMNS,
-        empty: '条件に合う記録は、この束にはありません。',
-        rows: payload.results.map((entity) => ({
-          key: entity.id,
-          selected: entity.id === ownState.detail?.id,
-          className: entity.active ? '' : 'is-ended',
-          onSelect: (id) => { void controller.openOwnEntity(id); },
-          cells: [
-            { primary: entity.name, secondary: entity.id },
-            typeLabel(entity.type),
-            textCell(entity.summary, '要約は未登録'),
-            validityLabel(entity, asOf ?? now().toISOString()),
-          ],
-        })),
-      }));
-    }
-    if (ownState.detail) {
-      children.push(ownEntityDetail(doc, ownState.detail, {
-        onClose: () => controller.openOwnEntity(null),
-        onRetry: () => controller.openOwnEntity(ownState.detail.id),
-        onOpen: (id) => controller.openOwnEntity(id),
-      }));
-    }
-    return ownShareSection(doc, { label: own.label, handover: payload.handover, children });
   }
 
   // -------------------------------------------------------------------------
@@ -810,8 +648,8 @@ export function createGraphRegistryView({
       groups.get(kind).push(edge);
     }
     const order = (kind) => {
-      const index = KIND_ORDER.findIndex((id) => KIND_LABELS[id] === kind);
-      return index < 0 ? KIND_ORDER.length : index;
+      const index = Object.values(LEADING_KINDS).indexOf(kind);
+      return index < 0 ? Object.keys(LEADING_KINDS).length : index;
     };
     for (const [kind, items] of [...groups].sort(([left], [right]) => order(left) - order(right))) {
       const group = makeElement(doc, 'div', { className: 'bb-gr-connection-group', attrs: { role: 'group', 'aria-label': kind } });
@@ -830,23 +668,26 @@ export function createGraphRegistryView({
     return pageSection('つながり', children, 'bb-gr-connections');
   }
 
-  /** 根拠と履歴, folded: where each fact came from, its period, the corrections and the ids. */
+  /**
+   * 根拠と履歴, folded (the shared part): where the record came from, records
+   * that could not be read and the corrections, then its period, where each
+   * connection came from, and the ids.
+   */
   function renderEvidence(payload) {
     const { entity } = payload;
     const edges = [...payload.outgoing, ...payload.incoming];
-    const details = makeElement(doc, 'details', { className: 'bb-gr-evidence' });
-    details.append(makeElement(doc, 'summary', { text: '出典・有効期間・訂正の履歴を見る' }));
-    const body = makeElement(doc, 'div', { className: 'bb-gr-evidence-body' });
-    body.append(...[
-      sourceNoticeElement(),
-      renderGraphIssues(doc, payload.issues),
-      workspaceDefinition(doc, [
-        ['有効期間', validityText(entity.validFrom, entity.validTo)],
-        ['読み取った日', formatDay(payload.asOf) ?? textOrNull(payload.asOf)],
-      ]),
-    ].filter(Boolean));
+    const details = renderEvidenceAndHistory(doc, { source: sourceNoticeElement(), issues: payload.issues, history: payload.history });
+    const part = (title, ...children) => {
+      const block = makeElement(doc, 'section', { className: 'bb-graph-evidence-part' });
+      block.append(makeElement(doc, 'h4', { text: title }), ...children.filter(Boolean));
+      details.append(block);
+    };
+    part('有効期間', workspaceDefinition(doc, [
+      ['有効期間', validityText(entity.validFrom, entity.validTo)],
+      ['読み取った日', formatDay(payload.asOf) ?? textOrNull(payload.asOf)],
+    ]));
     if (edges.length > 0) {
-      const list = makeElement(doc, 'ul', { className: 'bb-gr-evidence-list', attrs: { 'aria-label': '関係ごとの出典' } });
+      const list = makeElement(doc, 'ul', { className: 'bb-gr-evidence-list', attrs: { 'aria-label': 'つながりの出典' } });
       for (const edge of edges) {
         const item = makeElement(doc, 'li', { className: 'bb-gr-evidence-item' });
         item.append(relationSentence(edge, entity, { link: false }), workspaceDefinition(doc, [
@@ -862,14 +703,13 @@ export function createGraphRegistryView({
         ], { title: 'この関係のID（技術情報）' }));
         list.append(item);
       }
-      body.append(list);
+      part('つながりの出典', list);
     }
-    body.append(...[
-      renderCorrectionHistory(doc, payload.history),
-      recordDetails(doc, [['記録ID', entity.id], ['種類ID', entity.type], ['digest', entity.digest], ['読み取った時点', payload.asOf]], { title: 'この記録のID（技術情報）' }),
-    ].filter(Boolean));
-    details.append(body);
-    return pageSection('根拠と履歴', [details], 'bb-gr-evidence-section');
+    part('ID', recordDetails(doc, [['記録ID', entity.id], ['種類ID', entity.type], ['digest', entity.digest], ['読み取った時点', payload.asOf]], { title: 'この記録のID（技術情報）' }));
+    // The fold's own summary names the part, so no heading repeats it.
+    const section = makeElement(doc, 'section', { className: 'bb-gr-page-section bb-gr-evidence-section', attrs: { 'aria-label': '根拠と履歴' } });
+    section.append(details);
+    return section;
   }
 
   /** 直す: first what a fix reaches, then the entries; a correction opens where it was asked for. */
@@ -1081,17 +921,11 @@ export function createGraphRegistryView({
       else state.search = { state: 'loading' };
       controller.render();
       const applied = state.applied;
-      // The owner's own share answers the same search on its own; neither waits on the other's failure.
-      const owning = own ? controller.searchOwn() : null;
       const result = await readSearch(applied);
-      if (state.applied !== applied) {
-        await owning;
-        return state.search;
-      }
+      if (state.applied !== applied) return state.search;
       state.searching = false;
       state.search = result;
       controller.render();
-      await owning;
       return state.search;
     },
     /** Removes one condition (`q`, `type` or `asOfDay`) and searches again. */
@@ -1136,44 +970,6 @@ export function createGraphRegistryView({
       // The address first, while the list is still where the owner left it (the browser keeps that scroll for 戻る).
       onRouteChange?.(id, { back: false });
       return controller.openEntity(id, options);
-    },
-    /** Runs the applied search on the owner's own share (with `ownShare`); a failure stays in that section. */
-    async searchOwn() {
-      if (!own) return null;
-      const applied = state.applied;
-      state.own.search = { state: 'loading' };
-      controller.render();
-      const result = await own.client.read('/search', searchParams(applied));
-      if (state.applied !== applied) return state.own.search;
-      // An empty answer is an answer here: the host confirms the whole snapshot was searched.
-      state.own.search = result.state === 'ok' && !(Array.isArray(result.payload.results) && result.payload.results.every(isEntityView)) ? INVALID : result;
-      const openId = state.own.detail?.id;
-      if (openId && !(state.own.search.state === 'ok' && state.own.search.payload.results.some((entity) => entity.id === openId))) state.own.detail = null;
-      controller.render();
-      return state.own.search;
-    },
-    /** Opens (or with null closes) a record of the owner's own share below its results. */
-    async openOwnEntity(id) {
-      if (!own) return null;
-      const target = textOrNull(id);
-      if (!target) {
-        state.own.detail = null;
-        controller.render();
-        return null;
-      }
-      const listed = state.own.search.state === 'ok' ? state.own.search.payload.results.find((entity) => entity.id === target) : null;
-      const pending = listed ?? (state.own.detail?.state === 'ok' ? [...state.own.detail.payload.outgoing, ...state.own.detail.payload.incoming]
-        .map((edge) => edge.counterpart).find((counterpart) => counterpart.id === target) : null) ?? null;
-      state.own.detail = { id: target, state: 'loading', pending: pending ? { id: target, name: pending.name, type: pending.type } : null };
-      controller.render();
-      const result = await own.client.read(`/entities/${encodeURIComponent(target)}`, { as_of: asOfParam() });
-      if (state.own.detail?.id !== target) return state.own.detail;
-      const base = { id: target, pending: state.own.detail.pending };
-      state.own.detail = result.state === 'error' && result.status === 404
-        ? { ...base, state: 'not_found', reason: 'この記録は束の中に見つかりません。' }
-        : { ...base, ...normalizeEntityDetail(result) };
-      controller.render();
-      return state.own.detail;
     },
     /** Reads the last search again without showing it as loading (after a correction). */
     async refreshResults() {

@@ -205,7 +205,7 @@ describe('local Web shell', () => {
     });
     await flush();
     const links = findAll(root, (node) => node.tagName === 'A').map((link) => link.attributes.href);
-    expect(links).toEqual(['#world', '#objectives', '#projects', '#minutes', '#value-proofs', '#graph', '#people', '#extra']);
+    expect(links).toEqual(['#world', '#objectives', '#projects', '#minutes', '#value-proofs', '#graph', '#people', '#ontology', '#extra']);
     // The first screen is still the first of the given screens.
     expect(shell.state.active).toBe('world');
   });
@@ -215,13 +215,13 @@ describe('local Web shell', () => {
     const { root, shell } = mount(fetcher);
     await flush();
     const links = findAll(root, (node) => node.tagName === 'A');
-    // The menu follows the six areas (ledger D10): 目的と現状, then 仕事, 成果 and 情報と関係.
+    // The menu follows the six areas (ledger D10): 目的と現状, then 仕事, 成果, 情報と関係 and 設定 (D14).
     expect(links.map((link) => [link.textContent, link.attributes.href])).toEqual([
-      ['目的と現状', '#objectives'], ['プロジェクトと関係者', '#projects'], ['議事録', '#minutes'], ['判断の履歴', '#value-proofs'], ['情報と関係', '#graph'], ['人と会社', '#people'],
+      ['目的と現状', '#objectives'], ['プロジェクトと関係者', '#projects'], ['議事録', '#minutes'], ['判断の履歴', '#value-proofs'], ['情報と関係', '#graph'], ['人と会社', '#people'], ['情報の種類とつながり方', '#ontology'],
     ]);
     // The screen order, and so the first screen, does not change.
     expect(LOCAL_WEB_SCREENS.map((entry) => [entry.id, entry.usesGraph])).toEqual([
-      ['value-proofs', false], ['minutes', false], ['objectives', true], ['projects', true], ['graph', true], ['people', true],
+      ['value-proofs', false], ['minutes', false], ['objectives', true], ['projects', true], ['graph', true], ['people', true], ['ontology', true],
     ]);
     expect(links.find((link) => link.attributes.href === '#value-proofs').attributes['aria-current']).toBe('page');
     expect(shell.state.active).toBe('value-proofs');
@@ -234,6 +234,7 @@ describe('local Web shell', () => {
       ['仕事', true, ['#projects', '#minutes']],
       ['成果', true, ['#value-proofs']],
       ['情報と関係', true, ['#graph', '#people']],
+      ['設定', true, ['#ontology']],
     ]);
     // 目的と現状 sits above the headings.
     expect(nav.children[0].attributes?.href).toBe('#objectives');
@@ -373,9 +374,17 @@ describe('local Web shell', () => {
     shell.show('graph');
     await flush();
     const graph = collectText(screen(root, 'graph'));
-    expect(graph).toContain('情報の種類とつながり方');
+    // The definitions are under 設定, not in 情報と関係 (ledger D14).
+    expect(graph).not.toContain('情報の種類とつながり方');
     expect(graph).toContain('まだ登録がありません');
     expect(calls).toEqual(expect.arrayContaining(['/api/graph/projects', '/api/graph/search?limit=50', '/api/graph/ontology']));
+
+    shell.show('ontology');
+    await flush();
+    const ontology = collectText(screen(root, 'ontology'));
+    expect(ontology).toContain('あなたのBrainbase/情報の種類とつながり方');
+    expect(ontology).toContain('参加人物 → プロジェクト');
+    expect(ontology).not.toContain('participates_in人物');
   });
 
   it('opens 人と会社 as a screen the owner can write to', async () => {

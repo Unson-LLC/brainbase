@@ -6,8 +6,6 @@ import { applyGraphCorrection, graphRecordDigest } from '../../src/graph-correct
 import {
   createGraphRegistryView,
   GRAPH_ENTITY_LEDGER_COLUMNS,
-  GRAPH_ENTITY_TYPE_LEDGER_COLUMNS,
-  GRAPH_RELATION_TYPE_LEDGER_COLUMNS,
   normalizeSearch,
 } from '../../ui/graph-registry-view.js';
 import { dayToRfc3339 } from '../../ui/graph-view-shared.js';
@@ -101,7 +99,9 @@ function searchForm(root) {
 
 /** One relation's line in a part of the record's screen: つながり, 根拠と履歴 or 直す. */
 function relationItem(rail, label, name) {
-  return findAll(section(rail, label), (node) => node.tagName === 'LI' && !String(node.parentNode?.className).includes('bb-gr-reach')
+  const skipped = ['bb-gr-reach', 'bb-graph-history-list', 'bb-graph-issue-list'];
+  return findAll(section(rail, label), (node) => node.tagName === 'LI'
+    && !skipped.some((className) => String(node.parentNode?.className).includes(className))
     && collectText(node).includes(name))[0];
 }
 
@@ -178,10 +178,12 @@ describe('情報と関係: workspace', () => {
     expect(byClass(section(empty.root, '検索結果'), 'bb-ws-ledger')).toEqual([]);
   });
 
-  it('shows Graph v1 as a migration in search and in the kinds of information, never as a zero-count ledger', async () => {
+  it('shows Graph v1 as a migration in search, never as a zero-count ledger', async () => {
     await writeGraphV1(dataDir);
     const { root } = await mountView();
-    for (const label of ['検索結果', '情報の種類とつながり方']) {
+    // The kinds of information are drawn by graph-ontology-view.js, not here.
+    expect(section(root, '情報の種類とつながり方')).toBeUndefined();
+    for (const label of ['検索結果']) {
       const part = section(root, label);
       const text = collectText(part);
       expect(text, label).toContain('Graphの移行が必要です');
@@ -201,7 +203,6 @@ describe('情報と関係: workspace', () => {
     const { root } = await mountView();
     expect(collectText(section(root, '検索結果'))).toContain('記録を取得できませんでした');
     expect(byClass(section(root, '検索結果'), 'bb-ws-notice')[0].className).toBe('bb-ws-notice is-danger');
-    expect(collectText(section(root, '情報の種類とつながり方'))).toContain('0件ではありません');
     await writeFile(join(dataDir, 'graph.json'), good);
     buttonsNamed(section(root, '検索結果'), '再試行')[0].dispatch('click');
     await waitFor(() => resultNames(root).length === 8);
@@ -269,9 +270,11 @@ describe('情報と関係: the record as its own screen (D14)', () => {
     const { rail, view } = await mountView();
     await view.openEntity('person-tanaka');
     const evidence = section(rail, '根拠と履歴');
-    // Folded: nothing of it is visible until opened.
-    expect(visibleText(evidence)).toBe('根拠と履歴');
-    expect(findAll(evidence, (node) => node.tagName === 'SUMMARY')[0].textContent).toBe('出典・有効期間・訂正の履歴を見る');
+    // Folded: nothing of it is visible until opened, and its fold names it.
+    expect(visibleText(evidence)).toBe('');
+    expect(findAll(evidence, (node) => node.tagName === 'SUMMARY')[0].textContent).toBe('根拠と履歴');
+    const parts = findAll(evidence, (node) => node.tagName === 'H4').map((node) => node.textContent);
+    expect(parts).toEqual(['出どころ', '訂正の履歴', '有効期間', 'つながりの出典', 'ID']);
     const text = collectText(evidence);
     expect(text).toContain('このMacのGraph');
     expect(text).toContain('MCPの search・get_context・resolve_entity で次から使われます');
@@ -670,116 +673,6 @@ describe('情報と関係: corrections', () => {
   });
 });
 
-describe('情報と関係: kinds of information', () => {
-  it('lists relation kinds and kinds of information as two read-only ledgers with meaning and counts', async () => {
-    await writeGraphV2(dataDir);
-    const { root } = await mountView();
-    const panel = section(root, '情報の種類とつながり方');
-    expect(findAll(panel, (node) => node.tagName === 'H2')[0].textContent).toBe('情報の種類とつながり方');
-    const relations = ledgerIn(panel, 'bb-graph-relation-type-ledger');
-    const kinds = ledgerIn(panel, 'bb-graph-entity-type-ledger');
-    expect(findAll(relations, (node) => node.attributes?.role === 'columnheader').map((node) => node.textContent)).toEqual([...GRAPH_RELATION_TYPE_LEDGER_COLUMNS]);
-    expect(findAll(kinds, (node) => node.attributes?.role === 'columnheader').map((node) => node.textContent)).toEqual([...GRAPH_ENTITY_TYPE_LEDGER_COLUMNS]);
-    const kindText = collectText(kinds);
-    expect(kindText).toContain('人物Graphに登録された人4件');
-    expect(kindText).toContain('プロジェクト目的を持つ、区切りのある仕事2件');
-    const relationText = collectText(relations);
-    expect(relationText).toContain('参加人物 → プロジェクト人物がプロジェクトに参加している2件（うち有効 1件）');
-    expect(relationText).toContain('責任人物 → プロジェクト人物がプロジェクトの成果や判断に責任を持つ1件（うち有効 1件）');
-    expect(relationText).toContain('所有プロジェクト → 組織');
-    const text = collectText(panel);
-    expect(text).toContain('新しく加えられる関係: 参加・責任・所属');
-    expect(text).toContain('（最新）');
-    // Read-only: no change proposal and no button in this panel.
-    expect(findAll(panel, (node) => node.tagName === 'BUTTON' || node.tagName === 'FORM')).toEqual([]);
-    expect(text).not.toContain('提案');
-    // The organization Graph (not connected here) gets no column or placeholder.
-    expect(collectText(root)).not.toContain('組織のGraph');
-  });
-});
-
-describe('情報と関係: counts another host could not finish', () => {
-  // A host whose Graph is larger than one read (the organization Graph) sends
-  // null counts with a status instead of a number it cannot vouch for.
-  async function mountPartial({ missingOntologyMetadata = false, omitOntologyFreshness = false, ontologyUpToDate } = {}) {
-    await writeGraphV2(dataDir);
-    api = await startGraphApi(dataDir);
-    const fetcher = async (url, init) => {
-      const response = await api.fetcher(url, init);
-      const path = String(url);
-      if (!path.includes('/ontology') && !path.includes('/search')) return response;
-      const payload = await response.json();
-      if (path.includes('/ontology')) {
-        if (missingOntologyMetadata) {
-          delete payload.ontology.id;
-          delete payload.ontology.version;
-          delete payload.ontology.currentVersion;
-          delete payload.ontology.releaseDigest;
-        }
-        if (omitOntologyFreshness) delete payload.ontology.upToDate;
-        if (ontologyUpToDate !== undefined) payload.ontology.upToDate = ontologyUpToDate;
-        payload.entityTypes = payload.entityTypes.map((item, index) => (index === 0
-          ? { ...item, count: null, countStatus: 'at_least', atLeast: 500 }
-          : { ...item, count: null, countStatus: 'unknown' }));
-        payload.relations = payload.relations.map((item) => ({ ...item, count: null, activeCount: null, countStatus: 'unknown' }));
-      } else {
-        Object.assign(payload, { total: null, totalStatus: 'unknown', truncated: true, absenceConfirmed: false });
-      }
-      return jsonResponse(200, payload);
-    };
-    const root = new FakeElement('div');
-    const view = createGraphRegistryView({ root, rail: new FakeElement('div'), page: PAGE, document: new FakeDocument(), fetcher, token: TOKEN, autoLoad: false });
-    await view.load();
-    return root;
-  }
-
-  it('shows an unfinished count as unconfirmed or as a lower bound, never as null or zero', async () => {
-    const root = await mountPartial();
-    const panel = section(root, '情報の種類とつながり方');
-    const text = collectText(panel);
-    expect(text).not.toContain('読み取れませんでした');
-    expect(collectText(ledgerIn(panel, 'bb-graph-entity-type-ledger'))).toContain('500件以上');
-    expect(collectText(ledgerIn(panel, 'bb-graph-entity-type-ledger'))).toContain('件数は未確認');
-    expect(collectText(ledgerIn(panel, 'bb-graph-relation-type-ledger'))).toContain('件数は未確認');
-    expect(text).not.toContain('null');
-    expect(text).not.toMatch(/(^|[^0-9])0件/);
-  });
-
-  it('shows how many results are on screen when the host cannot give the search total', async () => {
-    const root = await mountPartial();
-    const results = collectText(section(root, '検索結果'));
-    expect(results).toContain('検索結果 8件を表示（全体の件数は未確認）');
-    expect(results).toContain('ほかにもある可能性があります。条件を絞って探してください。');
-    expect(results).not.toContain('null');
-    expect(results).not.toContain('NaN');
-  });
-
-  it('labels missing ontology metadata as unconfirmed instead of rendering undefined', async () => {
-    const root = await mountPartial({ missingOntologyMetadata: true });
-    const panel = section(root, '情報の種類とつながり方');
-    const text = collectText(panel);
-    expect(text).toContain('定義の版 未確認（最新性は未確認）');
-    expect(text).toContain('定義ID未確認');
-    expect(text).toContain('release digest未確認');
-    expect(text).not.toContain('undefined');
-    expect(text).not.toContain('null');
-  });
-
-  it('does not infer latestness from a version when the host omits its freshness flag', async () => {
-    const root = await mountPartial({ omitOntologyFreshness: true });
-    const text = collectText(section(root, '情報の種類とつながり方'));
-    expect(text).toContain('最新性は未確認');
-    expect(text).not.toContain('（最新）');
-  });
-
-  it('labels a version as latest only when the host explicitly confirms it', async () => {
-    const root = await mountPartial({ ontologyUpToDate: true });
-    const text = collectText(section(root, '情報の種類とつながり方'));
-    expect(text).toContain('（最新）');
-    expect(text).not.toContain('最新性は未確認');
-  });
-});
-
 describe('情報と関係: host extensions', () => {
   const CORRECTION_BUTTONS = ['この記録を直す', '関係を加える', 'この関係を直す'];
   const correctionButtons = (node) => findAll(node, (item) => item.tagName === 'BUTTON' && CORRECTION_BUTTONS.includes(item.textContent));
@@ -806,11 +699,7 @@ describe('情報と関係: host extensions', () => {
 
   it('draws no correction control and never posts when the host cannot correct', async () => {
     await writeGraphV2(dataDir);
-    const { root, rail, view } = await mountWith({ canCorrect: false });
-    // What this screen can correct is not listed either; the kinds stay.
-    const kinds = collectText(section(root, '情報の種類とつながり方'));
-    expect(kinds).not.toContain('この画面で直せること');
-    expect(kinds).toContain('人物Graphに登録された人4件');
+    const { rail, view } = await mountWith({ canCorrect: false });
     await view.openEntity('person-tanaka');
     expect(section(rail, 'つながり')).toBeDefined();
     // Without a host note there is nothing to say under 直す, so the part is not drawn.
@@ -944,12 +833,6 @@ describe('情報と関係: host extensions', () => {
 
     const typeCells = resultRows(root).map((row) => collectText(row.children[1]));
     expect(typeCells).toEqual(['人', 'その他の記録', 'その他の記録']);
-    const kinds = collectText(ledgerIn(section(root, '情報の種類とつながり方'), 'bb-graph-entity-type-ledger'));
-    // A local kind keeps its plain meaning; another kind shows the host's.
-    expect(kinds).toContain('人物Graphに登録された人1件');
-    expect(kinds).toContain('task仕事の単位1件');
-    expect(kinds).toContain('constructor1件');
-    expect(collectText(ledgerIn(section(root, '情報の種類とつながり方'), 'bb-graph-relation-type-ledger'))).toContain('assigned_totask → 人物担当している');
 
     await view.openEntity('task-1');
     expect(railHead(rail)).toBe('その他の記録見積もり');

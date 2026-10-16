@@ -38,6 +38,45 @@ export const GRAPH_ENTITY_TYPE_LABELS = Object.freeze({
   org: '組織',
   project: 'プロジェクト',
   decision: '判断',
+  // The kinds an organization's Graph defines on top of the local four, so the
+  // screens never show an internal type id (ledger D14).
+  app: 'アプリ',
+  product: 'プロダクト',
+  brand: 'ブランド',
+  customer: '顧客',
+  partner: '協業先',
+  contact: '名刺の連絡先',
+  raci: '責任分担表',
+  raci_assignment: '責任の割り当て',
+  role_assignment: '役割',
+  glossary_term: '用語',
+  document: '文書',
+  frame: '考え方の枠組み',
+  story: 'ストーリー',
+  infrastructure_environment: '稼働環境',
+  speaking: '登壇',
+  media_appearance: 'メディア出演',
+  publication: '出版物',
+  press_mention: '報道',
+  initiative: '施策',
+  ai_query: 'AIへの問い合わせ',
+  ai_decision: 'AIを使った判断',
+  philosophy: '哲学',
+  capital: '資本',
+  contract: '契約',
+  database: 'データベース',
+  database_cluster: 'データベースのクラスタ',
+  diagnosis: '診断',
+  finance: '財務',
+  finance_account: '財務の口座',
+  org_alias: '組織の別名',
+  organization: '組織（旧い形式）',
+  person_alias: '人物の別名',
+  push_case: '推進案件',
+  objective: '目的',
+  variable: '変数',
+  model: '世界モデル',
+  constraint: '制約',
 });
 
 export const GRAPH_ENTITY_TYPE_MEANINGS = Object.freeze({
@@ -51,14 +90,72 @@ export const GRAPH_ENTITY_TYPE_MEANINGS = Object.freeze({
  * `outgoing` follows the counterpart name when this record is the start of the
  * relation; `incoming` follows it when this record is the end.
  */
+const relation = (label, meaning, outgoing, incoming) => Object.freeze({ label, meaning, outgoing, incoming });
+
+/*
+ * Every relation of the local Graph and of an organization's Graph has a plain
+ * Japanese name (ledger D14); a relation id is shown only in the details.
+ * Relations that mean the same to a reader share one name (所有 for owns and
+ * owned_by, 所属 for member_of and belongs_to), and a list of relation kinds
+ * shows them as one row (`groupRelationKinds`).
+ */
 export const GRAPH_RELATION_LABELS = Object.freeze({
-  member_of: Object.freeze({ label: '所属', meaning: '人物が組織に所属している', outgoing: 'に所属', incoming: 'が所属' }),
-  participates_in: Object.freeze({ label: '参加', meaning: '人物がプロジェクトに参加している', outgoing: 'に参加', incoming: 'が参加' }),
-  accountable_for: Object.freeze({ label: '責任', meaning: '人物がプロジェクトの成果や判断に責任を持つ', outgoing: 'に責任を持つ', incoming: 'が責任を持つ' }),
-  owned_by: Object.freeze({ label: '所有', meaning: 'プロジェクトを組織が所有している', outgoing: 'が所有', incoming: 'を所有' }),
-  related_to: Object.freeze({ label: '関わる', meaning: '会社が顧客・協業先などとしてプロジェクトに関わっている', outgoing: 'に関わる', incoming: 'が関わる' }),
-  governs: Object.freeze({ label: '方針', meaning: '判断や原則がプロジェクトの進め方を決める', outgoing: 'の進め方を決める', incoming: 'が進め方を決める' }),
-  supersedes: Object.freeze({ label: '置き換え', meaning: '判断が以前の判断を置き換える', outgoing: 'を置き換える', incoming: 'に置き換えられた' }),
+  member_of: relation('所属', '人物が組織やプロジェクトに所属している', 'に所属', 'が所属'),
+  belongs_to: relation('所属', '記録が組織・プロダクト・ブランド・プロジェクトに含まれる', 'に所属', 'が所属'),
+  belongs_to_project: relation('所属', '記録がプロジェクトに含まれる', 'に所属', 'が所属'),
+  participates_in: relation('参加', '人物がプロジェクトに参加している', 'に参加', 'が参加'),
+  accountable_for: relation('責任', '人物や組織が成果や判断に最終的な責任を持つ', 'に責任を持つ', 'が責任を持つ'),
+  owned_by: relation('所有', 'プロジェクトなどを組織や人が所有している', 'が所有', 'を所有'),
+  owns: relation('所有', '組織がアプリ・プロダクト・ブランド・プロジェクトを所有している', 'を所有', 'が所有'),
+  owns_app: relation('所有', 'プロジェクトがアプリを持っている（旧い形式）', 'を所有', 'が所有'),
+  related_to: relation('関わる', '会社が顧客・協業先などとしてプロジェクトに関わっている', 'に関わる', 'が関わる'),
+  governs: relation('進め方を決める', '判断や原則が、対象の進め方を決める', 'の進め方を決める', 'が進め方を決める'),
+  governed_by: relation('従う原則', '推進案件が従う原則', 'に従う', 'が従う'),
+  supersedes: relation('置き換え', '判断が以前の判断を置き換える', 'を置き換える', 'に置き換えられた'),
+  superseded_by: relation('同一人物に統合', '古い人物の記録を、正しい人物の記録へまとめた', 'へ統合', 'を統合'),
+  derived_from: relation('由来', '記録が別の記録をもとにしている', 'に由来', 'が由来とする'),
+  depends_on: relation('依存', '稼働や成果が別の記録に依存している', 'に依存', 'が依存'),
+  assigned_to: relation('責任の割り当て', '責任分担で、人や組織に責任を割り当てている', 'に割り当て', 'で割り当て'),
+  requested_by: relation('問い合わせた人', 'AIへの問い合わせをした人', 'が問い合わせた', 'を問い合わせた'),
+  made_by: relation('判断した人', '判断をした人', 'が判断した', 'を判断した'),
+  references: relation('根拠として参照', '判断や問い合わせが、根拠として別の記録を参照している', 'を参照', 'が参照'),
+  evidenced_by: relation('根拠の文書', '判断の根拠になった文書', 'を根拠にする', 'が根拠にする'),
+  informs: relation('判断材料', '文書がプロジェクトの判断材料になる', 'の判断材料', 'が判断材料'),
+  mentions: relation('言及', '判断が協業先やプロダクトに言及している', 'に言及', 'が言及'),
+  alias_of: relation('別名', '人や組織の別の呼び名', 'の別名', 'が別名'),
+  applies_to: relation('適用先', '文書が適用される組織', 'に適用', 'が適用'),
+  describes: relation('説明', '文書が組織を説明している', 'を説明', 'が説明'),
+  brand_of: relation('ブランドの対象', 'ブランドが表す組織やプロジェクト', 'のブランド', 'がブランド'),
+  sub_brand_of: relation('上位ブランド', 'ブランドの上位にあるブランド', 'の下位ブランド', 'が下位ブランド'),
+  operates: relation('運営', '組織が運営している', 'を運営', 'が運営'),
+  operated_by: relation('運営', '組織が運営している', 'が運営', 'を運営'),
+  covers_engagement: relation('責任分担の対象', '責任分担表が対象とする組織や案件', 'の責任分担', 'が責任分担を示す'),
+  describes_org: relation('責任分担の対象', '責任分担表が対象とする組織や案件', 'の責任分担', 'が責任分担を示す'),
+  has_raci: relation('責任分担表', '組織やプロジェクトが持つ責任分担表', 'を持つ', 'が持つ'),
+  has_project: relation('含む', 'プロジェクトが子プロジェクト・案件・施策を含む', 'を含む', 'に含まれる'),
+  has_engagement: relation('含む', 'プロジェクトが子プロジェクト・案件・施策を含む', 'を含む', 'に含まれる'),
+  has_initiative: relation('含む', 'プロジェクトが子プロジェクト・案件・施策を含む', 'を含む', 'に含まれる'),
+  relates_to_project: relation('関連', 'プロジェクトどうしが関連している', 'と関連', 'と関連'),
+  serves_customer: relation('価値を届ける顧客', 'プロジェクトが価値を届ける顧客', 'に価値を届ける', 'が価値を届ける'),
+  org_unit_of: relation('上位の顧客', '部署が属する顧客の会社', 'の部署', 'が部署'),
+  supports_project: relation('支援', '協業先がプロジェクトを運営する組織を支援している', 'を支援', 'が支援'),
+  key_contact_for: relation('主な窓口', 'ブランドや推進案件の主な窓口', 'の主な窓口', 'が主な窓口'),
+  primary_contact_for: relation('主な窓口', 'ブランドや推進案件の主な窓口', 'の主な窓口', 'が主な窓口'),
+  has_push_case: relation('推進案件', '顧客について進めている推進案件', 'を推進案件に持つ', 'の推進案件'),
+  has_diagnosis: relation('診断', '推進案件についての診断', 'を持つ', 'が持つ'),
+  role_at: relation('役割', '人物の役割と、その役割の所属先', 'での役割', 'がある'),
+  holds_role: relation('役割', '人物の役割と、その役割の所属先', 'を持つ', 'が持つ'),
+  uses_app: relation('利用', 'プロジェクトやアプリが、アプリやデータベースを使う', 'を使う', 'が使う'),
+  uses_database: relation('利用', 'プロジェクトやアプリが、アプリやデータベースを使う', 'を使う', 'が使う'),
+  has_environment: relation('稼働環境', 'プロジェクトが稼働環境として持つアプリ', 'を稼働環境に持つ', 'の稼働環境'),
+  hosted_on: relation('置き場所', 'データベースが置かれているクラスタ', 'に置かれている', 'が置かれている'),
+  uses_secret_store: relation('秘密情報の保管先', 'アプリが使う（または使うべき）秘密情報の保管先', 'を保管先に使う', 'が保管先に使う'),
+  should_use_secret_store: relation('秘密情報の保管先', 'アプリが使う（または使うべき）秘密情報の保管先', 'を保管先に使うべき', 'が保管先に使うべき'),
+  created: relation('生み出した', '人物がプロダクトを生み出した', 'を生み出した', 'が生み出した'),
+  authored: relation('著作', '人物が出版物を著した', 'を著した', 'が著した'),
+  spoke_at: relation('登壇', '人物が登壇した', 'で登壇', 'が登壇'),
+  appeared_in: relation('出演', '人物がメディアに出演した', 'に出演', 'が出演'),
+  mentioned_in: relation('掲載', '人物が報道に掲載された', 'に掲載', 'が掲載'),
 });
 
 /** Relations a correction may add (the host refuses any other). */
@@ -307,9 +404,33 @@ export function ownLabel(table, key) {
   return typeof key === 'string' && Object.hasOwn(table, key) ? table[key] : undefined;
 }
 
-/** A relation's plain label; an unknown relation shows its raw id. */
-export function relationLabel(relation) {
-  return ownLabel(GRAPH_RELATION_LABELS, relation)?.label ?? relation;
+/**
+ * A relation's plain label.  An unknown relation shows the meaning its host
+ * gave (when there is one) rather than its raw id.
+ */
+export function relationLabel(relation, meaning) {
+  return ownLabel(GRAPH_RELATION_LABELS, relation)?.label ?? textOrNull(meaning) ?? relation;
+}
+
+/**
+ * The relation kinds of an ontology answer as rows a reader can tell apart:
+ * kinds with the same plain name are one row (所有 for owns, owned_by and
+ * owns_app), and each row keeps every kind with its start and end kinds.  Rows
+ * keep the order in which their first kind appears.
+ */
+export function groupRelationKinds(relations) {
+  const rows = new Map();
+  for (const item of Array.isArray(relations) ? relations : []) {
+    if (!isRecord(item) || typeof item.id !== 'string') continue;
+    const known = ownLabel(GRAPH_RELATION_LABELS, item.id);
+    const label = relationLabel(item.id, item.meaning);
+    const row = rows.get(label) ?? { label, meanings: [], kinds: [] };
+    const meaning = known?.meaning ?? textOrNull(item.meaning);
+    if (meaning && !row.meanings.includes(meaning)) row.meanings.push(meaning);
+    row.kinds.push(item);
+    rows.set(label, row);
+  }
+  return [...rows.values()];
 }
 
 /** A type's plain label; an unknown type (from another host's Graph) shows its raw id. */
@@ -618,6 +739,59 @@ export function renderGraphIssues(doc, issues) {
     tone: 'warning',
     text: noticeBody(doc, makeElement(doc, 'p', { text: `出典や訂正の履歴のうち、読めない記録が${issues.length}件あります。読めた記録だけを表示しています。` }), list),
   });
+}
+
+/**
+ * 根拠と履歴 of one record, folded: where the record came from (the host's 出典
+ * notice, which may carry its authorization), the source or correction records
+ * that could not be read, and the corrections made.  None of these is a notice
+ * for the whole screen (ledger D14); records that could not be read are counted
+ * on the fold itself so they are not hidden.
+ *
+ * @param {Document} doc
+ * @param {{ source?: string | Element | null, issues?: unknown[], history?: unknown[] }} parts
+ */
+export function renderEvidenceAndHistory(doc, { source = null, issues = [], history = [] } = {}) {
+  const unreadable = (Array.isArray(issues) ? issues : []).filter(isRecord);
+  const corrections = (Array.isArray(history) ? history : []).filter(isRecord);
+  const details = makeElement(doc, 'details', { className: 'bb-graph-evidence' });
+  const summary = makeElement(doc, 'summary', { text: '根拠と履歴' });
+  if (unreadable.length > 0) summary.append(badge(doc, `読めない記録 ${unreadable.length}件`, 'warning'));
+  details.append(summary);
+  const section = (title, ...children) => {
+    const block = makeElement(doc, 'section', { className: 'bb-graph-evidence-part' });
+    block.append(makeElement(doc, 'h4', { text: title }), ...children.filter(Boolean));
+    details.append(block);
+  };
+  if (source) {
+    const body = typeof source === 'object' && typeof source.tagName === 'string' ? source : makeElement(doc, 'p', { text: String(source) });
+    section('出どころ', body);
+  }
+  if (unreadable.length > 0) {
+    const list = makeElement(doc, 'ul', { className: 'bb-graph-issue-list' });
+    for (const issue of unreadable) {
+      const where = `${String(issue.file ?? '不明')}${Number.isInteger(issue.line) ? `（${issue.line}行目）` : ''}`;
+      list.append(makeElement(doc, 'li', { text: `${where}: ${String(issue.reason ?? '理由不明')}` }));
+    }
+    section(
+      '読めない記録',
+      makeElement(doc, 'p', { text: `この記録の出典や訂正の履歴のうち、壊れていて読めない記録が${unreadable.length}件あります。表示している内容は読めた記録だけから作っているため、最後の訂正や出典が抜けているかもしれません。` }),
+      list,
+    );
+  }
+  if (corrections.length > 0) {
+    const list = makeElement(doc, 'ol', { className: 'bb-graph-history-list' });
+    for (const record of corrections) {
+      const fields = Array.isArray(record.changedFields) ? record.changedFields.map((field) => FIELD_LABELS[field] ?? field).join('・') : '';
+      list.append(makeElement(doc, 'li', {
+        text: `${formatDateTime(record.at)} ${CORRECTION_KIND_LABELS[record.kind] ?? '直した'}${fields ? `（${fields}）` : ''}。理由: ${String(record.reason ?? '')}`,
+      }));
+    }
+    section(`訂正の履歴（${corrections.length}件）`, list);
+  } else if (Array.isArray(history)) {
+    section('訂正の履歴', makeElement(doc, 'p', { className: 'bb-graph-empty', text: 'この記録は、まだ訂正されていません。' }));
+  }
+  return details;
 }
 
 // ---------------------------------------------------------------------------

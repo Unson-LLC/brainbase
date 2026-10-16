@@ -1,0 +1,88 @@
+/*
+ * 「情報の種類とつながり方」. Load after workspace-kit.css and graph-view-shared.css.
+ * Column templates of the kinds and relations ledgers, with and without the
+ * count column, and a 760px variant.
+ * Uses only the shared tokens in brainbase-tokens.css.
+ */
+.bb-go .bb-go-caption,
+.bb-go .bb-go-note {
+  margin: 0 0 10px;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-go .bb-ws-section-title {
+  margin-top: 30px;
+}
+
+.bb-go > .bb-graph-plain-list {
+  color: var(--bb-color-muted);
+}
+
+.bb-go > .bb-graph-audit {
+  margin-top: 14px;
+}
+
+.bb-go-type-ledger .bb-ws-ledger-row {
+  grid-template-columns: 160px minmax(0, 1fr);
+}
+
+.bb-go-type-ledger.is-counted .bb-ws-ledger-row {
+  grid-template-columns: 160px minmax(0, 1fr) 96px;
+}
+
+.bb-go-relation-ledger .bb-ws-ledger-row {
+  grid-template-columns: 140px minmax(0, 1.4fr) minmax(0, 1.6fr);
+}
+
+.bb-go-relation-ledger.is-counted .bb-ws-ledger-row {
+  grid-template-columns: 140px minmax(0, 1.4fr) minmax(0, 1.6fr) minmax(0, .8fr);
+}
+
+.bb-go-type-ledger .bb-ws-ledger-row,
+.bb-go-relation-ledger .bb-ws-ledger-row {
+  min-height: 48px;
+  align-items: start;
+}
+
+/* Meanings and kinds are read, not scanned: let them wrap. */
+.bb-go-type-ledger .bb-ws-ledger-row > span,
+.bb-go-relation-ledger .bb-ws-ledger-row > span {
+  white-space: normal;
+}
+
+.bb-go-type-ledger .bb-ws-ledger-row:not(.bb-ws-ledger-head) > :first-child,
+.bb-go-relation-ledger .bb-ws-ledger-row:not(.bb-ws-ledger-head) > :first-child {
+  color: var(--bb-color-ink);
+  font-weight: 690;
+}
+
+.bb-go-kinds {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bb-go-kinds > li + li {
+  margin-top: 4px;
+}
+
+@media (max-width: 760px) {
+  .bb-go-type-ledger .bb-ws-ledger-row,
+  .bb-go-type-ledger.is-counted .bb-ws-ledger-row {
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+
+  .bb-go-type-ledger.is-counted .bb-ws-ledger-row > :nth-child(3) {
+    display: none;
+  }
+
+  .bb-go-relation-ledger .bb-ws-ledger-row,
+  .bb-go-relation-ledger.is-counted .bb-ws-ledger-row {
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+
+  .bb-go-relation-ledger .bb-ws-ledger-row > :nth-child(n + 3) {
+    display: none;
+  }
+}
