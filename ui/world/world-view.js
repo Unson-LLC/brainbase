@@ -32,7 +32,7 @@ import { createDistrictView, DISTRICT_LEGEND } from './world-district.js';
 import { createWorldCanvasUI } from './world-canvas-ui.js';
 import { workCanvasNotes } from './world-canvas-notes.js';
 import { canvasTexture, drawFacade, FACADE_SIZES, FACADE_UNITS, gableRoof, hashUnit, muted, paintVertices, roundedPlate, valueNoise } from './world-scenery.js';
-import { WORK_STATES, workCityBlocks, workGrowthBlock, workPickBlock, workSign, workSiteBlocks } from './world-work-rail.js';
+import { WORK_STATES, readReasonShort, workCityBlocks, workGrowthBlock, workPickBlock, workSign, workSignBlocks, workSigns, workSiteBlocks } from './world-work-rail.js';
 import { exitHrefKind, exitLegend, exitsRailBlock, normalizeBusinessExits } from './world-exits.js';
 import {
   makeWorkspaceElement as el,
@@ -197,7 +197,7 @@ const GAP_SHORT_TEXT = Object.freeze({
   review_overdue: '見直し超過',
 });
 
-function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear, onEscape }) {
+function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear, onEscape, onSign }) {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio ?? 1, 2));
   renderer.shadowMap.enabled = true;
@@ -1113,18 +1113,30 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear, 
     for (const post of citySigns.splice(0)) scene.remove(post);
     for (const [code, entry] of cityIndex) {
       const summary = summaries?.[code];
-      entry.label?.node.querySelector('.bb-world-badge')?.remove();
       if (entry.label) entry.label.size = null;
+      entry.label?.node.querySelectorAll('.bb-world-badge').forEach((badge) => badge.remove());
       const signal = workSign(summary);
       if (!signal) continue;
-      const { text } = signal;
       const unreadable = signal.kind === 'unreadable';
       const { city } = entry;
       const post = sign(unreadable ? 'unreadable' : 'check', 2.2, 0.9);
       post.position.set(city.x - city.size / 2 + 0.6, 0.45, city.z + city.size / 2 - 0.6);
       scene.add(post);
       citySigns.push(post);
-      if (entry.label) entry.label.node.append(el(doc, 'span', { className: `bb-world-badge ${unreadable ? 'is-unreadable' : 'is-check'}`, text }));
+      if (!entry.label) continue;
+      // Each sign says what it means in a few words; pressing one opens why and what to do next
+      // (story-world-sign-meaning-v1). The rail's entrances are the keyboard way to the same blocks.
+      for (const item of workSigns(summary)) {
+        const badge = el(doc, 'span', { className: `bb-world-badge ${item.kind === 'unreadable' ? 'is-unreadable' : 'is-check'}${onSign ? ' is-pressable' : ''}`, text: item.text });
+        if (onSign) {
+          badge.title = 'この札の意味と、次にすることを見る';
+          badge.addEventListener('click', (event) => {
+            event.stopPropagation();
+            onSign(entry.label.business ?? null, code);
+          });
+        }
+        entry.label.node.append(badge);
+      }
     }
   }
 
@@ -1748,9 +1760,9 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
       if (!summary) return { text: workConnected === false ? '' : '仕事は区画で読みます', count: -1 };
       if (summary.state !== 'complete' && summary.state !== 'partial') return { text: '仕事を読めない（0件とは確認できません）', count: -1, muted: true };
       const needs = summary.needs_check?.length ?? 0;
-      const parts = [needs ? `要確認 ${needs}` : Number.isInteger(summary.open) ? `未完了 ${summary.open}` : '未完了の件数は未確認'];
-      if (summary.state === 'partial') parts.push('一部だけ読めた');
-      return { text: parts.join('・'), count: needs };
+      const signs = workSigns(summary);
+      const parts = [...(needs ? [] : [Number.isInteger(summary.open) ? `未完了 ${summary.open}` : '未完了の件数は未確認']), ...signs.map((sign) => sign.text)];
+      return { text: parts.join('・'), count: needs, signs: signs.length > 0 };
     };
     const rows = knownBusinesses
       .map((business) => ({ business, note: noteOf(business) }))
@@ -1761,6 +1773,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
       const button = workspaceButton(doc, { text: `${business.name}の区画に入る ›`, onClick: () => enterFromRail(business) });
       item.append(button);
       if (note.text) item.append(el(doc, 'span', { className: `bb-world-entrance-note${note.count > 0 ? ' is-check' : ''}${note.muted ? ' is-muted' : ''}`, text: note.text }));
+      if (note.signs) item.append(workspaceButton(doc, { text: '札の意味 ›', variant: 'quiet', onClick: () => showSignMeaning(business) }));
       list.append(item);
     }
     showRail([
@@ -1770,6 +1783,32 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
   };
   // The businesses are not known yet here (the list is drawn again once the world is built).
   showRail([workspaceDetailEmpty(doc, { mark: '◇', title: '都市や建物を選ぶと、ここに出ます', text: 'ドラッグで移動、ホイールで寄る・離れる、右ドラッグで回転します。Escで全体に戻ります。' })]);
+
+  /**
+   * What a city's signs mean (story-world-sign-meaning-v1): pressing 要確認 or 一部だけ読めた over a city
+   * opens, without entering it, which gaps the open work shows and how to correct them, and why the
+   * work was read only in part.  From there the district opens on one kind of gap.
+   */
+  function showSignMeaning(business) {
+    if (!business) return;
+    const summary = workSummaries[business.code];
+    const blocks = workSignBlocks(doc, {
+      summary,
+      onEnter: () => enterFromRail(business),
+      onSelectGap: (kind) => {
+        enterFromRail(business);
+        showFocus(business, { kind });
+      },
+    });
+    if (!blocks.length) return;
+    clearAll();
+    showRail([
+      workspaceRailHead(doc, { kicker: `${business.name}の札`, title: '札の意味と、次にすること', lead: '地図の札は、タスクの記録と、その読み込みの状態から出しています。' }),
+      ...blocks,
+      workspaceRailBlock(doc, { title: '', content: workspaceButton(doc, { text: '← 区画の入口に戻る', variant: 'quiet', onClick: () => showEntrances() }) }),
+    ]);
+    canvasUI?.openRail();
+  }
 
   /** The entrances of the districts, the ones with the most work to check first, in the opened rail. */
   function showEntrances() {
@@ -2396,7 +2435,10 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
       if (!needsKnown) note('記録の確認件数', '仕事の要約に記録の要確認件数がありません。確認事項が0件とは確認できません。', 'warning', '記録の要確認件数：未確認');
       if (!openKnown) note('仕事の件数', '読めた仕事の要約に未完了件数の記録がありません。0件とは確認できません。', 'warning', '未完了の件数：未確認');
       if (unreadable) note('仕事の読込', `仕事を読めなかった事業${unreadable}件。0件とは確認できません。`, 'warning', `仕事が読めない事業 ${unreadable}件`);
-      if (partial) note('仕事の範囲', `一部だけ読めた事業${partial}件。件数は読めた範囲です。`, 'warning', `仕事が一部だけ読めた事業 ${partial}件`);
+      if (partial) {
+        const reasons = [...new Set(readable.filter((entry) => entry.state === 'partial').map((entry) => readReasonShort(entry.reason) ?? '理由の記録なし'))].join('・');
+        note('仕事の範囲', `一部だけ読めた事業${partial}件（${reasons}）。件数は読めた範囲です。区画の入口で、事業ごとの理由と次にすることを見られます。`, 'warning', `仕事が一部だけ読めた事業 ${partial}件（${reasons}）`, null, { action: { label: '理由を見る', onClick: showEntrances } });
+      }
       if (needs) note('仕事の記録', `読めた未完了の仕事${needs}件（${cities}事業）に、記録から把握できていないことがあります。仕事の失敗や停止を意味しません。`, 'attention', `記録の要確認 ${needs}件・${cities}事業`, null, { action: { label: '区画を選ぶ', onClick: showEntrances } });
     }
   }
@@ -2627,7 +2669,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
       for (const business of exitsEnabled ? businesses : []) loadExits(business);
       return;
     }
-    scene = createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear: clearAll, onEscape: goUp });
+    scene = createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear: clearAll, onEscape: goUp, onSign: (business, code) => showSignMeaning(business ?? knownBusinesses.find((entry) => entry.code === code) ?? null) });
     scene.setSky(SKY_MODES[skyIndex][0]);
     scene.buildPlaza(rows, rowItems, (row) => (rowItems.get(row.key) ?? []).filter((ref) => isWaiting(proofs.get(ref.decision_attempt_id))).length, Date.now(), { state: judgmentsUnavailable ? judgmentsUnavailable.title.replace('判断の記録：', '') : null });
     scene.buildCities(layoutWorld(businesses), placement.byBusiness);

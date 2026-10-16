@@ -386,6 +386,25 @@
   border: 1px dashed #8a9096;
 }
 
+/* A sign opens what it means (story-world-sign-meaning-v1); its name keeps entering the district. */
+.bb-world-badge.is-pressable {
+  cursor: help;
+}
+
+.bb-world-badge.is-pressable:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.bb-world-label.is-enterable:has(.bb-world-badge.is-pressable:hover)::after {
+  content: '　札の意味を見る ›';
+}
+
+.bb-world-sign-gaps li {
+  display: grid;
+  gap: 2px;
+}
+
 .bb-world-label.is-site {
   font-size: 10px;
   padding: 1px 5px;

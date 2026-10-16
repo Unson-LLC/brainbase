@@ -507,13 +507,79 @@ function objectiveCard(doc, record, variableMap) {
   return card;
 }
 
-function objectiveReading(doc, record, variableMap, recordContexts) {
+/**
+ * Whose what an objective waits for (story-objective-row-actions-v1), from its own record: the items its
+ * current state says were not confirmed when it was saved, or else the fields it has not recorded, and
+ * the accountable person who would settle them.  Nothing is waited for when the record names nothing.
+ */
+export function objectiveWaiting(record) {
+  const definition = recordDefinition(record);
+  const current = currentStateFor(record);
+  const accountable = nonEmpty(definition.accountableId);
+  const items = current.missing.length ? current.missing : missingObjectiveFields(record);
+  if (items.length === 0) return null;
+  const what = `${current.missing.length ? '未確認' : '未記録'}：${items.join('・')}`;
+  const who = accountable ? '責任者の確認待ち' : '責任者が未記録のため、確かめる人が決まっていません';
+  return { what, who, items, kind: current.missing.length ? 'unconfirmed' : 'unrecorded', accountableRecorded: Boolean(accountable) };
+}
+
+function waitingElement(doc, waiting) {
+  const cell = makeElement(doc, 'span', { className: 'bb-fov-waiting' });
+  if (!waiting) {
+    cell.append(makeElement(doc, 'span', { className: 'bb-fov-missing', text: '記録上はありません' }));
+    return cell;
+  }
+  cell.append(makeElement(doc, 'strong', { className: 'bb-fov-missing', text: waiting.what }), makeElement(doc, 'small', { text: waiting.who }));
+  return cell;
+}
+
+/**
+ * What the reader can do with this objective, from the host (`callbacks.objectiveAction`): a button that
+ * goes where it is corrected, or the reason it cannot be from here.  Without a host action the screen says
+ * it only reads; it never shows a control that does nothing.
+ */
+function objectiveActionElement(doc, record, recordContexts, callbacks, dialog) {
+  const definition = recordDefinition(record), details = detailsFor(record);
+  const part = makeElement(doc, 'section', { className: 'bb-fov-actions' });
+  part.append(makeElement(doc, 'h3', { text: 'この目的でできること' }));
+  const context = recordContexts?.get(record);
+  const action = typeof callbacks?.objectiveAction === 'function'
+    ? callbacks.objectiveAction({
+      objectiveId: definition.id ?? null,
+      revision: definition.revision ?? null,
+      title: formatAny(details.title) ?? formatAny(definition.meaning) ?? null,
+      scopeIds: context?.scopeIds ?? [],
+      record,
+    })
+    : null;
+  if (action && typeof action.onSelect === 'function') {
+    part.append(workspaceButton(doc, {
+      text: `${action.label ?? '目的を直す・現状を記録する'} ›`,
+      variant: 'primary',
+      onClick: () => { dialog()?.close(); action.onSelect(); },
+    }));
+    part.append(makeElement(doc, 'p', { className: 'bb-fov-action-note', text: action.description ?? '目指す状態・評価基準・現状を直し、新しい版として保存します。保存すると、この一覧の「待っていること」が変わります。' }));
+  } else {
+    part.append(makeElement(doc, 'p', {
+      className: 'bb-fov-action-note is-unavailable',
+      text: nonEmpty(action?.unavailable) ?? 'この画面は読むだけです。ここからは記録を変えられません。',
+    }));
+  }
+  return part;
+}
+
+function objectiveReading(doc, record, variableMap, recordContexts, callbacks = {}, dialog = () => null) {
   const definition = recordDefinition(record), details = detailsFor(record);
   const body = makeElement(doc, 'div', { className: 'bb-fov-reading' });
   const section = (title, content) => {
     const part = makeElement(doc, 'section');
     part.append(makeElement(doc, 'h3', { text: title }), content); body.append(part);
   };
+  const waiting = objectiveWaiting(record);
+  section('待っていること', waiting
+    ? workspaceDefinition(doc, [['何を', waiting.what], ['誰が', waiting.who]])
+    : makeElement(doc, 'p', { text: '記録上、待っていることはありません。達成・採用・検証済みを意味しません。' }));
+  body.append(objectiveActionElement(doc, record, recordContexts, callbacks, dialog));
   section('達成条件', workspaceDefinition(doc, [
     ['目指す状態', formatAny(definition.desiredState)],
     ['評価基準', criteriaElement(doc, definition, details, variableMap)],
@@ -560,18 +626,21 @@ function renderObjectives(doc, catalog, viewState, callbacks, recordContexts) {
         viewState.dialog?.close();
         viewState.dialog = workspaceDialog(doc, {
           title: formatAny(details.title) ?? formatAny(definition.meaning) ?? UNNAMED_RECORD, opener,
-          content: objectiveReading(doc, record, recordContexts?.get(record)?.variableMap ?? variableMap, recordContexts),
+          content: objectiveReading(doc, record, recordContexts?.get(record)?.variableMap ?? variableMap, recordContexts, callbacks, () => viewState.dialog),
         });
       },
       cells: [
         { primary: formatAny(details.title) ?? formatAny(definition.meaning) ?? UNNAMED_RECORD },
         current.text ?? current.status ?? '未記録',
-        { text: current.missing.length ? current.missing.join('・') : missingObjectiveFields(record).join('・') || '記録なし', className: 'bb-fov-missing' },
+        waitingElement(doc, objectiveWaiting(record)),
         formatDate(current.asOf),
       ],
     };
   });
-  section.append(workspaceLedger(doc, { className: 'bb-fov-objective-ledger', ariaLabel: '登録された目的', columns: ['目的', '現状', '確認待ち', '確認日'], rows }));
+  section.append(workspaceLedger(doc, { className: 'bb-fov-objective-ledger', ariaLabel: '登録された目的', columns: ['目的', '現状', '待っていること', '確認日'], rows }));
+  section.append(makeElement(doc, 'p', { className: 'bb-fov-ledger-hint', text: typeof callbacks?.objectiveAction === 'function'
+    ? '行を押すと、目的の詳細と、この目的でできること（直す・現状を記録する）が開きます。'
+    : '行を押すと、目的の詳細が開きます。この画面は読むだけです。' }));
   return section;
 }
 
@@ -912,13 +981,14 @@ export function renderFoundationCollectionOverview(root, sources, {
         if (existing) {
           const context = contexts.get(existing);
           if (!context.sources.includes(source.label)) context.sources.push(source.label);
+          if (!context.scopeIds.includes(source.scopeId)) context.scopeIds.push(source.scopeId);
           context.label = `${shared ? '組織共通 ／ ' : ''}${context.sources.join('・')}`;
           continue;
         }
         const record = { ...original };
         seen.set(key, record);
         catalog[kind].push(record);
-        contexts.set(record, { key, variableMap, sources: [source.label], label: `${shared ? '組織共通 ／ ' : ''}${source.label}` });
+        contexts.set(record, { key, variableMap, sources: [source.label], scopeIds: [source.scopeId], label: `${shared ? '組織共通 ／ ' : ''}${source.label}` });
       }
     }
   }

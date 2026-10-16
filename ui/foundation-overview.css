@@ -248,3 +248,12 @@
 .bb-fov-philosophy-card .bb-fov-original { border-top: 0; padding-top: 0; }
 .bb-fov-model-card .bb-fov-original { margin-top: 12px; padding-top: 10px; overflow-wrap: anywhere; }
 .bb-fov-objective-ledger .bb-ws-ledger-row:focus-visible { outline: 2px solid var(--bb-color-focus); outline-offset: 2px; }
+/* Whose what an objective waits for, and what can be done with it (story-objective-row-actions-v1). */
+.bb-fov-waiting { display: grid; gap: 2px; min-width: 0; }
+.bb-fov-waiting strong { font-weight: 600; }
+.bb-fov-waiting small { color: var(--bb-color-muted); font-size: 12px; line-height: 1.4; }
+.bb-fov-ledger-hint { margin: 8px 0 0; color: var(--bb-color-muted); font-size: 12px; }
+.bb-fov-actions { display: grid; gap: 8px; justify-items: start; padding: 12px; border: 1px solid var(--bb-color-border); border-radius: 8px; background: var(--bb-color-surface-subtle, rgb(0 0 0 / 2%)); }
+.bb-fov-actions h3 { margin: 0; }
+.bb-fov-action-note { margin: 0; color: var(--bb-color-muted); font-size: 13px; }
+.bb-fov-action-note.is-unavailable { color: var(--bb-color-ink); }

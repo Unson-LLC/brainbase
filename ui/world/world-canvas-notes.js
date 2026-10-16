@@ -1,7 +1,7 @@
 /** Compact notices are projections of the same source-read states as the full rail.
  * A task's needs_check is a record gap, never an unavailable read or failed job.
  */
-import { readReasonText, shortTime } from './world-work-rail.js';
+import { readReasonShort, readReasonText, shortTime } from './world-work-rail.js';
 
 const READ_LABELS = Object.freeze({ tasks: '仕事', persons: '人物', decisions: '方針の決定', relations: '関係' });
 const STATE_TEXT = Object.freeze({ partial: '一部だけ読めた', failed: '読込失敗', forbidden: '権限がなく読めない', not_connected: '未接続', unavailable: '読めない' });
@@ -17,7 +17,8 @@ export function workCanvasNotes(work) {
     const read = work.reads?.[key];
     if (!read || read.state !== 'complete') {
       const state = STATE_TEXT[read?.state] ?? '状態不明';
-      notes.push({ label: `区画の${label}`, tone: 'warning', summary: `${label}：${state}`, text: `${label}は${state}。${readReasonText(read?.reason) ?? '理由不明'}。読めていない記録は0件とは限りません。` });
+      const short = readReasonShort(read?.reason);
+      notes.push({ label: `区画の${label}`, tone: 'warning', summary: `${label}：${state}${short ? `（${short}）` : ''}`, text: `${label}は${state}。${readReasonText(read?.reason) ?? '理由不明'}。読めていない記録は0件とは限りません。` });
     }
   }
   const summary = work.summary;

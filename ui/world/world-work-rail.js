@@ -54,6 +54,47 @@ export function readReasonText(reason) {
   return String(reason).split(',').map((part) => READ_REASON_TEXT[part] ?? part).join('。');
 }
 
+/** The same reasons in a few words, for a sign over a city. A reason not listed here gets no words (none is guessed). */
+const READ_REASON_SHORT = Object.freeze({
+  codes_not_permitted: '権限外の案件あり',
+  page_limit_reached: '件数が上限',
+  limit_reached: '件数が上限',
+  upstream_timeout: '応答なし',
+  upstream_request_failed: '接続できない',
+});
+
+export function readReasonShort(reason) {
+  if (!reason) return null;
+  const words = [...new Set(String(reason).split(',').map((part) => READ_REASON_SHORT[part]).filter(Boolean))];
+  return words.length ? words.join('・') : null;
+}
+
+/** What makes a read whole again, for each reason: where to go, or that nothing needs doing. */
+const READ_REASON_NEXT = Object.freeze({
+  codes_not_permitted: '読むには、その案件のタスクを見る権限が要ります。権限は組織の管理者が付けます。',
+  page_limit_reached: '直す操作はありません。件数と区画の中の仕事は、読めた範囲だけです。',
+  limit_reached: '直す操作はありません。件数と区画の中の仕事は、読めた範囲だけです。',
+  upstream_timeout: '時間をおいて画面を開き直すと、もう一度読みます。',
+  upstream_request_failed: '時間をおいて画面を開き直すと、もう一度読みます。',
+});
+
+/** What to correct in the task record for each kind of gap (the same words as the task screen). */
+const GAP_FIX_TEXT = Object.freeze({
+  assignee_unlinked_mentioned: '本文に書かれた人を、タスクの担当欄に登録する',
+  assignee_unrecorded: 'タスクの担当欄に、担当する人を登録する',
+  outcome_unlinked: '完了条件にある成果物の場所を、タスクの出典リンクに足す',
+  source_unlinked: '元になった議事録・Slack・資料のリンクを、タスクに足す',
+  review_overdue: '今の状態を確かめて、タスクの状態か見直し予定を更新する',
+});
+
+const GAP_TEXT = Object.freeze({
+  assignee_unlinked_mentioned: '担当欄に未接続（本文に人物あり）',
+  assignee_unrecorded: '担当の記録なし',
+  outcome_unlinked: '成果物の記録が未接続',
+  source_unlinked: '出典リンクなし',
+  review_overdue: '見直し予定を過ぎた',
+});
+
 const WORK_UNAVAILABLE_TEXT = Object.freeze({
   task_store_not_connected: 'この画面はタスクの正本に接続していないため、都市の中の仕事は描いていません。仕事の件数は未確認です。0件とは確認できません。',
 });
@@ -82,22 +123,86 @@ export function shortTime(value) {
 }
 
 /**
- * What a city's sign says, and its kind: amber when open work shows a gap, grey when the work could not
- * be read or was read only in part (an unknown city is never shown as one without problems).
+ * The signs over a city, each with its meaning in a few words: amber when open work shows a gap in its
+ * record, grey when the work could not be read or was read only in part, with the recorded reason (an
+ * unknown city is never shown as one without problems).
  */
-export function workSign(summary) {
-  if (!summary || summary.state === 'not_connected') return null;
+export function workSigns(summary) {
+  if (!summary || summary.state === 'not_connected') return [];
+  const reason = readReasonShort(summary.reason);
   if (summary.state === 'complete' || summary.state === 'partial') {
+    const signs = [];
     const count = summary.needs_check?.length ?? 0;
-    const part = summary.state === 'partial' ? '（一部だけ読めた）' : '';
-    if (count > 0) return { kind: 'check', text: `要確認 ${count}${part}` };
-    return summary.state === 'partial' ? { kind: 'unreadable', text: '一部だけ読めた' } : null;
+    if (count > 0) signs.push({ kind: 'check', text: `要確認 ${count}：記録に抜け` });
+    if (summary.state === 'partial') signs.push({ kind: 'unreadable', text: `一部だけ読めた${reason ? `：${reason}` : ''}` });
+    return signs;
   }
-  return { kind: 'unreadable', text: '仕事を読めない' };
+  return [{ kind: 'unreadable', text: `仕事を読めない${summary.state === 'forbidden' ? '：権限がない' : reason ? `：${reason}` : ''}` }];
+}
+
+/** The pole over a city: amber when any open work shows a gap, else grey; its text is all its signs. */
+export function workSign(summary) {
+  const signs = workSigns(summary);
+  if (!signs.length) return null;
+  return { kind: signs.some((sign) => sign.kind === 'check') ? 'check' : 'unreadable', text: signs.map((sign) => sign.text).join('・') };
 }
 
 export function workSignText(summary) {
   return workSign(summary)?.text ?? null;
+}
+
+/**
+ * What a city's signs mean, opened by pressing one (story-world-sign-meaning-v1): for 要確認, how many
+ * open tasks show which gap and what to correct in the task record; for 一部だけ読めた or 仕事を読めない,
+ * the reason the host recorded and what would make the read whole.  Every sentence is drawn from the
+ * summary; a reason the host did not give is said to be unrecorded, not guessed.
+ */
+export function workSignBlocks(doc, { summary, onSelectGap, onEnter }) {
+  const blocks = [];
+  if (!summary) return blocks;
+  const readable = summary.state === 'complete' || summary.state === 'partial';
+  const needs = readable ? summary.needs_check?.length ?? 0 : 0;
+  if (needs > 0) {
+    const list = el(doc, 'ul', { className: 'bb-world-rail-list is-plain bb-world-sign-gaps' });
+    const kinds = Object.entries(summary.gaps ?? {}).filter(([, ids]) => ids?.length).sort((a, b) => b[1].length - a[1].length);
+    for (const [kind, ids] of kinds) {
+      const li = el(doc, 'li');
+      const button = el(doc, 'button', { className: 'bb-world-rail-pick is-gap', text: `${GAP_TEXT[kind] ?? kind} ${ids.length}件 ›`, attrs: { type: 'button', disabled: !onSelectGap } });
+      button.addEventListener('click', () => onSelectGap?.(kind));
+      li.append(button);
+      if (GAP_FIX_TEXT[kind]) li.append(el(doc, 'small', { className: 'bb-world-rail-note', text: `直し方：${GAP_FIX_TEXT[kind]}` }));
+      list.append(li);
+    }
+    blocks.push(workspaceRailBlock(doc, {
+      title: `要確認 ${needs}件：記録に抜けがある仕事`,
+      className: 'bb-world-sign-meaning',
+      content: [
+        { text: `読めた未完了の仕事${Number.isInteger(summary.open) ? `${summary.open}件` : ''}のうち${needs}件に、タスクの記録から分からないことがあります。仕事が止まっている・遅れているという意味ではありません。` },
+        kinds.length ? list : null,
+        { text: '直すのはタスクの記録です。種類を選ぶと区画に入り、該当する仕事が並びます。1件ずつ開くと、確かめることと、タスク画面への行き先が出ます。直すと、次に読んだときに札が減ります。', className: 'bb-world-rail-caveat is-quiet' },
+      ],
+    }));
+  }
+  if (summary.state !== 'complete') {
+    const reason = readReasonText(summary.reason);
+    const parts = String(summary.reason ?? '').split(',').filter(Boolean);
+    const next = [...new Set(parts.map((part) => READ_REASON_NEXT[part]).filter(Boolean))];
+    const what = { partial: '一部だけ読めました', failed: '読めませんでした', forbidden: '権限が無く読めませんでした' }[summary.state] ?? `読めませんでした（${summary.state}）`;
+    const at = shortTime(summary.read_at);
+    const short = readReasonShort(summary.reason) ?? (summary.state === 'forbidden' ? '権限がない' : null);
+    blocks.push(workspaceRailBlock(doc, {
+      title: `${summary.state === 'partial' ? '一部だけ読めた' : '仕事を読めない'}${short ? `：${short}` : ''}`,
+      className: 'bb-world-sign-meaning',
+      content: workspaceDefinition(doc, [
+        ['読み込み', `この事業の仕事を${what}${at ? `（${at}）` : ''}`],
+        ['理由', reason ?? { text: '理由は記録されていません', className: 'is-unrecorded' }],
+        ['件数', summary.state === 'partial' ? '読めた範囲です。読めていない仕事は0件とは限りません。' : '未確認です。0件とは確認できません。'],
+        ['次にすること', next.length ? next.join('') : { text: '記録された理由からは分かりません', className: 'is-unrecorded' }],
+      ]),
+    }));
+  }
+  if (blocks.length && onEnter) blocks.push(workspaceRailBlock(doc, { title: '', content: workspaceButton(doc, { text: '区画に入って仕事を見る ›', onClick: onEnter }) }));
+  return blocks;
 }
 
 function linkLine(doc, link, label, extra) {
@@ -176,6 +281,7 @@ function workStateBlocks(doc, { work, summary, onSelectGap, onSelectStatus }) {
     const button = el(doc, 'button', { className: 'bb-world-rail-pick is-gap', text: `${label} ${taskIds.length}件`, attrs: { type: 'button', disabled: !onSelectGap } });
     button.addEventListener('click', () => onSelectGap?.(kind));
     li.append(button);
+    if (GAP_FIX_TEXT[kind]) li.append(el(doc, 'small', { className: 'bb-world-rail-note', text: `直し方：${GAP_FIX_TEXT[kind]}` }));
     gapList.append(li);
   }
   blocks.push(workspaceRailBlock(doc, {

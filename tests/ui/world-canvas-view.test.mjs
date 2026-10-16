@@ -128,7 +128,8 @@ describe('World canvas source integration', () => {
     expect(notes.textContent).toContain('判断の記録：未接続');
     expect(notes.textContent).toContain('仕事が読めない事業 1件');
     expect(notes.textContent).not.toContain('記録の要確認');
-    expect(findAll(notes, (node) => ['A', 'BUTTON'].includes(node.tagName))).toEqual([]);
+    // Only the partial read opens somewhere: the entrances, where each city's reason is shown (story-world-sign-meaning-v1).
+    expect(findAll(notes, (node) => ['A', 'BUTTON'].includes(node.tagName)).map((node) => node.textContent)).toEqual([expect.stringContaining('理由を見る')]);
   });
 
   it('offers every recorded task through a keyboard-accessible directory and focuses explicit details', async () => {
