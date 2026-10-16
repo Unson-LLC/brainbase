@@ -7,12 +7,27 @@
  *
  * List order and labels are a projection. Canonical records are not rewritten.
  * Calendar links stay out until a meeting-side event id is verified.
+ * Filters and sort only narrow the loaded list; the host owns any filter that
+ * changes what it asks the server for (story-meeting-minutes-list-filters-v1).
  */
+
+import { workspaceCombobox } from './workspace-kit.js';
 
 export const MEETING_MINUTES_UI_CONTRACT_VERSION = 'brainbase.meeting-minutes-ui.v1';
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 const TOKYO = 'Asia/Tokyo';
+const SORTS = Object.freeze([
+  { value: 'scheduled-desc', label: '会議の日時が新しい順' },
+  { value: 'scheduled-asc', label: '会議の日時が古い順' },
+  { value: 'updated-desc', label: '議事録の更新が新しい順' },
+]);
+const STATE_FILTERS = Object.freeze([
+  { value: '', label: 'すべての状態' },
+  { value: 'pending', label: '確認待ち' },
+  { value: 'confirmed', label: '確認済み' },
+]);
+const EMPTY_FILTERS = Object.freeze({ query: '', from: '', to: '', participant: '', status: '' });
 
 function tokyoParts(date) {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -239,17 +254,69 @@ function byCreatedAt(versions) {
     .map((item) => item.version);
 }
 
-function sortMeetings(meetings) {
+function updatedTime(entry) {
+  let latest = latestVersionTime(entry);
+  for (const documentRecord of Array.isArray(entry?.minutes) ? entry.minutes : []) {
+    const date = parseDate(documentRecord?.updated_at);
+    if (date && (!latest || date > latest)) latest = date;
+  }
+  return latest ?? importTime(entry);
+}
+
+function sortMeetings(meetings, sort = 'scheduled-desc') {
+  const byUpdate = sort === 'updated-desc';
+  const direction = sort === 'scheduled-asc' ? 1 : -1;
   return meetings
-    .map((entry, index) => ({ entry, index, timing: meetingTiming(entry) }))
+    .map((entry, index) => {
+      const timing = meetingTiming(entry);
+      const updated = byUpdate ? updatedTime(entry) : null;
+      return {
+        entry,
+        index,
+        bottom: byUpdate ? !updated : timing.kind === 'unregistered',
+        at: byUpdate ? updated?.getTime() ?? Number.NEGATIVE_INFINITY : timing.at,
+      };
+    })
     .sort((left, right) => {
-      const leftBottom = left.timing.kind === 'unregistered';
-      const rightBottom = right.timing.kind === 'unregistered';
-      if (leftBottom !== rightBottom) return leftBottom ? 1 : -1;
-      if (left.timing.at !== right.timing.at) return right.timing.at - left.timing.at;
+      if (left.bottom !== right.bottom) return left.bottom ? 1 : -1;
+      // Meetings without a date keep the newest import first in every order.
+      if (left.at !== right.at) return left.bottom ? right.at - left.at : (left.at - right.at) * direction;
       return left.index - right.index;
     })
     .map((item) => item.entry);
+}
+
+function searchText(value) {
+  return String(value ?? '').normalize('NFKC').toLocaleLowerCase('ja');
+}
+
+function tokyoDateValue(date) {
+  const { year, month, day } = tokyoParts(date);
+  return `${year}-${pad(month)}-${pad(day)}`;
+}
+
+function participantsOf(entry) {
+  const ids = entry?.meeting?.participant_ids;
+  return Array.isArray(ids) ? ids.map((id) => text(id)).filter(Boolean) : [];
+}
+
+function matchesFilters(entry, filters) {
+  const terms = searchText(filters.query).split(/\s+/u).filter(Boolean);
+  if (terms.length) {
+    const documents = Array.isArray(entry?.minutes) ? entry.minutes : [];
+    const haystack = searchText([entry?.meeting?.title, ...documents.map((documentRecord) => documentRecord?.title)].join('\n'));
+    if (!terms.every((term) => haystack.includes(term))) return false;
+  }
+  if (filters.from || filters.to) {
+    const timing = meetingTiming(entry);
+    if (!timing.date) return false;
+    const day = tokyoDateValue(timing.date);
+    if (filters.from && day < filters.from) return false;
+    if (filters.to && day > filters.to) return false;
+  }
+  if (filters.participant && !participantsOf(entry).includes(filters.participant)) return false;
+  if (filters.status && listState(entry)?.code !== filters.status) return false;
+  return true;
 }
 
 function idempotencyKey() {
@@ -514,7 +581,9 @@ export function createMeetingMinutesUI({
   versionActionExtensions = [],
   meetingLabel,
   canCreateMeeting,
+  createUnavailableReason,
   canEditMinutes,
+  hostFilters = [],
   now = () => new Date(),
 } = {}) {
   if (!root) throw new TypeError('root is required');
@@ -533,9 +602,12 @@ export function createMeetingMinutesUI({
     loading: false,
     listError: null,
     detailError: null,
+    filters: { ...EMPTY_FILTERS },
+    sort: SORTS[0].value,
   };
   let listRequestGeneration = 0;
   let detailRequestGeneration = 0;
+  let createReasonSequence = 0;
 
   const screen = makeElement(doc, 'div', { className: 'bb-minutes-screen', attrs: { 'data-contract-version': MEETING_MINUTES_UI_CONTRACT_VERSION } });
   const heading = makeElement(doc, 'header', { className: 'bb-minutes-heading' });
@@ -545,6 +617,10 @@ export function createMeetingMinutesUI({
     makeElement(doc, 'p', { className: 'bb-minutes-lead', textContent: '新しい会議から読み、確認待ちを見つけて確認します。' }),
   );
   const status = makeElement(doc, 'p', { className: 'bb-minutes-status', attrs: { role: 'status', 'aria-live': 'polite' } });
+  const toolbar = makeElement(doc, 'div', {
+    className: 'bb-minutes-toolbar',
+    attrs: { role: 'search', 'aria-label': '議事録の絞り込みと並べ替え' },
+  });
   const columns = makeElement(doc, 'div', { className: 'bb-minutes-columns' });
   const listPane = makeElement(doc, 'section', {
     className: 'bb-minutes-list-pane',
@@ -552,8 +628,126 @@ export function createMeetingMinutesUI({
   });
   const detailPane = makeElement(doc, 'section', { className: 'bb-minutes-detail-pane', attrs: { 'aria-label': '議事録詳細' } });
   columns.append(listPane, detailPane);
-  screen.append(heading, status, columns);
+  screen.append(heading, status, toolbar, columns);
   root.replaceChildren(screen);
+
+  function filterField(label, control, className = '') {
+    const field = makeElement(doc, 'div', { className: `bb-minutes-filter-field${className ? ` ${className}` : ''}` });
+    field.append(makeElement(doc, 'span', { className: 'bb-minutes-label', textContent: label }), control);
+    return field;
+  }
+
+  function filterCombobox(label, options, value, onChange) {
+    return workspaceCombobox(doc, { label, options, value, className: 'bb-minutes-filter-combobox', onChange });
+  }
+
+  const keyword = makeElement(doc, 'input', {
+    className: 'bb-minutes-input bb-minutes-filter-keyword',
+    type: 'search',
+    attrs: { 'aria-label': '会議名・議事録名で絞り込む', placeholder: '会議名・議事録名', autocomplete: 'off' },
+  });
+  keyword.addEventListener('input', () => { state.filters.query = keyword.value; renderList(); });
+  const fromInput = makeElement(doc, 'input', { className: 'bb-minutes-input', type: 'date', attrs: { 'aria-label': '期間の始め' } });
+  const toInput = makeElement(doc, 'input', { className: 'bb-minutes-input', type: 'date', attrs: { 'aria-label': '期間の終わり' } });
+  fromInput.addEventListener('change', () => { state.filters.from = fromInput.value; renderList(); });
+  toInput.addEventListener('change', () => { state.filters.to = toInput.value; renderList(); });
+  const period = makeElement(doc, 'span', { className: 'bb-minutes-filter-period' });
+  period.append(fromInput, makeElement(doc, 'span', { className: 'bb-minutes-filter-period-sep', textContent: '〜', attrs: { 'aria-hidden': 'true' } }), toInput);
+  const participantBox = filterCombobox('参加者', [], '', (value) => { state.filters.participant = value; renderList(); });
+  const statusBox = filterCombobox('確認の状態', STATE_FILTERS, '', (value) => { state.filters.status = value; renderList(); });
+  const sortBox = filterCombobox('並べ替え', SORTS, state.sort, (value) => { state.sort = value; renderList(); });
+  const hostSlot = makeElement(doc, 'div', { className: 'bb-minutes-filter-host' });
+  const participantField = filterField('参加者', participantBox.root);
+  const statusField = filterField('確認の状態', statusBox.root);
+  const reset = button(doc, '条件を外す', () => clearFilters(), { className: 'bb-minutes-button bb-minutes-filter-reset' });
+  toolbar.append(
+    filterField('キーワード', keyword, 'is-keyword'),
+    hostSlot,
+    filterField('期間', period),
+    participantField,
+    statusField,
+    filterField('並べ替え', sortBox.root),
+    reset,
+  );
+  const hostBoxes = new Map();
+
+  function currentHostFilters() {
+    let filters = hostFilters;
+    if (typeof filters === 'function') {
+      try { filters = filters(); } catch { filters = []; }
+    }
+    return (Array.isArray(filters) ? filters : []).filter((filter) => isRecord(filter) && text(filter.id));
+  }
+
+  function clientFiltersActive() {
+    return Object.keys(EMPTY_FILTERS).some((key) => Boolean(state.filters[key]));
+  }
+
+  function filtersActive() {
+    return clientFiltersActive() || currentHostFilters().some((filter) => text(filter.value));
+  }
+
+  function clearFilters() {
+    state.filters = { ...EMPTY_FILTERS };
+    keyword.value = '';
+    fromInput.value = '';
+    toInput.value = '';
+    for (const filter of currentHostFilters()) {
+      if (text(filter.value) && typeof filter.onChange === 'function') filter.onChange('');
+    }
+    renderList();
+  }
+
+  function renderToolbar(meetings) {
+    const hosts = currentHostFilters();
+    const seen = new Set();
+    for (const filter of hosts) {
+      const id = text(filter.id);
+      seen.add(id);
+      const options = Array.isArray(filter.options) ? filter.options : [];
+      const value = text(filter.value);
+      let entry = hostBoxes.get(id);
+      if (!entry) {
+        const box = workspaceCombobox(doc, {
+          label: text(filter.label, id),
+          options,
+          value,
+          placeholder: text(filter.placeholder, '選択してください'),
+          className: 'bb-minutes-filter-combobox',
+          onChange: (next) => {
+            const current = currentHostFilters().find((candidate) => text(candidate.id) === id);
+            if (typeof current?.onChange === 'function') current.onChange(next);
+          },
+        });
+        entry = { box, field: filterField(text(filter.label, id), box.root) };
+        hostBoxes.set(id, entry);
+      }
+      entry.box.update({ options, value, disabled: filter.disabled === true });
+    }
+    for (const [id, entry] of hostBoxes) {
+      if (seen.has(id)) continue;
+      entry.box.destroy();
+      hostBoxes.delete(id);
+    }
+    hostSlot.replaceChildren(...hosts.map((filter) => hostBoxes.get(text(filter.id)).field));
+    hostSlot.hidden = hosts.length === 0;
+
+    // Offer only the conditions the loaded records can answer (P9).
+    const participants = [...new Set(meetings.flatMap(participantsOf))]
+      .sort((left, right) => left.localeCompare(right, 'ja', { numeric: true }));
+    if (state.filters.participant && !participants.includes(state.filters.participant)) state.filters.participant = '';
+    participantBox.update({
+      options: [{ value: '', label: 'すべての参加者' }, ...participants.map((participant) => ({ value: participant, label: participant }))],
+      value: state.filters.participant,
+    });
+    participantField.hidden = participants.length === 0;
+    const hasStates = meetings.some((entry) => listState(entry));
+    if (!hasStates) state.filters.status = '';
+    statusBox.update({ value: state.filters.status });
+    statusField.hidden = !hasStates;
+    sortBox.update({ value: state.sort });
+    reset.hidden = !filtersActive();
+  }
 
   function clock() {
     try {
@@ -606,6 +800,34 @@ export function createMeetingMinutesUI({
       }
     }
     return canCreateMeeting !== false;
+  }
+
+  /** One short reason from the host, shown beside a create button that cannot be pressed. */
+  function createReason() {
+    if (typeof createUnavailableReason === 'function') {
+      try {
+        return text(createUnavailableReason());
+      } catch {
+        return '';
+      }
+    }
+    return text(createUnavailableReason);
+  }
+
+  function appendCreateUnavailable(parent) {
+    const reason = createReason();
+    if (!reason) return;
+    const id = `bb-minutes-create-reason-${++createReasonSequence}`;
+    parent.append(
+      makeElement(doc, 'button', {
+        className: 'bb-minutes-button is-primary',
+        textContent: '会議を作成',
+        type: 'button',
+        disabled: true,
+        attrs: { type: 'button', 'aria-describedby': id },
+      }),
+      makeElement(doc, 'span', { className: 'bb-minutes-create-reason', textContent: reason, attrs: { id } }),
+    );
   }
 
   function canEdit() {
@@ -666,7 +888,7 @@ export function createMeetingMinutesUI({
     parent.append(notice);
   }
 
-  function renderMeetingRow(entry) {
+  function renderMeetingRow(entry, { flat = false } = {}) {
     const meeting = entry.meeting;
     const timing = meetingTiming(entry);
     const item = makeElement(doc, 'button', {
@@ -680,9 +902,18 @@ export function createMeetingMinutesUI({
     }));
     const line = makeElement(doc, 'span', { className: 'bb-minutes-item-line' });
     if (timing.kind === 'scheduled') {
-      appendLinePart(line, makeElement(doc, 'span', { textContent: formatClock(timing.date) }));
+      // Without date headings the row carries its own date.
+      const when = flat ? `${formatMonthDay(timing.date)} ${formatClock(timing.date)}` : formatClock(timing.date);
+      appendLinePart(line, makeElement(doc, 'span', { textContent: when }));
     } else if (timing.kind === 'fallback' || (timing.kind === 'unregistered' && timing.date)) {
       appendLinePart(line, makeElement(doc, 'span', { textContent: unscheduledLabel(timing) }));
+    }
+    if (flat) {
+      const updated = updatedTime(entry);
+      appendLinePart(line, makeElement(doc, 'span', {
+        className: 'bb-minutes-item-updated',
+        textContent: updated ? `更新 ${formatMonthDay(updated)} ${formatClock(updated)}` : '更新日時は未記録',
+      }));
     }
     const label = meetingLabelText(meetingLabel, meeting);
     if (label) appendLinePart(line, makeElement(doc, 'span', { className: 'bb-minutes-meeting-label', textContent: label }));
@@ -701,17 +932,19 @@ export function createMeetingMinutesUI({
     clear(listPane);
     const head = makeElement(doc, 'div', { className: 'bb-minutes-pane-head' });
     const meetings = state.meetings.filter((entry) => isRecord(entry?.meeting) && typeof entry.meeting.meeting_id === 'string');
+    renderToolbar(meetings);
+    const visible = sortMeetings(meetings.filter((entry) => matchesFilters(entry, state.filters)), state.sort);
     if (canCreate()) {
       head.append(button(doc, '会議を作成', () => renderCreateForm(), { className: 'bb-minutes-button is-primary' }));
+    } else {
+      appendCreateUnavailable(head);
     }
-    head.append(makeElement(doc, 'p', { className: 'bb-minutes-sort-note', textContent: `新しい順・${meetings.length}件` }));
+    const narrowed = clientFiltersActive();
+    head.append(makeElement(doc, 'p', {
+      className: 'bb-minutes-sort-note',
+      textContent: narrowed ? `${meetings.length}件中${visible.length}件` : `${meetings.length}件`,
+    }));
     listPane.append(head);
-    if (!canCreate()) {
-      listPane.append(makeElement(doc, 'p', {
-        className: 'bb-minutes-create-guard',
-        textContent: '会議を作成する権限がありません。作成はプロジェクトの編集権限がある人が行います。',
-      }));
-    }
     if (state.listError) {
       appendLoadError(listPane, `会議一覧を読み込めませんでした。理由: ${state.listError}`, () => loadMeetings({ restoreFocus: true }));
     }
@@ -719,14 +952,27 @@ export function createMeetingMinutesUI({
       if (state.listError) return;
       listPane.append(makeElement(doc, 'p', {
         className: 'bb-minutes-empty',
-        textContent: 'まだ議事録はありません。会議を取り込むと、ここに新しい順で並びます。',
+        textContent: filtersActive()
+          ? '条件に合う会議はありません。'
+          : 'まだ議事録はありません。会議を取り込むと、ここに新しい順で並びます。',
       }));
+      if (filtersActive()) listPane.append(button(doc, '条件を外す', () => clearFilters()));
+      return;
+    }
+    if (visible.length === 0) {
+      listPane.append(makeElement(doc, 'p', { className: 'bb-minutes-empty', textContent: '条件に合う会議はありません。' }));
+      listPane.append(button(doc, '条件を外す', () => clearFilters()));
       return;
     }
     const list = makeElement(doc, 'div', { className: 'bb-minutes-meeting-list' });
+    if (state.sort === 'updated-desc') {
+      for (const entry of visible) list.append(renderMeetingRow(entry, { flat: true }));
+      listPane.append(list);
+      return;
+    }
     const today = clock();
     let currentKey = null;
-    for (const entry of meetings) {
+    for (const entry of visible) {
       const timing = meetingTiming(entry);
       if (timing.kind === 'unregistered') continue;
       const key = dateKey(timing.date);
@@ -739,7 +985,7 @@ export function createMeetingMinutesUI({
       }
       list.append(renderMeetingRow(entry));
     }
-    const unregistered = meetings.filter((entry) => meetingTiming(entry).kind === 'unregistered');
+    const unregistered = visible.filter((entry) => meetingTiming(entry).kind === 'unregistered');
     if (unregistered.length) {
       list.append(makeElement(doc, 'h3', {
         className: 'bb-minutes-date-heading',
@@ -941,14 +1187,17 @@ export function createMeetingMinutesUI({
     }
   }
 
+  function renderCreateUnavailable() {
+    clear(detailPane);
+    detailPane.append(makeElement(doc, 'p', { className: 'bb-minutes-empty', textContent: '議事録を選ぶと、ここに本文が出ます。' }));
+    const reason = createReason();
+    if (reason) detailPane.append(makeElement(doc, 'p', { className: 'bb-minutes-create-reason', textContent: reason }));
+  }
+
   function renderCreateForm() {
     clear(detailPane);
     if (!canCreate()) {
-      detailPane.append(makeElement(doc, 'p', { className: 'bb-minutes-empty', textContent: '議事録を選ぶと、ここに本文が出ます。' }));
-      detailPane.append(makeElement(doc, 'p', {
-        className: 'bb-minutes-create-guard',
-        textContent: '会議を作成する権限がありません。作成はプロジェクトの編集権限がある人が行います。',
-      }));
+      renderCreateUnavailable();
       return;
     }
     const form = makeElement(doc, 'form', { className: 'bb-minutes-create-form' });
@@ -966,12 +1215,7 @@ export function createMeetingMinutesUI({
       if (!canCreate()) {
         save.disabled = true;
         renderList();
-        clear(detailPane);
-        detailPane.append(makeElement(doc, 'p', { className: 'bb-minutes-empty', textContent: '議事録を選ぶと、ここに本文が出ます。' }));
-        detailPane.append(makeElement(doc, 'p', {
-          className: 'bb-minutes-create-guard',
-          textContent: '会議を作成する権限がありません。作成はプロジェクトの編集権限がある人が行います。',
-        }));
+        renderCreateUnavailable();
         return;
       }
       save.disabled = true;

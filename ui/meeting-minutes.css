@@ -4,7 +4,7 @@
   --bb-color-accent-strong: var(--bb-color-brand-indigo);
   --bb-color-action: var(--bb-color-brand-indigo);
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   gap: 4px;
   height: 100%;
   min-height: 0;
@@ -106,6 +106,70 @@
 .bb-minutes-status.is-error,
 .bb-minutes-warning {
   color: var(--bb-color-danger);
+}
+
+.bb-minutes-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: flex-end;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-md, 6px);
+  background: var(--bb-color-surface);
+}
+
+.bb-minutes-filter-host {
+  display: contents;
+}
+
+.bb-minutes-filter-field {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.bb-minutes-filter-field[hidden],
+.bb-minutes-filter-host[hidden],
+.bb-minutes-filter-reset[hidden] {
+  display: none;
+}
+
+.bb-minutes-filter-field.is-keyword {
+  flex: 1 1 200px;
+  max-width: 320px;
+}
+
+.bb-minutes-filter-field .bb-minutes-input {
+  min-height: 38px;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+
+.bb-minutes-filter-period {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.bb-minutes-filter-period .bb-minutes-input {
+  width: 9.5rem;
+}
+
+.bb-minutes-filter-period-sep {
+  color: var(--bb-color-muted);
+}
+
+.bb-minutes-filter-combobox {
+  min-width: 10rem;
+  max-width: 18rem;
+}
+
+.bb-minutes-create-reason {
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .bb-minutes-columns {
@@ -463,5 +527,21 @@
 @media (max-width: 900px) {
   .bb-minutes-columns {
     grid-template-columns: 1fr;
+  }
+
+  .bb-minutes-filter-field,
+  .bb-minutes-filter-field.is-keyword {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
+  .bb-minutes-filter-period .bb-minutes-input {
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
+  }
+
+  .bb-minutes-filter-combobox {
+    max-width: none;
   }
 }
