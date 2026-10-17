@@ -1,9 +1,9 @@
 {
   "schema_version": "0.2.0",
-  "created_at": "2026-10-17T05:59:24.801Z",
+  "created_at": "2026-10-17T06:17:52.503Z",
   "runtime_identity": {
     "schema_version": "0.2.0",
-    "collected_at": "2026-10-17T05:59:24.734Z",
+    "collected_at": "2026-10-17T06:17:52.434Z",
     "mode": "normal",
     "source_kind": "npm_package",
     "test_context": null,
@@ -128,14 +128,10 @@
   },
   "git": {
     "current_branch": "cursor/otawara-doc-separation-890c",
-    "head_sha": "ed1359eb662e75e930459efd1ffaf5a89cdd1755",
-    "base_ref": "origin/develop",
+    "head_sha": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
+    "base_ref": "develop",
     "head_ref": "HEAD",
     "changed_files": [
-      {
-        "status": "M",
-        "path": ".gitignore"
-      },
       {
         "status": "M",
         "path": ".vibepro/config.json"
@@ -225,12 +221,77 @@
         "path": "docs/management/customer-doc-ledger.json"
       },
       {
+        "status": "M",
+        "path": "docs/stories/onboarding-source-import-extract.md"
+      },
+      {
         "status": "A",
         "path": "tests/customer-doc-boundary.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "tests/e2e/brainbase-mcp-only-acceptance.spec.ts"
+      },
+      {
+        "status": "M",
+        "path": "tests/e2e/onboarding-project-registration-acceptance.spec.ts"
+      },
+      {
+        "status": "M",
+        "path": "tests/e2e/onboarding-routine-registration-acceptance.spec.ts"
+      },
+      {
+        "status": "M",
+        "path": "tests/e2e/onboarding-source-import-extract-acceptance.spec.ts"
+      },
+      {
+        "status": "M",
+        "path": "tests/e2e/source-diagnosis-candidates-onboarding-acceptance.spec.ts"
       }
     ],
-    "dirty_files": [],
-    "commit_count": 1
+    "dirty_files": [
+      {
+        "status": "M",
+        "path": "gitignore"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/pr/story-otawara-gws-customer-doc-separation/pr-body.md"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/pr/story-otawara-gws-customer-doc-separation/pr-prepare.json"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/pr/story-otawara-gws-customer-doc-separation/traceability.json"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-evidence.json"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/build.json"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/typecheck.json"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/unit.json"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/unit.log"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/reviews/story-otawara-gws-customer-doc-separation/lightweight/review-reviewer.json"
+      }
+    ],
+    "commit_count": 3
   },
   "spec": {
     "present": true,
@@ -240,38 +301,38 @@
   "spec_drift": null,
   "verification": {
     "recorded": true,
-    "updated_at": "2026-10-17T05:57:49.802Z",
+    "updated_at": "2026-10-17T06:17:38.864Z",
     "artifact": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-evidence.json",
     "commands": [
       {
         "kind": "unit",
-        "status": "pass",
+        "status": "fail",
         "command": "npm test -- --maxWorkers=4",
-        "summary": "vibepro verify run executed the unit command: exit_code=0, duration_ms=38939, status=pass computed from the exit code | agent summary: npm test --maxWorkers=4",
+        "summary": "vibepro verify run executed the unit command: exit_code=1, duration_ms=41153, status=fail computed from the exit code",
         "summary_authority": "agent_provided_non_authoritative",
         "evidence_source": "runner_direct",
         "observation": {
           "targets": [],
           "scenarios": [],
           "values": {
-            "status": "pass",
-            "exit_code": "0",
+            "status": "fail",
+            "exit_code": "1",
             "evidence_source": "runner_direct",
             "run_artifact": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/unit.json",
             "run_log": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/unit.log",
-            "duration_ms": "38939",
-            "started_at": "2026-10-17T05:57:10.831Z",
-            "finished_at": "2026-10-17T05:57:49.758Z",
-            "head_sha_before": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
-            "head_sha_after": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
-            "head_sha": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
+            "duration_ms": "41153",
+            "started_at": "2026-10-17T06:16:57.675Z",
+            "finished_at": "2026-10-17T06:17:38.814Z",
+            "head_sha_before": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
+            "head_sha_after": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
+            "head_sha": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
             "worktree_sampled": "true",
             "worktree_sampling_complete": "true",
-            "worktree_sha256_before": "6e41a804f6f845bc24b275d528e76fa7b236ea90ca12ae233d05c8bc0ff8ee8c",
-            "worktree_sha256_after": "6e41a804f6f845bc24b275d528e76fa7b236ea90ca12ae233d05c8bc0ff8ee8c",
-            "stdout_sha256": "8a276a0207a39e903f7d3bc59a2f3e34daa55eea1d3d016df390026fa56607c6",
-            "output_sha256": "cfe778d896c39bfdddd12462d12184a91726cfdbd8ed465e446bf5122bb2ac1e",
-            "output_bytes": "1352",
+            "worktree_sha256_before": "716d42c6d220cf3a5ba4bcdca44ee6e738831a210e64e71f892c497da7a25c73",
+            "worktree_sha256_after": "716d42c6d220cf3a5ba4bcdca44ee6e738831a210e64e71f892c497da7a25c73",
+            "stdout_sha256": "b619c060a561bc2ec3a14e97bfb0ad83376fb94e6e668a2dbeae7dc8b4a717a6",
+            "output_sha256": "47c44198bb46a9f17527a5be1829363dc85f7638504afde6c8f9c14a59bfffd9",
+            "output_bytes": "3705",
             "log_truncated": "false",
             "output_metrics": "none",
             "timed_out": "false",
@@ -284,10 +345,10 @@
             "tree_mutated_during_run": "false",
             "head_moved_during_run": "false",
             "worktree_changed_during_run": "false",
-            "worktree_status_sha256_before": "76dfc7b4868a6ddbf4b6e155faf3265208fdb203692965a1344c79ceadea5600",
-            "worktree_status_sha256_after": "76dfc7b4868a6ddbf4b6e155faf3265208fdb203692965a1344c79ceadea5600",
-            "worktree_diff_sha256_before": "88e56e8539d37b49ac289ba5057e43ebc64e557375cb1aaec44c67daf0003a00",
-            "worktree_diff_sha256_after": "88e56e8539d37b49ac289ba5057e43ebc64e557375cb1aaec44c67daf0003a00"
+            "worktree_status_sha256_before": "53076afa709d0fddc14335562623a60379992b22b61c364dd3f8be80ca2c6fd4",
+            "worktree_status_sha256_after": "53076afa709d0fddc14335562623a60379992b22b61c364dd3f8be80ca2c6fd4",
+            "worktree_diff_sha256_before": "b30d6c0a5c96d8e090ebea0ec959f4f6d3958c59ee53fce4ee6c19fbed31b63f",
+            "worktree_diff_sha256_after": "b30d6c0a5c96d8e090ebea0ec959f4f6d3958c59ee53fce4ee6c19fbed31b63f"
           }
         },
         "computed_observation": {
@@ -329,24 +390,24 @@
             "worktree_diff_sha256_after"
           ],
           "values": {
-            "status": "pass",
+            "status": "fail",
             "evidence_source": "runner_direct",
             "run_artifact": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/unit.json",
             "run_log": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/unit.log",
-            "exit_code": "0",
-            "duration_ms": "38939",
-            "started_at": "2026-10-17T05:57:10.831Z",
-            "finished_at": "2026-10-17T05:57:49.758Z",
-            "head_sha_before": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
-            "head_sha_after": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
-            "head_sha": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
+            "exit_code": "1",
+            "duration_ms": "41153",
+            "started_at": "2026-10-17T06:16:57.675Z",
+            "finished_at": "2026-10-17T06:17:38.814Z",
+            "head_sha_before": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
+            "head_sha_after": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
+            "head_sha": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
             "worktree_sampled": "true",
             "worktree_sampling_complete": "true",
-            "worktree_sha256_before": "6e41a804f6f845bc24b275d528e76fa7b236ea90ca12ae233d05c8bc0ff8ee8c",
-            "worktree_sha256_after": "6e41a804f6f845bc24b275d528e76fa7b236ea90ca12ae233d05c8bc0ff8ee8c",
-            "stdout_sha256": "8a276a0207a39e903f7d3bc59a2f3e34daa55eea1d3d016df390026fa56607c6",
-            "output_sha256": "cfe778d896c39bfdddd12462d12184a91726cfdbd8ed465e446bf5122bb2ac1e",
-            "output_bytes": "1352",
+            "worktree_sha256_before": "716d42c6d220cf3a5ba4bcdca44ee6e738831a210e64e71f892c497da7a25c73",
+            "worktree_sha256_after": "716d42c6d220cf3a5ba4bcdca44ee6e738831a210e64e71f892c497da7a25c73",
+            "stdout_sha256": "b619c060a561bc2ec3a14e97bfb0ad83376fb94e6e668a2dbeae7dc8b4a717a6",
+            "output_sha256": "47c44198bb46a9f17527a5be1829363dc85f7638504afde6c8f9c14a59bfffd9",
+            "output_bytes": "3705",
             "log_truncated": "false",
             "output_metrics": "none",
             "timed_out": "false",
@@ -359,10 +420,10 @@
             "tree_mutated_during_run": "false",
             "head_moved_during_run": "false",
             "worktree_changed_during_run": "false",
-            "worktree_status_sha256_before": "76dfc7b4868a6ddbf4b6e155faf3265208fdb203692965a1344c79ceadea5600",
-            "worktree_status_sha256_after": "76dfc7b4868a6ddbf4b6e155faf3265208fdb203692965a1344c79ceadea5600",
-            "worktree_diff_sha256_before": "88e56e8539d37b49ac289ba5057e43ebc64e557375cb1aaec44c67daf0003a00",
-            "worktree_diff_sha256_after": "88e56e8539d37b49ac289ba5057e43ebc64e557375cb1aaec44c67daf0003a00"
+            "worktree_status_sha256_before": "53076afa709d0fddc14335562623a60379992b22b61c364dd3f8be80ca2c6fd4",
+            "worktree_status_sha256_after": "53076afa709d0fddc14335562623a60379992b22b61c364dd3f8be80ca2c6fd4",
+            "worktree_diff_sha256_before": "b30d6c0a5c96d8e090ebea0ec959f4f6d3958c59ee53fce4ee6c19fbed31b63f",
+            "worktree_diff_sha256_after": "b30d6c0a5c96d8e090ebea0ec959f4f6d3958c59ee53fce4ee6c19fbed31b63f"
           },
           "artifact_derived_keys": [
             "status",
@@ -413,27 +474,27 @@
         "artifact_check": {
           "status": "verified",
           "format": "generic_status",
-          "artifact_outcome": "pass",
-          "reason": "generic_status artifact outcome matches the claimed status (status=pass)"
+          "artifact_outcome": "fail",
+          "reason": "generic_status artifact outcome matches the claimed status (status=fail)"
         },
         "observation_check": {
           "status": "partial",
           "reason": "observation is incomplete; record targets plus scenarios or observed values"
         },
         "git_context": {
-          "head_sha": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
+          "head_sha": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
           "current_branch": "cursor/otawara-doc-separation-890c",
-          "dirty": true,
+          "dirty": false,
           "raw_dirty": true,
-          "status_fingerprint_hash": "1d3cbeceac485462e6d70594afc6a3d5f6e36f78b28ffb32cd339b754fb97e56",
-          "user_status_fingerprint_hash": "902e6fafdd4b79b7e18c5218fd77d43902a7111af01181284b029a6ac4a5703e",
+          "status_fingerprint_hash": "b7585b76171fa6112b6ec5624f4d21ca172f0fbf0c069f4dbe276d2dab8b9c49",
+          "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
           "fingerprint_scope": {
             "user_excludes": [
               ".vibepro/",
               ".worktrees/vibepro/"
             ]
           },
-          "recorded_at": "2026-10-17T05:57:49.800Z"
+          "recorded_at": "2026-10-17T06:17:38.861Z"
         },
         "content_binding": {
           "schema_version": "0.1.0",
@@ -441,21 +502,15 @@
           "mode": "content_surface",
           "status": "unbound",
           "reason": "no content surface file could be derived from evidence targets, artifacts, or inspection inputs",
-          "recorded_head_sha": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
+          "recorded_head_sha": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
           "surface_files": [],
           "missing_files": [],
           "surface_hash": null
         },
-        "warnings": [
-          {
-            "id": "verification_run_counts_not_parsed",
-            "command_name": "verify run",
-            "reason": "the command exited 0 but no test counts could be parsed from its output; the record proves the command did not fail, not how much it checked"
-          }
-        ],
+        "warnings": [],
         "runtime_identity": {
           "schema_version": "0.2.0",
-          "collected_at": "2026-10-17T05:57:49.779Z",
+          "collected_at": "2026-10-17T06:17:38.837Z",
           "mode": "normal",
           "source_kind": "npm_package",
           "test_context": null,
@@ -510,14 +565,14 @@
             ]
           }
         },
-        "executed_at": "2026-10-17T05:57:49.758Z",
+        "executed_at": "2026-10-17T06:17:38.814Z",
         "trust_status": "untrusted"
       },
       {
         "kind": "build",
         "status": "pass",
         "command": "npm run build",
-        "summary": "vibepro verify run executed the build command: exit_code=0, duration_ms=4884, status=pass computed from the exit code | agent summary: npm run build",
+        "summary": "vibepro verify run executed the build command: exit_code=0, duration_ms=4961, status=pass computed from the exit code",
         "summary_authority": "agent_provided_non_authoritative",
         "evidence_source": "runner_direct",
         "observation": {
@@ -529,16 +584,16 @@
             "evidence_source": "runner_direct",
             "run_artifact": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/build.json",
             "run_log": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/build.log",
-            "duration_ms": "4884",
-            "started_at": "2026-10-17T05:57:00.339Z",
-            "finished_at": "2026-10-17T05:57:05.211Z",
-            "head_sha_before": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
-            "head_sha_after": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
-            "head_sha": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
+            "duration_ms": "4961",
+            "started_at": "2026-10-17T06:16:52.504Z",
+            "finished_at": "2026-10-17T06:16:57.451Z",
+            "head_sha_before": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
+            "head_sha_after": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
+            "head_sha": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
             "worktree_sampled": "true",
             "worktree_sampling_complete": "true",
-            "worktree_sha256_before": "6e41a804f6f845bc24b275d528e76fa7b236ea90ca12ae233d05c8bc0ff8ee8c",
-            "worktree_sha256_after": "6e41a804f6f845bc24b275d528e76fa7b236ea90ca12ae233d05c8bc0ff8ee8c",
+            "worktree_sha256_before": "03e50fda6c86b26b84a6904eefaeb6fbeeb17dc62d70a2600d7a990d902f32bd",
+            "worktree_sha256_after": "03e50fda6c86b26b84a6904eefaeb6fbeeb17dc62d70a2600d7a990d902f32bd",
             "stdout_sha256": "7a893b916345481a5b71b140bef3c50912b98288e0162cf608172fde8d5f2e9c",
             "output_sha256": "7a893b916345481a5b71b140bef3c50912b98288e0162cf608172fde8d5f2e9c",
             "output_bytes": "62",
@@ -554,10 +609,10 @@
             "tree_mutated_during_run": "false",
             "head_moved_during_run": "false",
             "worktree_changed_during_run": "false",
-            "worktree_status_sha256_before": "76dfc7b4868a6ddbf4b6e155faf3265208fdb203692965a1344c79ceadea5600",
-            "worktree_status_sha256_after": "76dfc7b4868a6ddbf4b6e155faf3265208fdb203692965a1344c79ceadea5600",
-            "worktree_diff_sha256_before": "88e56e8539d37b49ac289ba5057e43ebc64e557375cb1aaec44c67daf0003a00",
-            "worktree_diff_sha256_after": "88e56e8539d37b49ac289ba5057e43ebc64e557375cb1aaec44c67daf0003a00"
+            "worktree_status_sha256_before": "1dd834278f556827dab23159b17ad1ea2a1181b60453c3548d5efddb3dbf7ad8",
+            "worktree_status_sha256_after": "1dd834278f556827dab23159b17ad1ea2a1181b60453c3548d5efddb3dbf7ad8",
+            "worktree_diff_sha256_before": "f48dc0574989d27b6b54f6b33a42631d831cb7a27e2324f43450653d735079fe",
+            "worktree_diff_sha256_after": "f48dc0574989d27b6b54f6b33a42631d831cb7a27e2324f43450653d735079fe"
           }
         },
         "computed_observation": {
@@ -604,16 +659,16 @@
             "run_artifact": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/build.json",
             "run_log": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/build.log",
             "exit_code": "0",
-            "duration_ms": "4884",
-            "started_at": "2026-10-17T05:57:00.339Z",
-            "finished_at": "2026-10-17T05:57:05.211Z",
-            "head_sha_before": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
-            "head_sha_after": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
-            "head_sha": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
+            "duration_ms": "4961",
+            "started_at": "2026-10-17T06:16:52.504Z",
+            "finished_at": "2026-10-17T06:16:57.451Z",
+            "head_sha_before": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
+            "head_sha_after": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
+            "head_sha": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
             "worktree_sampled": "true",
             "worktree_sampling_complete": "true",
-            "worktree_sha256_before": "6e41a804f6f845bc24b275d528e76fa7b236ea90ca12ae233d05c8bc0ff8ee8c",
-            "worktree_sha256_after": "6e41a804f6f845bc24b275d528e76fa7b236ea90ca12ae233d05c8bc0ff8ee8c",
+            "worktree_sha256_before": "03e50fda6c86b26b84a6904eefaeb6fbeeb17dc62d70a2600d7a990d902f32bd",
+            "worktree_sha256_after": "03e50fda6c86b26b84a6904eefaeb6fbeeb17dc62d70a2600d7a990d902f32bd",
             "stdout_sha256": "7a893b916345481a5b71b140bef3c50912b98288e0162cf608172fde8d5f2e9c",
             "output_sha256": "7a893b916345481a5b71b140bef3c50912b98288e0162cf608172fde8d5f2e9c",
             "output_bytes": "62",
@@ -629,10 +684,10 @@
             "tree_mutated_during_run": "false",
             "head_moved_during_run": "false",
             "worktree_changed_during_run": "false",
-            "worktree_status_sha256_before": "76dfc7b4868a6ddbf4b6e155faf3265208fdb203692965a1344c79ceadea5600",
-            "worktree_status_sha256_after": "76dfc7b4868a6ddbf4b6e155faf3265208fdb203692965a1344c79ceadea5600",
-            "worktree_diff_sha256_before": "88e56e8539d37b49ac289ba5057e43ebc64e557375cb1aaec44c67daf0003a00",
-            "worktree_diff_sha256_after": "88e56e8539d37b49ac289ba5057e43ebc64e557375cb1aaec44c67daf0003a00"
+            "worktree_status_sha256_before": "1dd834278f556827dab23159b17ad1ea2a1181b60453c3548d5efddb3dbf7ad8",
+            "worktree_status_sha256_after": "1dd834278f556827dab23159b17ad1ea2a1181b60453c3548d5efddb3dbf7ad8",
+            "worktree_diff_sha256_before": "f48dc0574989d27b6b54f6b33a42631d831cb7a27e2324f43450653d735079fe",
+            "worktree_diff_sha256_after": "f48dc0574989d27b6b54f6b33a42631d831cb7a27e2324f43450653d735079fe"
           },
           "artifact_derived_keys": [
             "status",
@@ -691,19 +746,19 @@
           "reason": "observation is incomplete; record targets plus scenarios or observed values"
         },
         "git_context": {
-          "head_sha": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
+          "head_sha": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
           "current_branch": "cursor/otawara-doc-separation-890c",
-          "dirty": true,
+          "dirty": false,
           "raw_dirty": true,
-          "status_fingerprint_hash": "1d3cbeceac485462e6d70594afc6a3d5f6e36f78b28ffb32cd339b754fb97e56",
-          "user_status_fingerprint_hash": "902e6fafdd4b79b7e18c5218fd77d43902a7111af01181284b029a6ac4a5703e",
+          "status_fingerprint_hash": "362bbfcab8d19d4f297c5829ce4277c8e1539828ae6a17451bdab5facd4c1fd9",
+          "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
           "fingerprint_scope": {
             "user_excludes": [
               ".vibepro/",
               ".worktrees/vibepro/"
             ]
           },
-          "recorded_at": "2026-10-17T05:57:05.253Z"
+          "recorded_at": "2026-10-17T06:16:57.501Z"
         },
         "content_binding": {
           "schema_version": "0.1.0",
@@ -711,7 +766,7 @@
           "mode": "content_surface",
           "status": "unbound",
           "reason": "no content surface file could be derived from evidence targets, artifacts, or inspection inputs",
-          "recorded_head_sha": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
+          "recorded_head_sha": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
           "surface_files": [],
           "missing_files": [],
           "surface_hash": null
@@ -725,7 +780,7 @@
         ],
         "runtime_identity": {
           "schema_version": "0.2.0",
-          "collected_at": "2026-10-17T05:57:05.231Z",
+          "collected_at": "2026-10-17T06:16:57.475Z",
           "mode": "normal",
           "source_kind": "npm_package",
           "test_context": null,
@@ -780,14 +835,14 @@
             ]
           }
         },
-        "executed_at": "2026-10-17T05:57:05.211Z",
+        "executed_at": "2026-10-17T06:16:57.451Z",
         "trust_status": "untrusted"
       },
       {
         "kind": "typecheck",
         "status": "pass",
         "command": "npx tsc -p tsconfig.json --noEmit",
-        "summary": "vibepro verify run executed the typecheck command: exit_code=0, duration_ms=4668, status=pass computed from the exit code | agent summary: npx tsc -p tsconfig.json --noEmit",
+        "summary": "vibepro verify run executed the typecheck command: exit_code=0, duration_ms=4296, status=pass computed from the exit code",
         "summary_authority": "agent_provided_non_authoritative",
         "evidence_source": "runner_direct",
         "observation": {
@@ -799,16 +854,16 @@
             "evidence_source": "runner_direct",
             "run_artifact": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/typecheck.json",
             "run_log": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/typecheck.log",
-            "duration_ms": "4668",
-            "started_at": "2026-10-17T05:53:50.354Z",
-            "finished_at": "2026-10-17T05:53:55.008Z",
-            "head_sha_before": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
-            "head_sha_after": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
-            "head_sha": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
+            "duration_ms": "4296",
+            "started_at": "2026-10-17T06:16:48.028Z",
+            "finished_at": "2026-10-17T06:16:52.309Z",
+            "head_sha_before": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
+            "head_sha_after": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
+            "head_sha": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
             "worktree_sampled": "true",
             "worktree_sampling_complete": "true",
-            "worktree_sha256_before": "6e41a804f6f845bc24b275d528e76fa7b236ea90ca12ae233d05c8bc0ff8ee8c",
-            "worktree_sha256_after": "6e41a804f6f845bc24b275d528e76fa7b236ea90ca12ae233d05c8bc0ff8ee8c",
+            "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+            "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
             "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
             "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
             "output_bytes": "0",
@@ -824,10 +879,10 @@
             "tree_mutated_during_run": "false",
             "head_moved_during_run": "false",
             "worktree_changed_during_run": "false",
-            "worktree_status_sha256_before": "76dfc7b4868a6ddbf4b6e155faf3265208fdb203692965a1344c79ceadea5600",
-            "worktree_status_sha256_after": "76dfc7b4868a6ddbf4b6e155faf3265208fdb203692965a1344c79ceadea5600",
-            "worktree_diff_sha256_before": "88e56e8539d37b49ac289ba5057e43ebc64e557375cb1aaec44c67daf0003a00",
-            "worktree_diff_sha256_after": "88e56e8539d37b49ac289ba5057e43ebc64e557375cb1aaec44c67daf0003a00"
+            "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           }
         },
         "computed_observation": {
@@ -874,16 +929,16 @@
             "run_artifact": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/typecheck.json",
             "run_log": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/typecheck.log",
             "exit_code": "0",
-            "duration_ms": "4668",
-            "started_at": "2026-10-17T05:53:50.354Z",
-            "finished_at": "2026-10-17T05:53:55.008Z",
-            "head_sha_before": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
-            "head_sha_after": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
-            "head_sha": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
+            "duration_ms": "4296",
+            "started_at": "2026-10-17T06:16:48.028Z",
+            "finished_at": "2026-10-17T06:16:52.309Z",
+            "head_sha_before": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
+            "head_sha_after": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
+            "head_sha": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
             "worktree_sampled": "true",
             "worktree_sampling_complete": "true",
-            "worktree_sha256_before": "6e41a804f6f845bc24b275d528e76fa7b236ea90ca12ae233d05c8bc0ff8ee8c",
-            "worktree_sha256_after": "6e41a804f6f845bc24b275d528e76fa7b236ea90ca12ae233d05c8bc0ff8ee8c",
+            "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+            "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
             "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
             "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
             "output_bytes": "0",
@@ -899,10 +954,10 @@
             "tree_mutated_during_run": "false",
             "head_moved_during_run": "false",
             "worktree_changed_during_run": "false",
-            "worktree_status_sha256_before": "76dfc7b4868a6ddbf4b6e155faf3265208fdb203692965a1344c79ceadea5600",
-            "worktree_status_sha256_after": "76dfc7b4868a6ddbf4b6e155faf3265208fdb203692965a1344c79ceadea5600",
-            "worktree_diff_sha256_before": "88e56e8539d37b49ac289ba5057e43ebc64e557375cb1aaec44c67daf0003a00",
-            "worktree_diff_sha256_after": "88e56e8539d37b49ac289ba5057e43ebc64e557375cb1aaec44c67daf0003a00"
+            "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
           },
           "artifact_derived_keys": [
             "status",
@@ -961,19 +1016,19 @@
           "reason": "observation is incomplete; record targets plus scenarios or observed values"
         },
         "git_context": {
-          "head_sha": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
+          "head_sha": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
           "current_branch": "cursor/otawara-doc-separation-890c",
-          "dirty": true,
+          "dirty": false,
           "raw_dirty": true,
-          "status_fingerprint_hash": "1d3cbeceac485462e6d70594afc6a3d5f6e36f78b28ffb32cd339b754fb97e56",
-          "user_status_fingerprint_hash": "902e6fafdd4b79b7e18c5218fd77d43902a7111af01181284b029a6ac4a5703e",
+          "status_fingerprint_hash": "c51a61676d301a19865a814c2352f923309ddb3196820470daab0a88a6572ceb",
+          "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
           "fingerprint_scope": {
             "user_excludes": [
               ".vibepro/",
               ".worktrees/vibepro/"
             ]
           },
-          "recorded_at": "2026-10-17T05:53:55.057Z"
+          "recorded_at": "2026-10-17T06:16:52.358Z"
         },
         "content_binding": {
           "schema_version": "0.1.0",
@@ -981,7 +1036,7 @@
           "mode": "content_surface",
           "status": "unbound",
           "reason": "no content surface file could be derived from evidence targets, artifacts, or inspection inputs",
-          "recorded_head_sha": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
+          "recorded_head_sha": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
           "surface_files": [],
           "missing_files": [],
           "surface_hash": null
@@ -995,7 +1050,7 @@
         ],
         "runtime_identity": {
           "schema_version": "0.2.0",
-          "collected_at": "2026-10-17T05:53:55.031Z",
+          "collected_at": "2026-10-17T06:16:52.336Z",
           "mode": "normal",
           "source_kind": "npm_package",
           "test_context": null,
@@ -1050,7 +1105,7 @@
             ]
           }
         },
-        "executed_at": "2026-10-17T05:53:55.008Z",
+        "executed_at": "2026-10-17T06:16:52.309Z",
         "trust_status": "untrusted"
       }
     ]
@@ -1065,34 +1120,29 @@
         "story_id": "story-otawara-gws-customer-doc-separation",
         "role": "reviewer",
         "status": "pass",
-        "summary": "顧客固有の otawara-gws-local-onboarding Story/Spec/Architecture 本文は共有repoに無く、台帳が cursorvers/brainbase-instance-cursorvers を正本として指す。境界テストは当該文書の復帰で失敗する。共有の google-workspace-local-onboarding 設計と他の顧客文書は変更していない。診断の既存finding（VP-NET-001 など）はこの差分の対象外。",
-        "recorded_at": "2026-10-17T05:58:03.568Z",
+        "summary": "共有repoの google-workspace-local-onboarding* は汎用設計として残し、顧客固有の otawara-gws-local-onboarding ファイル名は復帰させない。台帳の forbidden_terms で docs/README/e2e 本文を走査し、実名・メール・ホームパスをプレースホルダへ置換。正本は cursorvers/brainbase-instance-cursorvers。",
+        "recorded_at": "2026-10-17T06:17:49.511Z",
         "findings": [],
         "content_binding": {
           "schema_version": "0.1.0",
           "model": "vibepro-content-scoped-evidence-freshness-v1",
           "mode": "content_surface",
           "status": "recorded",
-          "reason": "content surface recorded for 2 file(s)",
+          "reason": "content surface recorded for 1 file(s)",
           "recorded_head_sha": null,
           "surface_files": [
             {
               "path": "docs/management/customer-doc-ledger.json",
-              "sha256": "0f955033f29f6fa0b70574af499da9770c9698ed47a8f79e251ea2e38661a4e5",
-              "size": 732
-            },
-            {
-              "path": "tests/customer-doc-boundary.test.ts",
-              "sha256": "08fdb8c8ff4d56bb29442c268d84ffbda0efc8012d0be955dff69cde1766b3a7",
-              "size": 5035
+              "sha256": "658a6e93bc32b3ec3d0a0b95ac5d415551515ac6d886340a4b6e7cf02f726002",
+              "size": 2572
             }
           ],
           "missing_files": [],
-          "surface_hash": "a49548a662eff0065e83e0769c56374cbfd0caf2061f245292d7c7876de80f77"
+          "surface_hash": "3bd59e69824e15cdc2d16484f67f78a88ae23d5dd3680817df505338be83eb58"
         },
         "reviewer": {
-          "system": "cursor",
-          "id": "cursor-agent"
+          "system": null,
+          "id": null
         },
         "artifact": "/workspace/.vibepro/reviews/story-otawara-gws-customer-doc-separation/lightweight/review-reviewer.json",
         "binding_status": "current"
@@ -1328,7 +1378,7 @@
     "scenario_lineage": null,
     "accepted_spec_lineage": {
       "status": "invalid",
-      "head_sha": "ed1359eb662e75e930459efd1ffaf5a89cdd1755",
+      "head_sha": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
       "spec_path": ".vibepro/spec/story-otawara-gws-customer-doc-separation/spec.json",
       "spec_blob_oid": "9382d7f508f31f4cefa2ef2ee2b2b794fd774245",
       "story_path": "docs/management/stories/active/story-otawara-gws-customer-doc-separation.md",

@@ -5,25 +5,70 @@
 
  RUN  v4.1.8 /workspace
 
+ ❯ tests/npm-consumer-smoke.integration.test.ts (1 test | 1 failed) 8967ms
+     × runs the public CLI and MCP tools/list plus the public runner API from a fresh installed consumer 8964ms
+ ❯ tests/npm-release.test.ts (54 tests | 2 failed) 30227ms
+     × rejects a dirty checkout before validation or publication 11892ms
+     × fixes publication authority to the Brainbase package 13066ms
 
- Test Files  210 passed (210)
-      Tests  2432 passed (2432)
-   Start at  05:57:11
-   Duration  38.51s (transform 5.77s, setup 0ms, import 18.84s, tests 114.12s, environment 14ms)
+ Test Files  2 failed | 208 passed (210)
+      Tests  3 failed | 2431 passed (2434)
+   Start at  06:16:57
+   Duration  40.76s (transform 5.44s, setup 0ms, import 18.05s, tests 124.40s, environment 13ms)
 
 npm notice
-npm notice New minor version of npm available! 11.19.1 -> 11.21.1
-npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.21.1
-npm notice To update run: npm install -g npm@11.21.1
+npm notice New major version of npm available! 10.9.9 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
 npm notice
+consumer smoke could not resolve npm-cli.js from Node or the system npm installation
 npm notice
-npm notice New minor version of npm available! 11.19.1 -> 11.21.1
-npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.21.1
-npm notice To update run: npm install -g npm@11.21.1
+npm notice New major version of npm available! 10.9.9 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
 npm notice
-(node:9474) Warning: Failed to clean up committed SSOT transaction /tmp/brainbase-atomic-1rTJ4B/.brainbase-transaction-ef99695a-a9da-4ffa-813f-483034c02f06: Injected committed SSOT transaction cleanup failure
+(node:16538) Warning: Failed to clean up committed SSOT transaction /tmp/brainbase-atomic-3CRW45/.brainbase-transaction-b9ed6e8f-023e-45d9-bcc3-db10a2ac91cc: Injected committed SSOT transaction cleanup failure
 (Use `node --trace-warnings ...` to show where the warning was created)
-npm warn install-scripts 1 package has install scripts not yet covered by allowScripts:
-npm warn install-scripts   @unson/brainbase-mcp@0.41.13 (prepare: npm run build)
-npm warn install-scripts
-npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/npm-consumer-smoke.integration.test.ts > npm tarball consumer smoke > runs the public CLI and MCP tools/list plus the public runner API from a fresh installed consumer
+Error: Command failed: /exec-daemon/node /workspace/scripts/npm-consumer-smoke.mjs /tmp/brainbase-consumer-artifact-ylCYeI/unson-brainbase-mcp-0.41.13.tgz
+consumer smoke could not resolve npm-cli.js from Node or the system npm installation
+
+ ❯ tests/npm-consumer-smoke.integration.test.ts:51:25
+     49|       HTTPS_PROXY: 'http://proxy-user:proxy-password@example.invalid:8…
+     50|     };
+     51|     const smokeOutput = execFileSync(process.execPath, [
+       |                         ^
+     52|       path.join(root, 'scripts/npm-consumer-smoke.mjs'), artifact.tarb…
+     53|     ], {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/npm-release.test.ts > npm release CLI > rejects a dirty checkout before validation or publication
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/npm-release.test.ts:785:3
+    783|   });
+    784|
+    785|   it('rejects a dirty checkout before validation or publication', asyn…
+       |   ^
+    786|     const { root, sha } = await releaseRoot();
+    787|     const proofDirectory = await mkdtemp(path.join(tmpdir(), 'brainbas…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/npm-release.test.ts > npm release CLI > fixes publication authority to the Brainbase package
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/npm-release.test.ts:800:3
+    798|   });
+    799|
+    800|   it('fixes publication authority to the Brainbase package', async () …
+       |   ^
+    801|     const { root, sha } = await releaseRoot();
+    802|     await expect(reconcileNpmRelease({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+

@@ -1,7 +1,3 @@
-Canonical Task未登録・後で紐付け
-
-Refs #513
-
 ## 顧客固有の大田原オンボーディング文書を共通repoから分離する
 
 Story: `story-otawara-gws-customer-doc-separation`
@@ -22,8 +18,8 @@ SSOT: local
 - no story document found (informational only; does not block PR creation)
 
 ### Acceptance criteria
-- accepted-spec lineage: invalid — `.vibepro/spec/story-otawara-gws-customer-doc-separation/spec.json` @ `9382d7f508f31f4cefa2ef2ee2b2b794fd774245` (HEAD `ed1359eb662e75e930459efd1ffaf5a89cdd1755`)
-  - story: `docs/management/stories/active/story-otawara-gws-customer-doc-separation.md` @ `missing` (HEAD `ed1359eb662e75e930459efd1ffaf5a89cdd1755`)
+- accepted-spec lineage: invalid — `.vibepro/spec/story-otawara-gws-customer-doc-separation/spec.json` @ `9382d7f508f31f4cefa2ef2ee2b2b794fd774245` (HEAD `f10154bfca4542e27ff2d9fc3fe04563dd7cc34e`)
+  - story: `docs/management/stories/active/story-otawara-gws-customer-doc-separation.md` @ `missing` (HEAD `f10154bfca4542e27ff2d9fc3fe04563dd7cc34e`)
   - reasons: story_not_in_head, unknown_story_ac, story_ref_missing
 - no acceptance criteria found in the story document
 
@@ -44,7 +40,7 @@ SSOT: local
 - status: not_applicable
 
 ### Verification evidence
-- [unit] pass — `npm test -- --maxWorkers=4` (runtime `13174d744da538e35f5e5a6b33ec46e8b8a24c3cd0e43423129d279267505f64`)
+- [unit] fail — `npm test -- --maxWorkers=4` (runtime `13174d744da538e35f5e5a6b33ec46e8b8a24c3cd0e43423129d279267505f64`)
   - 自由記述summaryは参考情報であり、計算済み件数の権威ではありません
 - [build] pass — `npm run build` (runtime `13174d744da538e35f5e5a6b33ec46e8b8a24c3cd0e43423129d279267505f64`)
   - 自由記述summaryは参考情報であり、計算済み件数の権威ではありません
@@ -77,11 +73,10 @@ SSOT: local
 - recorded: true
 - complete: true
 - status: pass
-- reviewer: pass (current) — 顧客固有の otawara-gws-local-onboarding Story/Spec/Architecture 本文は共有repoに無く、台帳が cursorvers/brainbase-instance-cursorvers を正本として指す。境界テストは当該文書の復帰で失敗する。共有の google-workspace-local-onboarding 設計と他の顧客文書は変更していない。診断の既存finding（VP-NET-001 など）はこの差分の対象外。
+- reviewer: pass (current) — 共有repoの google-workspace-local-onboarding* は汎用設計として残し、顧客固有の otawara-gws-local-onboarding ファイル名は復帰させない。台帳の forbidden_terms で docs/README/e2e 本文を走査し、実名・メール・ホームパスをプレースホルダへ置換。正本は cursorvers/brainbase-instance-cursorvers。
 - blocking reasons: none
 
 ### Changed files
-- M	.gitignore
 - M	.vibepro/config.json
 - A	.vibepro/pr/story-otawara-gws-customer-doc-separation/pr-body.md
 - A	.vibepro/pr/story-otawara-gws-customer-doc-separation/pr-prepare.json
@@ -104,5 +99,11 @@ SSOT: local
 - A	.vibepro/stories/story-otawara-gws-customer-doc-separation/tasks/tasks.json
 - A	.vibepro/stories/story-otawara-gws-customer-doc-separation/tasks/tasks.md
 - A	docs/management/customer-doc-ledger.json
+- M	docs/stories/onboarding-source-import-extract.md
 - A	tests/customer-doc-boundary.test.ts
+- M	tests/e2e/brainbase-mcp-only-acceptance.spec.ts
+- M	tests/e2e/onboarding-project-registration-acceptance.spec.ts
+- M	tests/e2e/onboarding-routine-registration-acceptance.spec.ts
+- M	tests/e2e/onboarding-source-import-extract-acceptance.spec.ts
+- M	tests/e2e/source-diagnosis-candidates-onboarding-acceptance.spec.ts
 
