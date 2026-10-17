@@ -26,6 +26,8 @@ import { createMeetingMinutesUI } from './meeting-minutes.js';
 import { createMeetingMinutesStorageExtension } from './meeting-minutes-storage.js';
 import { createMeetingMinutesLineageExtension } from './meeting-minutes-lineage-http.js';
 import { createWorldModelView } from './world-model-view.js';
+import { createPersonalMemoryUI, parsePersonalMemoryRoute, personalMemoryRouteTarget } from './personal-memory.js';
+import { createPersonalMemoryHttpPort } from './personal-memory-http-port.js';
 import { createGraphClient } from './graph-view-shared.js';
 import { installNativeScrollbars } from './native-scrollbars.js';
 import { browserAreaStorage, createAreaMemory, createAreaNav } from './area-nav.js';
@@ -53,6 +55,8 @@ const NAV_ICON_PATHS = Object.freeze({
   minutes: ['M6 3.5h9l3 3V20.5H6z', 'M15 3.5v4h3', 'M9 12h6m-6 3h6'],
   // Two people (the organization edition's 人と会社 uses the same shape).
   people: ['M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z', 'M2.5 20a6.5 6.5 0 0 1 13 0', 'M16 4.5a3.5 3.5 0 0 1 0 6.5', 'M18 14a6.5 6.5 0 0 1 3.5 6'],
+  // あなたの記憶 (ledger D15): one person and a lock, seen only by the owner.
+  memory: ['M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z', 'M3.5 20a6.5 6.5 0 0 1 10-5.5', 'M15 15h6v5h-6z', 'M16.5 15v-1.5a1.5 1.5 0 0 1 3 0V15'],
   // Kinds of information and how they connect (settings, ledger D14): three linked boxes.
   ontology: ['M4 4h6v6H4z', 'M14 14h6v6h-6z', 'M14 4h6v6h-6z', 'M10 7h4', 'M17 10v4'],
   // World view (extension id `world`, ledger P17).
@@ -75,7 +79,7 @@ const NAV_AREAS = Object.freeze([
   Object.freeze({ id: 'purpose', label: null, order: ['objectives'], icon: 'objectives' }),
   Object.freeze({ id: 'work', label: '仕事', order: ['projects', 'minutes'], defaultScreen: 'projects', icon: 'area:work' }),
   Object.freeze({ id: 'outcomes', label: '成果', order: ['value-proofs'], icon: 'value-proofs' }),
-  Object.freeze({ id: 'information', label: '情報と関係', order: ['graph', 'people'], defaultScreen: 'graph', icon: 'graph' }),
+  Object.freeze({ id: 'information', label: '情報と関係', order: ['graph', 'people', 'memory'], defaultScreen: 'graph', icon: 'graph' }),
   Object.freeze({ id: 'settings', label: '設定', order: ['ontology'], defaultScreen: 'ontology', icon: 'area:settings' }),
 ]);
 
@@ -163,11 +167,14 @@ export function parseLocalWebTarget(target) {
   // プロジェクトと関係者 one project (`project` = Graph project id); other screens ignore them.
   const decisionId = screenId === 'value-proofs' ? params.get('decision')?.trim() || null : null;
   const projectId = screenId === 'projects' ? params.get('project')?.trim() || null : null;
+  // あなたの記憶 keeps its filters and the opened memory (never the search words).
+  const memoryRoute = screenId === 'memory' ? parsePersonalMemoryRoute(params) : null;
   return {
     screenId,
     entityId: screenId === 'graph' ? params.get('entity_id')?.trim() || null : null,
     ...(decisionId ? { decisionId } : {}),
     ...(projectId ? { projectId } : {}),
+    ...(memoryRoute ? { memoryRoute } : {}),
   };
 }
 
@@ -228,6 +235,26 @@ function judgmentReferenceLabelReader(context) {
   };
 }
 
+function personalMemoryPort(context) {
+  return createPersonalMemoryHttpPort({ fetcher: context.fetcher, token: context.token });
+}
+
+/** The opening of each used memory, for 判断の履歴's 本人の考え; the local host has one owner. */
+function personalMemoryResolver(context) {
+  const port = personalMemoryPort(context);
+  return async (refs) => {
+    const list = await port.listMemories({});
+    if (list.status !== 'ok') throw new Error(list.reason);
+    const wanted = new Set(refs);
+    const found = new Map();
+    for (const item of list.items) {
+      if (!wanted.has(item.id)) continue;
+      found.set(item.id, { excerpt: item.text, href: `#${personalMemoryRouteTarget({ memoryId: item.id })}` });
+    }
+    return found;
+  };
+}
+
 function mountToday(container, context) {
   return createJudgmentHistoryUI({
     root: makePage(container, context),
@@ -238,6 +265,23 @@ function mountToday(container, context) {
     token: context.token,
     basePath: '/api/judgment-history',
     resolveReferenceLabels: judgmentReferenceLabelReader(context),
+    resolvePersonalMemory: personalMemoryResolver(context),
+  });
+}
+
+function mountPersonalMemory(container, context) {
+  return createPersonalMemoryUI({
+    root: makePage(container, context),
+    rail: context.rail,
+    page: context.page,
+    document: context.document,
+    port: personalMemoryPort(context),
+    judgmentHref: (decisionId) => `#value-proofs?decision=${encodeURIComponent(decisionId)}`,
+    candidatesCommand: 'brainbase onboard:candidates',
+    route: context.initialEntityId ?? undefined,
+    onRouteChange: context.navigate
+      ? (route, options) => context.navigate(personalMemoryRouteTarget(route), options)
+      : undefined,
   });
 }
 
@@ -341,6 +385,8 @@ export const LOCAL_WEB_SCREENS = Object.freeze([
     onRouteChange: (entityId, options) => context.navigate?.(entityId ? `graph?entity_id=${encodeURIComponent(entityId)}` : 'graph', options),
   })) }),
   Object.freeze({ id: 'people', label: '人と会社', area: 'information', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('people', createPeopleAndCompaniesView, { canCorrect: true }) }),
+  // Only the owner sees it (ledger D15); the local host has one owner, so it is always listed here.
+  Object.freeze({ id: 'memory', label: 'あなたの記憶', area: 'information', usesGraph: false, rail: true, ownerOnly: true, source: '手元の個人KG', mount: mountPersonalMemory }),
   // The definitions behind 情報と関係: infrequent management work, so under settings (ledger D14).
   Object.freeze({ id: 'ontology', label: '情報の種類とつながり方', area: 'settings', usesGraph: true, rail: false, source: '手元のGraph', mount: mountGraphScreen('ontology', createGraphOntologyView, { canCorrect: true }) }),
 ]);
@@ -428,10 +474,14 @@ export function createLocalWebShell({
   meetingMinutesLineage = null,
   areaMemory = createAreaMemory(browserAreaStorage()),
   onNavigate,
+  // A host that serves more than one person passes false for anyone but the owner:
+  // owner-only screens (あなたの記憶) are then neither listed nor mounted.
+  isOwner = true,
 } = {}) {
   if (!root) throw new TypeError('root is required');
   const doc = explicitDocument ?? (typeof document === 'undefined' ? null : document);
   if (!doc || typeof doc.createElement !== 'function') throw new Error('document_unavailable');
+  screens = screens.filter((screen) => isOwner === true || screen.ownerOnly !== true);
   const request = typeof fetcher === 'function'
     ? fetcher
     : typeof globalThis.fetch === 'function' ? (path, init) => globalThis.fetch(path, init) : null;
@@ -522,6 +572,7 @@ export function createLocalWebShell({
       if (!entityId && screen.id === 'graph' && view?.state?.detail && typeof view.closeEntity === 'function') view.closeEntity();
       if (entityId && screen.id === 'value-proofs' && typeof view?.openDecision === 'function') view.openDecision(entityId);
       if (entityId && screen.id === 'projects' && typeof view?.openProject === 'function') void view.openProject(entityId);
+      if (entityId && screen.id === 'memory' && typeof view?.applyRoute === 'function') view.applyRoute(entityId);
       return;
     }
     const slot = slots.get(screen.id);
@@ -535,6 +586,7 @@ export function createLocalWebShell({
     const page = Object.freeze({ crumbs: Object.freeze(['あなたのBrainbase', screen.label]), source: screen.source ?? null });
     const view = screen.mount(slot, Object.freeze({ ...context, rail, page, initialEntityId: entityId })) ?? true;
     mounted.set(screen.id, view);
+    if (screen.id === 'memory' && typeof view?.load === 'function') void view.load();
     if (entityId && screen.id === 'value-proofs' && typeof view?.openDecision === 'function') view.openDecision(entityId);
     if (entityId && screen.id === 'projects' && typeof view?.openProject === 'function') void view.openProject(entityId);
     updateRail();
@@ -550,7 +602,9 @@ export function createLocalWebShell({
       const screen = screens.find((candidate) => candidate.id === parsed.screenId) ?? screens[0];
       pendingEntityIds.set(screen.id, screen.id === 'graph' ? parsed.entityId
         : screen.id === 'value-proofs' ? parsed.decisionId ?? null
-          : screen.id === 'projects' ? parsed.projectId ?? null : null);
+          : screen.id === 'projects' ? parsed.projectId ?? null
+            // あなたの記憶 receives its whole route (filters and the opened memory).
+            : screen.id === 'memory' ? parsed.memoryRoute ?? null : null);
       active = screen.id;
       for (const [screenId, slot] of slots) slot.hidden = screenId !== screen.id;
       areaNav.show(screen.id);

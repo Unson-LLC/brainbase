@@ -29,6 +29,11 @@ import {
 import type { JudgmentHistoryEntrypoint } from './judgment-history.js';
 import { defaultJudgmentJournalRoot, JudgmentValueProofJournalCache } from './judgment-value-proof-review.js';
 import { createMeetingMinutesHttpHandler } from './meeting-minutes-http.js';
+import {
+  createPersonalMemoryHttpHandler,
+  createPersonalMemoryJudgmentIndex,
+  readLocalPersonalMemories
+} from './personal-memory.js';
 import { createMeetingMinutesLineageHttpHandler } from './meeting-minutes-lineage-http.js';
 import {
   createMeetingMinutesLineageCorrectionHook,
@@ -1103,6 +1108,38 @@ export function createGraphWebModule(context: LocalWebModuleContext): LocalWebMo
   };
 }
 
+/**
+ * 「あなたの記憶」: the owner's `personal-kg.jsonl`, read only.  The memory
+ * bodies are private, so these reads require the launch token and the same
+ * origin like every write on this host.
+ */
+export function createPersonalMemoryModule(context: LocalWebModuleContext): LocalWebModule {
+  const readMemories = () => readLocalPersonalMemories(context.dataDir);
+  const index = createPersonalMemoryJudgmentIndex({
+    source: createLocalJudgmentHistorySource({
+      root: context.journalRoot,
+      entrypoint: context.judgmentHistoryEntrypoint ?? 'codex'
+    }),
+    memoryIds: async () => {
+      const list = await readMemories();
+      return list.status === 'ok' ? list.items.map((item) => item.id) : null;
+    }
+  });
+  return {
+    id: 'personal-memory',
+    uiFiles: ['personal-memory.js', 'personal-memory-http-port.js', 'personal-memory.css'],
+    handle: createPersonalMemoryHttpHandler({
+      readMemories,
+      index,
+      authorize(request) {
+        if (isTrustedLocalWrite(request, context.token)) return;
+        throw rejectUntrustedWrite(request, context.token)
+          ?? new LocalWebHttpError(403, 'web_token_required', 'A valid launch token is required');
+      }
+    })
+  };
+}
+
 /** 今日 (value proofs), 目的と現状 (objectives + world model), プロジェクトと関係者 and 情報と関係 (Graph). */
 export function defaultLocalWebModules(context: LocalWebModuleContext): LocalWebModule[] {
   return [
@@ -1112,7 +1149,8 @@ export function defaultLocalWebModules(context: LocalWebModuleContext): LocalWeb
     createMeetingMinutesModule(context),
     createObjectiveFoundationModule(context),
     createWorldModelReadModule(context),
-    createGraphWebModule(context)
+    createGraphWebModule(context),
+    createPersonalMemoryModule(context)
   ];
 }
 
