@@ -178,3 +178,162 @@ describe('area navigation (ledger D10, stage 2)', () => {
     expect(selected).toEqual(['knowledge']);
   });
 });
+
+// The organization edition's destinations after the 2026-10-17 revision of
+// ledger D10 (story-shell-nav-destinations-v1): every line is a destination,
+// grouped under small headings, with 設定 at the bottom.
+const DESTINATION_SECTIONS = [
+  { id: 'meetings', label: '会議' },
+  { id: 'project', label: 'プロジェクト', screenId: 'projects' },
+  { id: 'explore', label: '調べる' },
+  { id: 'bottom', label: null, placement: 'footer' },
+];
+const one = (id, section) => ({ id, label: null, screenIds: [id], ...(section ? { section } : {}) });
+const DESTINATION_AREAS = [
+  one('inbox'), one('world'), one('tasks'), one('connections'),
+  one('calendar', 'meetings'), one('meeting-minutes', 'meetings'), one('meeting-triage', 'meetings'),
+  one('company-os', 'project'),
+  one('knowledge', 'explore'), one('value-proofs', 'explore'), one('graph', 'explore'),
+  { id: 'settings', label: '設定', section: 'bottom', defaultScreen: 'settings', screenIds: ['settings', 'members', 'ontology', 'developer-health'] },
+];
+const DESTINATION_SCREENS = [
+  { id: 'inbox', label: '受信箱' }, { id: 'world', label: '世界' }, { id: 'tasks', label: 'タスク' }, { id: 'connections', label: 'アプリ' },
+  { id: 'calendar', label: '予定' }, { id: 'meeting-minutes', label: '議事録' }, { id: 'meeting-triage', label: '振り分け待ち' },
+  { id: 'projects', label: 'プロジェクト' }, { id: 'company-os', label: '目的と現状' },
+  { id: 'knowledge', label: '知識' }, { id: 'value-proofs', label: '判断の履歴' }, { id: 'graph', label: '情報と関係' },
+  { id: 'settings', label: '組織の設定' }, { id: 'members', label: 'メンバーと権限' }, { id: 'ontology', label: '情報の種類とつながり方' },
+  { id: 'developer-health', label: '健康状態', hidden: true },
+];
+
+function buildDestinations(options = {}) {
+  const selected = [];
+  const linkSelections = [];
+  const nav = createAreaNav({
+    document: doc,
+    sections: DESTINATION_SECTIONS,
+    areas: DESTINATION_AREAS,
+    screens: DESTINATION_SCREENS,
+    memory: createAreaMemory(new MemoryStorage()),
+    hrefFor: (id) => `?screen=${id}`,
+    onSelect: (id) => selected.push(id),
+    onSelectLink: (id) => linkSelections.push(id),
+    ...options,
+  });
+  const groups = () => nav.nav.children;
+  const group = (id) => groups().find((entry) => entry.attributes['data-section'] === id);
+  const all = (node, predicate, found = []) => {
+    if (predicate(node)) found.push(node);
+    for (const child of node.children) all(child, predicate, found);
+    return found;
+  };
+  // Links that show now (a heading that does not open a screen is a hidden link).
+  const linksIn = (node) => all(node, (entry) => entry.tagName === 'A' && !entry.hidden);
+  // The heading shown now: a link to its screen, or plain text.
+  const heading = (id) => group(id).children.slice(0, 2).find((entry) => !entry.hidden);
+  const shape = () => groups().filter((entry) => !entry.hidden).map((entry) => [
+    entry.attributes['data-section'] ?? null,
+    entry.attributes['data-placement'] ?? 'main',
+    linksIn(entry).filter((link) => !link.hidden).map((link) => [text(link), link.attributes.href ?? null]),
+  ]);
+  return { nav, selected, linkSelections, group, heading, linksIn, shape };
+}
+
+describe('destination navigation (ledger D10, 2026-10-17 revision)', () => {
+  it('lists the destinations themselves on the left, grouped under small headings, with 設定 at the bottom (AC-01, AC-02)', () => {
+    const { shape } = buildDestinations();
+    expect(shape()).toEqual([
+      [null, 'main', [['受信箱', '?screen=inbox'], ['世界', '?screen=world'], ['タスク', '?screen=tasks'], ['アプリ', '?screen=connections']]],
+      ['meetings', 'main', [['予定', '?screen=calendar'], ['議事録', '?screen=meeting-minutes'], ['振り分け待ち', '?screen=meeting-triage']]],
+      // The heading of プロジェクト opens the list of all projects.
+      ['project', 'main', [['プロジェクト', '?screen=projects'], ['目的と現状', '?screen=company-os']]],
+      ['explore', 'main', [['知識', '?screen=knowledge'], ['判断の履歴', '?screen=value-proofs'], ['情報と関係', '?screen=graph']]],
+      ['bottom', 'footer', [['設定', '?screen=settings']]],
+    ]);
+  });
+
+  it('labels each section with its heading, and none for the top one (AC-01)', () => {
+    const { group, heading } = buildDestinations();
+    expect(group('meetings').attributes['aria-label']).toBe('会議');
+    expect(text(heading('meetings'))).toBe('会議');
+    expect(heading('bottom')).toBeUndefined();
+    expect(group('bottom').attributes['aria-label']).toBeUndefined();
+  });
+
+  it('opens the heading screen from the heading and marks it current while it is shown (AC-02)', () => {
+    const { nav, heading, selected } = buildDestinations();
+    expect(heading('project').tagName).toBe('A');
+    heading('project').click();
+    expect(selected).toEqual(['projects']);
+    nav.show('projects');
+    expect(heading('project').attributes['aria-current']).toBe('page');
+    expect(nav.tabs.hidden).toBe(true);
+    nav.show('company-os');
+    expect(heading('project').attributes['aria-current']).toBeUndefined();
+  });
+
+  it('shows the heading as plain text when its screen is hidden (AC-02)', () => {
+    const { nav, heading } = buildDestinations();
+    nav.setHidden('projects', true);
+    expect(heading('project').tagName).not.toBe('A');
+    expect(text(heading('project'))).toBe('プロジェクト');
+  });
+
+  it('puts the caller\'s links at the top of a section, and removes them again (AC-03)', () => {
+    const { nav, group, linksIn, linkSelections } = buildDestinations();
+    nav.setLinks('project', [
+      { id: 'brainbase', label: 'Brainbase', href: '?screen=projects&project=brainbase' },
+      { id: 'zeims', label: 'Zeims', href: '?screen=projects&project=zeims', count: 2, current: true },
+    ]);
+    const names = () => linksIn(group('project')).map((link) => [text(link), link.attributes.href, link.attributes['aria-current'] ?? null]);
+    expect(names()).toEqual([
+      ['プロジェクト', '?screen=projects', null],
+      ['Brainbase', '?screen=projects&project=brainbase', null],
+      ['Zeims2', '?screen=projects&project=zeims', 'page'],
+      ['目的と現状', '?screen=company-os', null],
+    ]);
+    const zeims = linksIn(group('project')).find((link) => link.attributes['data-link'] === 'zeims');
+    expect(zeims.children.find((child) => child.className === 'bb-area-count').attributes['aria-label']).toBe('待っているもの2件');
+    zeims.click();
+    expect(linkSelections).toEqual(['zeims']);
+    nav.setLinks('project', []);
+    expect(names().map(([label]) => label)).toEqual(['プロジェクト', '目的と現状']);
+  });
+
+  it('hides a section whose destinations are all hidden, heading and all (AC-04)', () => {
+    const { nav, group, shape } = buildDestinations();
+    for (const id of ['calendar', 'meeting-minutes', 'meeting-triage']) nav.setHidden(id, true);
+    expect(group('meetings').hidden).toBe(true);
+    expect(shape().map(([id]) => id)).toEqual([null, 'project', 'explore', 'bottom']);
+    nav.setHidden('meeting-minutes', false);
+    expect(group('meetings').hidden).toBe(false);
+    // A section of only links shows while it has one.
+    const linksOnly = createAreaNav({
+      document: doc,
+      sections: [{ id: 'starred', label: '星付き' }],
+      areas: [],
+      screens: [],
+    });
+    const starred = linksOnly.nav.children[0];
+    expect(starred.hidden).toBe(true);
+    linksOnly.setLinks('starred', [{ id: 'a', label: 'A', href: '#a' }]);
+    expect(starred.hidden).toBe(false);
+  });
+
+  it('shows tabs only for the destination with more than one screen (AC-05)', () => {
+    const { nav } = buildDestinations();
+    nav.show('meeting-minutes');
+    expect(nav.tabs.hidden).toBe(true);
+    nav.show('members');
+    expect(nav.tabs.hidden).toBe(false);
+    expect(nav.tabs.attributes['aria-label']).toBe('設定の画面');
+    expect(nav.tabs.children.map((tab) => tab.attributes['data-screen-tab'])).toEqual(['settings', 'members', 'ontology']);
+  });
+
+  it('adds waiting counts to the destination itself (AC-01)', () => {
+    const { nav, group, linksIn } = buildDestinations();
+    nav.setCount('inbox', 5, { waiting: true }).setCount('meeting-triage', 3, { waiting: true }).setCount('tasks', 40);
+    const top = linksIn(nav.nav.children[0]).map((link) => text(link));
+    expect(top).toEqual(['受信箱5', '世界', 'タスク', 'アプリ']);
+    expect(linksIn(group('meetings')).map((link) => text(link))).toEqual(['予定', '議事録', '振り分け待ち3']);
+  });
+});
