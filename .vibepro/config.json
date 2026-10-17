@@ -879,6 +879,18 @@
         "started_at": "2026-10-15",
         "due_at": null,
         "contract_type": "bug_fix"
+      },
+      {
+        "story_id": "story-otawara-gws-customer-doc-separation",
+        "title": "顧客固有の大田原オンボーディング文書を共通repoから分離する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
     "current_story_id": "story-ci-impact-based-verification"

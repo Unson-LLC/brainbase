@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0.0",
+  "story_id": "story-otawara-gws-customer-doc-separation",
+  "role": "reviewer",
+  "status": "pass",
+  "summary": "顧客固有の otawara-gws-local-onboarding Story/Spec/Architecture 本文は共有repoに無く、台帳が cursorvers/brainbase-instance-cursorvers を正本として指す。境界テストは当該文書の復帰で失敗する。共有の google-workspace-local-onboarding 設計と他の顧客文書は変更していない。診断の既存finding（VP-NET-001 など）はこの差分の対象外。",
+  "recorded_at": "2026-10-17T05:58:03.568Z",
+  "findings": [],
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 2 file(s)",
+    "recorded_head_sha": null,
+    "surface_files": [
+      {
+        "path": "docs/management/customer-doc-ledger.json",
+        "sha256": "0f955033f29f6fa0b70574af499da9770c9698ed47a8f79e251ea2e38661a4e5",
+        "size": 732
+      },
+      {
+        "path": "tests/customer-doc-boundary.test.ts",
+        "sha256": "08fdb8c8ff4d56bb29442c268d84ffbda0efc8012d0be955dff69cde1766b3a7",
+        "size": 5035
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "a49548a662eff0065e83e0769c56374cbfd0caf2061f245292d7c7876de80f77"
+  },
+  "reviewer": {
+    "system": "cursor",
+    "id": "cursor-agent"
+  }
+}

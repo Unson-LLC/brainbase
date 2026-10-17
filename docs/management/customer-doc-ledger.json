@@ -1,0 +1,18 @@
+{
+  "schema_version": "1",
+  "documents": [
+    {
+      "id": "otawara-gws-local-onboarding",
+      "kind": "customer_specific_onboarding",
+      "removed_paths": [
+        "docs/stories/otawara-gws-local-onboarding.md",
+        "docs/specs/otawara-gws-local-onboarding-spec.md",
+        "docs/architecture/otawara-gws-local-onboarding.md"
+      ],
+      "canonical_repository": "cursorvers/brainbase-instance-cursorvers",
+      "canonical_home": "cursorvers/brainbase-instance-cursorvers",
+      "content_verified": false,
+      "note": "The instance repository was not readable from the environment that recorded this ledger. The canonical home is the repository name; paths inside that repository were not verified."
+    }
+  ]
+}

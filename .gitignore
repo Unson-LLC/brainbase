@@ -8,3 +8,4 @@ coverage/
 !.vibepro/config.json
 .vibepro-store/
 .worktrees/vibepro/
+!.vibepro/reviews/
