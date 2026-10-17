@@ -14,7 +14,7 @@ const gmailRaw = [
   {
     id: 'm1',
     threadId: 't1',
-    from: { email: 'adopter@acme-example.com', name: '山田太郎' },
+    from: { email: 'Adopter@Acme-Example.com', name: '山田太郎' },
     to: [{ email: 'k.sato.unson@gmail.com', name: '佐藤圭吾' }],
     subject: 'Re: brainbaseご提案',
     date: '2026-06-05',
@@ -120,7 +120,7 @@ describe('extractCandidates (INV-3 deterministic)', () => {
     const candidates = extractCandidates(records, { selfEmails: ['k.sato.unson@gmail.com'] });
     const projects = candidates.filter((candidate) => candidate.kind === 'project');
     expect(projects).toHaveLength(1);
-    expect(projects[0].payload.name).toContain('Acme Example');
+    expect(projects[0].payload.name).toContain('Acme Example 週次定例');
   });
 
   it('produces byte-identical output for identical input', () => {
