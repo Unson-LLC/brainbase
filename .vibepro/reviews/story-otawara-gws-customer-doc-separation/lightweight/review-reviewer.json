@@ -3,8 +3,8 @@
   "story_id": "story-otawara-gws-customer-doc-separation",
   "role": "reviewer",
   "status": "pass",
-  "summary": "共有repoの google-workspace-local-onboarding* は汎用設計として残し、顧客固有の otawara-gws-local-onboarding ファイル名は復帰させない。台帳の forbidden_terms で docs/README/e2e 本文を走査し、実名・メール・ホームパスをプレースホルダへ置換。正本は cursorvers/brainbase-instance-cursorvers。",
-  "recorded_at": "2026-10-17T06:17:49.511Z",
+  "summary": "Unit testsの顧客フィクスチャをプレースホルダ化し、台帳走査を tests/** に拡張。GWS 設計文書と README を汎用ペルソナ表現に更新。",
+  "recorded_at": "2026-10-17T08:09:49.767Z",
   "findings": [],
   "content_binding": {
     "schema_version": "0.1.0",
@@ -16,12 +16,12 @@
     "surface_files": [
       {
         "path": "docs/management/customer-doc-ledger.json",
-        "sha256": "658a6e93bc32b3ec3d0a0b95ac5d415551515ac6d886340a4b6e7cf02f726002",
-        "size": 2572
+        "sha256": "df5d37c6f279770049f19b7a7f7a7a14fe6d67ab97534dac60035f6c95c2e838",
+        "size": 2568
       }
     ],
     "missing_files": [],
-    "surface_hash": "3bd59e69824e15cdc2d16484f67f78a88ae23d5dd3680817df505338be83eb58"
+    "surface_hash": "28ce322dcb5bd2753b5af6634dd2ed1332fa4c533bb796f5d8640d6036f5d60b"
   },
   "reviewer": {
     "system": null,

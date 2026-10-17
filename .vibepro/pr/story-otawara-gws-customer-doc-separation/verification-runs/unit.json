@@ -8,7 +8,7 @@
   "story_id": "story-otawara-gws-customer-doc-separation",
   "runtime_identity": {
     "schema_version": "0.2.0",
-    "collected_at": "2026-10-17T06:18:23.753Z",
+    "collected_at": "2026-10-17T08:09:06.326Z",
     "mode": "normal",
     "source_kind": "npm_package",
     "test_context": null,
@@ -63,26 +63,26 @@
       ]
     }
   },
-  "head_sha": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
+  "head_sha": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
   "observed": {
     "status": "fail",
     "evidence_source": "runner_direct",
     "run_artifact": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/unit.json",
     "run_log": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/unit.log",
     "exit_code": "1",
-    "duration_ms": "42229",
-    "started_at": "2026-10-17T06:18:23.770Z",
-    "finished_at": "2026-10-17T06:19:05.984Z",
-    "head_sha_before": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
-    "head_sha_after": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
-    "head_sha": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
+    "duration_ms": "43265",
+    "started_at": "2026-10-17T08:09:06.341Z",
+    "finished_at": "2026-10-17T08:09:49.593Z",
+    "head_sha_before": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+    "head_sha_after": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+    "head_sha": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
     "worktree_sampled": "true",
     "worktree_sampling_complete": "true",
-    "worktree_sha256_before": "35c49e3d606d267eed5131e36960a10e26a59a20693cea718b1211ef8352030a",
-    "worktree_sha256_after": "baf825a99ebd0da331fa9c730693680fc27373e07b2ca0e0167e11766b598228",
-    "stdout_sha256": "d4ad17d032156d867bf9fa1f8452f1c0fc0ecefb81aaddd74f648d260afb499f",
-    "output_sha256": "4288da99a1db08e9144ff329a381e4e37498dff64386150ad75ee6ef479fa637",
-    "output_bytes": "3705",
+    "worktree_sha256_before": "538f494187f904c420e963a06837af3c83fe471faf3d95f2e1f1ced78a1e583c",
+    "worktree_sha256_after": "538f494187f904c420e963a06837af3c83fe471faf3d95f2e1f1ced78a1e583c",
+    "stdout_sha256": "0440e65ed09363f0f5cb6e85c1cb0988deee66415ea74c299272e939ec77b605",
+    "output_sha256": "2035b136911380c0433d40a1fa7764e91aa16c36deed8852ababc1dc6e615664",
+    "output_bytes": "4817",
     "log_truncated": "false",
     "output_metrics": "none",
     "timed_out": "false",
@@ -92,13 +92,13 @@
     "max_output_bytes": "67108864",
     "harness_env_removed": "none",
     "runner_node_version": "v22.14.0",
-    "tree_mutated_during_run": "true",
+    "tree_mutated_during_run": "false",
     "head_moved_during_run": "false",
-    "worktree_changed_during_run": "true",
-    "worktree_status_sha256_before": "7a86bc2c1716042416ebe5b02321170259de55a1ba4a4c37cbcadefa9aa83f0e",
-    "worktree_status_sha256_after": "7a86bc2c1716042416ebe5b02321170259de55a1ba4a4c37cbcadefa9aa83f0e",
-    "worktree_diff_sha256_before": "d5832659ce7befb96df0b99522826a6c8b4df3d343b0d051ecef389450d21a4b",
-    "worktree_diff_sha256_after": "319f49e50266c2ebe800a3c16f2c7fa9389348e7194df6c255ba98605b30b616"
+    "worktree_changed_during_run": "false",
+    "worktree_status_sha256_before": "53076afa709d0fddc14335562623a60379992b22b61c364dd3f8be80ca2c6fd4",
+    "worktree_status_sha256_after": "53076afa709d0fddc14335562623a60379992b22b61c364dd3f8be80ca2c6fd4",
+    "worktree_diff_sha256_before": "f62f1d546ff60b88df8b32aee5446a01dd4c2bed4fca02a013de0d45fa49e0a8",
+    "worktree_diff_sha256_after": "f62f1d546ff60b88df8b32aee5446a01dd4c2bed4fca02a013de0d45fa49e0a8"
   },
   "run": {
     "argv": [
@@ -109,9 +109,9 @@
     ],
     "command": "npm test -- --maxWorkers=4",
     "cwd": ".",
-    "started_at": "2026-10-17T06:18:23.770Z",
-    "finished_at": "2026-10-17T06:19:05.984Z",
-    "duration_ms": 42229,
+    "started_at": "2026-10-17T08:09:06.341Z",
+    "finished_at": "2026-10-17T08:09:49.593Z",
+    "duration_ms": 43265,
     "exit_code": 1,
     "signal": null,
     "timed_out": false,
@@ -119,13 +119,13 @@
     "external_kill_signal": null,
     "timeout_ms": 7200000,
     "max_output_bytes": 67108864,
-    "head_sha_before": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
-    "head_sha_after": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
-    "worktree_sha256_before": "35c49e3d606d267eed5131e36960a10e26a59a20693cea718b1211ef8352030a",
-    "worktree_sha256_after": "baf825a99ebd0da331fa9c730693680fc27373e07b2ca0e0167e11766b598228",
-    "tree_mutated_during_run": true,
+    "head_sha_before": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+    "head_sha_after": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+    "worktree_sha256_before": "538f494187f904c420e963a06837af3c83fe471faf3d95f2e1f1ced78a1e583c",
+    "worktree_sha256_after": "538f494187f904c420e963a06837af3c83fe471faf3d95f2e1f1ced78a1e583c",
+    "tree_mutated_during_run": false,
     "head_moved_during_run": false,
-    "worktree_changed_during_run": true,
+    "worktree_changed_during_run": false,
     "worktree_sampled": true,
     "worktree_sampling_complete": true,
     "output_metrics": "none",
@@ -136,11 +136,5 @@
     "log_truncated": false
   },
   "discarded_agent_observations": [],
-  "warnings": [
-    {
-      "id": "verification_tree_mutated_during_run",
-      "command_name": "verify run",
-      "reason": "the working tree changed while the command was running (HEAD is unchanged, tracked file state is not); the recorded result does not describe a single tree"
-    }
-  ]
+  "warnings": []
 }

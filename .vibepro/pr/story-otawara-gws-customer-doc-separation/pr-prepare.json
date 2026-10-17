@@ -1,9 +1,9 @@
 {
   "schema_version": "0.2.0",
-  "created_at": "2026-10-17T06:18:23.817Z",
+  "created_at": "2026-10-17T08:09:49.960Z",
   "runtime_identity": {
     "schema_version": "0.2.0",
-    "collected_at": "2026-10-17T06:18:23.737Z",
+    "collected_at": "2026-10-17T08:09:49.903Z",
     "mode": "normal",
     "source_kind": "npm_package",
     "test_context": null,
@@ -128,14 +128,10 @@
   },
   "git": {
     "current_branch": "cursor/otawara-doc-separation-890c",
-    "head_sha": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
+    "head_sha": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
     "base_ref": "develop",
     "head_ref": "HEAD",
     "changed_files": [
-      {
-        "status": "M",
-        "path": ".gitignore"
-      },
       {
         "status": "M",
         "path": ".vibepro/config.json"
@@ -221,12 +217,32 @@
         "path": ".vibepro/stories/story-otawara-gws-customer-doc-separation/tasks/tasks.md"
       },
       {
+        "status": "M",
+        "path": "README.md"
+      },
+      {
+        "status": "M",
+        "path": "docs/architecture/google-workspace-local-onboarding.md"
+      },
+      {
         "status": "A",
         "path": "docs/management/customer-doc-ledger.json"
       },
       {
         "status": "M",
+        "path": "docs/specs/google-workspace-local-onboarding-spec.md"
+      },
+      {
+        "status": "M",
+        "path": "docs/stories/google-workspace-local-onboarding.md"
+      },
+      {
+        "status": "M",
         "path": "docs/stories/onboarding-source-import-extract.md"
+      },
+      {
+        "status": "M",
+        "path": "tests/cli.test.ts"
       },
       {
         "status": "A",
@@ -251,20 +267,36 @@
       {
         "status": "M",
         "path": "tests/e2e/source-diagnosis-candidates-onboarding-acceptance.spec.ts"
+      },
+      {
+        "status": "M",
+        "path": "tests/fixtures.ts"
+      },
+      {
+        "status": "M",
+        "path": "tests/import-extract.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "tests/mcp-contract.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "tests/projects.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "tests/routines.test.ts"
+      },
+      {
+        "status": "M",
+        "path": "tests/tools.test.ts"
       }
     ],
     "dirty_files": [
       {
         "status": "M",
-        "path": "vibepro/pr/story-otawara-gws-customer-doc-separation/pr-body.md"
-      },
-      {
-        "status": "M",
-        "path": ".vibepro/pr/story-otawara-gws-customer-doc-separation/pr-prepare.json"
-      },
-      {
-        "status": "M",
-        "path": ".vibepro/pr/story-otawara-gws-customer-doc-separation/traceability.json"
+        "path": "gitignore"
       },
       {
         "status": "M",
@@ -277,9 +309,21 @@
       {
         "status": "M",
         "path": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/typecheck.json"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/unit.json"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/unit.log"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/reviews/story-otawara-gws-customer-doc-separation/lightweight/review-reviewer.json"
       }
     ],
-    "commit_count": 4
+    "commit_count": 7
   },
   "spec": {
     "present": true,
@@ -289,554 +333,14 @@
   "spec_drift": null,
   "verification": {
     "recorded": true,
-    "updated_at": "2026-10-17T06:18:20.510Z",
+    "updated_at": "2026-10-17T08:09:49.641Z",
     "artifact": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-evidence.json",
     "commands": [
-      {
-        "kind": "build",
-        "status": "pass",
-        "command": "npm run build",
-        "summary": "vibepro verify run executed the build command: exit_code=0, duration_ms=4952, status=pass computed from the exit code",
-        "summary_authority": "agent_provided_non_authoritative",
-        "evidence_source": "runner_direct",
-        "observation": {
-          "targets": [],
-          "scenarios": [],
-          "values": {
-            "status": "pass",
-            "exit_code": "0",
-            "evidence_source": "runner_direct",
-            "run_artifact": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/build.json",
-            "run_log": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/build.log",
-            "duration_ms": "4952",
-            "started_at": "2026-10-17T06:18:15.518Z",
-            "finished_at": "2026-10-17T06:18:20.458Z",
-            "head_sha_before": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
-            "head_sha_after": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
-            "head_sha": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
-            "worktree_sampled": "true",
-            "worktree_sampling_complete": "true",
-            "worktree_sha256_before": "8ed843e76d1218eca1b6fcf063050107fbb63a71289328a6d372d6d27405460b",
-            "worktree_sha256_after": "8ed843e76d1218eca1b6fcf063050107fbb63a71289328a6d372d6d27405460b",
-            "stdout_sha256": "7a893b916345481a5b71b140bef3c50912b98288e0162cf608172fde8d5f2e9c",
-            "output_sha256": "7a893b916345481a5b71b140bef3c50912b98288e0162cf608172fde8d5f2e9c",
-            "output_bytes": "62",
-            "log_truncated": "false",
-            "output_metrics": "none",
-            "timed_out": "false",
-            "output_limit_exceeded": "false",
-            "external_kill_signal": "none",
-            "timeout_ms": "7200000",
-            "max_output_bytes": "67108864",
-            "harness_env_removed": "none",
-            "runner_node_version": "v22.14.0",
-            "tree_mutated_during_run": "false",
-            "head_moved_during_run": "false",
-            "worktree_changed_during_run": "false",
-            "worktree_status_sha256_before": "421590e3ae9cad5aebc5622499599bd55246ece7767bc63563d3449e75974384",
-            "worktree_status_sha256_after": "421590e3ae9cad5aebc5622499599bd55246ece7767bc63563d3449e75974384",
-            "worktree_diff_sha256_before": "99f2fd294e5474045013bc420a1f492422eabb128f81025a7d9c84ce70ef32b0",
-            "worktree_diff_sha256_after": "99f2fd294e5474045013bc420a1f492422eabb128f81025a7d9c84ce70ef32b0"
-          }
-        },
-        "computed_observation": {
-          "producer": "vibepro verify run",
-          "computed_keys": [
-            "status",
-            "evidence_source",
-            "run_artifact",
-            "run_log",
-            "exit_code",
-            "duration_ms",
-            "started_at",
-            "finished_at",
-            "head_sha_before",
-            "head_sha_after",
-            "head_sha",
-            "worktree_sampled",
-            "worktree_sampling_complete",
-            "worktree_sha256_before",
-            "worktree_sha256_after",
-            "stdout_sha256",
-            "output_sha256",
-            "output_bytes",
-            "log_truncated",
-            "output_metrics",
-            "timed_out",
-            "output_limit_exceeded",
-            "external_kill_signal",
-            "timeout_ms",
-            "max_output_bytes",
-            "harness_env_removed",
-            "runner_node_version",
-            "tree_mutated_during_run",
-            "head_moved_during_run",
-            "worktree_changed_during_run",
-            "worktree_status_sha256_before",
-            "worktree_status_sha256_after",
-            "worktree_diff_sha256_before",
-            "worktree_diff_sha256_after"
-          ],
-          "values": {
-            "status": "pass",
-            "evidence_source": "runner_direct",
-            "run_artifact": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/build.json",
-            "run_log": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/build.log",
-            "exit_code": "0",
-            "duration_ms": "4952",
-            "started_at": "2026-10-17T06:18:15.518Z",
-            "finished_at": "2026-10-17T06:18:20.458Z",
-            "head_sha_before": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
-            "head_sha_after": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
-            "head_sha": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
-            "worktree_sampled": "true",
-            "worktree_sampling_complete": "true",
-            "worktree_sha256_before": "8ed843e76d1218eca1b6fcf063050107fbb63a71289328a6d372d6d27405460b",
-            "worktree_sha256_after": "8ed843e76d1218eca1b6fcf063050107fbb63a71289328a6d372d6d27405460b",
-            "stdout_sha256": "7a893b916345481a5b71b140bef3c50912b98288e0162cf608172fde8d5f2e9c",
-            "output_sha256": "7a893b916345481a5b71b140bef3c50912b98288e0162cf608172fde8d5f2e9c",
-            "output_bytes": "62",
-            "log_truncated": "false",
-            "output_metrics": "none",
-            "timed_out": "false",
-            "output_limit_exceeded": "false",
-            "external_kill_signal": "none",
-            "timeout_ms": "7200000",
-            "max_output_bytes": "67108864",
-            "harness_env_removed": "none",
-            "runner_node_version": "v22.14.0",
-            "tree_mutated_during_run": "false",
-            "head_moved_during_run": "false",
-            "worktree_changed_during_run": "false",
-            "worktree_status_sha256_before": "421590e3ae9cad5aebc5622499599bd55246ece7767bc63563d3449e75974384",
-            "worktree_status_sha256_after": "421590e3ae9cad5aebc5622499599bd55246ece7767bc63563d3449e75974384",
-            "worktree_diff_sha256_before": "99f2fd294e5474045013bc420a1f492422eabb128f81025a7d9c84ce70ef32b0",
-            "worktree_diff_sha256_after": "99f2fd294e5474045013bc420a1f492422eabb128f81025a7d9c84ce70ef32b0"
-          },
-          "artifact_derived_keys": [
-            "status",
-            "exit_code",
-            "evidence_source",
-            "run_artifact",
-            "run_log",
-            "duration_ms",
-            "started_at",
-            "finished_at",
-            "head_sha_before",
-            "head_sha_after",
-            "head_sha",
-            "worktree_sampled",
-            "worktree_sampling_complete",
-            "worktree_sha256_before",
-            "worktree_sha256_after",
-            "stdout_sha256",
-            "output_sha256",
-            "output_bytes",
-            "log_truncated",
-            "output_metrics",
-            "timed_out",
-            "output_limit_exceeded",
-            "external_kill_signal",
-            "timeout_ms",
-            "max_output_bytes",
-            "harness_env_removed",
-            "runner_node_version",
-            "tree_mutated_during_run",
-            "head_moved_during_run",
-            "worktree_changed_during_run",
-            "worktree_status_sha256_before",
-            "worktree_status_sha256_after",
-            "worktree_diff_sha256_before",
-            "worktree_diff_sha256_after"
-          ],
-          "run_artifact": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/build.json",
-          "run_log": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/build.log",
-          "tree_mutated_during_run": false,
-          "head_moved_during_run": false,
-          "worktree_changed_during_run": false,
-          "worktree_sampled": true,
-          "worktree_sampling_complete": true,
-          "output_metrics": "none"
-        },
-        "computed_counts": null,
-        "artifact_check": {
-          "status": "verified",
-          "format": "generic_status",
-          "artifact_outcome": "pass",
-          "reason": "generic_status artifact outcome matches the claimed status (status=pass)"
-        },
-        "observation_check": {
-          "status": "partial",
-          "reason": "observation is incomplete; record targets plus scenarios or observed values"
-        },
-        "git_context": {
-          "head_sha": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
-          "current_branch": "cursor/otawara-doc-separation-890c",
-          "dirty": true,
-          "raw_dirty": true,
-          "status_fingerprint_hash": "39000fd870e712e829ca4c096cf91d5e3087717e687e1f4eba3979a9d80247c8",
-          "user_status_fingerprint_hash": "601d9784cc94c3733fd450fd81aa8791e78c628c7f263e9f20f36dd891e611bb",
-          "fingerprint_scope": {
-            "user_excludes": [
-              ".vibepro/",
-              ".worktrees/vibepro/"
-            ]
-          },
-          "recorded_at": "2026-10-17T06:18:20.507Z"
-        },
-        "content_binding": {
-          "schema_version": "0.1.0",
-          "model": "vibepro-content-scoped-evidence-freshness-v1",
-          "mode": "content_surface",
-          "status": "unbound",
-          "reason": "no content surface file could be derived from evidence targets, artifacts, or inspection inputs",
-          "recorded_head_sha": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
-          "surface_files": [],
-          "missing_files": [],
-          "surface_hash": null
-        },
-        "warnings": [
-          {
-            "id": "verification_run_counts_not_parsed",
-            "command_name": "verify run",
-            "reason": "the command exited 0 but no test counts could be parsed from its output; the record proves the command did not fail, not how much it checked"
-          }
-        ],
-        "runtime_identity": {
-          "schema_version": "0.2.0",
-          "collected_at": "2026-10-17T06:18:20.485Z",
-          "mode": "normal",
-          "source_kind": "npm_package",
-          "test_context": null,
-          "package": {
-            "name": "vibepro",
-            "version": "0.2.0-beta.32",
-            "exact_version": "0.2.0-beta.32",
-            "root": "/home/ubuntu/.npm-global/lib/node_modules/vibepro"
-          },
-          "cli": {
-            "entrypoint": "/home/ubuntu/.npm-global/lib/node_modules/vibepro/bin/vibepro.js",
-            "invoked_as": "/home/ubuntu/.npm-global/bin/vibepro",
-            "runtime_module": "/home/ubuntu/.npm-global/lib/node_modules/vibepro/src/runtime-info.js"
-          },
-          "release_manifest": {
-            "status": "valid",
-            "manifest": {
-              "schema_version": "0.1.0",
-              "package": {
-                "name": "vibepro",
-                "version": "0.2.0-beta.32",
-                "package_json_sha256": "3dc7d009303fe7d8108b28d5d9d6ed2881a63355e2abe400c315e119773edbfc",
-                "entrypoint": "bin/vibepro.js"
-              },
-              "source_git": {
-                "commit": "3cf69f0473db2a5dfe397a496a81a1574e160e0b",
-                "origin_url": "https://github.com/Unson-LLC/vibepro",
-                "origin_main_commit": "3cf69f0473db2a5dfe397a496a81a1574e160e0b",
-                "origin_main_relation": "same",
-                "dirty": false
-              }
-            },
-            "errors": []
-          },
-          "source_git": {
-            "is_git_repo": false,
-            "commit": "3cf69f0473db2a5dfe397a496a81a1574e160e0b",
-            "branch": null,
-            "origin_url": "https://github.com/Unson-LLC/vibepro",
-            "origin_main_commit": "3cf69f0473db2a5dfe397a496a81a1574e160e0b",
-            "origin_main_relation": "published",
-            "dirty": false,
-            "dirty_summary": []
-          },
-          "identity_digest": "13174d744da538e35f5e5a6b33ec46e8b8a24c3cd0e43423129d279267505f64",
-          "integrity": {
-            "status": "trusted",
-            "code": null,
-            "purpose": "evidence_generation",
-            "reasons": [
-              "manifested immutable npm runtime"
-            ]
-          }
-        },
-        "executed_at": "2026-10-17T06:18:20.458Z",
-        "trust_status": "untrusted"
-      },
-      {
-        "kind": "typecheck",
-        "status": "pass",
-        "command": "npx tsc -p tsconfig.json --noEmit",
-        "summary": "vibepro verify run executed the typecheck command: exit_code=0, duration_ms=4302, status=pass computed from the exit code",
-        "summary_authority": "agent_provided_non_authoritative",
-        "evidence_source": "runner_direct",
-        "observation": {
-          "targets": [],
-          "scenarios": [],
-          "values": {
-            "status": "pass",
-            "exit_code": "0",
-            "evidence_source": "runner_direct",
-            "run_artifact": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/typecheck.json",
-            "run_log": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/typecheck.log",
-            "duration_ms": "4302",
-            "started_at": "2026-10-17T06:18:11.049Z",
-            "finished_at": "2026-10-17T06:18:15.337Z",
-            "head_sha_before": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
-            "head_sha_after": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
-            "head_sha": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
-            "worktree_sampled": "true",
-            "worktree_sampling_complete": "true",
-            "worktree_sha256_before": "ca75a649305d1999dc298c9d67260e7b7ddec60fc0c2e8a8728b5fd63b9c130b",
-            "worktree_sha256_after": "ca75a649305d1999dc298c9d67260e7b7ddec60fc0c2e8a8728b5fd63b9c130b",
-            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "output_bytes": "0",
-            "log_truncated": "false",
-            "output_metrics": "none",
-            "timed_out": "false",
-            "output_limit_exceeded": "false",
-            "external_kill_signal": "none",
-            "timeout_ms": "7200000",
-            "max_output_bytes": "67108864",
-            "harness_env_removed": "none",
-            "runner_node_version": "v22.14.0",
-            "tree_mutated_during_run": "false",
-            "head_moved_during_run": "false",
-            "worktree_changed_during_run": "false",
-            "worktree_status_sha256_before": "d7a6ba6362c8398a2dde0b6b765e2af2835e10c4337275ce2de2a5e7cb4fb25a",
-            "worktree_status_sha256_after": "d7a6ba6362c8398a2dde0b6b765e2af2835e10c4337275ce2de2a5e7cb4fb25a",
-            "worktree_diff_sha256_before": "9c6af8b92c95eb00f0a8325337a778c508bdb54e322f35d45a976449709e640c",
-            "worktree_diff_sha256_after": "9c6af8b92c95eb00f0a8325337a778c508bdb54e322f35d45a976449709e640c"
-          }
-        },
-        "computed_observation": {
-          "producer": "vibepro verify run",
-          "computed_keys": [
-            "status",
-            "evidence_source",
-            "run_artifact",
-            "run_log",
-            "exit_code",
-            "duration_ms",
-            "started_at",
-            "finished_at",
-            "head_sha_before",
-            "head_sha_after",
-            "head_sha",
-            "worktree_sampled",
-            "worktree_sampling_complete",
-            "worktree_sha256_before",
-            "worktree_sha256_after",
-            "stdout_sha256",
-            "output_sha256",
-            "output_bytes",
-            "log_truncated",
-            "output_metrics",
-            "timed_out",
-            "output_limit_exceeded",
-            "external_kill_signal",
-            "timeout_ms",
-            "max_output_bytes",
-            "harness_env_removed",
-            "runner_node_version",
-            "tree_mutated_during_run",
-            "head_moved_during_run",
-            "worktree_changed_during_run",
-            "worktree_status_sha256_before",
-            "worktree_status_sha256_after",
-            "worktree_diff_sha256_before",
-            "worktree_diff_sha256_after"
-          ],
-          "values": {
-            "status": "pass",
-            "evidence_source": "runner_direct",
-            "run_artifact": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/typecheck.json",
-            "run_log": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/typecheck.log",
-            "exit_code": "0",
-            "duration_ms": "4302",
-            "started_at": "2026-10-17T06:18:11.049Z",
-            "finished_at": "2026-10-17T06:18:15.337Z",
-            "head_sha_before": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
-            "head_sha_after": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
-            "head_sha": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
-            "worktree_sampled": "true",
-            "worktree_sampling_complete": "true",
-            "worktree_sha256_before": "ca75a649305d1999dc298c9d67260e7b7ddec60fc0c2e8a8728b5fd63b9c130b",
-            "worktree_sha256_after": "ca75a649305d1999dc298c9d67260e7b7ddec60fc0c2e8a8728b5fd63b9c130b",
-            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "output_bytes": "0",
-            "log_truncated": "false",
-            "output_metrics": "none",
-            "timed_out": "false",
-            "output_limit_exceeded": "false",
-            "external_kill_signal": "none",
-            "timeout_ms": "7200000",
-            "max_output_bytes": "67108864",
-            "harness_env_removed": "none",
-            "runner_node_version": "v22.14.0",
-            "tree_mutated_during_run": "false",
-            "head_moved_during_run": "false",
-            "worktree_changed_during_run": "false",
-            "worktree_status_sha256_before": "d7a6ba6362c8398a2dde0b6b765e2af2835e10c4337275ce2de2a5e7cb4fb25a",
-            "worktree_status_sha256_after": "d7a6ba6362c8398a2dde0b6b765e2af2835e10c4337275ce2de2a5e7cb4fb25a",
-            "worktree_diff_sha256_before": "9c6af8b92c95eb00f0a8325337a778c508bdb54e322f35d45a976449709e640c",
-            "worktree_diff_sha256_after": "9c6af8b92c95eb00f0a8325337a778c508bdb54e322f35d45a976449709e640c"
-          },
-          "artifact_derived_keys": [
-            "status",
-            "exit_code",
-            "evidence_source",
-            "run_artifact",
-            "run_log",
-            "duration_ms",
-            "started_at",
-            "finished_at",
-            "head_sha_before",
-            "head_sha_after",
-            "head_sha",
-            "worktree_sampled",
-            "worktree_sampling_complete",
-            "worktree_sha256_before",
-            "worktree_sha256_after",
-            "stdout_sha256",
-            "output_sha256",
-            "output_bytes",
-            "log_truncated",
-            "output_metrics",
-            "timed_out",
-            "output_limit_exceeded",
-            "external_kill_signal",
-            "timeout_ms",
-            "max_output_bytes",
-            "harness_env_removed",
-            "runner_node_version",
-            "tree_mutated_during_run",
-            "head_moved_during_run",
-            "worktree_changed_during_run",
-            "worktree_status_sha256_before",
-            "worktree_status_sha256_after",
-            "worktree_diff_sha256_before",
-            "worktree_diff_sha256_after"
-          ],
-          "run_artifact": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/typecheck.json",
-          "run_log": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/typecheck.log",
-          "tree_mutated_during_run": false,
-          "head_moved_during_run": false,
-          "worktree_changed_during_run": false,
-          "worktree_sampled": true,
-          "worktree_sampling_complete": true,
-          "output_metrics": "none"
-        },
-        "computed_counts": null,
-        "artifact_check": {
-          "status": "verified",
-          "format": "generic_status",
-          "artifact_outcome": "pass",
-          "reason": "generic_status artifact outcome matches the claimed status (status=pass)"
-        },
-        "observation_check": {
-          "status": "partial",
-          "reason": "observation is incomplete; record targets plus scenarios or observed values"
-        },
-        "git_context": {
-          "head_sha": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
-          "current_branch": "cursor/otawara-doc-separation-890c",
-          "dirty": true,
-          "raw_dirty": true,
-          "status_fingerprint_hash": "70c2d4b228cd80f79920f630bc2284278bd2d199d60b4d1e19a8d22d48051afa",
-          "user_status_fingerprint_hash": "601d9784cc94c3733fd450fd81aa8791e78c628c7f263e9f20f36dd891e611bb",
-          "fingerprint_scope": {
-            "user_excludes": [
-              ".vibepro/",
-              ".worktrees/vibepro/"
-            ]
-          },
-          "recorded_at": "2026-10-17T06:18:15.382Z"
-        },
-        "content_binding": {
-          "schema_version": "0.1.0",
-          "model": "vibepro-content-scoped-evidence-freshness-v1",
-          "mode": "content_surface",
-          "status": "unbound",
-          "reason": "no content surface file could be derived from evidence targets, artifacts, or inspection inputs",
-          "recorded_head_sha": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
-          "surface_files": [],
-          "missing_files": [],
-          "surface_hash": null
-        },
-        "warnings": [
-          {
-            "id": "verification_run_produced_no_output",
-            "command_name": "verify run",
-            "reason": "the command exited 0 without printing anything; a silent success is not evidence that any check ran"
-          }
-        ],
-        "runtime_identity": {
-          "schema_version": "0.2.0",
-          "collected_at": "2026-10-17T06:18:15.361Z",
-          "mode": "normal",
-          "source_kind": "npm_package",
-          "test_context": null,
-          "package": {
-            "name": "vibepro",
-            "version": "0.2.0-beta.32",
-            "exact_version": "0.2.0-beta.32",
-            "root": "/home/ubuntu/.npm-global/lib/node_modules/vibepro"
-          },
-          "cli": {
-            "entrypoint": "/home/ubuntu/.npm-global/lib/node_modules/vibepro/bin/vibepro.js",
-            "invoked_as": "/home/ubuntu/.npm-global/bin/vibepro",
-            "runtime_module": "/home/ubuntu/.npm-global/lib/node_modules/vibepro/src/runtime-info.js"
-          },
-          "release_manifest": {
-            "status": "valid",
-            "manifest": {
-              "schema_version": "0.1.0",
-              "package": {
-                "name": "vibepro",
-                "version": "0.2.0-beta.32",
-                "package_json_sha256": "3dc7d009303fe7d8108b28d5d9d6ed2881a63355e2abe400c315e119773edbfc",
-                "entrypoint": "bin/vibepro.js"
-              },
-              "source_git": {
-                "commit": "3cf69f0473db2a5dfe397a496a81a1574e160e0b",
-                "origin_url": "https://github.com/Unson-LLC/vibepro",
-                "origin_main_commit": "3cf69f0473db2a5dfe397a496a81a1574e160e0b",
-                "origin_main_relation": "same",
-                "dirty": false
-              }
-            },
-            "errors": []
-          },
-          "source_git": {
-            "is_git_repo": false,
-            "commit": "3cf69f0473db2a5dfe397a496a81a1574e160e0b",
-            "branch": null,
-            "origin_url": "https://github.com/Unson-LLC/vibepro",
-            "origin_main_commit": "3cf69f0473db2a5dfe397a496a81a1574e160e0b",
-            "origin_main_relation": "published",
-            "dirty": false,
-            "dirty_summary": []
-          },
-          "identity_digest": "13174d744da538e35f5e5a6b33ec46e8b8a24c3cd0e43423129d279267505f64",
-          "integrity": {
-            "status": "trusted",
-            "code": null,
-            "purpose": "evidence_generation",
-            "reasons": [
-              "manifested immutable npm runtime"
-            ]
-          }
-        },
-        "executed_at": "2026-10-17T06:18:15.337Z",
-        "trust_status": "untrusted"
-      },
       {
         "kind": "unit",
         "status": "fail",
         "command": "npm test -- --maxWorkers=4",
-        "summary": "vibepro verify run executed the unit command: exit_code=1, duration_ms=41153, status=fail computed from the exit code",
+        "summary": "vibepro verify run executed the unit command: exit_code=1, duration_ms=43265, status=fail computed from the exit code",
         "summary_authority": "agent_provided_non_authoritative",
         "evidence_source": "runner_direct",
         "observation": {
@@ -848,19 +352,19 @@
             "evidence_source": "runner_direct",
             "run_artifact": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/unit.json",
             "run_log": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/unit.log",
-            "duration_ms": "41153",
-            "started_at": "2026-10-17T06:16:57.675Z",
-            "finished_at": "2026-10-17T06:17:38.814Z",
-            "head_sha_before": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
-            "head_sha_after": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
-            "head_sha": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
+            "duration_ms": "43265",
+            "started_at": "2026-10-17T08:09:06.341Z",
+            "finished_at": "2026-10-17T08:09:49.593Z",
+            "head_sha_before": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+            "head_sha_after": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+            "head_sha": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
             "worktree_sampled": "true",
             "worktree_sampling_complete": "true",
-            "worktree_sha256_before": "716d42c6d220cf3a5ba4bcdca44ee6e738831a210e64e71f892c497da7a25c73",
-            "worktree_sha256_after": "716d42c6d220cf3a5ba4bcdca44ee6e738831a210e64e71f892c497da7a25c73",
-            "stdout_sha256": "b619c060a561bc2ec3a14e97bfb0ad83376fb94e6e668a2dbeae7dc8b4a717a6",
-            "output_sha256": "47c44198bb46a9f17527a5be1829363dc85f7638504afde6c8f9c14a59bfffd9",
-            "output_bytes": "3705",
+            "worktree_sha256_before": "538f494187f904c420e963a06837af3c83fe471faf3d95f2e1f1ced78a1e583c",
+            "worktree_sha256_after": "538f494187f904c420e963a06837af3c83fe471faf3d95f2e1f1ced78a1e583c",
+            "stdout_sha256": "0440e65ed09363f0f5cb6e85c1cb0988deee66415ea74c299272e939ec77b605",
+            "output_sha256": "2035b136911380c0433d40a1fa7764e91aa16c36deed8852ababc1dc6e615664",
+            "output_bytes": "4817",
             "log_truncated": "false",
             "output_metrics": "none",
             "timed_out": "false",
@@ -875,8 +379,8 @@
             "worktree_changed_during_run": "false",
             "worktree_status_sha256_before": "53076afa709d0fddc14335562623a60379992b22b61c364dd3f8be80ca2c6fd4",
             "worktree_status_sha256_after": "53076afa709d0fddc14335562623a60379992b22b61c364dd3f8be80ca2c6fd4",
-            "worktree_diff_sha256_before": "b30d6c0a5c96d8e090ebea0ec959f4f6d3958c59ee53fce4ee6c19fbed31b63f",
-            "worktree_diff_sha256_after": "b30d6c0a5c96d8e090ebea0ec959f4f6d3958c59ee53fce4ee6c19fbed31b63f"
+            "worktree_diff_sha256_before": "f62f1d546ff60b88df8b32aee5446a01dd4c2bed4fca02a013de0d45fa49e0a8",
+            "worktree_diff_sha256_after": "f62f1d546ff60b88df8b32aee5446a01dd4c2bed4fca02a013de0d45fa49e0a8"
           }
         },
         "computed_observation": {
@@ -923,19 +427,19 @@
             "run_artifact": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/unit.json",
             "run_log": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/unit.log",
             "exit_code": "1",
-            "duration_ms": "41153",
-            "started_at": "2026-10-17T06:16:57.675Z",
-            "finished_at": "2026-10-17T06:17:38.814Z",
-            "head_sha_before": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
-            "head_sha_after": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
-            "head_sha": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
+            "duration_ms": "43265",
+            "started_at": "2026-10-17T08:09:06.341Z",
+            "finished_at": "2026-10-17T08:09:49.593Z",
+            "head_sha_before": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+            "head_sha_after": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+            "head_sha": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
             "worktree_sampled": "true",
             "worktree_sampling_complete": "true",
-            "worktree_sha256_before": "716d42c6d220cf3a5ba4bcdca44ee6e738831a210e64e71f892c497da7a25c73",
-            "worktree_sha256_after": "716d42c6d220cf3a5ba4bcdca44ee6e738831a210e64e71f892c497da7a25c73",
-            "stdout_sha256": "b619c060a561bc2ec3a14e97bfb0ad83376fb94e6e668a2dbeae7dc8b4a717a6",
-            "output_sha256": "47c44198bb46a9f17527a5be1829363dc85f7638504afde6c8f9c14a59bfffd9",
-            "output_bytes": "3705",
+            "worktree_sha256_before": "538f494187f904c420e963a06837af3c83fe471faf3d95f2e1f1ced78a1e583c",
+            "worktree_sha256_after": "538f494187f904c420e963a06837af3c83fe471faf3d95f2e1f1ced78a1e583c",
+            "stdout_sha256": "0440e65ed09363f0f5cb6e85c1cb0988deee66415ea74c299272e939ec77b605",
+            "output_sha256": "2035b136911380c0433d40a1fa7764e91aa16c36deed8852ababc1dc6e615664",
+            "output_bytes": "4817",
             "log_truncated": "false",
             "output_metrics": "none",
             "timed_out": "false",
@@ -950,8 +454,8 @@
             "worktree_changed_during_run": "false",
             "worktree_status_sha256_before": "53076afa709d0fddc14335562623a60379992b22b61c364dd3f8be80ca2c6fd4",
             "worktree_status_sha256_after": "53076afa709d0fddc14335562623a60379992b22b61c364dd3f8be80ca2c6fd4",
-            "worktree_diff_sha256_before": "b30d6c0a5c96d8e090ebea0ec959f4f6d3958c59ee53fce4ee6c19fbed31b63f",
-            "worktree_diff_sha256_after": "b30d6c0a5c96d8e090ebea0ec959f4f6d3958c59ee53fce4ee6c19fbed31b63f"
+            "worktree_diff_sha256_before": "f62f1d546ff60b88df8b32aee5446a01dd4c2bed4fca02a013de0d45fa49e0a8",
+            "worktree_diff_sha256_after": "f62f1d546ff60b88df8b32aee5446a01dd4c2bed4fca02a013de0d45fa49e0a8"
           },
           "artifact_derived_keys": [
             "status",
@@ -1010,11 +514,11 @@
           "reason": "observation is incomplete; record targets plus scenarios or observed values"
         },
         "git_context": {
-          "head_sha": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
+          "head_sha": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
           "current_branch": "cursor/otawara-doc-separation-890c",
           "dirty": false,
           "raw_dirty": true,
-          "status_fingerprint_hash": "b7585b76171fa6112b6ec5624f4d21ca172f0fbf0c069f4dbe276d2dab8b9c49",
+          "status_fingerprint_hash": "5224f6a9c8317f0f9fefa7dc2855459f9bf39d03ba7de8ace580c33764ebdbd7",
           "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
           "fingerprint_scope": {
             "user_excludes": [
@@ -1022,7 +526,7 @@
               ".worktrees/vibepro/"
             ]
           },
-          "recorded_at": "2026-10-17T06:17:38.861Z"
+          "recorded_at": "2026-10-17T08:09:49.638Z"
         },
         "content_binding": {
           "schema_version": "0.1.0",
@@ -1030,7 +534,7 @@
           "mode": "content_surface",
           "status": "unbound",
           "reason": "no content surface file could be derived from evidence targets, artifacts, or inspection inputs",
-          "recorded_head_sha": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
+          "recorded_head_sha": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
           "surface_files": [],
           "missing_files": [],
           "surface_hash": null
@@ -1038,7 +542,7 @@
         "warnings": [],
         "runtime_identity": {
           "schema_version": "0.2.0",
-          "collected_at": "2026-10-17T06:17:38.837Z",
+          "collected_at": "2026-10-17T08:09:49.617Z",
           "mode": "normal",
           "source_kind": "npm_package",
           "test_context": null,
@@ -1093,7 +597,547 @@
             ]
           }
         },
-        "executed_at": "2026-10-17T06:17:38.814Z",
+        "executed_at": "2026-10-17T08:09:49.593Z",
+        "trust_status": "untrusted"
+      },
+      {
+        "kind": "build",
+        "status": "pass",
+        "command": "npm run build",
+        "summary": "vibepro verify run executed the build command: exit_code=0, duration_ms=5386, status=pass computed from the exit code",
+        "summary_authority": "agent_provided_non_authoritative",
+        "evidence_source": "runner_direct",
+        "observation": {
+          "targets": [],
+          "scenarios": [],
+          "values": {
+            "status": "pass",
+            "exit_code": "0",
+            "evidence_source": "runner_direct",
+            "run_artifact": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/build.json",
+            "run_log": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/build.log",
+            "duration_ms": "5386",
+            "started_at": "2026-10-17T08:09:00.763Z",
+            "finished_at": "2026-10-17T08:09:06.135Z",
+            "head_sha_before": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+            "head_sha_after": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+            "head_sha": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+            "worktree_sampled": "true",
+            "worktree_sampling_complete": "true",
+            "worktree_sha256_before": "c0243d373eb1386cf02f914ece2a5692bcafc260c63c28f318b581a2db0f2b0e",
+            "worktree_sha256_after": "c0243d373eb1386cf02f914ece2a5692bcafc260c63c28f318b581a2db0f2b0e",
+            "stdout_sha256": "7a893b916345481a5b71b140bef3c50912b98288e0162cf608172fde8d5f2e9c",
+            "output_sha256": "7a893b916345481a5b71b140bef3c50912b98288e0162cf608172fde8d5f2e9c",
+            "output_bytes": "62",
+            "log_truncated": "false",
+            "output_metrics": "none",
+            "timed_out": "false",
+            "output_limit_exceeded": "false",
+            "external_kill_signal": "none",
+            "timeout_ms": "7200000",
+            "max_output_bytes": "67108864",
+            "harness_env_removed": "none",
+            "runner_node_version": "v22.14.0",
+            "tree_mutated_during_run": "false",
+            "head_moved_during_run": "false",
+            "worktree_changed_during_run": "false",
+            "worktree_status_sha256_before": "1dd834278f556827dab23159b17ad1ea2a1181b60453c3548d5efddb3dbf7ad8",
+            "worktree_status_sha256_after": "1dd834278f556827dab23159b17ad1ea2a1181b60453c3548d5efddb3dbf7ad8",
+            "worktree_diff_sha256_before": "2b0407c778393af151a1860a687f068357b8dcde5a67078e58ea1767aab417dc",
+            "worktree_diff_sha256_after": "2b0407c778393af151a1860a687f068357b8dcde5a67078e58ea1767aab417dc"
+          }
+        },
+        "computed_observation": {
+          "producer": "vibepro verify run",
+          "computed_keys": [
+            "status",
+            "evidence_source",
+            "run_artifact",
+            "run_log",
+            "exit_code",
+            "duration_ms",
+            "started_at",
+            "finished_at",
+            "head_sha_before",
+            "head_sha_after",
+            "head_sha",
+            "worktree_sampled",
+            "worktree_sampling_complete",
+            "worktree_sha256_before",
+            "worktree_sha256_after",
+            "stdout_sha256",
+            "output_sha256",
+            "output_bytes",
+            "log_truncated",
+            "output_metrics",
+            "timed_out",
+            "output_limit_exceeded",
+            "external_kill_signal",
+            "timeout_ms",
+            "max_output_bytes",
+            "harness_env_removed",
+            "runner_node_version",
+            "tree_mutated_during_run",
+            "head_moved_during_run",
+            "worktree_changed_during_run",
+            "worktree_status_sha256_before",
+            "worktree_status_sha256_after",
+            "worktree_diff_sha256_before",
+            "worktree_diff_sha256_after"
+          ],
+          "values": {
+            "status": "pass",
+            "evidence_source": "runner_direct",
+            "run_artifact": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/build.json",
+            "run_log": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/build.log",
+            "exit_code": "0",
+            "duration_ms": "5386",
+            "started_at": "2026-10-17T08:09:00.763Z",
+            "finished_at": "2026-10-17T08:09:06.135Z",
+            "head_sha_before": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+            "head_sha_after": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+            "head_sha": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+            "worktree_sampled": "true",
+            "worktree_sampling_complete": "true",
+            "worktree_sha256_before": "c0243d373eb1386cf02f914ece2a5692bcafc260c63c28f318b581a2db0f2b0e",
+            "worktree_sha256_after": "c0243d373eb1386cf02f914ece2a5692bcafc260c63c28f318b581a2db0f2b0e",
+            "stdout_sha256": "7a893b916345481a5b71b140bef3c50912b98288e0162cf608172fde8d5f2e9c",
+            "output_sha256": "7a893b916345481a5b71b140bef3c50912b98288e0162cf608172fde8d5f2e9c",
+            "output_bytes": "62",
+            "log_truncated": "false",
+            "output_metrics": "none",
+            "timed_out": "false",
+            "output_limit_exceeded": "false",
+            "external_kill_signal": "none",
+            "timeout_ms": "7200000",
+            "max_output_bytes": "67108864",
+            "harness_env_removed": "none",
+            "runner_node_version": "v22.14.0",
+            "tree_mutated_during_run": "false",
+            "head_moved_during_run": "false",
+            "worktree_changed_during_run": "false",
+            "worktree_status_sha256_before": "1dd834278f556827dab23159b17ad1ea2a1181b60453c3548d5efddb3dbf7ad8",
+            "worktree_status_sha256_after": "1dd834278f556827dab23159b17ad1ea2a1181b60453c3548d5efddb3dbf7ad8",
+            "worktree_diff_sha256_before": "2b0407c778393af151a1860a687f068357b8dcde5a67078e58ea1767aab417dc",
+            "worktree_diff_sha256_after": "2b0407c778393af151a1860a687f068357b8dcde5a67078e58ea1767aab417dc"
+          },
+          "artifact_derived_keys": [
+            "status",
+            "exit_code",
+            "evidence_source",
+            "run_artifact",
+            "run_log",
+            "duration_ms",
+            "started_at",
+            "finished_at",
+            "head_sha_before",
+            "head_sha_after",
+            "head_sha",
+            "worktree_sampled",
+            "worktree_sampling_complete",
+            "worktree_sha256_before",
+            "worktree_sha256_after",
+            "stdout_sha256",
+            "output_sha256",
+            "output_bytes",
+            "log_truncated",
+            "output_metrics",
+            "timed_out",
+            "output_limit_exceeded",
+            "external_kill_signal",
+            "timeout_ms",
+            "max_output_bytes",
+            "harness_env_removed",
+            "runner_node_version",
+            "tree_mutated_during_run",
+            "head_moved_during_run",
+            "worktree_changed_during_run",
+            "worktree_status_sha256_before",
+            "worktree_status_sha256_after",
+            "worktree_diff_sha256_before",
+            "worktree_diff_sha256_after"
+          ],
+          "run_artifact": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/build.json",
+          "run_log": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/build.log",
+          "tree_mutated_during_run": false,
+          "head_moved_during_run": false,
+          "worktree_changed_during_run": false,
+          "worktree_sampled": true,
+          "worktree_sampling_complete": true,
+          "output_metrics": "none"
+        },
+        "computed_counts": null,
+        "artifact_check": {
+          "status": "verified",
+          "format": "generic_status",
+          "artifact_outcome": "pass",
+          "reason": "generic_status artifact outcome matches the claimed status (status=pass)"
+        },
+        "observation_check": {
+          "status": "partial",
+          "reason": "observation is incomplete; record targets plus scenarios or observed values"
+        },
+        "git_context": {
+          "head_sha": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+          "current_branch": "cursor/otawara-doc-separation-890c",
+          "dirty": false,
+          "raw_dirty": true,
+          "status_fingerprint_hash": "f9e6e9d31950c50adbc3c54f219899cf3cc1fe2cbd1060bd148003d9237bb8e2",
+          "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+          "fingerprint_scope": {
+            "user_excludes": [
+              ".vibepro/",
+              ".worktrees/vibepro/"
+            ]
+          },
+          "recorded_at": "2026-10-17T08:09:06.189Z"
+        },
+        "content_binding": {
+          "schema_version": "0.1.0",
+          "model": "vibepro-content-scoped-evidence-freshness-v1",
+          "mode": "content_surface",
+          "status": "unbound",
+          "reason": "no content surface file could be derived from evidence targets, artifacts, or inspection inputs",
+          "recorded_head_sha": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+          "surface_files": [],
+          "missing_files": [],
+          "surface_hash": null
+        },
+        "warnings": [
+          {
+            "id": "verification_run_counts_not_parsed",
+            "command_name": "verify run",
+            "reason": "the command exited 0 but no test counts could be parsed from its output; the record proves the command did not fail, not how much it checked"
+          }
+        ],
+        "runtime_identity": {
+          "schema_version": "0.2.0",
+          "collected_at": "2026-10-17T08:09:06.165Z",
+          "mode": "normal",
+          "source_kind": "npm_package",
+          "test_context": null,
+          "package": {
+            "name": "vibepro",
+            "version": "0.2.0-beta.32",
+            "exact_version": "0.2.0-beta.32",
+            "root": "/home/ubuntu/.npm-global/lib/node_modules/vibepro"
+          },
+          "cli": {
+            "entrypoint": "/home/ubuntu/.npm-global/lib/node_modules/vibepro/bin/vibepro.js",
+            "invoked_as": "/home/ubuntu/.npm-global/bin/vibepro",
+            "runtime_module": "/home/ubuntu/.npm-global/lib/node_modules/vibepro/src/runtime-info.js"
+          },
+          "release_manifest": {
+            "status": "valid",
+            "manifest": {
+              "schema_version": "0.1.0",
+              "package": {
+                "name": "vibepro",
+                "version": "0.2.0-beta.32",
+                "package_json_sha256": "3dc7d009303fe7d8108b28d5d9d6ed2881a63355e2abe400c315e119773edbfc",
+                "entrypoint": "bin/vibepro.js"
+              },
+              "source_git": {
+                "commit": "3cf69f0473db2a5dfe397a496a81a1574e160e0b",
+                "origin_url": "https://github.com/Unson-LLC/vibepro",
+                "origin_main_commit": "3cf69f0473db2a5dfe397a496a81a1574e160e0b",
+                "origin_main_relation": "same",
+                "dirty": false
+              }
+            },
+            "errors": []
+          },
+          "source_git": {
+            "is_git_repo": false,
+            "commit": "3cf69f0473db2a5dfe397a496a81a1574e160e0b",
+            "branch": null,
+            "origin_url": "https://github.com/Unson-LLC/vibepro",
+            "origin_main_commit": "3cf69f0473db2a5dfe397a496a81a1574e160e0b",
+            "origin_main_relation": "published",
+            "dirty": false,
+            "dirty_summary": []
+          },
+          "identity_digest": "13174d744da538e35f5e5a6b33ec46e8b8a24c3cd0e43423129d279267505f64",
+          "integrity": {
+            "status": "trusted",
+            "code": null,
+            "purpose": "evidence_generation",
+            "reasons": [
+              "manifested immutable npm runtime"
+            ]
+          }
+        },
+        "executed_at": "2026-10-17T08:09:06.135Z",
+        "trust_status": "untrusted"
+      },
+      {
+        "kind": "typecheck",
+        "status": "pass",
+        "command": "npx tsc -p tsconfig.json --noEmit",
+        "summary": "vibepro verify run executed the typecheck command: exit_code=0, duration_ms=4804, status=pass computed from the exit code",
+        "summary_authority": "agent_provided_non_authoritative",
+        "evidence_source": "runner_direct",
+        "observation": {
+          "targets": [],
+          "scenarios": [],
+          "values": {
+            "status": "pass",
+            "exit_code": "0",
+            "evidence_source": "runner_direct",
+            "run_artifact": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/typecheck.json",
+            "run_log": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/typecheck.log",
+            "duration_ms": "4804",
+            "started_at": "2026-10-17T08:08:55.772Z",
+            "finished_at": "2026-10-17T08:09:00.562Z",
+            "head_sha_before": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+            "head_sha_after": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+            "head_sha": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+            "worktree_sampled": "true",
+            "worktree_sampling_complete": "true",
+            "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+            "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_bytes": "0",
+            "log_truncated": "false",
+            "output_metrics": "none",
+            "timed_out": "false",
+            "output_limit_exceeded": "false",
+            "external_kill_signal": "none",
+            "timeout_ms": "7200000",
+            "max_output_bytes": "67108864",
+            "harness_env_removed": "none",
+            "runner_node_version": "v22.14.0",
+            "tree_mutated_during_run": "false",
+            "head_moved_during_run": "false",
+            "worktree_changed_during_run": "false",
+            "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        "computed_observation": {
+          "producer": "vibepro verify run",
+          "computed_keys": [
+            "status",
+            "evidence_source",
+            "run_artifact",
+            "run_log",
+            "exit_code",
+            "duration_ms",
+            "started_at",
+            "finished_at",
+            "head_sha_before",
+            "head_sha_after",
+            "head_sha",
+            "worktree_sampled",
+            "worktree_sampling_complete",
+            "worktree_sha256_before",
+            "worktree_sha256_after",
+            "stdout_sha256",
+            "output_sha256",
+            "output_bytes",
+            "log_truncated",
+            "output_metrics",
+            "timed_out",
+            "output_limit_exceeded",
+            "external_kill_signal",
+            "timeout_ms",
+            "max_output_bytes",
+            "harness_env_removed",
+            "runner_node_version",
+            "tree_mutated_during_run",
+            "head_moved_during_run",
+            "worktree_changed_during_run",
+            "worktree_status_sha256_before",
+            "worktree_status_sha256_after",
+            "worktree_diff_sha256_before",
+            "worktree_diff_sha256_after"
+          ],
+          "values": {
+            "status": "pass",
+            "evidence_source": "runner_direct",
+            "run_artifact": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/typecheck.json",
+            "run_log": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/typecheck.log",
+            "exit_code": "0",
+            "duration_ms": "4804",
+            "started_at": "2026-10-17T08:08:55.772Z",
+            "finished_at": "2026-10-17T08:09:00.562Z",
+            "head_sha_before": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+            "head_sha_after": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+            "head_sha": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+            "worktree_sampled": "true",
+            "worktree_sampling_complete": "true",
+            "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+            "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+            "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "output_bytes": "0",
+            "log_truncated": "false",
+            "output_metrics": "none",
+            "timed_out": "false",
+            "output_limit_exceeded": "false",
+            "external_kill_signal": "none",
+            "timeout_ms": "7200000",
+            "max_output_bytes": "67108864",
+            "harness_env_removed": "none",
+            "runner_node_version": "v22.14.0",
+            "tree_mutated_during_run": "false",
+            "head_moved_during_run": "false",
+            "worktree_changed_during_run": "false",
+            "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "artifact_derived_keys": [
+            "status",
+            "exit_code",
+            "evidence_source",
+            "run_artifact",
+            "run_log",
+            "duration_ms",
+            "started_at",
+            "finished_at",
+            "head_sha_before",
+            "head_sha_after",
+            "head_sha",
+            "worktree_sampled",
+            "worktree_sampling_complete",
+            "worktree_sha256_before",
+            "worktree_sha256_after",
+            "stdout_sha256",
+            "output_sha256",
+            "output_bytes",
+            "log_truncated",
+            "output_metrics",
+            "timed_out",
+            "output_limit_exceeded",
+            "external_kill_signal",
+            "timeout_ms",
+            "max_output_bytes",
+            "harness_env_removed",
+            "runner_node_version",
+            "tree_mutated_during_run",
+            "head_moved_during_run",
+            "worktree_changed_during_run",
+            "worktree_status_sha256_before",
+            "worktree_status_sha256_after",
+            "worktree_diff_sha256_before",
+            "worktree_diff_sha256_after"
+          ],
+          "run_artifact": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/typecheck.json",
+          "run_log": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/typecheck.log",
+          "tree_mutated_during_run": false,
+          "head_moved_during_run": false,
+          "worktree_changed_during_run": false,
+          "worktree_sampled": true,
+          "worktree_sampling_complete": true,
+          "output_metrics": "none"
+        },
+        "computed_counts": null,
+        "artifact_check": {
+          "status": "verified",
+          "format": "generic_status",
+          "artifact_outcome": "pass",
+          "reason": "generic_status artifact outcome matches the claimed status (status=pass)"
+        },
+        "observation_check": {
+          "status": "partial",
+          "reason": "observation is incomplete; record targets plus scenarios or observed values"
+        },
+        "git_context": {
+          "head_sha": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+          "current_branch": "cursor/otawara-doc-separation-890c",
+          "dirty": false,
+          "raw_dirty": true,
+          "status_fingerprint_hash": "1e1a59889fa40ff719fcae267c53c4794358732490788fb01f777fb7a4ecb5e8",
+          "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+          "fingerprint_scope": {
+            "user_excludes": [
+              ".vibepro/",
+              ".worktrees/vibepro/"
+            ]
+          },
+          "recorded_at": "2026-10-17T08:09:00.613Z"
+        },
+        "content_binding": {
+          "schema_version": "0.1.0",
+          "model": "vibepro-content-scoped-evidence-freshness-v1",
+          "mode": "content_surface",
+          "status": "unbound",
+          "reason": "no content surface file could be derived from evidence targets, artifacts, or inspection inputs",
+          "recorded_head_sha": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+          "surface_files": [],
+          "missing_files": [],
+          "surface_hash": null
+        },
+        "warnings": [
+          {
+            "id": "verification_run_produced_no_output",
+            "command_name": "verify run",
+            "reason": "the command exited 0 without printing anything; a silent success is not evidence that any check ran"
+          }
+        ],
+        "runtime_identity": {
+          "schema_version": "0.2.0",
+          "collected_at": "2026-10-17T08:09:00.590Z",
+          "mode": "normal",
+          "source_kind": "npm_package",
+          "test_context": null,
+          "package": {
+            "name": "vibepro",
+            "version": "0.2.0-beta.32",
+            "exact_version": "0.2.0-beta.32",
+            "root": "/home/ubuntu/.npm-global/lib/node_modules/vibepro"
+          },
+          "cli": {
+            "entrypoint": "/home/ubuntu/.npm-global/lib/node_modules/vibepro/bin/vibepro.js",
+            "invoked_as": "/home/ubuntu/.npm-global/bin/vibepro",
+            "runtime_module": "/home/ubuntu/.npm-global/lib/node_modules/vibepro/src/runtime-info.js"
+          },
+          "release_manifest": {
+            "status": "valid",
+            "manifest": {
+              "schema_version": "0.1.0",
+              "package": {
+                "name": "vibepro",
+                "version": "0.2.0-beta.32",
+                "package_json_sha256": "3dc7d009303fe7d8108b28d5d9d6ed2881a63355e2abe400c315e119773edbfc",
+                "entrypoint": "bin/vibepro.js"
+              },
+              "source_git": {
+                "commit": "3cf69f0473db2a5dfe397a496a81a1574e160e0b",
+                "origin_url": "https://github.com/Unson-LLC/vibepro",
+                "origin_main_commit": "3cf69f0473db2a5dfe397a496a81a1574e160e0b",
+                "origin_main_relation": "same",
+                "dirty": false
+              }
+            },
+            "errors": []
+          },
+          "source_git": {
+            "is_git_repo": false,
+            "commit": "3cf69f0473db2a5dfe397a496a81a1574e160e0b",
+            "branch": null,
+            "origin_url": "https://github.com/Unson-LLC/vibepro",
+            "origin_main_commit": "3cf69f0473db2a5dfe397a496a81a1574e160e0b",
+            "origin_main_relation": "published",
+            "dirty": false,
+            "dirty_summary": []
+          },
+          "identity_digest": "13174d744da538e35f5e5a6b33ec46e8b8a24c3cd0e43423129d279267505f64",
+          "integrity": {
+            "status": "trusted",
+            "code": null,
+            "purpose": "evidence_generation",
+            "reasons": [
+              "manifested immutable npm runtime"
+            ]
+          }
+        },
+        "executed_at": "2026-10-17T08:09:00.562Z",
         "trust_status": "untrusted"
       }
     ]
@@ -1108,8 +1152,8 @@
         "story_id": "story-otawara-gws-customer-doc-separation",
         "role": "reviewer",
         "status": "pass",
-        "summary": "共有repoの google-workspace-local-onboarding* は汎用設計として残し、顧客固有の otawara-gws-local-onboarding ファイル名は復帰させない。台帳の forbidden_terms で docs/README/e2e 本文を走査し、実名・メール・ホームパスをプレースホルダへ置換。正本は cursorvers/brainbase-instance-cursorvers。",
-        "recorded_at": "2026-10-17T06:17:49.511Z",
+        "summary": "Unit testsの顧客フィクスチャをプレースホルダ化し、台帳走査を tests/** に拡張。GWS 設計文書と README を汎用ペルソナ表現に更新。",
+        "recorded_at": "2026-10-17T08:09:49.767Z",
         "findings": [],
         "content_binding": {
           "schema_version": "0.1.0",
@@ -1121,12 +1165,12 @@
           "surface_files": [
             {
               "path": "docs/management/customer-doc-ledger.json",
-              "sha256": "658a6e93bc32b3ec3d0a0b95ac5d415551515ac6d886340a4b6e7cf02f726002",
-              "size": 2572
+              "sha256": "df5d37c6f279770049f19b7a7f7a7a14fe6d67ab97534dac60035f6c95c2e838",
+              "size": 2568
             }
           ],
           "missing_files": [],
-          "surface_hash": "3bd59e69824e15cdc2d16484f67f78a88ae23d5dd3680817df505338be83eb58"
+          "surface_hash": "28ce322dcb5bd2753b5af6634dd2ed1332fa4c533bb796f5d8640d6036f5d60b"
         },
         "reviewer": {
           "system": null,
@@ -1366,7 +1410,7 @@
     "scenario_lineage": null,
     "accepted_spec_lineage": {
       "status": "invalid",
-      "head_sha": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
+      "head_sha": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
       "spec_path": ".vibepro/spec/story-otawara-gws-customer-doc-separation/spec.json",
       "spec_blob_oid": "9382d7f508f31f4cefa2ef2ee2b2b794fd774245",
       "story_path": "docs/management/stories/active/story-otawara-gws-customer-doc-separation.md",

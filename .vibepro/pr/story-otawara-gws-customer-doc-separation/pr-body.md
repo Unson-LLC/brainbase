@@ -18,8 +18,8 @@ SSOT: local
 - no story document found (informational only; does not block PR creation)
 
 ### Acceptance criteria
-- accepted-spec lineage: invalid — `.vibepro/spec/story-otawara-gws-customer-doc-separation/spec.json` @ `9382d7f508f31f4cefa2ef2ee2b2b794fd774245` (HEAD `ed183e946e9c3fec466ed54f0e8ed4e4272bf177`)
-  - story: `docs/management/stories/active/story-otawara-gws-customer-doc-separation.md` @ `missing` (HEAD `ed183e946e9c3fec466ed54f0e8ed4e4272bf177`)
+- accepted-spec lineage: invalid — `.vibepro/spec/story-otawara-gws-customer-doc-separation/spec.json` @ `9382d7f508f31f4cefa2ef2ee2b2b794fd774245` (HEAD `cc993f7c434849ee7eb0e31748284626b72a6e0c`)
+  - story: `docs/management/stories/active/story-otawara-gws-customer-doc-separation.md` @ `missing` (HEAD `cc993f7c434849ee7eb0e31748284626b72a6e0c`)
   - reasons: story_not_in_head, unknown_story_ac, story_ref_missing
 - no acceptance criteria found in the story document
 
@@ -40,11 +40,11 @@ SSOT: local
 - status: not_applicable
 
 ### Verification evidence
+- [unit] fail — `npm test -- --maxWorkers=4` (runtime `13174d744da538e35f5e5a6b33ec46e8b8a24c3cd0e43423129d279267505f64`)
+  - 自由記述summaryは参考情報であり、計算済み件数の権威ではありません
 - [build] pass — `npm run build` (runtime `13174d744da538e35f5e5a6b33ec46e8b8a24c3cd0e43423129d279267505f64`)
   - 自由記述summaryは参考情報であり、計算済み件数の権威ではありません
 - [typecheck] pass — `npx tsc -p tsconfig.json --noEmit` (runtime `13174d744da538e35f5e5a6b33ec46e8b8a24c3cd0e43423129d279267505f64`)
-  - 自由記述summaryは参考情報であり、計算済み件数の権威ではありません
-- [unit] fail — `npm test -- --maxWorkers=4` (runtime `13174d744da538e35f5e5a6b33ec46e8b8a24c3cd0e43423129d279267505f64`)
   - 自由記述summaryは参考情報であり、計算済み件数の権威ではありません
 
 ### タスク権限
@@ -73,11 +73,10 @@ SSOT: local
 - recorded: true
 - complete: true
 - status: pass
-- reviewer: pass (current) — 共有repoの google-workspace-local-onboarding* は汎用設計として残し、顧客固有の otawara-gws-local-onboarding ファイル名は復帰させない。台帳の forbidden_terms で docs/README/e2e 本文を走査し、実名・メール・ホームパスをプレースホルダへ置換。正本は cursorvers/brainbase-instance-cursorvers。
+- reviewer: pass (current) — Unit testsの顧客フィクスチャをプレースホルダ化し、台帳走査を tests/** に拡張。GWS 設計文書と README を汎用ペルソナ表現に更新。
 - blocking reasons: none
 
 ### Changed files
-- M	.gitignore
 - M	.vibepro/config.json
 - A	.vibepro/pr/story-otawara-gws-customer-doc-separation/pr-body.md
 - A	.vibepro/pr/story-otawara-gws-customer-doc-separation/pr-prepare.json
@@ -99,12 +98,23 @@ SSOT: local
 - A	.vibepro/stories/story-otawara-gws-customer-doc-separation/story-report.md
 - A	.vibepro/stories/story-otawara-gws-customer-doc-separation/tasks/tasks.json
 - A	.vibepro/stories/story-otawara-gws-customer-doc-separation/tasks/tasks.md
+- M	README.md
+- M	docs/architecture/google-workspace-local-onboarding.md
 - A	docs/management/customer-doc-ledger.json
+- M	docs/specs/google-workspace-local-onboarding-spec.md
+- M	docs/stories/google-workspace-local-onboarding.md
 - M	docs/stories/onboarding-source-import-extract.md
+- M	tests/cli.test.ts
 - A	tests/customer-doc-boundary.test.ts
 - M	tests/e2e/brainbase-mcp-only-acceptance.spec.ts
 - M	tests/e2e/onboarding-project-registration-acceptance.spec.ts
 - M	tests/e2e/onboarding-routine-registration-acceptance.spec.ts
 - M	tests/e2e/onboarding-source-import-extract-acceptance.spec.ts
 - M	tests/e2e/source-diagnosis-candidates-onboarding-acceptance.spec.ts
+- M	tests/fixtures.ts
+- M	tests/import-extract.test.ts
+- M	tests/mcp-contract.test.ts
+- M	tests/projects.test.ts
+- M	tests/routines.test.ts
+- M	tests/tools.test.ts
 
