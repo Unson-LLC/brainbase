@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   countInboxWaiting,
+  createLocalInboxDispositions,
   createInboxUI,
   inboxLaterChoices,
   inboxRouteTarget,
   parseInboxRoute,
   sortInboxItems,
+  withLocalInboxDispositions,
 } from '../../ui/inbox.js';
 import { collectText, FakeDocument, findAll, waitFor } from './graph-ui-harness.mjs';
 
@@ -294,6 +296,50 @@ describe('行のボタン', () => {
     }));
     const { root } = await mount({ port: fakePort({ readInbox }) });
     expect(buttonIn(rowsOf(root)[0], '承認')).toBeUndefined();
+  });
+});
+
+describe('createLocalInboxDispositions', () => {
+  function memoryStorage() {
+    const values = new Map();
+    return { getItem: (key) => values.get(key) ?? null, setItem: (key, value) => values.set(key, String(value)), values };
+  }
+
+  it('人ごとの鍵に片付けた・あとでを残し、過ぎたあとでと30日を過ぎた片付けたを落とす', () => {
+    const storage = memoryStorage();
+    let clock = NOW;
+    const store = createLocalInboxDispositions(storage, { personId: 'per_a', now: () => clock });
+    expect(store.set('task-a', { state: 'cleared', revision: 'r1' })).toEqual({ status: 'ok' });
+    expect(store.set('candidates', { state: 'later', until: '2026-10-19T00:00:00.000Z', revision: '12' })).toEqual({ status: 'ok' });
+    expect([...storage.values.keys()]).toEqual(['brainbase.inbox.dispositions.v1:per_a']);
+    expect(store.list().map((entry) => [entry.itemId, entry.state])).toEqual([['task-a', 'cleared'], ['candidates', 'later']]);
+    expect(createLocalInboxDispositions(storage, { personId: 'per_b', now: () => clock }).list()).toEqual([]);
+    clock = new Date('2026-10-20T00:00:00.000Z');
+    expect(store.list().map((entry) => entry.itemId)).toEqual(['task-a']);
+    clock = new Date('2026-11-18T00:00:00.000Z');
+    expect(store.list()).toEqual([]);
+    clock = NOW;
+    store.set('task-a', { state: 'open' });
+    expect(store.list().map((entry) => entry.itemId)).toEqual(['candidates']);
+  });
+
+  it('保存できないときは store_unavailable を返し、読めないときは何も残っていないとして読む', () => {
+    expect(createLocalInboxDispositions(null).set('x', { state: 'cleared', revision: null })).toEqual({ status: 'unavailable', reason: 'store_unavailable' });
+    const broken = { getItem: () => { throw new Error('denied'); }, setItem: () => { throw new Error('denied'); } };
+    const store = createLocalInboxDispositions(broken);
+    expect(store.list()).toEqual([]);
+    expect(store.set('x', { state: 'cleared', revision: null })).toEqual({ status: 'unavailable', reason: 'store_unavailable' });
+  });
+
+  it('withLocalInboxDispositions は読み手の結果に残した状態を添え、全体が読めないときはそのまま返す', async () => {
+    const storage = memoryStorage();
+    const store = createLocalInboxDispositions(storage, { now: () => NOW });
+    const port = withLocalInboxDispositions({ readInbox: async () => okResult({ dispositions: undefined }) }, store);
+    await port.setDisposition('task-a', { state: 'cleared', revision: 'r1' });
+    expect((await port.readInbox()).dispositions.map((entry) => entry.itemId)).toEqual(['task-a']);
+    expect(port.runAction).toBeUndefined();
+    const failing = withLocalInboxDispositions({ readInbox: async () => ({ status: 'unavailable', reason: 'x' }) }, store);
+    expect(await failing.readInbox()).toEqual({ status: 'unavailable', reason: 'x' });
   });
 });
 

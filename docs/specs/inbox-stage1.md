@@ -63,6 +63,14 @@ interface InboxPort {
 - 片付けた・あとでの状態の正本はホストが持つ（D16「受信箱が正本」）。共通UIは `readInbox` が返した `dispositions` を、`revision` が行と一致するときだけ当てる。`later` は `until` を過ぎたら効かない。
 - 行のボタンは `runAction` を呼ぶだけで、共通UIは書き込みの経路を持たない。ホストは元の画面と同じ操作を呼ぶ。成功したら共通UIは `readInbox` を読み直す。
 
+## 段1の片付けた・あとでの置き場（Claudeの代理決定）
+
+段1では、正本API に受信箱の状態の置き場が無い。そこで、片付けた・あとでは閲覧者のブラウザに置く（`createLocalInboxDispositions`、鍵は `brainbase.inbox.dispositions.v1:<personId>`）。ホストは `withLocalInboxDispositions(reader, store)` で、読み手に状態を添えた port を作る。
+
+- 別の端末やブラウザには引き継がれない。段4（Slack との片付けの同期）で状態を正本へ移し、この置き場は捨てる。port の形は変えない。
+- 過ぎたあとでと、30日を過ぎた片付けたは読むときに落とす。
+- 保存できないブラウザでは、操作は `store_unavailable` で失敗し、行は対応待ちに戻る。
+
 ## 並び
 
 - 区画の順は `answer` → `approve` → `triage` → `task`。行も読めない種類も無い区画は出さない。
@@ -87,7 +95,7 @@ interface InboxPort {
 
 ## 画面
 
-- 部品 `createInboxUI({ root, document, port, route, onRouteChange, onNavigate, now })` を `ui/inbox.js` に置く。見た目は `ui/inbox.css`。
+- 部品 `createInboxUI({ root, document, port, route, onRouteChange, onNavigate, onCount, now })` を `ui/inbox.js` に置く。見た目は `ui/inbox.css`。`onCount` は、読み直しと片付けた・あとでのたびに `countInboxWaiting` の結果を返す（左メニューの件数を合わせるため）。
 - 行の題名は `href` へのリンク。`clearOnOpen` の行は、開いたときに `setDisposition(id, { state: 'cleared' })` を呼ぶ。失敗しても移動は止めない。
 - 「あとで」「片付けた」は行の右に置く。押したら、ホストの成功を待たずに行を隠し、失敗したら行を戻して理由を出す。
 - 読み込みの途中は前の表示を保つ。

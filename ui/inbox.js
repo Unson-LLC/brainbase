@@ -158,6 +158,68 @@ export function inboxLaterChoices(now = new Date()) {
   return choices;
 }
 
+export const INBOX_DISPOSITIONS_KEY = 'brainbase.inbox.dispositions.v1';
+const CLEARED_KEPT_MS = 30 * 86_400_000;
+
+/**
+ * 片付けた・あとで kept in the viewer's browser (stage 1: the inbox has no
+ * canonical store yet; stage 4 moves them there with the Slack sync).  One
+ * key per person, because a browser can be shared by several accounts.  A
+ * storage that cannot be reached reads as nothing kept and fails every write
+ * with `store_unavailable`, so the screen puts the row back.
+ */
+export function createLocalInboxDispositions(storage, { personId = null, key = INBOX_DISPOSITIONS_KEY, now = () => new Date() } = {}) {
+  const storageKey = textOf(personId) ? `${key}:${personId}` : key;
+  const read = () => {
+    try {
+      const raw = storage?.getItem?.(storageKey);
+      const value = raw ? JSON.parse(raw) : [];
+      return Array.isArray(value) ? value.filter((entry) => textOf(entry?.itemId)) : [];
+    } catch {
+      return [];
+    }
+  };
+  const current = (entries) => {
+    const time = now().getTime();
+    // A passed あとで and an old 片付けた are dropped so the key does not grow.
+    return entries.filter((entry) => (entry.state === 'later'
+      ? (timeOf(entry.until) ?? 0) > time
+      : entry.state === 'cleared' && time - (timeOf(entry.at) ?? 0) < CLEARED_KEPT_MS));
+  };
+  return Object.freeze({
+    list: () => current(read()),
+    set(itemId, change) {
+      if (!storage || typeof storage.setItem !== 'function') return { status: 'unavailable', reason: 'store_unavailable' };
+      const others = current(read()).filter((entry) => entry.itemId !== itemId);
+      const next = change?.state === 'later' || change?.state === 'cleared'
+        ? [...others, { itemId, revision: change.revision ?? null, state: change.state, until: change.state === 'later' ? change.until : null, at: now().toISOString() }]
+        : others;
+      try {
+        storage.setItem(storageKey, JSON.stringify(next));
+        return { status: 'ok' };
+      } catch {
+        return { status: 'unavailable', reason: 'store_unavailable' };
+      }
+    },
+  });
+}
+
+/** A port whose 片付けた・あとで live in `store` (see createLocalInboxDispositions). */
+export function withLocalInboxDispositions(reader, store) {
+  const port = {
+    async readInbox() {
+      const result = await reader.readInbox();
+      return result?.status === 'ok' ? { ...result, dispositions: store.list() } : result;
+    },
+    async setDisposition(itemId, change) {
+      return store.set(itemId, change);
+    },
+  };
+  if (typeof reader.runAction === 'function') port.runAction = (itemId, actionId) => reader.runAction(itemId, actionId);
+  if (typeof reader.readNotices === 'function') port.readNotices = () => reader.readNotices();
+  return port;
+}
+
 function formatShort(value) {
   const time = timeOf(value);
   if (time === null) return null;
