@@ -39,6 +39,8 @@ describe('OSS共通UIの公開契約', () => {
       './ui/world-model-view.css': './ui/world-model-view.css',
       './ui/area-nav': './ui/area-nav.js',
       './ui/area-nav.css': './ui/area-nav.css',
+      './ui/inbox': './ui/inbox.js',
+      './ui/inbox.css': './ui/inbox.css',
       './ui/local-web-shell': './ui/local-web-shell.js',
       './ui/local-web-shell.css': './ui/local-web-shell.css',
       './ui/meeting-minutes': './ui/meeting-minutes.js',
@@ -130,14 +132,14 @@ describe('OSS共通UIの公開契約', () => {
     })) {
       expect(tokens).toContain(`${name}: ${value};`);
     }
-    for (const file of ['world-model-view.css', 'area-nav.css', 'local-web-shell.css', 'meeting-minutes.css', 'workspace-kit.css', 'graph-view-shared.css', 'graph-projects-view.css', 'project-workspace.css', 'graph-registry-view.css', 'graph-ontology-view.css']) {
+    for (const file of ['world-model-view.css', 'area-nav.css', 'inbox.css', 'local-web-shell.css', 'meeting-minutes.css', 'workspace-kit.css', 'graph-view-shared.css', 'graph-projects-view.css', 'project-workspace.css', 'graph-registry-view.css', 'graph-ontology-view.css']) {
       const css = await readFile(new URL(`../ui/${file}`, import.meta.url), 'utf8');
       // Colors and font families come only from the shared tokens.
       expect(css, file).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);
       expect(css, file).not.toMatch(/font-family:(?!\s*var\(--bb-font-)/);
     }
     const defined = new Set([...tokens.matchAll(/(--bb-[a-z0-9-]+):/g)].map((match) => match[1]));
-    for (const file of ['graph-view-shared.css', 'graph-projects-view.css', 'meeting-minutes.css', 'project-workspace.css', 'graph-registry-view.css', 'graph-ontology-view.css']) {
+    for (const file of ['inbox.css', 'graph-view-shared.css', 'graph-projects-view.css', 'meeting-minutes.css', 'project-workspace.css', 'graph-registry-view.css', 'graph-ontology-view.css']) {
       const css = await readFile(new URL(`../ui/${file}`, import.meta.url), 'utf8');
       const used = [...css.matchAll(/var\((--[a-z0-9-]+)\)/g)].map((match) => match[1]);
       // The Graph screens read only tokens that brainbase-tokens.css defines.
