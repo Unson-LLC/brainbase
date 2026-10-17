@@ -27,3 +27,27 @@
 - AC-2: publish job だけが `id-token: write` を持ち、`ubuntu-latest` で動き、`npm install --global npm@11.21.1` を実行し、`--provenance` を渡す。
 - AC-3: `tests/npm-release-workflow.test.ts`、`tests/github-actions-runner-policy.test.ts`、OIDC endpoint の受け入れ試験が上の形を確かめる。
 - AC-4: npmjs.com の Trusted Publisher 登録が済むまで、このPRはマージしない。マージ後に 0.41.13 の公開をやり直し、npm の `gitHead`、`dist.integrity`、`latest`、provenance、GitHub Release を照合する。
+- AC-5: リリースPRのマージだけで公開が通る。workflow は `push`（develop）と `workflow_dispatch` で起動し、`pull_request_target` では起動しない。
+
+## 追記（2026-10-17）: マージ起動の公開が ENEEDAUTH で落ちる
+
+### 事実
+
+- 0.42.0 のリリースPR #828 のマージで起動した run 39031355466（`pull_request_target`）は、publish job の `npm publish` で `ENEEDAUTH` になった。同じマージコミット 35fc142 を `workflow_dispatch` で起動した run 39031766267 は通った。0.41.13 も `workflow_dispatch`（run 39029310011）で通っている。
+- 失敗した run でも、`scripts/npm-release.mjs` の `assertSerializedPublicationContext()` は通っている。この関数は GitHub の OIDC トークンを取り、`repository`、`workflow_ref`（`Unson-LLC/brainbase/.github/workflows/npm-publish.yml@refs/heads/develop`）、`ref`（`refs/heads/develop`）を照合する。つまり、2つの run で workflow ファイル、repository、ref は同じだった。npm の登録（organization、repository、workflow filename）も、`workflow_dispatch` で通ったので合っている。違いはイベントだけである（`event_name`、`sub` は `pull_request_target` では `repo:Unson-LLC/brainbase:pull_request`）。
+- npm は `pull_request_target` から来た Trusted Publishing のトークンを拒否する。GitHub changelog 2026-10-02「Unvalidated npm trusted publishing configurations now expire」は、`issue_comment` の拒否を「existing `pull_request_target` restriction」に加えたと書き、`push`、`release`、`workflow_dispatch` への移行を勧めている。docs.npmjs.com/trusted-publishers にはこの制限が書かれていない（2026-10-17 確認）。
+- npm CLI 11.21.1 の `lib/utils/oidc.js` は、交換の拒否を `log.verbose` に書くだけで処理を続ける。NPM_TOKEN をやめたので、ほかに認証が残らず `ENEEDAUTH` になる。
+- 10/16 の E404（run 38880799295、38917273140）も `pull_request_target` だった。OIDC が拒否されたあと、残っていた NPM_TOKEN が使われて E404 になった可能性がある。トークンの失効だけが原因だったとは言い切れない。
+
+### 判断
+
+`pull_request_target` をやめ、`push`（develop）で起動する。リリースPRのマージは develop への push として届く。validate job は `github.event.before` と `github.sha` を比べ、version が上がったときだけ公開する。OIDC の `ref` と `workflow_ref` は `refs/heads/develop` のままなので、`assertSerializedPublicationContext()` は変えない。
+
+採らなかった案:
+
+- npm 側の登録を直す: 拒否はイベントの種類によるもので、登録の項目では変えられない。
+- マージ時に `workflow_dispatch` を起動し直す: `actions: write` を足す必要があり、run が2つに分かれる。GitHub が勧める `push` の方が単純である。
+
+### 残る注意
+
+- 同じ concurrency group の実行中に push が2回続くと、待っていた方が新しい方に置き換えられる。リリースのマージ直後に別の push が来ると、リリースの run が取り消され、公開が飛ぶことがある。これは `pull_request_target` のときも同じだった。起きたら `gh workflow run npm-publish.yml --ref develop -f release_ref=<40桁>` で戻す。

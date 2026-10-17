@@ -5,8 +5,15 @@ describe('npm publish workflow', () => {
   it('binds validation and publish to the merged commit', async () => {
     const workflow = await readFile(new URL('../.github/workflows/npm-publish.yml', import.meta.url), 'utf8');
     const packageManifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
-    expect(workflow).toMatch(/pull_request_target:/u);
-    expect(workflow).toMatch(/github\.event\.pull_request\.merge_commit_sha/u);
+    // npm rejects Trusted Publishing tokens from pull_request_target (run 39031355466 failed
+    // with ENEEDAUTH), so the merge reaches the workflow as a push to develop.
+    expect(workflow).not.toMatch(/pull_request_target:/u);
+    expect(workflow).not.toMatch(/github\.event\.pull_request/u);
+    expect(workflow).toMatch(/on:\n  push:\n    branches:\n      - develop\n  workflow_dispatch:/u);
+    expect(workflow).toMatch(/github\.event_name == 'push' && github\.ref == 'refs\/heads\/develop'/u);
+    expect(workflow).toMatch(/plan --before "\$BEFORE_SHA" --after "\$PUSHED_SHA"/u);
+    expect(workflow).toMatch(/BEFORE_SHA: \$\{\{ github\.event\.before \}\}/u);
+    expect(workflow).toMatch(/PUSHED_SHA: \$\{\{ github\.sha \}\}/u);
     expect(workflow).toMatch(/git checkout --detach/u);
     expect(workflow).toMatch(/--trusted-ref origin\/develop/u);
     // Publication authenticates only through npm Trusted Publishing (OIDC).
