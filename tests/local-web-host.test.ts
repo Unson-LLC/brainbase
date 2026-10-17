@@ -287,7 +287,8 @@ describe('local web host protections', () => {
     for (const file of [
       'brainbase-tokens.css', 'local-web-shell.js', 'local-web-shell.css', 'workspace-kit.js', 'workspace-kit.css', 'value-proof-review.js', 'value-proof-review.css',
       'objective-editor.js', 'objective-editor.css', 'objective-editor-http-port.js', 'world-model-view.js', 'world-model-view.css', 'project-icon.js',
-      'meeting-minutes.js', 'meeting-minutes.css', 'meeting-minutes-storage.js', 'meeting-minutes-storage.css'
+      'meeting-minutes.js', 'meeting-minutes.css', 'meeting-minutes-storage.js', 'meeting-minutes-storage.css',
+      'personal-memory.js', 'personal-memory-http-port.js', 'personal-memory.css'
     ]) {
       const response = await fetch(`${base}/ui/${file}`);
       expect(response.status, file).toBe(200);
@@ -295,7 +296,7 @@ describe('local web host protections', () => {
     }
     expect((await fetch(`${base}/app.js`)).status).toBe(200);
     // Every module a served part imports is served too, or the page cannot start.
-    for (const file of ['local-web-shell.js', 'value-proof-review.js', 'objective-editor.js', 'world-model-view.js']) {
+    for (const file of ['local-web-shell.js', 'value-proof-review.js', 'objective-editor.js', 'world-model-view.js', 'personal-memory.js', 'personal-memory-http-port.js']) {
       const source = await (await fetch(`${base}/ui/${file}`)).text();
       for (const [, imported] of source.matchAll(/from '\.\/([^']+)'/gu)) {
         expect((await fetch(`${base}/ui/${imported}`)).status, `${file} -> ${imported}`).toBe(200);
@@ -890,5 +891,67 @@ describe('Graph format and data directory state', () => {
     expect(objectives.status).toBe(503);
     expect((await objectives.json()).error.code).toBe('personal_os_not_initialized');
     await expect(access(dataDir)).rejects.toThrow();
+  });
+});
+
+describe('あなたの記憶 (personal memory) routes', () => {
+  async function seed(lines: string): Promise<void> {
+    await v2DataDir();
+    await writeFile(join(dataDir, 'personal-kg.jsonl'), lines);
+  }
+
+  function read(base: string, path: string, headers: Record<string, string> = { [LOCAL_WEB_TOKEN_HEADER]: TOKEN }): Promise<Response> {
+    return fetch(`${base}${path}`, { headers });
+  }
+
+  it('returns personal-kg.jsonl through reads guarded by the launch token and the same origin', async () => {
+    await seed(`${JSON.stringify({ id: 'value-a1', type: 'value', text: '本人だけの記憶', tags: ['value'], updatedAt: '2026-10-01T00:00:00.000Z' })}\n`);
+    const base = await start();
+
+    const list = await read(base, '/api/personal-memory');
+    expect(list.status).toBe(200);
+    const payload = await list.json();
+    expect(payload.status).toBe('ok');
+    expect(payload.items).toEqual([expect.objectContaining({
+      id: 'value-a1', kind: 'value', text: '本人だけの記憶', state: 'unrecorded', recallScope: 'general',
+      origin: { organizationLabel: '手元', projectLabel: null, workplace: null, inferred: false }
+    })]);
+    expect((await (await read(base, '/api/personal-memory/value-a1')).json()).item.id).toBe('value-a1');
+    const missing = await read(base, '/api/personal-memory/nope');
+    expect(missing.status).toBe(404);
+    expect(await missing.json()).toEqual({ status: 'not_found' });
+
+    for (const path of ['/api/personal-memory', '/api/personal-memory/value-a1', '/api/personal-memory/value-a1/judgments', '/api/personal-memory?view=judgment-counts']) {
+      const withoutToken = await read(base, path, {});
+      expect(withoutToken.status, path).toBe(403);
+      expect(await withoutToken.text(), path).not.toContain('本人だけの記憶');
+      const crossOrigin = await read(base, path, { [LOCAL_WEB_TOKEN_HEADER]: TOKEN, Origin: 'https://evil.example' });
+      expect(crossOrigin.status, path).toBe(403);
+    }
+    expect((await write(base, 'POST', '/api/personal-memory', {})).status).toBe(405);
+  });
+
+  it('tells an empty file (zero, confirmed) from an unreadable one', async () => {
+    await seed('');
+    const base = await start();
+    expect(await (await read(base, '/api/personal-memory')).json()).toEqual({ status: 'ok', items: [], next_cursor: null });
+
+    await writeFile(join(dataDir, 'personal-kg.jsonl'), '{not json}\n');
+    const broken = await read(base, '/api/personal-memory');
+    expect(broken.status).toBe(503);
+    expect(await broken.json()).toEqual({ status: 'unavailable', reason: 'personal_kg_invalid' });
+  });
+
+  it('answers the judgments that used a memory from the configured journal', async () => {
+    await seed(`${JSON.stringify({ id: 'value-a1', type: 'value', text: 't' })}\n`);
+    const base = await start();
+    // Without a journal the host cannot tell "not used" from "not recorded".
+    const missing = await read(base, '/api/personal-memory/value-a1/judgments?limit=5');
+    expect(missing.status).toBe(503);
+    expect(await missing.json()).toEqual({ status: 'unavailable', reason: 'journal_unavailable' });
+    // An empty journal holds no references at all: zero is a confirmed answer.
+    await mkdir(join(directory, 'journal'), { recursive: true });
+    expect(await (await read(base, '/api/personal-memory/value-a1/judgments?limit=5')).json()).toEqual({ status: 'ok', items: [], total: 0 });
+    expect(await (await read(base, '/api/personal-memory?view=judgment-counts')).json()).toEqual({ status: 'ok', counts: { 'value-a1': 0 } });
   });
 });

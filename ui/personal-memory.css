@@ -1,0 +1,254 @@
+/*
+ * 「あなたの記憶」. Load after workspace-kit.css.
+ * The privacy line, the one-line summary, the filter chips, the ledger's
+ * columns (the memory opening wraps to two lines) and the detail's parts.
+ * States are told apart by words and a quiet tone, never by red: a superseded
+ * or retracted memory is not an error.
+ * Uses only the shared tokens in brainbase-tokens.css.
+ */
+.bb-pm-privacy {
+  margin: -4px 0 12px;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-pm-summary {
+  margin: 0 0 12px;
+  color: var(--bb-color-ink);
+  font-size: 13px;
+}
+
+.bb-pm-loading {
+  height: 2px;
+  margin: 0 0 10px;
+  overflow: hidden;
+  background: var(--bb-color-accent-soft);
+  color: transparent;
+  font-size: 0;
+}
+
+.bb-pm-filter-bar {
+  margin: 0 0 14px;
+}
+
+.bb-pm-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.bb-pm-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--bb-color-control-border);
+  border-radius: 999px;
+  background: var(--bb-color-paper);
+}
+
+.bb-pm-chip.is-active {
+  border-color: var(--bb-color-accent);
+  background: var(--bb-color-accent-soft);
+}
+
+.bb-pm-chip-button,
+.bb-pm-chip-clear,
+.bb-pm-option,
+.bb-pm-clear-all {
+  border: 0;
+  background: transparent;
+  color: var(--bb-color-ink);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.bb-pm-chip-button {
+  padding: 5px 12px;
+}
+
+.bb-pm-chip-clear {
+  padding: 5px 10px 5px 0;
+  color: var(--bb-color-muted);
+}
+
+.bb-pm-clear-all {
+  padding: 5px 4px;
+  color: var(--bb-color-accent-strong);
+}
+
+.bb-pm-clear-all:disabled {
+  color: var(--bb-color-quiet);
+  cursor: default;
+}
+
+.bb-pm-search {
+  min-width: 200px;
+  flex: 1 1 200px;
+  max-width: 320px;
+  padding: 6px 10px;
+  border: 1px solid var(--bb-color-control-border);
+  border-radius: 6px;
+  background: var(--bb-color-paper);
+  color: var(--bb-color-ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.bb-pm-filter-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid var(--bb-color-border);
+  border-radius: 8px;
+  background: var(--bb-color-surface);
+}
+
+.bb-pm-option {
+  padding: 4px 10px;
+  border: 1px solid var(--bb-color-border);
+  border-radius: 999px;
+}
+
+.bb-pm-option.is-selected {
+  border-color: var(--bb-color-accent);
+  background: var(--bb-color-accent-soft);
+}
+
+.bb-pm-ledger .bb-ws-ledger-row {
+  grid-template-columns: 112px minmax(0, 1fr) minmax(0, 168px) 132px 72px;
+}
+
+.bb-pm-ledger .bb-ws-ledger-row > span.bb-pm-kind,
+.bb-pm-ledger .bb-ws-ledger-row > span:first-child {
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-pm-ledger .bb-ws-ledger-row > span:nth-child(2) {
+  white-space: normal;
+}
+
+.bb-pm-excerpt {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.5;
+}
+
+.bb-pm-ledger .bb-ws-ledger-row.is-past .bb-pm-excerpt > span:last-child {
+  color: var(--bb-color-muted);
+}
+
+.bb-pm-ledger .bb-ws-ledger-row > span.is-none,
+.bb-pm-ledger .bb-ws-ledger-row > span.is-unknown,
+.bb-pm-ledger .bb-ws-ledger-row > span.is-loading,
+.bb-pm-updated {
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-pm-state,
+.bb-pm-inferred {
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 6px;
+  border: 1px solid var(--bb-color-border-strong);
+  border-radius: 4px;
+  color: var(--bb-color-muted);
+  font-size: 11px;
+  line-height: 18px;
+  vertical-align: 1px;
+}
+
+.bb-pm-state.is-active {
+  border-color: var(--bb-color-success);
+  color: var(--bb-color-success);
+}
+
+.bb-pm-inferred {
+  margin: 0 0 0 6px;
+}
+
+.bb-pm-origin {
+  font-size: 12px;
+}
+
+.bb-pm-empty {
+  padding: 28px 16px;
+  border: 1px dashed var(--bb-color-border-strong);
+  border-radius: 8px;
+  color: var(--bb-color-ink);
+}
+
+.bb-pm-empty p {
+  margin: 6px 0 0;
+  color: var(--bb-color-muted);
+  font-size: 13px;
+}
+
+.bb-pm-muted {
+  margin: 0;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-pm-status > .bb-pm-state {
+  margin-bottom: 6px;
+}
+
+.bb-pm-history,
+.bb-pm-judgment-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+.bb-pm-judgment-list li {
+  margin: 0 0 6px;
+}
+
+.bb-pm-judgment-list li > .bb-pm-muted {
+  margin-left: 8px;
+}
+
+.bb-pm-record {
+  margin-top: 16px;
+  font-size: 12px;
+}
+
+.bb-pm-record summary {
+  cursor: pointer;
+  color: var(--bb-color-muted);
+}
+
+.bb-pm-detail-inline {
+  margin-top: 20px;
+}
+
+@media (max-width: 760px) {
+  .bb-pm-ledger .bb-ws-ledger-row {
+    grid-template-columns: minmax(0, 1fr) 124px;
+  }
+
+  .bb-pm-ledger .bb-ws-ledger-row > span:nth-child(4) {
+    white-space: normal;
+  }
+
+  .bb-pm-ledger .bb-ws-ledger-row > span:nth-child(1),
+  .bb-pm-ledger .bb-ws-ledger-row > span:nth-child(3),
+  .bb-pm-ledger .bb-ws-ledger-row > span:nth-child(5) {
+    display: none;
+  }
+}
+
+/* The detail's head is the memory itself: body-sized, not a page title. */
+.bb-pm-detail .bb-ws-rail-head h2 {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}

@@ -1148,12 +1148,45 @@ function appendJudgmentBasis(doc, references, labels) {
   return wrap;
 }
 
-function appendOwnerJudgment(doc, references) {
+function personalMemoryExcerpt(value) {
+  const body = String(value ?? '').replace(/\s+/gu, ' ').trim();
+  return body.length > 60 ? `${body.slice(0, 60)}…` : body;
+}
+
+/**
+ * The used memories the host resolved for this viewer: an opening and a link
+ * to あなたの記憶.  Only the owner's host resolves them; without that, or when
+ * the lookup failed, this stays the count only.
+ */
+function ownerMemoryLinks(doc, references, memories) {
+  if (!(memories instanceof Map)) return null;
+  const found = [];
+  for (const reference of Array.isArray(references) ? references : []) {
+    if (judgmentReferenceKind(reference) !== PERSONAL_KNOWLEDGE_KIND) continue;
+    const entry = memories.get(text(reference?.ref));
+    if (entry?.status === 'found') found.push(entry);
+  }
+  if (found.length === 0) return null;
+  const list = makeWorkspaceElement(doc, 'ul', { className: 'bb-jh-owner-memories', attrs: { 'aria-label': '使った記憶' } });
+  for (const entry of found) {
+    const item = makeWorkspaceElement(doc, 'li');
+    item.append(makeWorkspaceElement(doc, 'a', { text: entry.excerpt, attrs: { href: entry.href } }));
+    list.append(item);
+  }
+  return list;
+}
+
+function appendOwnerJudgment(doc, references, memories = null) {
   const { owner } = describeJudgmentBasis(references);
   const wrap = makeWorkspaceElement(doc, 'div', { className: `bb-jh-owner is-${owner.state}` });
   if (owner.state === 'applied') {
     wrap.append(makeWorkspaceElement(doc, 'strong', { text: `あなたの判断の材料（個人KG）を${owner.count}件使いました。` }));
-    wrap.append(makeWorkspaceElement(doc, 'p', { text: 'この判断には、あなたの考えが入っています。個人KGの中身はここには出しません。' }));
+    const links = ownerMemoryLinks(doc, references, memories);
+    if (links) {
+      wrap.append(makeWorkspaceElement(doc, 'p', { text: 'この判断には、あなたの考えが入っています。使った記憶はあなたにだけ見えています。' }), links);
+    } else {
+      wrap.append(makeWorkspaceElement(doc, 'p', { text: 'この判断には、あなたの考えが入っています。個人KGの中身はここには出しません。' }));
+    }
   } else if (owner.state === 'not_applied') {
     wrap.append(makeWorkspaceElement(doc, 'strong', { text: 'あなたの判断の材料（個人KG）は使っていません。' }));
     wrap.append(makeWorkspaceElement(doc, 'p', { text: 'Graphの哲学・目的・世界モデルと、AIの判断で進めました。' }));
@@ -1467,7 +1500,7 @@ function renderNormalRail(doc, rail, row, detail, onClose, options = {}) {
   }));
   rail.append(workspaceRailBlock(doc, {
     title: '本人の考え',
-    content: appendOwnerJudgment(doc, record.selectedReferences),
+    content: appendOwnerJudgment(doc, record.selectedReferences, options.personalMemories),
   }));
   rail.append(workspaceRailBlock(doc, {
     title: '判断の理由',
@@ -1907,6 +1940,10 @@ export function createJudgmentHistoryUI({
   // Optional host port: (references: {ref, kind}[]) => Promise<Map|object of ref -> name>.
   // The host resolves names under the viewer's current permission.
   resolveReferenceLabels = null,
+  // Optional owner-only port: (refs: string[]) => Promise<Map|object of ref -> { excerpt, href }>.
+  // A host passes it only to the owner; the 本人の考え block then shows the
+  // opening of each used memory with a link to あなたの記憶.
+  resolvePersonalMemory = null,
 } = {}) {
   if (!root) throw new TypeError('root is required');
   const doc = safeDocument(explicitDocument);
@@ -1946,6 +1983,7 @@ export function createJudgmentHistoryUI({
     skeletonTimer: null,
     slowTimer: null,
     labels: new Map(),
+    personalMemories: new Map(),
   };
 
   let filterPopover = null;
@@ -2254,6 +2292,37 @@ export function createJudgmentHistoryUI({
     void load({ append: false });
   }
 
+  function requestPersonalMemories(rows) {
+    if (typeof resolvePersonalMemory !== 'function') return;
+    const pending = [];
+    for (const row of rows) {
+      if (row.mode !== 'normal' || !Array.isArray(row.references)) continue;
+      for (const reference of row.references) {
+        const ref = text(reference?.ref);
+        if (!ref || judgmentReferenceKind(reference) !== PERSONAL_KNOWLEDGE_KIND || state.personalMemories.has(ref)) continue;
+        state.personalMemories.set(ref, { status: 'loading' });
+        pending.push(ref);
+      }
+    }
+    if (!pending.length) return;
+    const settle = (resolved) => {
+      if (state.disposed) return;
+      const lookup = resolved instanceof Map
+        ? (ref) => resolved.get(ref)
+        : isRecord(resolved) ? (ref) => resolved[ref] : () => null;
+      for (const ref of pending) {
+        const entry = lookup(ref);
+        const excerpt = isRecord(entry) ? personalMemoryExcerpt(entry.excerpt) : '';
+        const href = isRecord(entry) ? text(entry.href) : '';
+        state.personalMemories.set(ref, excerpt && href ? { status: 'found', excerpt, href } : { status: 'missing' });
+      }
+      render();
+    };
+    Promise.resolve()
+      .then(() => resolvePersonalMemory([...pending]))
+      .then(settle, () => settle(null));
+  }
+
   function requestReferenceLabels(rows) {
     const pending = [];
     for (const row of rows) {
@@ -2440,6 +2509,7 @@ export function createJudgmentHistoryUI({
       ? 'この期間に取得できた判断履歴はありません。全件数が未確認のため0件とは確認できません。'
       : 'この期間の判断履歴はありません。';
     requestReferenceLabels(aggregate.rows);
+    requestPersonalMemories(aggregate.rows);
     const dataRows = makeRows(doc, aggregate, state.selectedKey, (key) => {
       state.lastFocusedKey = key;
       state.selectedKey = key;
@@ -2507,6 +2577,7 @@ export function createJudgmentHistoryUI({
         onSubmitFeedback: (controls) => void submitFeedback(selected, controls),
         onCopyReference: (payload) => void copyReference(payload),
         labels: state.labels,
+        personalMemories: state.personalMemories,
       }
       : {};
     if (nativeDrawer) {

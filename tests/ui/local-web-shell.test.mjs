@@ -227,7 +227,7 @@ describe('local Web shell', () => {
     expect(findAll(nav, (node) => node.attributes?.role === 'group')).toEqual([]);
     // The screen order, and so the first screen, does not change.
     expect(LOCAL_WEB_SCREENS.map((entry) => [entry.id, entry.usesGraph])).toEqual([
-      ['value-proofs', false], ['minutes', false], ['objectives', true], ['projects', true], ['graph', true], ['people', true], ['ontology', true],
+      ['value-proofs', false], ['minutes', false], ['objectives', true], ['projects', true], ['graph', true], ['people', true], ['memory', false], ['ontology', true],
     ]);
     expect(links.find((link) => link.attributes.href === '#value-proofs').attributes['aria-current']).toBe('page');
     expect(shell.state.active).toBe('value-proofs');
@@ -244,6 +244,53 @@ describe('local Web shell', () => {
     expect(source).toContain('Graphv2');
     expect(source).not.toContain('組織のGraph');
     expect(collectText(screen(root, 'value-proofs'))).toContain('判断の記録に接続できません');
+  });
+
+  it('reads あなたの記憶 with the launch token and keeps its filters and memory in the address (AC-01, AC-11)', async () => {
+    const item = { id: 'value-a1', kind: 'value', text: '可逆な決定は早く決める', tags: [], state: 'unrecorded', supersededBy: null, origin: { organizationLabel: '手元', projectLabel: null, workplace: null, inferred: false }, occurredAt: null, updatedAt: '2026-10-01T00:00:00.000Z', recallScope: 'general', history: [] };
+    const headers = [];
+    const routes = {
+      '/api/local/status': () => jsonResponse(200, statusPayload(V2)),
+      '/api/personal-memory': () => jsonResponse(200, { status: 'ok', items: [item], next_cursor: null }),
+      '/api/personal-memory?view=judgment-counts': () => jsonResponse(200, { status: 'ok', counts: { 'value-a1': 0 } }),
+      '/api/personal-memory/value-a1': () => jsonResponse(200, { status: 'ok', item }),
+      '/api/personal-memory/value-a1/judgments?limit=5': () => jsonResponse(503, { status: 'unavailable', reason: 'reference_source_mismatch' }),
+    };
+    const fetcher = async (path, init = {}) => {
+      if (String(path).startsWith('/api/personal-memory')) headers.push(init.headers?.['x-brainbase-review-token']);
+      return routes[path]?.() ?? jsonResponse(404, { error: { code: 'not_found' } });
+    };
+    const targets = [];
+    let shellRef = null;
+    const { root, shell } = mount(fetcher, 'memory?kind=value&id=value-a1', { onNavigate: (target) => { targets.push(target); shellRef.show(target); } });
+    shellRef = shell;
+    await flushMany(6);
+    expect(shell.state.active).toBe('memory');
+    const page = collectText(screen(root, 'memory'));
+    expect(page).toContain('この画面はあなただけが見ています。組織の管理者も読めません。');
+    expect(page).toContain('種類：大切にすること');
+    expect(page).toContain('可逆な決定は早く決める');
+    const rail = findAll(root, (node) => node.attributes?.['data-rail'] === 'memory')[0];
+    expect(rail.hidden).toBe(false);
+    expect(collectText(rail)).toContain('確認できない');
+    expect(collectText(rail)).toContain('どの組織の仕事でも使われます');
+    expect(headers.length).toBeGreaterThanOrEqual(4);
+    expect(headers.every((value) => value === 'launch-token-0123456789')).toBe(true);
+    // Closing the detail keeps the filters and drops the memory from the address.
+    findAll(rail, (node) => node.tagName === 'BUTTON' && node.attributes['aria-label'] === '記憶の詳細を閉じる')[0].listeners.get('click')({});
+    expect(targets.at(-1)).toBe('memory?kind=value');
+    expect(parseLocalWebTarget('memory?kind=value&state=superseded&id=a&q=secret').memoryRoute)
+      .toEqual({ kinds: ['value'], states: ['superseded'], organization: null, memoryId: 'a' });
+  });
+
+  it('neither lists nor mounts あなたの記憶 for anyone but the owner (AC-02)', async () => {
+    const { fetcher, calls } = hostFetcher(V2);
+    const { root, shell } = mount(fetcher, 'memory', { isOwner: false });
+    await flush();
+    expect(shell.state.active).not.toBe('memory');
+    expect(screen(root, 'memory')).toBeUndefined();
+    expect(collectText(root)).not.toContain('あなたの記憶');
+    expect(calls.some((path) => String(path).startsWith('/api/personal-memory'))).toBe(false);
   });
 
   it('switches the screens of an area with tabs above the page and reopens the last one', async () => {
@@ -265,7 +312,7 @@ describe('local Web shell', () => {
     expect(memory.get('work')).toBe('minutes');
     shell.show('people');
     await flush();
-    expect(tabs.children.map((tab) => tab.attributes.href)).toEqual(['#graph', '#people']);
+    expect(tabs.children.map((tab) => [collectText(tab), tab.attributes.href])).toEqual([['情報と関係', '#graph'], ['人と会社', '#people'], ['あなたの記憶', '#memory']]);
     const infoLink = findAll(root, (node) => node.attributes?.['data-area'] === 'information')[0];
     expect(infoLink.attributes.href).toBe('#people');
     // Clicking an area link shows its target screen.

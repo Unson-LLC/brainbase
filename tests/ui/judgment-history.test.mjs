@@ -1546,6 +1546,33 @@ describe('judgment basis (story-judgment-history-frame-basis-v1)', () => {
     view.dispose();
   });
 
+  it('shows the owner the opening of each used memory with a link to あなたの記憶 (AC-08)', async () => {
+    const resolvePersonalMemory = vi.fn(async (refs) => new Map(refs.map((ref) => [ref, { excerpt: '可逆な決定は早く決め、不可逆な決定だけ時間をかける。決める前に、戻せるかどうかと戻すときの費用を確かめる。迷ったら小さく試し、結果を見てから広げる。', href: `#memory?id=${ref}` }])));
+    const { view, rail } = await openRecord([...frameReferences, personalReference], { resolvePersonalMemory });
+    expect(resolvePersonalMemory).toHaveBeenCalledWith([personalReference.ref]);
+    const owner = findAll(rail, (node) => node.tagName === 'SECTION' && node.attributes['aria-label'] === '本人の考え')[0];
+    const links = findAll(owner, (node) => node.tagName === 'A');
+    expect(links.map((link) => link.attributes.href)).toEqual([`#memory?id=${personalReference.ref}`]);
+    expect(collectText(links[0])).toMatch(/^可逆な決定は早く決め.*…$/u);
+    expect(collectText(owner)).toContain('あなたの判断の材料（個人KG）を1件使いました。');
+    view.dispose();
+  });
+
+  it('keeps the count only for anyone but the owner, and when the memory lookup fails or finds nothing (AC-08)', async () => {
+    const countOnly = 'あなたの判断の材料（個人KG）を1件使いました。この判断には、あなたの考えが入っています。個人KGの中身はここには出しません。';
+    for (const options of [
+      {},
+      { resolvePersonalMemory: vi.fn(async () => { throw new Error('unavailable'); }) },
+      { resolvePersonalMemory: vi.fn(async () => ({})) },
+    ]) {
+      const { view, rail } = await openRecord([...frameReferences, personalReference], options);
+      const owner = findAll(rail, (node) => node.tagName === 'SECTION' && node.attributes['aria-label'] === '本人の考え')[0];
+      expect(collectText(owner)).toBe(`本人の考え${countOnly}`);
+      expect(findAll(owner, (node) => node.tagName === 'A')).toEqual([]);
+      view.dispose();
+    }
+  });
+
   it('treats a failed name lookup as unconfirmed, not as the id', async () => {
     const resolveReferenceLabels = vi.fn(async () => { throw new Error('forbidden'); });
     const { view, rail } = await openRecord(frameReferences, { resolveReferenceLabels });
