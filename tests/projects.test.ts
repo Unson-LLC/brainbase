@@ -38,17 +38,17 @@ function capture() {
 
 describe('project registration parsing', () => {
   it('S-2 parses stakeholders and rejects incomplete values', () => {
-    expect(parseProjectStakeholder('大田原さん|partner|Brainbase導入を相談する相手')).toEqual({
-      person: '大田原さん',
+    expect(parseProjectStakeholder('山田さん|partner|Brainbase導入を相談する相手')).toEqual({
+      person: '山田さん',
       role: 'partner',
       context: 'Brainbase導入を相談する相手'
     });
-    expect(parseProjectStakeholder('大田原さん||意思決定者')).toEqual({
-      person: '大田原さん',
+    expect(parseProjectStakeholder('山田さん||意思決定者')).toEqual({
+      person: '山田さん',
       role: undefined,
       context: '意思決定者'
     });
-    expect(() => parseProjectStakeholder('大田原さん|partner')).toThrow(/stakeholder/);
+    expect(() => parseProjectStakeholder('山田さん|partner')).toThrow(/stakeholder/);
   });
 
   it('S-3 parses source allowlist metadata without reading sources', () => {
@@ -64,21 +64,21 @@ describe('project registration parsing', () => {
 describe('buildProjectRegistrationPlan', () => {
   it('INV-1/S-1 builds from interview answers without connectors', () => {
     const plan = buildProjectRegistrationPlan({
-      name: '大田原さんBrainbase導入',
+      name: '山田さんBrainbase導入',
       goal: '個人ローカルMCPで仕事文脈を渡せるようにする',
       status: 'オンボーディング設計中',
       role: '導入支援',
-      stakeholders: [parseProjectStakeholder('大田原さん|user|個人利用から開始する')],
+      stakeholders: [parseProjectStakeholder('山田さん|user|個人利用から開始する')],
       sources: [parseProjectSource('drive|提案フォルダ|folder-123')],
       taskSources: ['Calendar follow-ups'],
       decisionPrinciples: ['ソース由来の推測は候補に留める']
     });
 
     expect(plan.canonicalWrites).toBe(false);
-    expect(plan.project.name).toBe('大田原さんBrainbase導入');
+    expect(plan.project.name).toBe('山田さんBrainbase導入');
     expect(plan.project.sources[0]).toMatchObject({ area: 'drive', ref: 'folder-123' });
     expect(plan.writes.graphEntities.some((entity) => entity.type === 'project')).toBe(true);
-    expect(plan.writes.relationships[0].person).toBe('大田原さん');
+    expect(plan.writes.relationships[0].person).toBe('山田さん');
     expect(plan.writes.decisions[0].decision).toBe('ソース由来の推測は候補に留める');
     expect(plan.writes.canonicalEdges).toEqual(expect.arrayContaining([
       expect.objectContaining({ relation: 'participates_in' }),
@@ -91,11 +91,11 @@ describe('buildProjectRegistrationPlan', () => {
     expect(plan.writes.canonicalEdges.every((edge) => edge.relation === 'participates_in' || edge.relation === 'governs')).toBe(true);
 
     const repeated = buildProjectRegistrationPlan({
-      name: '大田原さんBrainbase導入',
+      name: '山田さんBrainbase導入',
       goal: '個人ローカルMCPで仕事文脈を渡せるようにする',
       status: 'オンボーディング設計中',
       role: '導入支援',
-      stakeholders: [parseProjectStakeholder('大田原さん|user|個人利用から開始する')],
+      stakeholders: [parseProjectStakeholder('山田さん|user|個人利用から開始する')],
       sources: [parseProjectSource('drive|提案フォルダ|folder-123')],
       taskSources: ['Calendar follow-ups'],
       decisionPrinciples: ['ソース由来の推測は候補に留める']

@@ -78,14 +78,14 @@ describe('onboarding CLI', () => {
       '--name', 'Owner',
       '--value', 'Local facts first',
       '--project', 'MCP Onboarding',
-      '--relationship', 'Otawara|partner|Needs local MCP from Codex'
+      '--relationship', 'Jordan|partner|Needs local MCP from Codex'
     ], output.io);
 
     expect(code).toBe(0);
     const os = await loadPersonalOs(dir);
     expect(os.graph.owner?.name).toBe('Owner');
     expect(os.graph.entities.some((entity) => entity.name === 'MCP Onboarding')).toBe(true);
-    expect(os.relationships.relationships[0]?.person).toBe('Otawara');
+    expect(os.relationships.relationships[0]?.person).toBe('Jordan');
     expect(os.personalKg.some((entry) => entry.text === 'Local facts first')).toBe(true);
   });
 
@@ -97,7 +97,7 @@ describe('onboarding CLI', () => {
       '--name', 'Owner',
       '--value', 'Local facts first',
       '--project', 'MCP Onboarding',
-      '--relationship', 'Otawara|partner|Needs local MCP from Codex',
+      '--relationship', 'Jordan|partner|Needs local MCP from Codex',
       '--decision-principle', 'Verify before claiming success.'
     ];
 
@@ -109,7 +109,7 @@ describe('onboarding CLI', () => {
     expect(os.personalKg.filter((entry) => entry.type === 'self')).toHaveLength(1);
     expect(os.personalKg.filter((entry) => entry.text === 'Local facts first')).toHaveLength(1);
     expect(os.personalKg.filter((entry) => entry.text === 'MCP Onboarding')).toHaveLength(1);
-    expect(os.relationships.relationships.filter((entry) => entry.person === 'Otawara')).toHaveLength(1);
+    expect(os.relationships.relationships.filter((entry) => entry.person === 'Jordan')).toHaveLength(1);
     expect(os.decisions.filter((entry) => entry.decision === 'Verify before claiming success.')).toHaveLength(1);
     expect(output.stdout()).toContain('同じ文脈は更新しました');
     expect(output.stdout()).toContain('既存の別データは削除していません');
@@ -367,7 +367,7 @@ describe('onboarding CLI', () => {
       'onboard:start',
       '--dir', dir,
       '--target', 'codex',
-      '--name', '大田原さん',
+      '--name', '山田さん',
       '--value', 'AIには外部ソース由来の推測を候補扱いしてほしい',
       '--project', 'Brainbase個人オンボーディング',
       '--goal', 'CodexからBrainbase MCPを呼び出して仕事文脈を渡す',
@@ -377,8 +377,8 @@ describe('onboarding CLI', () => {
       '--email', 'gmail',
       '--calendar', 'google-calendar',
       '--drive', 'google-drive',
-      '--drive-folder', 'cursorvers-brainbase-folder',
-      '--local-folder', '/Users/otawara/Notes',
+      '--drive-folder', 'acme-example-brainbase-folder',
+      '--local-folder', '/Users/example/Notes',
       '--tasks', 'scattered-calendar-notes',
       '--assume-gog',
       '--format', 'json'
@@ -424,13 +424,13 @@ describe('onboarding CLI', () => {
       status: 'ready',
       statusLabel: '準備済み'
     });
-    expect(drive.setupCommands.join('\n')).toContain('gog drive ls cursorvers-brainbase-folder');
-    expect(guide.answers.localFolders).toEqual(['/Users/otawara/Notes']);
+    expect(drive.setupCommands.join('\n')).toContain('gog drive ls acme-example-brainbase-folder');
+    expect(guide.answers.localFolders).toEqual(['/Users/example/Notes']);
 
     expect(guide.projectRegistration.available).toBe(true);
     expect(guide.projectRegistration.dryRunCommand).toContain('brainbase onboard:projects');
     expect(guide.projectRegistration.dryRunCommand).toContain('Brainbase個人オンボーディング');
-    expect(guide.projectRegistration.dryRunCommand).toContain('local|local folder|/Users/otawara/Notes');
+    expect(guide.projectRegistration.dryRunCommand).toContain('local|local folder|/Users/example/Notes');
     expect(guide.projectRegistration.writeCommand).toContain('--write');
     expect(guide.nextCommands.map((item: { id: string }) => item.id)).toEqual([
       'self-seed',
@@ -760,7 +760,7 @@ describe('onboarding CLI', () => {
       '--name', 'Owner',
       '--value', 'Local facts first',
       '--project', 'MCP Onboarding',
-      '--relationship', 'Otawara|partner|Needs local MCP from Codex',
+      '--relationship', 'Jordan|partner|Needs local MCP from Codex',
       '--decision-principle', 'Promote only reviewed candidates',
       '--write',
       '--format', 'json'
@@ -776,7 +776,7 @@ describe('onboarding CLI', () => {
       'decision',
       'relationship'
     ]);
-    await expect(readFile(candidateSet.candidatePath, 'utf8')).resolves.toContain('Otawara');
+    await expect(readFile(candidateSet.candidatePath, 'utf8')).resolves.toContain('Jordan');
 
     const os = await loadPersonalOs(dir);
     expect(os.graph.entities).toHaveLength(0);
@@ -914,7 +914,7 @@ describe('onboarding CLI', () => {
       'onboard:seed', '--dir', dir,
       '--name', '高橋葵', '--value', '結論を先に示す', '--project', 'Atlas導入',
       '--decision-principle', '推測を事実として扱わない',
-      '--relationship', 'Otawara||'
+      '--relationship', 'Jordan||'
     ], output.io);
 
     expect(code).toBe(1);

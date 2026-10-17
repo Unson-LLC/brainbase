@@ -7,7 +7,7 @@ Add a planning-only onboarding surface that converts an agent interview result i
 ## Boundaries
 
 - Brainbase v1 remains local-first MCP only.
-- A 24/365 Mac mini is modeled as a local runtime host for the user's own MCP process.
+- An always-on local runtime host (for example a Mac mini reached over SSH) is modeled as the place the user runs their own MCP process.
 - Hosted backends, Infisical, Unson APIs, Lightsail, and bb.unson.jp sync remain out of scope.
 - Google Workspace source collection is delegated to local GoG-style commands after user authorization.
 - Drive and local filesystem collection are allowlist-first.

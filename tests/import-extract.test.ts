@@ -14,7 +14,7 @@ const gmailRaw = [
   {
     id: 'm1',
     threadId: 't1',
-    from: { email: 'Otawara@Cursorvers.com', name: '大田原正幸' },
+    from: { email: 'adopter@acme-example.com', name: '山田太郎' },
     to: [{ email: 'k.sato.unson@gmail.com', name: '佐藤圭吾' }],
     subject: 'Re: brainbaseご提案',
     date: '2026-06-05',
@@ -24,7 +24,7 @@ const gmailRaw = [
   },
   {
     id: 'm2',
-    from: '大田原正幸 <otawara@cursorvers.com>',
+    from: '山田太郎 <adopter@acme-example.com>',
     to: 'k.sato.unson@gmail.com',
     subject: '契約書の確認をお願いします',
     snippet: '確認ください'
@@ -35,17 +35,17 @@ const calendarRaw = {
   events: [
     {
       id: 'e1',
-      summary: 'Cursorvers AI駆動経営 定例',
+      summary: 'Acme Example 週次定例',
       start: { dateTime: '2026-06-06T10:00:00+09:00' },
-      organizer: { email: 'otawara@cursorvers.com', displayName: '大田原正幸' },
+      organizer: { email: 'adopter@acme-example.com', displayName: '山田太郎' },
       attendees: [{ email: 'k.sato.unson@gmail.com' }],
       description: 'PRIVATE NOTES'
     },
     {
       id: 'e2',
-      summary: 'Cursorvers AI駆動経営 定例',
+      summary: 'Acme Example 週次定例',
       start: { dateTime: '2026-06-13T10:00:00+09:00' },
-      attendees: [{ email: 'otawara@cursorvers.com' }]
+      attendees: [{ email: 'adopter@acme-example.com' }]
     }
   ]
 };
@@ -71,7 +71,7 @@ describe('normalizeSource gmail (INV-2 metadata-first)', () => {
     const [first] = records;
     expect(first.kind).toBe('gmail');
     if (first.kind === 'gmail') {
-      expect(first.from.email).toBe('otawara@cursorvers.com');
+      expect(first.from.email).toBe('adopter@acme-example.com');
       expect(first.subject).toBe('Re: brainbaseご提案');
       expect(first.labels).toEqual(['INBOX']);
     }
@@ -81,7 +81,7 @@ describe('normalizeSource gmail (INV-2 metadata-first)', () => {
     const records = normalizeSource('gmail', gmailRaw);
     const second = records[1];
     if (second.kind === 'gmail') {
-      expect(second.from).toEqual({ name: '大田原正幸', email: 'otawara@cursorvers.com' });
+      expect(second.from).toEqual({ name: '山田太郎', email: 'adopter@acme-example.com' });
     }
   });
 });
@@ -106,21 +106,21 @@ describe('extractCandidates (INV-3 deterministic)', () => {
     const candidates = extractCandidates(records, { selfEmails: ['k.sato.unson@gmail.com'] });
     const people = candidates.filter((candidate) => candidate.kind === 'person');
     expect(people).toHaveLength(1);
-    expect(people[0].payload.email).toBe('otawara@cursorvers.com');
+    expect(people[0].payload.email).toBe('adopter@acme-example.com');
     expect(people[0].provenance.sources).toEqual(['calendar', 'gmail']);
   });
 
   it('derives org candidates from non-consumer domains only', () => {
     const candidates = extractCandidates(records, { selfEmails: ['k.sato.unson@gmail.com'] });
     const orgs = candidates.filter((candidate) => candidate.kind === 'org');
-    expect(orgs.map((org) => org.payload.domain)).toEqual(['cursorvers.com']);
+    expect(orgs.map((org) => org.payload.domain)).toEqual(['acme-example.com']);
   });
 
   it('proposes a project from a recurring calendar title (S-4)', () => {
     const candidates = extractCandidates(records, { selfEmails: ['k.sato.unson@gmail.com'] });
     const projects = candidates.filter((candidate) => candidate.kind === 'project');
     expect(projects).toHaveLength(1);
-    expect(projects[0].payload.name).toContain('Cursorvers AI駆動経営');
+    expect(projects[0].payload.name).toContain('Acme Example');
   });
 
   it('produces byte-identical output for identical input', () => {

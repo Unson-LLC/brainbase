@@ -36,7 +36,7 @@
     "include_path_globs": [
       "README.md",
       "docs/**/*.md",
-      "tests/e2e/**"
+      "tests/**"
     ],
     "exclude_paths": [
       "docs/management/customer-doc-ledger.json",

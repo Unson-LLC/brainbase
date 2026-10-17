@@ -331,14 +331,14 @@ describe('MCP contract', () => {
         name: 'list_entities',
         arguments: { type: 'person' }
       });
-      expect(JSON.stringify(entities.content)).toContain('Otawara');
+      expect(JSON.stringify(entities.content)).toContain('Jordan');
 
       const allSearch = await client.callTool({
         name: 'search',
-        arguments: { query: 'Otawara' }
+        arguments: { query: 'Jordan' }
       });
       const retrieval = JSON.parse(allSearch.content[0]?.type === 'text' ? allSearch.content[0].text : '{}');
-      expect(retrieval.results).toEqual(expect.arrayContaining([expect.objectContaining({ title: 'Otawara', recordClass: 'canonical' })]));
+      expect(retrieval.results).toEqual(expect.arrayContaining([expect.objectContaining({ title: 'Jordan', recordClass: 'canonical' })]));
       expect(retrieval.absenceConfirmed).toBe(false);
 
       const search = await client.callTool({
@@ -431,7 +431,7 @@ describe('MCP contract', () => {
     });
     await expect(callBrainbaseTool('list_entities', { dataDir, type: 'person' })).resolves.toMatchObject({
       entities: expect.arrayContaining([
-        expect.objectContaining({ name: 'Otawara' })
+        expect.objectContaining({ name: 'Jordan' })
       ])
     });
     await expect(callBrainbaseTool('search_personal_kg', { dataDir, query: 'local MCP' })).resolves.toMatchObject({

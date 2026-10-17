@@ -91,18 +91,18 @@ describe('routine prompts (INV-5, INV-6, S-6)', () => {
 
 describe('renderCodexAutomations (S-1)', () => {
   it('emits one flat per-file TOML document per routine', () => {
-    const toml = renderCodexAutomations(buildRoutines(['ohayo', 'oyasumi', 'retro']), '/Users/otawara/brainbase');
+    const toml = renderCodexAutomations(buildRoutines(['ohayo', 'oyasumi', 'retro']), '/Users/example/brainbase');
     expect((toml.match(/# file: ~\/.codex\/automations\//g) ?? []).length).toBe(3);
     expect(toml).not.toContain('[automation]');
     expect(toml).toContain('kind = "cron"');
     expect(toml).toContain('rrule = "FREQ=DAILY;BYHOUR=7');
-    expect(toml).toContain('cwds = ["/Users/otawara/brainbase"]');
+    expect(toml).toContain('cwds = ["/Users/example/brainbase"]');
   });
 });
 
 describe('buildClaudeScheduledTasks (S-2)', () => {
   it('emits cron + prompt per routine', () => {
-    const tasks = buildClaudeScheduledTasks(buildRoutines(['ohayo', 'retro']), '/Users/otawara/brainbase') as {
+    const tasks = buildClaudeScheduledTasks(buildRoutines(['ohayo', 'retro']), '/Users/example/brainbase') as {
       scheduledTasks: { id: string; cron: string; prompt: string }[];
     };
     expect(tasks.scheduledTasks).toHaveLength(2);

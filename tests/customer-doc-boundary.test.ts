@@ -94,17 +94,43 @@ function pathExcludedFromBodyScan(
   return false;
 }
 
-function matchesIncludeGlob(file: string, pattern: string): boolean {
-  if (pattern === 'README.md') {
-    return file === 'README.md';
+export function globPatternToRegExp(pattern: string): RegExp {
+  if (!pattern || pattern.includes('{') || pattern.includes('[')) {
+    throw new Error(`Unsupported include_path_glob pattern: ${pattern}`);
   }
-  if (pattern === 'docs/**/*.md') {
-    return file.startsWith('docs/') && file.endsWith('.md');
+  let source = '^';
+  for (let index = 0; index < pattern.length; index += 1) {
+    const char = pattern[index];
+    if (char === '*' && pattern[index + 1] === '*') {
+      if (pattern[index + 2] === '/') {
+        source += '(?:.*/)?';
+        index += 2;
+      } else {
+        source += '.*';
+        index += 1;
+      }
+      continue;
+    }
+    if (char === '*') {
+      source += '[^/]*';
+      continue;
+    }
+    if (char === '?') {
+      source += '[^/]';
+      continue;
+    }
+    if ('\\.+^${}()|[]'.includes(char)) {
+      source += `\\${char}`;
+      continue;
+    }
+    source += char;
   }
-  if (pattern === 'tests/e2e/**') {
-    return file.startsWith('tests/e2e/');
-  }
-  return file === pattern;
+  source += '$';
+  return new RegExp(source);
+}
+
+export function matchesIncludeGlob(file: string, pattern: string): boolean {
+  return globPatternToRegExp(pattern).test(file);
 }
 
 function pathIncludedInBodyScan(
@@ -235,6 +261,28 @@ describe('otawara customer document boundary', () => {
     for (const path of genericPaths) {
       expect(await exists(path), `${path} should remain as the shared generic design doc`).toBe(true);
     }
+  });
+
+  it('matches ledger include_path_glob patterns with a general glob matcher', async () => {
+    const ledger = await loadLedger();
+    for (const pattern of ledger.body_scan?.include_path_globs ?? []) {
+      expect(() => globPatternToRegExp(pattern)).not.toThrow();
+    }
+    expect(matchesIncludeGlob('README.md', 'README.md')).toBe(true);
+    expect(matchesIncludeGlob('docs/stories/foo.md', 'docs/**/*.md')).toBe(true);
+    expect(matchesIncludeGlob('tests/import-extract.test.ts', 'tests/**')).toBe(true);
+    expect(() => globPatternToRegExp('docs/{bad}.md')).toThrow(/Unsupported include_path_glob/);
+  });
+
+  it('detects forbidden terms in a sample body', async () => {
+    const ledger = await loadLedger();
+    const violations = findForbiddenTermViolations([
+      { path: 'docs/stories/example.md', text: 'Contact Masayuki Otawara for access.' }
+    ], ledger);
+    expect(violations.some((line) => line.includes('Masayuki Otawara'))).toBe(true);
+    expect(findForbiddenTermViolations([
+      { path: 'docs/stories/example.md', text: 'Generic adopter onboarding only.' }
+    ], ledger)).toEqual([]);
   });
 
   it('scans tracked bodies from the ledger for forbidden customer identifiers', async () => {
