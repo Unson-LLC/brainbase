@@ -1,3 +1,7 @@
+Canonical Task未登録・後で紐付け
+
+Refs #513
+
 ## 顧客固有の大田原オンボーディング文書を共通repoから分離する
 
 Story: `story-otawara-gws-customer-doc-separation`
@@ -18,9 +22,9 @@ SSOT: local
 - no story document found (informational only; does not block PR creation)
 
 ### Acceptance criteria
-- accepted-spec lineage: invalid — `.vibepro/spec/story-otawara-gws-customer-doc-separation/spec.json` @ `missing` (HEAD `eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2`)
-  - story: `docs/management/stories/active/story-otawara-gws-customer-doc-separation.md` @ `missing` (HEAD `eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2`)
-  - reasons: accepted_spec_not_in_head, story_not_in_head, unknown_story_ac, test_file_missing, test_pattern_failed, story_ref_missing
+- accepted-spec lineage: invalid — `.vibepro/spec/story-otawara-gws-customer-doc-separation/spec.json` @ `9382d7f508f31f4cefa2ef2ee2b2b794fd774245` (HEAD `ed1359eb662e75e930459efd1ffaf5a89cdd1755`)
+  - story: `docs/management/stories/active/story-otawara-gws-customer-doc-separation.md` @ `missing` (HEAD `ed1359eb662e75e930459efd1ffaf5a89cdd1755`)
+  - reasons: story_not_in_head, unknown_story_ac, story_ref_missing
 - no acceptance criteria found in the story document
 
 ### Spec
@@ -77,5 +81,28 @@ SSOT: local
 - blocking reasons: none
 
 ### Changed files
-- (no diff against base)
+- M	.gitignore
+- M	.vibepro/config.json
+- A	.vibepro/pr/story-otawara-gws-customer-doc-separation/pr-body.md
+- A	.vibepro/pr/story-otawara-gws-customer-doc-separation/pr-prepare.json
+- A	.vibepro/pr/story-otawara-gws-customer-doc-separation/traceability.json
+- A	.vibepro/pr/story-otawara-gws-customer-doc-separation/verification-evidence.json
+- A	.vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/build.json
+- A	.vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/build.log
+- A	.vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/typecheck.json
+- A	.vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/typecheck.log
+- A	.vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/unit.json
+- A	.vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/unit.log
+- A	.vibepro/reviews/story-otawara-gws-customer-doc-separation/lightweight/plan.json
+- A	.vibepro/reviews/story-otawara-gws-customer-doc-separation/lightweight/review-reviewer.json
+- A	.vibepro/spec/story-otawara-gws-customer-doc-separation/draft.json
+- A	.vibepro/spec/story-otawara-gws-customer-doc-separation/pre-spec-readiness.json
+- A	.vibepro/spec/story-otawara-gws-customer-doc-separation/spec.history/spec-2026-10-17T05-52-52-816Z.json
+- A	.vibepro/spec/story-otawara-gws-customer-doc-separation/spec.json
+- A	.vibepro/stories/story-otawara-gws-customer-doc-separation/index.html
+- A	.vibepro/stories/story-otawara-gws-customer-doc-separation/story-report.md
+- A	.vibepro/stories/story-otawara-gws-customer-doc-separation/tasks/tasks.json
+- A	.vibepro/stories/story-otawara-gws-customer-doc-separation/tasks/tasks.md
+- A	docs/management/customer-doc-ledger.json
+- A	tests/customer-doc-boundary.test.ts
 

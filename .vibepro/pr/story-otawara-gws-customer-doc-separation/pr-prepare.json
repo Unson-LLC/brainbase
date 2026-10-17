@@ -1,9 +1,9 @@
 {
   "schema_version": "0.2.0",
-  "created_at": "2026-10-17T05:58:09.755Z",
+  "created_at": "2026-10-17T05:59:24.801Z",
   "runtime_identity": {
     "schema_version": "0.2.0",
-    "collected_at": "2026-10-17T05:58:09.686Z",
+    "collected_at": "2026-10-17T05:59:24.734Z",
     "mode": "normal",
     "source_kind": "npm_package",
     "test_context": null,
@@ -128,33 +128,109 @@
   },
   "git": {
     "current_branch": "cursor/otawara-doc-separation-890c",
-    "head_sha": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
+    "head_sha": "ed1359eb662e75e930459efd1ffaf5a89cdd1755",
     "base_ref": "origin/develop",
     "head_ref": "HEAD",
-    "changed_files": [],
-    "dirty_files": [
+    "changed_files": [
       {
         "status": "M",
-        "path": "gitignore"
+        "path": ".gitignore"
       },
       {
         "status": "M",
         "path": ".vibepro/config.json"
       },
       {
-        "status": "??",
-        "path": ".vibepro/reviews/"
+        "status": "A",
+        "path": ".vibepro/pr/story-otawara-gws-customer-doc-separation/pr-body.md"
       },
       {
-        "status": "??",
+        "status": "A",
+        "path": ".vibepro/pr/story-otawara-gws-customer-doc-separation/pr-prepare.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/pr/story-otawara-gws-customer-doc-separation/traceability.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-evidence.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/build.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/build.log"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/typecheck.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/typecheck.log"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/unit.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/unit.log"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/reviews/story-otawara-gws-customer-doc-separation/lightweight/plan.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/reviews/story-otawara-gws-customer-doc-separation/lightweight/review-reviewer.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/spec/story-otawara-gws-customer-doc-separation/draft.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/spec/story-otawara-gws-customer-doc-separation/pre-spec-readiness.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/spec/story-otawara-gws-customer-doc-separation/spec.history/spec-2026-10-17T05-52-52-816Z.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/spec/story-otawara-gws-customer-doc-separation/spec.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/stories/story-otawara-gws-customer-doc-separation/index.html"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/stories/story-otawara-gws-customer-doc-separation/story-report.md"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/stories/story-otawara-gws-customer-doc-separation/tasks/tasks.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/stories/story-otawara-gws-customer-doc-separation/tasks/tasks.md"
+      },
+      {
+        "status": "A",
         "path": "docs/management/customer-doc-ledger.json"
       },
       {
-        "status": "??",
+        "status": "A",
         "path": "tests/customer-doc-boundary.test.ts"
       }
     ],
-    "commit_count": 0
+    "dirty_files": [],
+    "commit_count": 1
   },
   "spec": {
     "present": true,
@@ -1252,53 +1328,42 @@
     "scenario_lineage": null,
     "accepted_spec_lineage": {
       "status": "invalid",
-      "head_sha": "eaa5d0926dd55f24bd8f1eb1f73389775bbf21c2",
+      "head_sha": "ed1359eb662e75e930459efd1ffaf5a89cdd1755",
       "spec_path": ".vibepro/spec/story-otawara-gws-customer-doc-separation/spec.json",
-      "spec_blob_oid": null,
+      "spec_blob_oid": "9382d7f508f31f4cefa2ef2ee2b2b794fd774245",
       "story_path": "docs/management/stories/active/story-otawara-gws-customer-doc-separation.md",
       "story_blob_oid": null,
       "mapping_source": "accepted_spec",
       "clause_count": 4,
       "resolved_clause_count": 0,
       "reason_codes": [
-        "accepted_spec_not_in_head",
         "story_not_in_head",
         "unknown_story_ac",
-        "test_file_missing",
-        "test_pattern_failed",
         "story_ref_missing"
       ],
       "failures": [
         {
           "clause_id": "INV-001",
           "reason_codes": [
-            "unknown_story_ac",
-            "test_file_missing",
-            "test_pattern_failed"
+            "unknown_story_ac"
           ]
         },
         {
           "clause_id": "S-001",
           "reason_codes": [
-            "unknown_story_ac",
-            "test_file_missing",
-            "test_pattern_failed"
+            "unknown_story_ac"
           ]
         },
         {
           "clause_id": "S-002",
           "reason_codes": [
-            "unknown_story_ac",
-            "test_file_missing",
-            "test_pattern_failed"
+            "unknown_story_ac"
           ]
         },
         {
           "clause_id": "C-001",
           "reason_codes": [
-            "story_ref_missing",
-            "test_file_missing",
-            "test_pattern_failed"
+            "story_ref_missing"
           ]
         }
       ]
