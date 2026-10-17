@@ -50,7 +50,7 @@ started_at: 2026-10-15
 
 - [x] AC-001: `.github/workflows/test.yml`、`npm-publish.yml`、`docs-cloudflare-pages.yml`、`public-message-promotion.yml` の全job（`npm-publish.yml` の publish job を除く。AC-009）が `runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]` であり、`ubuntu-latest` を含まない。
 - [x] AC-002: `pull_request` で動くjobは `github.event.pull_request.head.repo.full_name == github.repository` のときだけ実行する。`docs-cloudflare-pages.yml` の push と workflow_dispatch は同じ条件で止まらない。
-- [x] AC-003: どのworkflowも `pull_request_target` で pull request head を checkout しない。`npm-publish.yml` は develop と merge commit または develop の祖先だけを checkout し、`NODE_AUTH_TOKEN` は publish job だけが持つ。
+- [x] AC-003: どのworkflowも `pull_request_target` で pull request head を checkout しない。`npm-publish.yml` は develop への push と `workflow_dispatch` だけで起動し、develop と push された commit または develop の祖先だけを checkout する。npm token は使わず、`id-token: write` は publish job だけが持つ。
 - [x] AC-004: `docs/guides/github-actions-cicd-operating-guide.md` がランナーラベル、fork pull request の止め方、`author_association` を OR にしない理由、npm-publish の checkout 境界を書く。
 - [x] AC-005: job の env は secret を参照しない。`CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_API_TOKEN`、`BRAINBASE_SERVICE_JWT` は、それらを使う step の env だけに置く。wrangler-action の `with` は `secrets.*` を直接参照する。
 - [x] AC-006: 5 件の `actions/checkout` はすべて `persist-credentials: false` である。`public-message-promotion.yml` の `git push` は、そのコマンドだけで `GH_TOKEN` を渡す。

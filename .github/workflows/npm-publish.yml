@@ -1,12 +1,14 @@
 name: Publish npm package
 
-# pull_request_target is closed-only, and the validate job requires a develop
-# merge. Both jobs check out develop, then the merge commit or a develop
-# ancestor. They do not check out the pull request head.
+# A push to develop (a merged pull request) or a manual dispatch starts this
+# workflow. npm rejects Trusted Publishing tokens from pull_request_target
+# events, so publication must not start from one (GitHub changelog
+# 2026-10-02). Both jobs check out develop, then the pushed commit or a develop
+# ancestor. They never check out a pull request head.
 on:
-  pull_request_target:
-    types:
-      - closed
+  push:
+    branches:
+      - develop
   workflow_dispatch:
     inputs:
       release_ref:
@@ -24,7 +26,7 @@ jobs:
   validate:
     if: >-
       ${{ github.event_name == 'workflow_dispatch' ||
-          (github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'develop') }}
+          (github.event_name == 'push' && github.ref == 'refs/heads/develop') }}
     runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
     timeout-minutes: 30
     permissions:
@@ -48,12 +50,12 @@ jobs:
         id: target
         env:
           EVENT_NAME: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+          PUSHED_SHA: ${{ github.sha }}
           RELEASE_REF: ${{ inputs.release_ref }}
         run: |
-          if [ "$EVENT_NAME" = "pull_request_target" ]; then
-            node scripts/npm-release.mjs plan --before "$BASE_SHA" --after "$MERGE_SHA"
+          if [ "$EVENT_NAME" = "push" ]; then
+            node scripts/npm-release.mjs plan --before "$BEFORE_SHA" --after "$PUSHED_SHA"
           else
             RELEASE_SHA=$(git rev-parse "$RELEASE_REF")
             git merge-base --is-ancestor "$RELEASE_SHA" origin/develop || {
