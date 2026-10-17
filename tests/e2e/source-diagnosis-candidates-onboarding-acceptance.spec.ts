@@ -101,7 +101,7 @@ describe('source diagnosis and candidate onboarding acceptance', () => {
       '--name', 'Owner',
       '--value', 'Local facts first',
       '--project', 'MCP Onboarding',
-      '--relationship', 'Otawara|partner|Needs local MCP from Codex',
+      '--relationship', 'Jordan|partner|Needs local MCP from Codex',
       '--decision-principle', 'Promote only reviewed candidates',
       '--write',
       '--format', 'json'

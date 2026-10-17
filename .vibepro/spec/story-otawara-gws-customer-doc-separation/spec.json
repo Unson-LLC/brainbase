@@ -1,0 +1,171 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-otawara-gws-customer-doc-separation",
+  "generated_by": {
+    "caller": "cursor-agent",
+    "stage": "ai_synthesis"
+  },
+  "clauses": [
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "The shared repository does not contain the customer-specific story, spec, or architecture bodies at docs/stories/otawara-gws-local-onboarding.md, docs/specs/otawara-gws-local-onboarding-spec.md, or docs/architecture/otawara-gws-local-onboarding.md.",
+      "rationale": "Issue 513 requires those customer-specific bodies to leave the shared repo. The shared Google Workspace onboarding design stays under its generic names.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "共通repoから顧客固有本文を除去する"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "docs/stories/google-workspace-local-onboarding.md",
+            "anchor": "Google Workspace Local Onboarding Plan"
+          },
+          {
+            "file": "docs/management/customer-doc-ledger.json",
+            "anchor": "otawara-gws-local-onboarding"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/customer-doc-boundary.test.ts",
+            "case": "keeps the otawara-gws-local-onboarding story, spec, and architecture out of the shared repo"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/customer-doc-boundary.test.ts",
+            "must_cover": "keeps the otawara-gws-local-onboarding story, spec, and architecture out of the shared repo"
+          }
+        ]
+      },
+      "first_seen_at": "2026-10-17T05:52:52.817Z",
+      "last_revised_at": "2026-10-17T05:52:52.817Z"
+    },
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "A machine-readable ledger in the shared repo records canonical repository cursorvers/brainbase-instance-cursorvers for the removed otawara-gws-local-onboarding documents.",
+      "rationale": "Issue 513 requires a machine-readable reference to the canonical customer repo. The instance repo content could not be read from this environment.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "正本repoへの参照を機械可読な台帳に残す"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "docs/management/customer-doc-ledger.json",
+            "anchor": "cursorvers/brainbase-instance-cursorvers"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/customer-doc-boundary.test.ts",
+            "case": "records cursorvers/brainbase-instance-cursorvers as the canonical home"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/customer-doc-boundary.test.ts",
+            "must_cover": "records cursorvers/brainbase-instance-cursorvers as the canonical home"
+          }
+        ]
+      },
+      "first_seen_at": "2026-10-17T05:52:52.817Z",
+      "last_revised_at": "2026-10-17T05:52:52.817Z"
+    },
+    {
+      "id": "S-002",
+      "type": "scenario",
+      "statement": "A boundary test fails when the otawara-gws-local-onboarding story, spec, or architecture document returns under docs/stories, docs/specs, or docs/architecture.",
+      "rationale": "Issue 513 requires the separation boundary to be fixed by a test.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "境界をテストで固定する"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "tests/customer-doc-boundary.test.ts",
+            "anchor": "returnedCustomerDocuments"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/customer-doc-boundary.test.ts",
+            "case": "fails when the customer-specific onboarding document returns to the shared docs"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/customer-doc-boundary.test.ts",
+            "must_cover": "fails when the customer-specific onboarding document returns to the shared docs"
+          }
+        ]
+      },
+      "first_seen_at": "2026-10-17T05:52:52.817Z",
+      "last_revised_at": "2026-10-17T05:52:52.817Z"
+    },
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "Markdown links that target the removed otawara-gws-local-onboarding documents point at the ledger or the canonical repository reference, and npm run docs:check passes.",
+      "rationale": "Existing navigational links must not 404 after the customer bodies are absent.",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "policy",
+            "text_snippet": "Existing links to those docs aren't broken"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/check-public-docs.mjs",
+            "anchor": "public_docs_valid"
+          },
+          {
+            "file": "docs/management/customer-doc-ledger.json",
+            "anchor": "canonical_home"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/customer-doc-boundary.test.ts",
+            "case": "points markdown links for the removed documents at the ledger or canonical repository"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/customer-doc-boundary.test.ts",
+            "must_cover": "points markdown links for the removed documents at the ledger or canonical repository"
+          }
+        ]
+      },
+      "first_seen_at": "2026-10-17T05:52:52.817Z",
+      "last_revised_at": "2026-10-17T05:52:52.817Z"
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "Q-1",
+      "question": "cursorvers/brainbase-instance-cursorvers was not readable here, so the ledger records the repository name without a verified in-repo path.",
+      "blocker": false
+    }
+  ],
+  "generated_at": "2026-10-17T05:52:52.816Z",
+  "previous_spec_id": null
+}

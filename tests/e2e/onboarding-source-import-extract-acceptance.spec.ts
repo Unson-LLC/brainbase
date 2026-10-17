@@ -43,7 +43,7 @@ const gmailFixture = JSON.stringify([
   {
     id: 'm1',
     threadId: 't1',
-    from: { email: 'otawara@cursorvers.com', name: '大田原正幸' },
+    from: { email: 'adopter@acme-example.com', name: '山田太郎' },
     to: [{ email: 'k.sato.unson@gmail.com', name: '佐藤圭吾' }],
     subject: 'Re: brainbaseご提案',
     date: '2026-06-05',
@@ -53,7 +53,7 @@ const gmailFixture = JSON.stringify([
   },
   {
     id: 'm2',
-    from: '大田原正幸 <otawara@cursorvers.com>',
+    from: '山田太郎 <adopter@acme-example.com>',
     to: 'k.sato.unson@gmail.com',
     subject: '契約書の確認をお願いします',
     snippet: '確認ください'
@@ -64,29 +64,29 @@ const calendarFixture = JSON.stringify({
   events: [
     {
       id: 'e1',
-      summary: 'Cursorvers AI駆動経営 定例',
+      summary: 'Acme Example 週次定例',
       start: { dateTime: '2026-06-06T10:00:00+09:00' },
-      organizer: { email: 'otawara@cursorvers.com', displayName: '大田原正幸' },
+      organizer: { email: 'adopter@acme-example.com', displayName: '山田太郎' },
       attendees: [{ email: 'k.sato.unson@gmail.com' }],
       description: 'PRIVATE EVENT NOTES MUST NOT LEAK'
     },
     {
       id: 'e2',
-      summary: 'Cursorvers AI駆動経営 定例',
+      summary: 'Acme Example 週次定例',
       start: { dateTime: '2026-06-13T10:00:00+09:00' },
-      attendees: [{ email: 'otawara@cursorvers.com' }]
+      attendees: [{ email: 'adopter@acme-example.com' }]
     }
   ]
 });
 
 const driveFixture = JSON.stringify({
   files: [
-    { id: 'f1', name: 'Cursorvers提案書', mimeType: 'application/vnd.google-apps.document', owners: [{ emailAddress: 'otawara@cursorvers.com', displayName: '大田原正幸' }], parents: ['folder-1'] }
+    { id: 'f1', name: 'Acme Example提案書', mimeType: 'application/vnd.google-apps.document', owners: [{ emailAddress: 'adopter@acme-example.com', displayName: '山田太郎' }], parents: ['folder-1'] }
   ]
 });
 
 const localFixture = JSON.stringify([
-  { path: '/Users/otawara/Notes/todo.md', title: 'todo', excerpt: '- [ ] 契約書を送付する\nメモ: 雑談' }
+  { path: '/Users/example/Notes/todo.md', title: 'todo', excerpt: '- [ ] 契約書を送付する\nメモ: 雑談' }
 ]);
 
 describe('Onboarding source import and candidate extraction acceptance', () => {
@@ -150,7 +150,7 @@ describe('Onboarding source import and candidate extraction acceptance', () => {
     // ac:5 apply with --write promotes into canonical SSOT
     await cli(['onboard:apply', '--from', extracted.candidatePath, '--dir', dataDir, '--all', '--write']);
     const os = await loadPersonalOs(dataDir);
-    expect(os.graph.entities.some((entity) => entity.name === '大田原正幸'), 'onboarding-source-import-extract ac:5 onboard:apply promotes selected candidates into graph.json, personal-kg.jsonl, relationships.json, and decisions.jsonl with --write.').toBe(true);
+    expect(os.graph.entities.some((entity) => entity.name === '山田太郎'), 'onboarding-source-import-extract ac:5 onboard:apply promotes selected candidates into graph.json, personal-kg.jsonl, relationships.json, and decisions.jsonl with --write.').toBe(true);
     expect(os.relationships.relationships.length, 'onboarding-source-import-extract ac:5 onboard:apply promotes relationship candidates into relationships.json.').toBeGreaterThanOrEqual(1);
     expect(os.graph.version).toBe(2);
     if (os.graph.version === 2) {
@@ -164,9 +164,9 @@ describe('Onboarding source import and candidate extraction acceptance', () => {
 
     // ac:8 get_context and search return canonical entities through MCP tooling
     const context = getContext(os);
-    expect(JSON.stringify(context.relationships), 'onboarding-source-import-extract ac:8 running import -> extract -> apply produces canonical entities that get_context can return through MCP.').toContain('大田原正幸');
-    const search = searchAll(os, '大田原', 5);
-    expect(search.some((result) => result.title === '大田原正幸'), 'onboarding-source-import-extract ac:8 running import -> extract -> apply produces canonical entities that search can return through MCP.').toBe(true);
+    expect(JSON.stringify(context.relationships), 'onboarding-source-import-extract ac:8 running import -> extract -> apply produces canonical entities that get_context can return through MCP.').toContain('山田太郎');
+    const search = searchAll(os, '山田', 5);
+    expect(search.some((result) => result.title === '山田太郎'), 'onboarding-source-import-extract ac:8 running import -> extract -> apply produces canonical entities that search can return through MCP.').toBe(true);
   });
 
   it('ac:9 import and extract never write canonical SSOT files', async () => {

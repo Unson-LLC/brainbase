@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { canonicalEdgeId } from '../src/canonical-graph.js';
 
 const participation = {
-  fromId: 'person-otawara',
+  fromId: 'person-jordan',
   relation: 'participates_in' as const,
   toId: 'project-personal-os'
 };
@@ -36,9 +36,9 @@ export async function createFixturePersonalOs(dataDir: string): Promise<void> {
         tags: ['self']
       },
       {
-        id: 'person-otawara',
+        id: 'person-jordan',
         type: 'person',
-        name: 'Otawara',
+        name: 'Jordan',
         summary: 'External collaborator evaluating local Brainbase MCP',
         tags: ['partner']
       },
@@ -63,7 +63,7 @@ export async function createFixturePersonalOs(dataDir: string): Promise<void> {
         ...participation,
         role: 'partner',
         context: 'Needs local MCP access from Codex and Claude',
-        provenance: { sourceKind: 'import', sourceId: 'relationship-otawara' }
+        provenance: { sourceKind: 'import', sourceId: 'relationship-jordan' }
       },
       {
         id: canonicalEdgeId(governance),
@@ -77,8 +77,8 @@ export async function createFixturePersonalOs(dataDir: string): Promise<void> {
     version: 1,
     relationships: [
       {
-        id: 'relationship-otawara',
-        person: 'Otawara',
+        id: 'relationship-jordan',
+        person: 'Jordan',
         role: 'partner',
         context: 'Needs local MCP access from Codex and Claude',
         tags: ['partner']

@@ -58,7 +58,7 @@ describe('brainbase-mcp-only story acceptance', () => {
       '--name', 'Owner',
       '--value', 'Local facts first',
       '--project', 'MCP Onboarding',
-      '--relationship', 'Otawara|partner|Needs local MCP from Codex'
+      '--relationship', 'Jordan|partner|Needs local MCP from Codex'
     ], seedOutput.io)).resolves.toBe(0);
 
     const os = await loadPersonalOs(dir);
@@ -106,7 +106,7 @@ describe('brainbase-mcp-only story acceptance', () => {
     expect(os.personalKg.some((entry) => entry.text.includes('Local facts first')), 'brainbase-mcp-only ac:6 Raw notes, logs, and meeting transcripts can exist under sources/, but MCP responses prefer canonical SSOT data.').toBe(true);
     expect(initOutput.stdout(), 'brainbase-mcp-only ac:7 brainbase onboard:init creates the minimum local SSOT structure.').toContain('Initialized');
     expect(os.graph.owner?.name, 'brainbase-mcp-only ac:8 brainbase onboard:seed can seed self, work, and relationship context.').toBe('Owner');
-    expect(os.relationships.relationships[0]?.person, 'brainbase-mcp-only ac:8 brainbase onboard:seed can seed self, work, and relationship context.').toBe('Otawara');
+    expect(os.relationships.relationships[0]?.person, 'brainbase-mcp-only ac:8 brainbase onboard:seed can seed self, work, and relationship context.').toBe('Jordan');
     expect(codexOutput.stdout(), 'brainbase-mcp-only ac:9 brainbase onboard:install --target codex|claude|codecode --dry-run emits a launchable client-specific MCP config without requiring users to guess a global binary path: Codex gets TOML, Claude and CodeCode get standard MCP JSON. --output writes a new snippet and refuses to overwrite existing client config.').toContain('[mcp_servers.brainbase]');
     expect(JSON.parse(claudeOutput.stdout()).mcpServers.brainbase.command, 'brainbase-mcp-only ac:9 brainbase onboard:install --target codex|claude|codecode --dry-run emits a launchable client-specific MCP config without requiring users to guess a global binary path: Codex gets TOML, Claude and CodeCode get standard MCP JSON. --output writes a new snippet and refuses to overwrite existing client config.').toBe(process.execPath);
     expect(JSON.parse(codecodeOutput.stdout()).mcpServers.brainbase.command).toBe(process.execPath);

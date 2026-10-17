@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0.0",
+  "story_id": "story-otawara-gws-customer-doc-separation",
+  "role": "reviewer",
+  "status": "pass",
+  "summary": "judgment-dag digestを再生成しREADME契約と整合。テストフィクスチャとforbidden_termsを補強。",
+  "recorded_at": "2026-10-17T08:16:55.810Z",
+  "findings": [],
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 1 file(s)",
+    "recorded_head_sha": null,
+    "surface_files": [
+      {
+        "path": "contracts/judgment-dag/digest.json",
+        "sha256": "eaa10770eea073bb0df34d6bab944ceb993a0e17b26844e6cbaf3262abdca711",
+        "size": 1121
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "a27853025a20c04d98a650e0db4307d04da572b6c20f45ba53fa032051e2142f"
+  },
+  "reviewer": {
+    "system": null,
+    "id": null
+  }
+}

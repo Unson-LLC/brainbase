@@ -105,7 +105,7 @@ brainbase onboard:candidates
 
 ### Google Workspace local-first adopter
 
-常時稼働のMac mini、Google Workspace、補助Gmail、許可したDrive/local folder、Calendar/notesに散在するタスクを対象にする例です。全Driveやhome directory全体は走査しません。
+常時稼働のローカルホスト（例: Mac mini）、Google Workspace、必要なら補助Gmail、許可したDrive/local folder、Calendar/notesに散在するタスクを想定した例です。使わないタスクツール（例: Notion）は`--inactive-task-tool`で非アクティブ扱いにできます。全Driveやhome directory全体は走査しません。
 
 ```bash
 brainbase onboard:plan --profile google-workspace-local --host mac-mini --email google-workspace --secondary-email gmail --calendar google-calendar --drive google-drive --drive-folder "<folder-id>" --local-folder "/Users/owner/Notes" --tasks scattered-calendar-notes --inactive-task-tool notion
