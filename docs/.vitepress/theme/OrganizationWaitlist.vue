@@ -64,6 +64,7 @@ async function submit() {
 
     formElement.value.reset();
     state.value = 'success';
+    document.dispatchEvent(new Event('marketing:lead-success'));
   } catch {
     state.value = 'error';
   }
