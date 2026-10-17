@@ -8,6 +8,7 @@ import {
   type DurableWaitEffectUnknownInput,
   type DurableWaitHandoffInput,
   type DurableWaitPremiseChangedInput,
+  type DurableWaitReconcileExternalEffectInput,
   type DurableWaitResumeInput,
   type DurableWaitStore,
 } from './durable-waits.js';
@@ -179,7 +180,15 @@ const premiseChangedSchema = identitySchema.extend({
 const effectUnknownSchema = identitySchema.extend({
   wait_id: boundedText,
   reason: boundedText,
+  external_operation_id: boundedText,
   responsible: responsibleSchema.optional(),
+}).strict();
+
+const reconcileExternalEffectSchema = identitySchema.extend({
+  wait_id: boundedText,
+  request_id: boundedText,
+  external_operation_id: boundedText,
+  evidence_ref: boundedText,
 }).strict();
 
 type RouteOperation =
@@ -189,7 +198,8 @@ type RouteOperation =
   | 'resume'
   | 'handoff'
   | 'premise-changed'
-  | 'effect-unknown';
+  | 'effect-unknown'
+  | 'reconcile-external-effect';
 
 interface RouteMatch {
   readonly operation: RouteOperation | null;
@@ -314,7 +324,7 @@ function matchRoute(path: string, basePath: string): RouteMatch | null {
   if (!normalized.startsWith(prefix)) return null;
   const suffix = normalized.slice(prefix.length);
   const operationNames: readonly RouteOperation[] = [
-    'create', 'claim', 'resume', 'handoff', 'premise-changed', 'effect-unknown',
+    'create', 'claim', 'resume', 'handoff', 'premise-changed', 'effect-unknown', 'reconcile-external-effect',
   ];
   if (operationNames.includes(suffix as RouteOperation)) return { operation: suffix as RouteOperation };
   if (!suffix.includes('/')) {
@@ -449,7 +459,8 @@ function parseBody(operation: Exclude<RouteOperation, 'read'>, body: unknown, co
   | DurableWaitResumeInput
   | DurableWaitHandoffInput
   | DurableWaitPremiseChangedInput
-  | DurableWaitEffectUnknownInput {
+  | DurableWaitEffectUnknownInput
+  | DurableWaitReconcileExternalEffectInput {
   const bound = bindTrustedIdentity(body, context);
   const parsed = (() => {
     switch (operation) {
@@ -459,6 +470,7 @@ function parseBody(operation: Exclude<RouteOperation, 'read'>, body: unknown, co
       case 'handoff': return handoffSchema.safeParse(bound);
       case 'premise-changed': return premiseChangedSchema.safeParse(bound);
       case 'effect-unknown': return effectUnknownSchema.safeParse(bound);
+      case 'reconcile-external-effect': return reconcileExternalEffectSchema.safeParse(bound);
     }
   })();
   if (!parsed.success) throw new HttpInputError(parsed.error.issues[0]?.message ?? 'Request body is invalid');
@@ -535,7 +547,8 @@ export function createDurableWaitHttpHandler(options: DurableWaitHttpOptions): D
       | DurableWaitResumeInput
       | DurableWaitHandoffInput
       | DurableWaitPremiseChangedInput
-      | DurableWaitEffectUnknownInput;
+      | DurableWaitEffectUnknownInput
+      | DurableWaitReconcileExternalEffectInput;
     try {
       parsed = parseBody(route.operation, body, context);
     } catch (error) {
@@ -583,6 +596,10 @@ export function createDurableWaitHttpHandler(options: DurableWaitHttpOptions): D
           break;
         case 'effect-unknown':
           result = await store.markEffectUnknown(parsed as DurableWaitEffectUnknownInput);
+          assertOwnerScope(result, context);
+          break;
+        case 'reconcile-external-effect':
+          result = await store.reconcileExternalEffect(parsed as DurableWaitReconcileExternalEffectInput);
           assertOwnerScope(result, context);
           break;
       }
