@@ -37,14 +37,18 @@ is rejected so every supported registry mutation shares one package queue.
 
 GitHub Actions puts validation in a read-only job without OIDC or npm
 credentials. The immutable tarball and proof cross into a separate publication
-job through a one-day Actions artifact; only that job has `id-token: write` and
-`NPM_TOKEN`. `id-token: write` exists only for the pre-publish OIDC guard
-(`assertSerializedPublicationContext()`); npm provenance is not used because npm
-rejects it on self-hosted runners, so the publish step sets
-`NPM_CONFIG_PROVENANCE=false` and passes no `--provenance`. The manual recovery path resolves an immutable SHA and rejects
-it unless it is reachable from `origin/develop`. It also fixes the package
-identity to `@unson/brainbase-mcp`. Only after those checks and validation does
-the workflow inject `NPM_TOKEN` into the publication step.
+job through a one-day Actions artifact; only that job has `id-token: write`.
+The publish job runs on a GitHub-hosted runner and authenticates to npm only
+through npm Trusted Publishing: the npm CLI (pinned to 11.21.1, the first line
+that supports OIDC dist-tag operations) exchanges the job's GitHub Actions OIDC
+token for a short-lived publish token. No long-lived npm token exists in the
+workflow. The same `id-token: write` serves the pre-publish OIDC guard
+(`assertSerializedPublicationContext()`) and npm provenance (`--provenance`).
+The manual recovery path resolves an immutable SHA and rejects it unless it is
+reachable from `origin/develop`. It also fixes the package identity to
+`@unson/brainbase-mcp`. The npm package's Trusted Publisher entry binds
+publication to `Unson-LLC/brainbase` and `npm-publish.yml`, and must allow
+`npm publish` and npm dist-tag.
 
 `release:verify` is a separate read-only operation. Publication may reconcile a
 dist-tag forward to the greatest compatible version, while verification only

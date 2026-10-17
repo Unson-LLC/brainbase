@@ -114,7 +114,12 @@ describe('OSS npm release OIDC endpoint correction acceptance', () => {
     const publishJob = workflow.slice(workflow.indexOf('  publish:'));
     expect(acceptanceCriterion, 'ac-6 binds the executable assertions to the Story criterion').toContain('npm 11.5.1');
     expect(publishJob, 'ac-6 removes the temporary diagnostic stop from the publish job').not.toMatch(/BRAINBASE_NPM_OIDC_DIAGNOSTIC/u);
-    expect(publishJob, 'ac-6 installs a trusted-publishing capable npm CLI').toMatch(/npm install --global npm@11\.5\.1/u);
+    // story-npm-trusted-publishing-oidc raised the pin to 11.21.1 for OIDC dist-tag operations;
+    // ac-6 still requires at least the npm 11.5.1 Trusted Publishing baseline.
+    const pinned = publishJob.match(/npm install --global npm@(\d+)\.(\d+)\.(\d+)/u);
+    expect(pinned, 'ac-6 installs a pinned npm CLI').not.toBeNull();
+    const [major, minor] = (pinned ?? []).slice(1).map(Number);
+    expect(major === 11 ? minor >= 5 : major > 11, 'ac-6 installs a trusted-publishing capable npm CLI').toBe(true);
   });
 
   // story-brainbase-oss-npm-release-oidc-endpoint ac:4 executable endpoint allow-and-deny coverage

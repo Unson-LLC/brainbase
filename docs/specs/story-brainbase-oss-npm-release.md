@@ -64,7 +64,7 @@ npm metadataの`version`と`gitHead`、期待するdist-tagをread-onlyで検証
 - PR merge: base SHAとmerge SHAのversion差分が増加した場合だけ公開する。
 - Manual dispatch: `origin/develop`の履歴内にある指定refのpackage versionだけを公開・照合する。初回公開と復旧に使う。
 - Validation: `contents: read`だけのjobで`npm ci`、build、test、`npm audit --omit=dev`を完了し、実tarballと両digest-bound proofを作る。OIDCとnpm credentialは許可しない。
-- Publication: Actions artifactから同じtarball/proofを復元する別jobだけへ`id-token: write`と`NODE_AUTH_TOKEN=${{ secrets.NPM_TOKEN }}`を許可する。`id-token: write`はpublish前のOIDCガード（`assertSerializedPublicationContext()`）のためだけに残す。npm provenanceは使わない（self-hosted runnerではnpmが422で拒否するため）。publish stepは`NPM_CONFIG_PROVENANCE=false`を明示し、`--provenance`を渡さない（story-npm-publish-oidc-guard-restore）。
+- Publication: Actions artifactから同じtarball/proofを復元する別job（GitHub-hosted）だけへ`id-token: write`を許可する。npmへの認証はnpm Trusted Publishing（GitHub ActionsのOIDC）だけで行い、長期のnpm tokenはworkflowに置かない。npm CLIは11.21.1に固定する（OIDCでのdist-tag操作は11.21.0以上が要る）。`id-token: write`はpublish前のOIDCガード（`assertSerializedPublicationContext()`）、Trusted Publishing、`--provenance`に使う（story-npm-trusted-publishing-oidc）。
 - Completion: npm metadata照合後に`v<version>` GitHub Releaseを作成または既存tagのcommitを照合する。
 
 ## Release operations
@@ -75,7 +75,7 @@ npm metadataの`version`と`gitHead`、期待するdist-tagをread-onlyで検証
 
 ### Operator action and rollout
 
-1. RepositoryのActions secret `NPM_TOKEN`に`@unson`公開権限のあるnpm tokenを登録する。token値はlog、source、artifactに出力しない。
+1. npmjs.comの`@unson/brainbase-mcp`の設定で、Trusted Publisher（GitHub Actions、`Unson-LLC` / `brainbase` / `npm-publish.yml`）を登録し、`npm publish`とnpm dist-tagを許可する。npm tokenは使わない。
 2. 通常はversion bump済みPRを`develop`へmergeし、merge eventから自動公開する。初回の`0.1.0`公開または復旧ではActionsの`Publish npm package`を手動実行し、`release_ref=develop`を指定する。
 3. `validate`と`publish`の両jobが成功した後、npm metadataのversion、`gitHead`、`dist.integrity`、dist-tag、およびGitHub Releaseのcommitを確認してrollout完了とする。
 
@@ -83,7 +83,7 @@ npm metadataの`version`と`gitHead`、期待するdist-tagをread-onlyで検証
 
 - GitHub Actionsの`validate`はbuild、test、production audit、tarball proofの失敗点をcredentialなしで表示する。`publish`はartifact digest照合、npm publish、registry収束、GitHub Releaseのどこで失敗したかを表示する。
 - ownerが見る最終証拠はnpm registryの`version` / `gitHead` / `dist.integrity` / dist-tagとGitHub Releaseであり、Actionsのgreenだけで完了としない。
-- `NPM_TOKEN`未設定またはworkflow無効化中は公開済みと扱わない。sourceとローカルCLIは引き続き使用できるが、npm releaseは未完了である。
+- Trusted Publisher未登録またはworkflow無効化中は公開済みと扱わない。sourceとローカルCLIは引き続き使用できるが、npm releaseは未完了である。
 
 ### Rollback and recovery
 
@@ -130,7 +130,7 @@ stateDiagram-v2
 flowchart TD
   untrusted["PR and package scripts"] --> readonly["Validation job: contents read only"]
   readonly --> artifact["SHA-256 and SHA-512 bound artifact"]
-  artifact --> privileged["Publish job: OIDC and NPM_TOKEN"]
+  artifact --> privileged["Publish job: OIDC trusted publishing"]
   privileged --> registry["npm registry dist.integrity"]
   attacker["Wrong ref or altered artifact"] --> reject["Fail before registry or tag mutation"]
 ```

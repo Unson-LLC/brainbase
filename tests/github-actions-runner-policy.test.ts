@@ -52,7 +52,7 @@ describe('public CI self-hosted runner policy', () => {
     expect(docsWorkflow).not.toMatch(/pull_request_target:/u);
   });
 
-  it('AC-003 keeps npm publish off the pull request head and limits the npm token', async () => {
+  it('AC-003 keeps npm publish off the pull request head and publishes without a long-lived npm token', async () => {
     const workflow = await readRepoFile('.github/workflows/npm-publish.yml');
     const validationJob = workflow.slice(workflow.indexOf('  validate:'), workflow.indexOf('  publish:'));
     const publishJob = workflow.slice(workflow.indexOf('  publish:'));
@@ -64,8 +64,9 @@ describe('public CI self-hosted runner policy', () => {
     expect(publishJob).toMatch(/ref: develop/u);
     expect(validationJob).not.toMatch(/NODE_AUTH_TOKEN/u);
     expect(validationJob).not.toMatch(/secrets\.NPM_TOKEN/u);
-    expect(publishJob).toMatch(/NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_TOKEN \}\}/u);
-    expect(workflow.match(/NODE_AUTH_TOKEN/gu)).toHaveLength(1);
+    expect(publishJob).not.toMatch(/NODE_AUTH_TOKEN/u);
+    expect(publishJob).not.toMatch(/secrets\.NPM_TOKEN/u);
+    expect(publishJob).toMatch(/id-token: write/u);
   });
 
   it('AC-004 documents the runner labels and the fork pull request boundary', async () => {
