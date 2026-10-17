@@ -1,5 +1,5 @@
 {
-  "schema_version": "1",
+  "schema_version": "2",
   "documents": [
     {
       "id": "otawara-gws-local-onboarding",
@@ -9,10 +9,61 @@
         "docs/specs/otawara-gws-local-onboarding-spec.md",
         "docs/architecture/otawara-gws-local-onboarding.md"
       ],
+      "relocated_to_generic_paths": [
+        "docs/stories/google-workspace-local-onboarding.md",
+        "docs/specs/google-workspace-local-onboarding-spec.md",
+        "docs/architecture/google-workspace-local-onboarding.md"
+      ],
+      "relocated_note": "Customer-specific otawara-gws-local-onboarding filenames were renamed to google-workspace-local-onboarding* in #516; those shared copies are generic design docs, not the canonical customer instance.",
       "canonical_repository": "cursorvers/brainbase-instance-cursorvers",
       "canonical_home": "cursorvers/brainbase-instance-cursorvers",
       "content_verified": false,
       "note": "The instance repository was not readable from the environment that recorded this ledger. The canonical home is the repository name; paths inside that repository were not verified."
     }
-  ]
+  ],
+  "forbidden_terms": [
+    "大田原",
+    "Masayuki Otawara",
+    "otawara@",
+    "cursorvers.com",
+    "/Users/otawara",
+    "Otawara Google Workspace",
+    "Cursorvers AI",
+    "otawara"
+  ],
+  "forbidden_terms_case_insensitive": true,
+  "body_scan": {
+    "include_path_globs": [
+      "README.md",
+      "docs/**/*.md",
+      "tests/e2e/**"
+    ],
+    "exclude_paths": [
+      "docs/management/customer-doc-ledger.json",
+      "tests/customer-doc-boundary.test.ts"
+    ],
+    "exclude_path_prefixes": [
+      {
+        "prefix": "docs/management/audit-artifacts/",
+        "reason": "Immutable historical VibePro diagnostics and graph snapshots; rewriting would falsify audit records."
+      },
+      {
+        "prefix": "docs/management/roi-ledger/",
+        "reason": "Append-only ROI ledger entries reference historical file paths from past runs; not user-facing docs."
+      },
+      {
+        "prefix": ".vibepro/",
+        "reason": "VibePro story and PR metadata for this separation work; story id and paths intentionally name the customer doc id."
+      }
+    ],
+    "allowed_substrings": [
+      {
+        "term": "cursorvers",
+        "paths": [
+          "docs/management/customer-doc-ledger.json"
+        ],
+        "reason": "Canonical instance repository slug cursorvers/brainbase-instance-cursorvers must remain recorded in the ledger."
+      }
+    ]
+  }
 }

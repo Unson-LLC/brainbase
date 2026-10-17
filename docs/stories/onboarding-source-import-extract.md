@@ -2,7 +2,7 @@
 
 ## Background
 
-The Google Workspace local onboarding plan and source diagnosis already tell a coding agent which collectors to run and where metadata-first output should land under `sources/`. But the value loop stops there: candidate facts can only be typed in by hand with `onboard:candidates`, and nothing reads the collected `sources/*.jsonl` to propose people, organizations, projects, relationships, or task candidates. As Masayuki Otawara's first personal Brainbase adopter, I want Brainbase to import collected provider metadata into `sources/`, extract reviewable candidates from it deterministically, and promote only approved candidates into canonical SSOT, so the "connect to get value" promise is actually demonstrable end to end on real Gmail and Google Calendar metadata.
+The Google Workspace local onboarding plan and source diagnosis already tell a coding agent which collectors to run and where metadata-first output should land under `sources/`. But the value loop stops there: candidate facts can only be typed in by hand with `onboard:candidates`, and nothing reads the collected `sources/*.jsonl` to propose people, organizations, projects, relationships, or task candidates. As a first personal Brainbase adopter on Google Workspace, I want Brainbase to import collected provider metadata into `sources/`, extract reviewable candidates from it deterministically, and promote only approved candidates into canonical SSOT, so the "connect to get value" promise is actually demonstrable end to end on real Gmail and Google Calendar metadata.
 
 ## Acceptance Criteria
 
