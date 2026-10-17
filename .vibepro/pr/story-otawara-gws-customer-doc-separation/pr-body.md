@@ -18,8 +18,8 @@ SSOT: local
 - no story document found (informational only; does not block PR creation)
 
 ### Acceptance criteria
-- accepted-spec lineage: invalid — `.vibepro/spec/story-otawara-gws-customer-doc-separation/spec.json` @ `9382d7f508f31f4cefa2ef2ee2b2b794fd774245` (HEAD `f10154bfca4542e27ff2d9fc3fe04563dd7cc34e`)
-  - story: `docs/management/stories/active/story-otawara-gws-customer-doc-separation.md` @ `missing` (HEAD `f10154bfca4542e27ff2d9fc3fe04563dd7cc34e`)
+- accepted-spec lineage: invalid — `.vibepro/spec/story-otawara-gws-customer-doc-separation/spec.json` @ `9382d7f508f31f4cefa2ef2ee2b2b794fd774245` (HEAD `ed183e946e9c3fec466ed54f0e8ed4e4272bf177`)
+  - story: `docs/management/stories/active/story-otawara-gws-customer-doc-separation.md` @ `missing` (HEAD `ed183e946e9c3fec466ed54f0e8ed4e4272bf177`)
   - reasons: story_not_in_head, unknown_story_ac, story_ref_missing
 - no acceptance criteria found in the story document
 
@@ -40,11 +40,11 @@ SSOT: local
 - status: not_applicable
 
 ### Verification evidence
-- [unit] fail — `npm test -- --maxWorkers=4` (runtime `13174d744da538e35f5e5a6b33ec46e8b8a24c3cd0e43423129d279267505f64`)
-  - 自由記述summaryは参考情報であり、計算済み件数の権威ではありません
 - [build] pass — `npm run build` (runtime `13174d744da538e35f5e5a6b33ec46e8b8a24c3cd0e43423129d279267505f64`)
   - 自由記述summaryは参考情報であり、計算済み件数の権威ではありません
 - [typecheck] pass — `npx tsc -p tsconfig.json --noEmit` (runtime `13174d744da538e35f5e5a6b33ec46e8b8a24c3cd0e43423129d279267505f64`)
+  - 自由記述summaryは参考情報であり、計算済み件数の権威ではありません
+- [unit] fail — `npm test -- --maxWorkers=4` (runtime `13174d744da538e35f5e5a6b33ec46e8b8a24c3cd0e43423129d279267505f64`)
   - 自由記述summaryは参考情報であり、計算済み件数の権威ではありません
 
 ### タスク権限
@@ -77,6 +77,7 @@ SSOT: local
 - blocking reasons: none
 
 ### Changed files
+- M	.gitignore
 - M	.vibepro/config.json
 - A	.vibepro/pr/story-otawara-gws-customer-doc-separation/pr-body.md
 - A	.vibepro/pr/story-otawara-gws-customer-doc-separation/pr-prepare.json

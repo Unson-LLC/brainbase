@@ -8,7 +8,7 @@
   "story_id": "story-otawara-gws-customer-doc-separation",
   "runtime_identity": {
     "schema_version": "0.2.0",
-    "collected_at": "2026-10-17T06:16:57.660Z",
+    "collected_at": "2026-10-17T06:18:23.753Z",
     "mode": "normal",
     "source_kind": "npm_package",
     "test_context": null,
@@ -63,25 +63,25 @@
       ]
     }
   },
-  "head_sha": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
+  "head_sha": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
   "observed": {
     "status": "fail",
     "evidence_source": "runner_direct",
     "run_artifact": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/unit.json",
     "run_log": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-runs/unit.log",
     "exit_code": "1",
-    "duration_ms": "41153",
-    "started_at": "2026-10-17T06:16:57.675Z",
-    "finished_at": "2026-10-17T06:17:38.814Z",
-    "head_sha_before": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
-    "head_sha_after": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
-    "head_sha": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
+    "duration_ms": "42229",
+    "started_at": "2026-10-17T06:18:23.770Z",
+    "finished_at": "2026-10-17T06:19:05.984Z",
+    "head_sha_before": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
+    "head_sha_after": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
+    "head_sha": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
     "worktree_sampled": "true",
     "worktree_sampling_complete": "true",
-    "worktree_sha256_before": "716d42c6d220cf3a5ba4bcdca44ee6e738831a210e64e71f892c497da7a25c73",
-    "worktree_sha256_after": "716d42c6d220cf3a5ba4bcdca44ee6e738831a210e64e71f892c497da7a25c73",
-    "stdout_sha256": "b619c060a561bc2ec3a14e97bfb0ad83376fb94e6e668a2dbeae7dc8b4a717a6",
-    "output_sha256": "47c44198bb46a9f17527a5be1829363dc85f7638504afde6c8f9c14a59bfffd9",
+    "worktree_sha256_before": "35c49e3d606d267eed5131e36960a10e26a59a20693cea718b1211ef8352030a",
+    "worktree_sha256_after": "baf825a99ebd0da331fa9c730693680fc27373e07b2ca0e0167e11766b598228",
+    "stdout_sha256": "d4ad17d032156d867bf9fa1f8452f1c0fc0ecefb81aaddd74f648d260afb499f",
+    "output_sha256": "4288da99a1db08e9144ff329a381e4e37498dff64386150ad75ee6ef479fa637",
     "output_bytes": "3705",
     "log_truncated": "false",
     "output_metrics": "none",
@@ -92,13 +92,13 @@
     "max_output_bytes": "67108864",
     "harness_env_removed": "none",
     "runner_node_version": "v22.14.0",
-    "tree_mutated_during_run": "false",
+    "tree_mutated_during_run": "true",
     "head_moved_during_run": "false",
-    "worktree_changed_during_run": "false",
-    "worktree_status_sha256_before": "53076afa709d0fddc14335562623a60379992b22b61c364dd3f8be80ca2c6fd4",
-    "worktree_status_sha256_after": "53076afa709d0fddc14335562623a60379992b22b61c364dd3f8be80ca2c6fd4",
-    "worktree_diff_sha256_before": "b30d6c0a5c96d8e090ebea0ec959f4f6d3958c59ee53fce4ee6c19fbed31b63f",
-    "worktree_diff_sha256_after": "b30d6c0a5c96d8e090ebea0ec959f4f6d3958c59ee53fce4ee6c19fbed31b63f"
+    "worktree_changed_during_run": "true",
+    "worktree_status_sha256_before": "7a86bc2c1716042416ebe5b02321170259de55a1ba4a4c37cbcadefa9aa83f0e",
+    "worktree_status_sha256_after": "7a86bc2c1716042416ebe5b02321170259de55a1ba4a4c37cbcadefa9aa83f0e",
+    "worktree_diff_sha256_before": "d5832659ce7befb96df0b99522826a6c8b4df3d343b0d051ecef389450d21a4b",
+    "worktree_diff_sha256_after": "319f49e50266c2ebe800a3c16f2c7fa9389348e7194df6c255ba98605b30b616"
   },
   "run": {
     "argv": [
@@ -109,9 +109,9 @@
     ],
     "command": "npm test -- --maxWorkers=4",
     "cwd": ".",
-    "started_at": "2026-10-17T06:16:57.675Z",
-    "finished_at": "2026-10-17T06:17:38.814Z",
-    "duration_ms": 41153,
+    "started_at": "2026-10-17T06:18:23.770Z",
+    "finished_at": "2026-10-17T06:19:05.984Z",
+    "duration_ms": 42229,
     "exit_code": 1,
     "signal": null,
     "timed_out": false,
@@ -119,13 +119,13 @@
     "external_kill_signal": null,
     "timeout_ms": 7200000,
     "max_output_bytes": 67108864,
-    "head_sha_before": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
-    "head_sha_after": "f10154bfca4542e27ff2d9fc3fe04563dd7cc34e",
-    "worktree_sha256_before": "716d42c6d220cf3a5ba4bcdca44ee6e738831a210e64e71f892c497da7a25c73",
-    "worktree_sha256_after": "716d42c6d220cf3a5ba4bcdca44ee6e738831a210e64e71f892c497da7a25c73",
-    "tree_mutated_during_run": false,
+    "head_sha_before": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
+    "head_sha_after": "ed183e946e9c3fec466ed54f0e8ed4e4272bf177",
+    "worktree_sha256_before": "35c49e3d606d267eed5131e36960a10e26a59a20693cea718b1211ef8352030a",
+    "worktree_sha256_after": "baf825a99ebd0da331fa9c730693680fc27373e07b2ca0e0167e11766b598228",
+    "tree_mutated_during_run": true,
     "head_moved_during_run": false,
-    "worktree_changed_during_run": false,
+    "worktree_changed_during_run": true,
     "worktree_sampled": true,
     "worktree_sampling_complete": true,
     "output_metrics": "none",
@@ -136,5 +136,11 @@
     "log_truncated": false
   },
   "discarded_agent_observations": [],
-  "warnings": []
+  "warnings": [
+    {
+      "id": "verification_tree_mutated_during_run",
+      "command_name": "verify run",
+      "reason": "the working tree changed while the command was running (HEAD is unchanged, tracked file state is not); the recorded result does not describe a single tree"
+    }
+  ]
 }
