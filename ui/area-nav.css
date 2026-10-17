@@ -6,7 +6,7 @@
  * `linkClassName`.
  */
 .bb-area-nav {
-  min-height: 100%;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -37,9 +37,19 @@
 }
 
 .bb-area-section-link {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   border-radius: 6px;
   padding-top: 4px;
   text-decoration: none;
+}
+
+/* A heading that opens a screen says so with a chevron (not part of its name). */
+.bb-area-section-link::after {
+  content: "›";
+  font-size: 13px;
+  line-height: 1;
 }
 
 .bb-area-section-link:hover,

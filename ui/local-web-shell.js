@@ -61,62 +61,63 @@ const NAV_ICON_PATHS = Object.freeze({
   ontology: ['M4 4h6v6H4z', 'M14 14h6v6h-6z', 'M14 4h6v6h-6z', 'M10 7h4', 'M17 10v4'],
   // World view (extension id `world`, ledger P17).
   world: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M3 12h18', 'M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z'],
-  // Areas whose screens have their own icons (ledger D10, stage 2): a briefcase, and
-  // the organization edition's gear.
-  'area:work': ['M4 8h16v11H4z', 'M9 8V5h6v3', 'M4 13h16'],
+  // 設定 (ledger D10): the organization edition's gear.
   'area:settings': ['M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'],
 });
 // Screens without their own icon (for example a private product's extension).
 const DEFAULT_NAV_ICON_PATHS = Object.freeze(['M5 20V10m7 10V4m7 16v-7']);
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-// The menu's areas (brainbase-project ledger D10): the same order and names as
-// the organization edition. The left side lists only the areas; the screens of
-// the current area are tabs above the page (stage 2). 目的と現状 is the only
-// screen of its area and keeps its own name. Inside an area, `order` lists the
-// screens first in that order; `defaultScreen` opens when nothing is remembered.
-const NAV_AREAS = Object.freeze([
-  Object.freeze({ id: 'purpose', label: null, order: ['objectives'], icon: 'objectives' }),
-  Object.freeze({ id: 'work', label: '仕事', order: ['projects', 'minutes'], defaultScreen: 'projects', icon: 'area:work' }),
-  Object.freeze({ id: 'outcomes', label: '成果', order: ['value-proofs'], icon: 'value-proofs' }),
-  Object.freeze({ id: 'information', label: '情報と関係', order: ['graph', 'people', 'memory'], defaultScreen: 'graph', icon: 'graph' }),
-  Object.freeze({ id: 'settings', label: '設定', order: ['ontology'], defaultScreen: 'ontology', icon: 'area:settings' }),
+// The menu's sections (brainbase-project ledger D10, 2026-10-17 revision): the
+// destinations themselves under small headings, in the organization edition's
+// order, with 設定 at the bottom. Screens OSS Personal does not have are not
+// listed. `screenId` makes the heading open that screen (プロジェクトと関係者);
+// `area` turns the section's screens into one line with tabs (設定). Inside a
+// section, `order` lists the screens first in that order.
+const NAV_SECTIONS = Object.freeze([
+  Object.freeze({ id: 'meetings', label: '会議', order: ['minutes'] }),
+  Object.freeze({ id: 'project', label: 'プロジェクト', screenId: 'projects', order: ['objectives'] }),
+  Object.freeze({ id: 'explore', label: '調べる', order: ['value-proofs', 'graph', 'people', 'memory'] }),
+  Object.freeze({ id: 'settings', label: null, placement: 'footer', order: ['ontology'], area: Object.freeze({ label: '設定', defaultScreen: 'ontology', icon: 'area:settings' }) }),
 ]);
 
+const sectionOf = (screen) => NAV_SECTIONS.find((section) => section.id === screen.section) ?? null;
+
 // Menu order only: the screens' own order (and so the first screen) stays as given.
-// Screens without an area keep their place — those before the first area-bound
-// screen come first (a leading extension such as the world), the rest come last.
-function navLayout(screens) {
-  const firstInArea = screens.findIndex((screen) => NAV_AREAS.some((area) => area.id === screen.area));
-  if (firstInArea === -1) return { leading: [...screens], areas: [], trailing: [] };
-  const leading = screens.slice(0, firstInArea);
-  const trailing = screens.slice(firstInArea).filter((screen) => !NAV_AREAS.some((area) => area.id === screen.area));
-  const areas = NAV_AREAS.map((area) => {
-    const members = screens.filter((screen) => screen.area === area.id);
+// Screens without a section keep their place — those before the first sectioned
+// screen come first (a leading extension such as the world), the rest come after
+// the sections and before 設定.
+function navAreas(screens) {
+  const own = (screen, section = null) => ({ id: screen.id, label: null, screenIds: [screen.id], icon: screen.id, ...(section ? { section } : {}) });
+  const firstSectioned = screens.findIndex((screen) => sectionOf(screen));
+  const leading = firstSectioned === -1 ? [...screens] : screens.slice(0, firstSectioned);
+  const trailing = firstSectioned === -1 ? [] : screens.slice(firstSectioned).filter((screen) => !sectionOf(screen));
+  const sectioned = NAV_SECTIONS.map((section) => {
+    const members = screens.filter((screen) => screen.section === section.id && screen.id !== section.screenId);
     const rank = (screen) => {
-      const index = area.order.indexOf(screen.id);
-      return index === -1 ? area.order.length + members.indexOf(screen) : index;
+      const index = section.order.indexOf(screen.id);
+      return index === -1 ? section.order.length + members.indexOf(screen) : index;
     };
-    return { area, screens: [...members].sort((a, b) => rank(a) - rank(b)) };
-  }).filter((entry) => entry.screens.length > 0);
-  return { leading, areas, trailing };
+    const ordered = [...members].sort((a, b) => rank(a) - rank(b));
+    if (ordered.length === 0) return { section, areas: [] };
+    if (section.area) {
+      return { section, areas: [{ id: section.id, label: section.area.label, defaultScreen: section.area.defaultScreen, screenIds: ordered.map((screen) => screen.id), icon: section.area.icon, section: section.id }] };
+    }
+    return { section, areas: ordered.map((screen) => own(screen, section.id)) };
+  });
+  const main = sectioned.filter(({ section }) => section.placement !== 'footer').flatMap(({ areas }) => areas);
+  const footer = sectioned.filter(({ section }) => section.placement === 'footer').flatMap(({ areas }) => areas);
+  return [...leading.map((screen) => own(screen)), ...main, ...trailing.map((screen) => own(screen)), ...footer];
 }
 
-// Every menu line is an area: a screen without an area is an area of its own.
-function navAreas(screens) {
-  const layout = navLayout(screens);
-  const own = (screen) => ({ id: screen.id, label: null, screenIds: [screen.id], icon: screen.id });
-  return [
-    ...layout.leading.map(own),
-    ...layout.areas.map(({ area, screens: members }) => ({
-      id: area.id,
-      label: area.label,
-      defaultScreen: area.defaultScreen,
-      screenIds: members.map((screen) => screen.id),
-      icon: area.icon,
-    })),
-    ...layout.trailing.map(own),
-  ];
+// The sections handed to the menu part; a heading opens its screen only when that screen exists.
+function navSections(screens) {
+  return NAV_SECTIONS.map((section) => ({
+    id: section.id,
+    label: section.label,
+    placement: section.placement ?? 'main',
+    ...(section.screenId && screens.some((screen) => screen.id === section.screenId) ? { screenId: section.screenId } : {}),
+  }));
 }
 
 function makeIcon(doc, id) {
@@ -376,19 +377,19 @@ function mountGraphScreen(screenId, createView, extra = {}) {
 }
 
 export const LOCAL_WEB_SCREENS = Object.freeze([
-  Object.freeze({ id: 'value-proofs', label: '判断の履歴', area: 'outcomes', usesGraph: false, rail: true, source: '判断の記録', mount: mountToday }),
-  Object.freeze({ id: 'minutes', label: '議事録', area: 'work', usesGraph: false, rail: true, source: '正本の議事録', mount: mountMeetingMinutes }),
-  Object.freeze({ id: 'objectives', label: '目的と現状', area: 'purpose', usesGraph: true, rail: true, source: '手元のGraph', mount: mountObjectives }),
-  Object.freeze({ id: 'projects', label: 'プロジェクトと関係者', area: 'work', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('projects', createGraphProjectsView) }),
+  Object.freeze({ id: 'value-proofs', label: '判断の履歴', section: 'explore', usesGraph: false, rail: true, source: '判断の記録', mount: mountToday }),
+  Object.freeze({ id: 'minutes', label: '議事録', section: 'meetings', usesGraph: false, rail: true, source: '正本の議事録', mount: mountMeetingMinutes }),
+  Object.freeze({ id: 'objectives', label: '目的と現状', section: 'project', usesGraph: true, rail: true, source: '手元のGraph', mount: mountObjectives }),
+  Object.freeze({ id: 'projects', label: 'プロジェクトと関係者', section: 'project', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('projects', createGraphProjectsView) }),
   // A record of 情報と関係 opens as its own screen at `#graph?entity_id=…`; the list is `#graph`.
-  Object.freeze({ id: 'graph', label: '情報と関係', area: 'information', usesGraph: true, rail: false, source: '手元のGraph', mount: mountGraphScreen('graph', createGraphRegistryView, (context) => ({
+  Object.freeze({ id: 'graph', label: '情報と関係', section: 'explore', usesGraph: true, rail: false, source: '手元のGraph', mount: mountGraphScreen('graph', createGraphRegistryView, (context) => ({
     onRouteChange: (entityId, options) => context.navigate?.(entityId ? `graph?entity_id=${encodeURIComponent(entityId)}` : 'graph', options),
   })) }),
-  Object.freeze({ id: 'people', label: '人と会社', area: 'information', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('people', createPeopleAndCompaniesView, { canCorrect: true }) }),
+  Object.freeze({ id: 'people', label: '人と会社', section: 'explore', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('people', createPeopleAndCompaniesView, { canCorrect: true }) }),
   // Only the owner sees it (ledger D15); the local host has one owner, so it is always listed here.
-  Object.freeze({ id: 'memory', label: 'あなたの記憶', area: 'information', usesGraph: false, rail: true, ownerOnly: true, source: '手元の個人KG', mount: mountPersonalMemory }),
+  Object.freeze({ id: 'memory', label: 'あなたの記憶', section: 'explore', usesGraph: false, rail: true, ownerOnly: true, source: '手元の個人KG', mount: mountPersonalMemory }),
   // The definitions behind 情報と関係: infrequent management work, so under settings (ledger D14).
-  Object.freeze({ id: 'ontology', label: '情報の種類とつながり方', area: 'settings', usesGraph: true, rail: false, source: '手元のGraph', mount: mountGraphScreen('ontology', createGraphOntologyView, { canCorrect: true }) }),
+  Object.freeze({ id: 'ontology', label: '情報の種類とつながり方', section: 'settings', usesGraph: true, rail: false, source: '手元のGraph', mount: mountGraphScreen('ontology', createGraphOntologyView, { canCorrect: true }) }),
 ]);
 
 function renderGraphGate(doc, slot, status, onRecheck, label) {
@@ -516,6 +517,7 @@ export function createLocalWebShell({
   const areaNav = createAreaNav({
     document: doc,
     areas: areaList,
+    sections: navSections(screens),
     screens: screens.map((screen) => ({ id: screen.id, label: screen.label })),
     memory: areaMemory,
     linkClassName: 'bb-shell-nav-link',
