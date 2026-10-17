@@ -3,8 +3,8 @@
   "story_id": "story-otawara-gws-customer-doc-separation",
   "role": "reviewer",
   "status": "pass",
-  "summary": "Unit testsの顧客フィクスチャをプレースホルダ化し、台帳走査を tests/** に拡張。GWS 設計文書と README を汎用ペルソナ表現に更新。",
-  "recorded_at": "2026-10-17T08:09:49.767Z",
+  "summary": "judgment-dag digestを再生成しREADME契約と整合。テストフィクスチャとforbidden_termsを補強。",
+  "recorded_at": "2026-10-17T08:16:55.810Z",
   "findings": [],
   "content_binding": {
     "schema_version": "0.1.0",
@@ -15,13 +15,13 @@
     "recorded_head_sha": null,
     "surface_files": [
       {
-        "path": "docs/management/customer-doc-ledger.json",
-        "sha256": "df5d37c6f279770049f19b7a7f7a7a14fe6d67ab97534dac60035f6c95c2e838",
-        "size": 2568
+        "path": "contracts/judgment-dag/digest.json",
+        "sha256": "eaa10770eea073bb0df34d6bab944ceb993a0e17b26844e6cbaf3262abdca711",
+        "size": 1121
       }
     ],
     "missing_files": [],
-    "surface_hash": "28ce322dcb5bd2753b5af6634dd2ed1332fa4c533bb796f5d8640d6036f5d60b"
+    "surface_hash": "a27853025a20c04d98a650e0db4307d04da572b6c20f45ba53fa032051e2142f"
   },
   "reviewer": {
     "system": null,

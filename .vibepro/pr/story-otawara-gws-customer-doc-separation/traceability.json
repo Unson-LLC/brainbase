@@ -25,7 +25,7 @@
   },
   "accepted_spec_lineage": {
     "status": "invalid",
-    "head_sha": "cc993f7c434849ee7eb0e31748284626b72a6e0c",
+    "head_sha": "5e8565145c6c991dc3b1ee02b4e92e6c8aba3efa",
     "spec_path": ".vibepro/spec/story-otawara-gws-customer-doc-separation/spec.json",
     "spec_blob_oid": "9382d7f508f31f4cefa2ef2ee2b2b794fd774245",
     "story_path": "docs/management/stories/active/story-otawara-gws-customer-doc-separation.md",
@@ -675,5 +675,5 @@
     "examples": []
   },
   "created_at": "2026-10-17T05:49:21.960Z",
-  "updated_at": "2026-10-17T08:09:49.964Z"
+  "updated_at": "2026-10-17T08:16:56.002Z"
 }

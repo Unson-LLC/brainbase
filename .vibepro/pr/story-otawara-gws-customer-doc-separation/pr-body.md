@@ -18,8 +18,8 @@ SSOT: local
 - no story document found (informational only; does not block PR creation)
 
 ### Acceptance criteria
-- accepted-spec lineage: invalid — `.vibepro/spec/story-otawara-gws-customer-doc-separation/spec.json` @ `9382d7f508f31f4cefa2ef2ee2b2b794fd774245` (HEAD `cc993f7c434849ee7eb0e31748284626b72a6e0c`)
-  - story: `docs/management/stories/active/story-otawara-gws-customer-doc-separation.md` @ `missing` (HEAD `cc993f7c434849ee7eb0e31748284626b72a6e0c`)
+- accepted-spec lineage: invalid — `.vibepro/spec/story-otawara-gws-customer-doc-separation/spec.json` @ `9382d7f508f31f4cefa2ef2ee2b2b794fd774245` (HEAD `5e8565145c6c991dc3b1ee02b4e92e6c8aba3efa`)
+  - story: `docs/management/stories/active/story-otawara-gws-customer-doc-separation.md` @ `missing` (HEAD `5e8565145c6c991dc3b1ee02b4e92e6c8aba3efa`)
   - reasons: story_not_in_head, unknown_story_ac, story_ref_missing
 - no acceptance criteria found in the story document
 
@@ -73,7 +73,7 @@ SSOT: local
 - recorded: true
 - complete: true
 - status: pass
-- reviewer: pass (current) — Unit testsの顧客フィクスチャをプレースホルダ化し、台帳走査を tests/** に拡張。GWS 設計文書と README を汎用ペルソナ表現に更新。
+- reviewer: pass (current) — judgment-dag digestを再生成しREADME契約と整合。テストフィクスチャとforbidden_termsを補強。
 - blocking reasons: none
 
 ### Changed files
@@ -99,6 +99,7 @@ SSOT: local
 - A	.vibepro/stories/story-otawara-gws-customer-doc-separation/tasks/tasks.json
 - A	.vibepro/stories/story-otawara-gws-customer-doc-separation/tasks/tasks.md
 - M	README.md
+- M	contracts/judgment-dag/digest.json
 - M	docs/architecture/google-workspace-local-onboarding.md
 - A	docs/management/customer-doc-ledger.json
 - M	docs/specs/google-workspace-local-onboarding-spec.md
@@ -107,6 +108,7 @@ SSOT: local
 - M	tests/cli.test.ts
 - A	tests/customer-doc-boundary.test.ts
 - M	tests/e2e/brainbase-mcp-only-acceptance.spec.ts
+- M	tests/e2e/google-workspace-local-onboarding-acceptance.spec.ts
 - M	tests/e2e/onboarding-project-registration-acceptance.spec.ts
 - M	tests/e2e/onboarding-routine-registration-acceptance.spec.ts
 - M	tests/e2e/onboarding-source-import-extract-acceptance.spec.ts
