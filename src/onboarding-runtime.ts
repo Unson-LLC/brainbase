@@ -59,10 +59,10 @@ export interface OnboardingPermissionSnapshot {
   projectCode?: string;
   roleMin?: string;
   sensitivity?: string;
-  scope?: string | string[];
+  scope?: string;
   scopes?: string[];
   roles?: string[];
-  clearance?: string;
+  clearance?: string[];
   authorizedAt?: string;
   expiresAt?: string;
 }
@@ -87,6 +87,16 @@ const PERMISSION_KEYS = new Set([
   'clearance', 'authorizedAt', 'expiresAt'
 ]);
 
+const PERMISSION_STRING_KEYS = new Set([
+  'visibility', 'collectedBy', 'provider', 'connectionId', 'grantId', 'accountId',
+  'folderId', 'projectCode', 'roleMin', 'sensitivity', 'scope', 'authorizedAt', 'expiresAt'
+]);
+const PERMISSION_STRING_LIST_KEYS = new Set(['scopes', 'roles', 'clearance']);
+const MAX_PERMISSION_ITEMS = 50;
+const MAX_PERMISSION_ITEM_LENGTH = 500;
+const MAX_FIRST_VALUE_ITEMS = 50;
+const MAX_FIRST_VALUE_ID_LENGTH = 200;
+
 function requiredText(value: unknown, field: string, maxLength = 1000): string {
   if (typeof value !== 'string' || !value.trim() || value.length > maxLength) {
     throw new Error(`onboarding contract field is invalid: ${field}`);
@@ -102,12 +112,15 @@ export function normalizeOnboardingPermissionSnapshot(value: unknown): Onboardin
   if (forbidden) throw new Error(`permissionSnapshot field is not allowed: ${forbidden}`);
   const output: Record<string, unknown> = {};
   for (const [key, child] of Object.entries(candidate)) {
-    if (child === null || ['string', 'number', 'boolean'].includes(typeof child)) {
-      output[key] = child;
-    } else if (Array.isArray(child) && child.length <= 50 && child.every((item) => typeof item === 'string' && item.length <= 500)) {
-      output[key] = [...child];
+    if (PERMISSION_STRING_KEYS.has(key)) {
+      output[key] = requiredText(child, `permissionSnapshot.${key}`, MAX_PERMISSION_ITEM_LENGTH);
+    } else if (PERMISSION_STRING_LIST_KEYS.has(key)
+      && Array.isArray(child)
+      && child.length <= MAX_PERMISSION_ITEMS
+      && child.every((item) => typeof item === 'string' && item.trim() && item.length <= MAX_PERMISSION_ITEM_LENGTH)) {
+      output[key] = child.map((item) => (item as string).trim());
     } else {
-      throw new Error(`permissionSnapshot.${key} must be scalar or bounded strings`);
+      throw new Error(`permissionSnapshot.${key} must be a bounded string or string list`);
     }
   }
   return output as OnboardingPermissionSnapshot;
@@ -134,16 +147,20 @@ export function normalizeFirstValueRecord(value: unknown): FirstValueRecordContr
   if (!/^sha256:[a-f0-9]{64}$/u.test(requiredText(candidate.answerHash, 'answerHash', 80))) {
     throw new Error('answerHash must be sha256:<hex>');
   }
-  if (!Array.isArray(candidate.usedCanonicalIds) || !candidate.usedCanonicalIds.every((item) => typeof item === 'string' && item.trim())) {
-    throw new Error('usedCanonicalIds must be a list of IDs');
-  }
+  const usedCanonicalIds = boundedStringList(candidate.usedCanonicalIds, 'usedCanonicalIds', MAX_FIRST_VALUE_ID_LENGTH);
   const missingContext = candidate.missingContext === undefined ? [] : candidate.missingContext;
-  if (!Array.isArray(missingContext) || !missingContext.every((item) => typeof item === 'string' && item.length <= 500)) {
-    throw new Error('missingContext must be bounded strings');
-  }
+  const normalizedMissingContext = boundedStringList(missingContext, 'missingContext', MAX_FIRST_VALUE_ID_LENGTH);
   return {
     answerHash: requiredText(candidate.answerHash, 'answerHash', 80),
-    usedCanonicalIds: [...candidate.usedCanonicalIds] as string[],
-    missingContext: [...missingContext] as string[]
+    usedCanonicalIds,
+    missingContext: normalizedMissingContext
   };
+}
+
+function boundedStringList(value: unknown, field: string, maxLength: number): string[] {
+  if (!Array.isArray(value) || value.length > MAX_FIRST_VALUE_ITEMS
+    || !value.every((item) => typeof item === 'string' && item.trim() && item.length <= maxLength)) {
+    throw new Error(`${field} must contain at most ${MAX_FIRST_VALUE_ITEMS} bounded strings`);
+  }
+  return value.map((item) => (item as string).trim());
 }

@@ -88,6 +88,12 @@ describe('stage3b common exports', () => {
     expect(normalizeFirstValueRecord({ answerHash: `sha256:${'c'.repeat(64)}`, usedCanonicalIds: ['person-1'] })).toMatchObject({ missingContext: [] });
     expect(FIRST_VALUE_PRESENTATION_CONTRACT.sections).toEqual(['覚えていたこと', 'つながったこと', '次にできること']);
     expect(() => normalizeOnboardingPermissionSnapshot({ password: 'secret' })).toThrow(/forbidden|not allowed|secret/i);
+    expect(() => normalizeOnboardingPermissionSnapshot({ visibility: true })).toThrow(/invalid|bounded string/i);
+    expect(() => normalizeOnboardingPermissionSnapshot({ clearance: 'internal' })).toThrow(/bounded string/i);
+    expect(() => normalizeOnboardingPermissionSnapshot({ scopes: ['read', ...Array.from({ length: 50 }, () => 'read')] })).toThrow(/bounded string|items/i);
+    expect(() => normalizeFirstValueRecord({ answerHash: `sha256:${'c'.repeat(64)}`, usedCanonicalIds: Array.from({ length: 51 }, () => 'id') })).toThrow(/at most 50/i);
+    expect(() => normalizeFirstValueRecord({ answerHash: `sha256:${'c'.repeat(64)}`, usedCanonicalIds: ['x'.repeat(201)] })).toThrow(/at most 50|bounded/i);
+    expect(() => normalizeFirstValueRecord({ answerHash: `sha256:${'c'.repeat(64)}`, usedCanonicalIds: ['id'], missingContext: Array.from({ length: 51 }, () => 'context') })).toThrow(/at most 50/i);
   });
 
   it('describes local MCP and separates tool completion from verification', () => {
