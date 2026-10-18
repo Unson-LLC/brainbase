@@ -1,4 +1,5 @@
-import { readFile } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -11,7 +12,28 @@ async function importExport(manifest: { exports: Record<string, { import: string
 }
 
 describe('Stage 3 common contract package exports', () => {
-    it('publishes run receipt, routines, automation run, and meeting components as independent subpaths', async () => {
+    it('publishes the stage 3b host-common contracts as independent subpaths', async () => {
+        const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+        for (const subpath of [
+            './knowledge-capture-preview', './knowledge-promotion', './knowledge-event', './mesh',
+            './honcho', './onboarding-runtime', './mcp-runtime'
+        ]) {
+            expect(manifest.exports[subpath]).toEqual({
+                types: `./dist/${subpath.slice(2)}.d.ts`,
+                import: `./dist/${subpath.slice(2)}.js`
+            });
+            const module = await importExport(manifest, subpath);
+            expect(Object.keys(module).length).toBeGreaterThan(0);
+        }
+        const capture = await importExport(manifest, './knowledge-capture-preview');
+        expect(typeof capture.validateCaptureProposal).toBe('function');
+        expect(typeof capture.validatePreviewAnswer).toBe('function');
+        const promotion = await importExport(manifest, './knowledge-promotion');
+        expect(typeof promotion.normalizePromotionPayload).toBe('function');
+        expect(typeof promotion.KnowledgePromotionService).toBe('function');
+    }, 30_000);
+
+    it('publishes run receipt and meeting automation as independent subpaths', async () => {
         const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
 
         expect(manifest.exports['./run-receipt']).toEqual({
@@ -69,4 +91,19 @@ describe('Stage 3 common contract package exports', () => {
         expect(typeof sourceSync.normalizeMeetingSourceArtifact).toBe('function');
         expect(typeof sourceSync.runMeetingSourceSync).toBe('function');
     });
+
+    it('keeps onboarding-runtime importable from an isolated package tree', async () => {
+        const isolatedRoot = await mkdtemp(path.join(os.tmpdir(), 'brainbase-stage3b-onboarding-'));
+        try {
+            await cp(path.join(root, 'dist'), path.join(isolatedRoot, 'dist'), { recursive: true });
+            await writeFile(path.join(isolatedRoot, 'package.json'), '{"type":"module"}\n');
+
+            const onboarding = await import(
+                pathToFileURL(path.join(isolatedRoot, 'dist/onboarding-runtime.js')).href,
+            );
+            expect(typeof onboarding.normalizeFirstValueRecord).toBe('function');
+        } finally {
+            await rm(isolatedRoot, { recursive: true, force: true });
+        }
+    }, 30_000);
 });

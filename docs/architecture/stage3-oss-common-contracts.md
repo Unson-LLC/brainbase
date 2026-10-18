@@ -6,6 +6,8 @@
 
 3bは既存の`personal-knowledge`、`knowledge-promotion`、`personal-memory`、`routines`がcanonicalである。Personal KGはADR-003 D4に従い、旧vaultを新しい正本へ変更しない。
 
+`onboarding-runtime` のcandidate distは実行時依存を同じpackへbundleする。consumerは`node_modules`の別配置で依存を補完せず、packを隔離したinstall treeへ展開して実ファイルをimportできることを確認する。
+
 ## Boundaries
 
 - `src/run-receipt.ts`は入力を検証して、immutable payload、決定的identity、WMC projectionを返す。DB、HTTP、queue、provider呼び出しを持たない。
