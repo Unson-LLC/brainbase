@@ -55,6 +55,10 @@ class MemoryJournal implements JudgmentLifecycleJournalPort {
   events: JudgmentLifecycleToolEvent[] = [];
   final: JudgmentLifecycleFinalReceipt | null = null;
 
+  withLock<T>(_identity: JudgmentLifecycleIdentity, operation: () => T): T {
+    return operation();
+  }
+
   readEpisode(): JudgmentLifecycleEpisode | null {
     return this.episode;
   }

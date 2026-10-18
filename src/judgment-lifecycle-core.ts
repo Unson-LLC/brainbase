@@ -107,7 +107,8 @@ export interface JudgmentLifecycleBlock {
 }
 
 export interface JudgmentLifecycleJournalPort {
-  /** The implementation owns locking, validation, and canonical writes. */
+  /** The implementation owns the turn lock, validation, and canonical writes. */
+  withLock<T>(identity: JudgmentLifecycleIdentity, operation: () => MaybePromise<T>): MaybePromise<T>;
   readEpisode(identity: JudgmentLifecycleIdentity): MaybePromise<JudgmentLifecycleEpisode | null>;
   writeEpisode(episode: JudgmentLifecycleEpisode): MaybePromise<void>;
   readEvents(identity: JudgmentLifecycleIdentity): MaybePromise<readonly JudgmentLifecycleToolEvent[]>;
@@ -592,97 +593,103 @@ export function createJudgmentLifecycleCore(ports: JudgmentLifecyclePorts): Judg
         session_ref: request.conversation_context.session_ref,
         turn_id: request.turn_id
       };
-      const existing = await ports.journal.readEpisode(identity);
-      if (existing) {
-        assertIdentity(existing, identity);
-        if (existing.request_text_digest !== sha256Hex(request.request)
-          || existing.initial_receipt_digest !== sha256Hex(canonicalJson(existing.adoption.receipt))) {
-          throw new Error('judgment_episode_binding_mismatch');
+      return ports.journal.withLock(identity, async () => {
+        const existing = await ports.journal.readEpisode(identity);
+        if (existing) {
+          assertIdentity(existing, identity);
+          if (existing.request_text_digest !== sha256Hex(request.request)
+            || existing.initial_receipt_digest !== sha256Hex(canonicalJson(existing.adoption.receipt))) {
+            throw new Error('judgment_episode_binding_mismatch');
+          }
+          if (existing.adoption.request.conversation_context.source_digest !== request.conversation_context.source_digest) {
+            throw new Error('judgment_episode_request_conflict');
+          }
+          return existing;
         }
-        if (existing.adoption.request.conversation_context.source_digest !== request.conversation_context.source_digest) {
-          throw new Error('judgment_episode_request_conflict');
-        }
-        return existing;
-      }
-      const receipt = assertReceiptForRequest(await ports.resolver.resolve(request), request);
-      const episode = createJudgmentEpisode({
-        request,
-        receipt,
-        accepted_at: input.accepted_at
+        const receipt = assertReceiptForRequest(await ports.resolver.resolve(request), request);
+        const episode = createJudgmentEpisode({
+          request,
+          receipt,
+          accepted_at: input.accepted_at
+        });
+        await ports.journal.writeEpisode(episode);
+        return episode;
       });
-      await ports.journal.writeEpisode(episode);
-      return episode;
     },
 
     async recordToolEvent(input) {
-      if (!input.eligible) return null;
       const identity = input.identity;
-      const episode = await ports.journal.readEpisode(identity);
-      if (!episode) throw new Error('judgment_orphan_post_tool_use');
-      assertIdentity(episode, identity);
-      const existingFinal = await ports.journal.readFinal(identity);
-      if (existingFinal) throw new Error('judgment_episode_already_finalized');
-      const events = [...await ports.journal.readEvents(identity)];
-      const fingerprint = eventInputFingerprint(input);
-      const replay = events.find((event) => event.tool_use_id === input.tool_use_id);
-      if (replay) {
-        assertEventIdentity(replay, identity);
-        if (replay.event_fingerprint !== fingerprint) throw new Error('judgment_tool_event_conflict');
-        return replay;
-      }
-      const event = createJudgmentToolEvent({
-        session_ref: identity.session_ref,
-        turn_id: identity.turn_id,
-        sequence: events.length + 1,
-        recorded_at: input.recorded_at,
-        tool_use_id: input.tool_use_id,
-        tool_name: input.tool_name,
-        tool_input: input.tool_input,
-        tool_response: input.tool_response,
-        audit_kind: input.audit_kind,
-        success: input.success,
-        satisfies: input.satisfies,
-        display_line: input.display_line
+      if (!input.eligible) return null;
+      return ports.journal.withLock(identity, async () => {
+        const episode = await ports.journal.readEpisode(identity);
+        if (!episode) throw new Error('judgment_orphan_post_tool_use');
+        assertIdentity(episode, identity);
+        const existingFinal = await ports.journal.readFinal(identity);
+        if (existingFinal) throw new Error('judgment_episode_already_finalized');
+        const events = [...await ports.journal.readEvents(identity)];
+        const fingerprint = eventInputFingerprint(input);
+        const replay = events.find((event) => event.tool_use_id === input.tool_use_id);
+        if (replay) {
+          assertEventIdentity(replay, identity);
+          if (replay.event_fingerprint !== fingerprint) throw new Error('judgment_tool_event_conflict');
+          return replay;
+        }
+        const event = createJudgmentToolEvent({
+          session_ref: identity.session_ref,
+          turn_id: identity.turn_id,
+          sequence: events.length + 1,
+          recorded_at: input.recorded_at,
+          tool_use_id: input.tool_use_id,
+          tool_name: input.tool_name,
+          tool_input: input.tool_input,
+          tool_response: input.tool_response,
+          audit_kind: input.audit_kind,
+          success: input.success,
+          satisfies: input.satisfies,
+          display_line: input.display_line
+        });
+        await ports.journal.appendEvent(identity, event);
+        return event;
       });
-      await ports.journal.appendEvent(identity, event);
-      return event;
     },
 
     async finalize(input) {
       const identity = input.identity;
-      const episode = await ports.journal.readEpisode(identity);
-      if (!episode) throw new Error('judgment_orphan_stop');
-      assertIdentity(episode, identity);
-      const events = [...await ports.journal.readEvents(identity)];
-      events.forEach((event) => assertEventIdentity(event, identity));
-      const existing = await ports.journal.readFinal(identity);
-      if (existing) {
-        if (!finalMatches(existing, episode, events, input.answer)) throw new Error('judgment_final_conflict');
-        if (ports.transport) {
-          await ports.transport.enqueueFinalized({ episode, final: existing, answer: input.answer });
+      return ports.journal.withLock(identity, async () => {
+        const episode = await ports.journal.readEpisode(identity);
+        if (!episode) throw new Error('judgment_orphan_stop');
+        assertIdentity(episode, identity);
+        const events = [...await ports.journal.readEvents(identity)];
+        events.forEach((event) => assertEventIdentity(event, identity));
+        const existing = await ports.journal.readFinal(identity);
+        if (existing) {
+          if (!finalMatches(existing, episode, events, input.answer)) throw new Error('judgment_final_conflict');
+          if (ports.transport) {
+            await ports.transport.enqueueFinalized({ episode, final: existing, answer: input.answer });
+          }
+          return existing;
         }
-        return existing;
-      }
-      if (!input.audit.complete) {
-        return {
-          decision: 'block',
-          block_kind: 'audit_repair',
-          reason: input.audit.reason
-            ?? 'Brainbase judgment episodeを完了する前に監査行と回答本文を確認してください。'
-        };
-      }
-      const final = createJudgmentFinalReceipt({
-        episode,
-        events,
-        finalized_at: input.finalized_at,
-        answer: input.answer,
-        owner_audit_line_count: input.audit.line_count
+        if (!input.audit.complete) {
+          return {
+            decision: 'block',
+            block_kind: 'audit_repair',
+            reason: input.audit.reason
+              ?? 'Brainbase judgment episodeを完了する前に監査行と回答本文を確認してください。'
+          };
+        }
+        const final = createJudgmentFinalReceipt({
+          episode,
+          events,
+          finalized_at: input.finalized_at,
+          answer: input.answer,
+          owner_audit_line_count: input.audit.line_count
+        });
+        await ports.journal.writeFinal(final);
+        if (ports.transport) {
+          await ports.transport.enqueueFinalized({ episode, final, answer: input.answer });
+        }
+        return final;
       });
-      await ports.journal.writeFinal(final);
-      if (ports.transport) {
-        await ports.transport.enqueueFinalized({ episode, final, answer: input.answer });
-      }
-      return final;
     }
   };
 }
