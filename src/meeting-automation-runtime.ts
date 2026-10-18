@@ -29,6 +29,8 @@ export interface MeetingAutomationRuntimeInput {
 export interface MeetingAutomationRuntimeRecord {
   readonly record_id: string;
   readonly idempotency_key: string;
+  /** Fingerprint of the normalized package before owner resolution. */
+  readonly input_fingerprint?: string;
   readonly fingerprint: string;
   readonly org_id: string;
   readonly project_id: string;
@@ -39,15 +41,47 @@ export interface MeetingAutomationRuntimeRecord {
   readonly actor_id: string | null;
 }
 
+export interface MeetingAutomationRuntimeExecution {
+  readonly record: MeetingAutomationRuntimeRecord;
+  readonly attempts: number;
+  readonly workflow: UnknownRecord | null;
+  readonly knowledge: UnknownRecord | null;
+}
+
+export interface MeetingAutomationRuntimeClaimRequest {
+  readonly idempotency_key: string;
+  readonly fingerprint: string;
+  readonly scope: { readonly org_id: string; readonly project_id: string };
+  readonly execute: () => MaybePromise<MeetingAutomationRuntimeExecution>;
+}
+
+export interface MeetingAutomationRuntimeClaimResult {
+  readonly status: 'persisted' | 'replayed';
+  readonly execution: MeetingAutomationRuntimeExecution;
+}
+
 export interface MeetingAutomationRuntimePorts {
   readonly ledger: {
+    /**
+     * Atomically claims an idempotency key, executes the complete workflow,
+     * and returns the durable execution on both the winner and replayers.
+     * The host must back this with a durable transaction/claim, not a local
+     * in-memory lock.
+     */
+    readonly claimOrReplay: (request: MeetingAutomationRuntimeClaimRequest) => MaybePromise<MeetingAutomationRuntimeClaimResult>;
     findByIdempotencyKey?: (key: string, scope: { org_id: string; project_id: string }) => MaybePromise<MeetingAutomationRuntimeRecord | null>;
     save: (record: MeetingAutomationRuntimeRecord) => MaybePromise<MeetingAutomationRuntimeRecord | void>;
-    readback?: (recordId: string, scope: { org_id: string; project_id: string }) => MaybePromise<MeetingAutomationRuntimeRecord | null>;
+    readonly readback: (recordId: string, scope: { org_id: string; project_id: string }) => MaybePromise<MeetingAutomationRuntimeRecord | null>;
   };
   readonly resolveTaskOwners?: (input: UnknownRecord, context: UnknownRecord) => MaybePromise<UnknownRecord>;
   readonly prepareWorkflow?: (input: UnknownRecord) => MaybePromise<UnknownRecord | void>;
   readonly bridgeKnowledge?: (input: UnknownRecord) => MaybePromise<UnknownRecord | void>;
+  /**
+   * The host implements this with a durable post-commit outbox/effect ledger.
+   * It must persist the effect key across worker restarts; a process-local
+   * mutex is not sufficient for knowledge bridge idempotency.
+   */
+  readonly runOnce?: <T>(effectKey: string, effect: () => MaybePromise<T>) => MaybePromise<T>;
   readonly now?: () => Date;
   readonly max_attempts?: number;
   readonly is_retryable?: (error: unknown) => boolean;
@@ -155,74 +189,194 @@ export async function runMeetingAutomationRuntime(
   if (!ports?.ledger || typeof ports.ledger.save !== 'function') {
     throw new MeetingAutomationRuntimeError('invalid_ports', 'a meeting review ledger save port is required');
   }
+  if (typeof ports.ledger.claimOrReplay !== 'function' || typeof ports.ledger.readback !== 'function') {
+    throw new MeetingAutomationRuntimeError(
+      'invalid_ports',
+      'meeting review ledger claimOrReplay and durable readback ports are required',
+    );
+  }
   const normalizedPackage = normalizeReviewPackage(input);
+  // Keep the incoming contract separate from the persisted post-owner
+  // fingerprint. Owner resolution may add fields, while an explicit
+  // idempotency key must still reject a replay carrying a different input
+  // package. Ingestion time is intentionally excluded.
+  const inputFingerprint = digest({ org_id: orgId, project_id: projectId, review_package: normalizedPackage });
+
+  // An explicit key can be replayed before owner/Graph work.  This keeps a
+  // duplicate delivery from doing any host-side resolution while the atomic
+  // claim below remains the authority for a concurrent miss.
+  const explicitIdempotencyKey = typeof input.idempotency_key === 'string' && input.idempotency_key.trim()
+    ? input.idempotency_key.trim()
+    : null;
+  const earlyReplay = explicitIdempotencyKey && ports.ledger.findByIdempotencyKey
+    ? await ports.ledger.findByIdempotencyKey(explicitIdempotencyKey, { org_id: orgId, project_id: projectId })
+    : null;
+  if (earlyReplay) {
+    const readback = await ports.ledger.readback(earlyReplay.record_id, { org_id: orgId, project_id: projectId });
+    if (!readback) {
+      throw new MeetingAutomationRuntimeError('readback_mismatch', 'meeting automation ledger replay was not durable', {
+        record_id: earlyReplay.record_id,
+      });
+    }
+    if (readback.input_fingerprint && readback.input_fingerprint !== inputFingerprint) {
+      throw new MeetingAutomationRuntimeError('idempotency_conflict', 'meeting automation replay input differs from the claimed key', {
+        idempotency_key: explicitIdempotencyKey,
+      });
+    }
+    const replayPackage = readback.review_package as MeetingReviewPackage;
+    const verified = verifyMeetingReviewPackage({
+      repository: input.loop_intent_repository,
+      reviewPackage: replayPackage,
+      orgId,
+      projectId,
+    });
+    if (readback.idempotency_key !== explicitIdempotencyKey) {
+      throw new MeetingAutomationRuntimeError('idempotency_conflict', 'idempotency key replay returned a different key', {
+        idempotency_key: explicitIdempotencyKey,
+      });
+    }
+    const knowledge = await runKnowledgeBridge({
+      ports,
+      orgId,
+      projectId,
+      reviewPackage: replayPackage,
+      record: readback,
+      idempotencyKey: explicitIdempotencyKey,
+    });
+    return {
+      status: 'replayed',
+      idempotent: true,
+      attempts: 0,
+      record: readback,
+      readback,
+      verified,
+      workflow: null,
+      knowledge,
+    };
+  }
+
   const ownerResolved = ports.resolveTaskOwners
     ? await ports.resolveTaskOwners({ task_candidates: normalizedPackage.task_candidates }, { org_id: orgId, project_id: projectId })
     : null;
   const reviewPackageWithOwners = ownerResolved?.task_candidates
     ? { ...normalizedPackage, task_candidates: ownerResolved.task_candidates }
     : normalizedPackage;
+  // Owner resolution is an injected host port.  Re-run the candidate input
+  // contract after it returns so a resolver cannot replace the normalized
+  // package with an invalid candidate shape before the review verification.
+  assertMeetingCandidatesInput(reviewPackageWithOwners);
   const verified = verifyMeetingReviewPackage({
     repository: input.loop_intent_repository,
-    reviewPackage: normalizedPackage as MeetingReviewPackage,
+    // Owner resolution changes the contract being persisted.  Verify the
+    // resolved package itself so an injected/host resolver cannot bypass the
+    // review-package contract.
+    reviewPackage: reviewPackageWithOwners as MeetingReviewPackage,
     orgId,
     projectId,
   });
   const fingerprint = digest({ org_id: orgId, project_id: projectId, review_package: reviewPackageWithOwners });
-  const idempotencyKey = typeof input.idempotency_key === 'string' && input.idempotency_key.trim()
-    ? input.idempotency_key.trim()
+  const idempotencyKey = explicitIdempotencyKey
+    ? explicitIdempotencyKey
     : `meeting-review:${orgId}:${projectId}:${fingerprint}`;
   const scope = { org_id: orgId, project_id: projectId };
-  const replay = await ports.ledger.findByIdempotencyKey?.(idempotencyKey, scope);
-  if (replay) {
-    const readback = await ports.ledger.readback?.(replay.record_id, scope) ?? replay;
-    if (readback.fingerprint !== fingerprint) {
-      throw new MeetingAutomationRuntimeError('idempotency_conflict', 'idempotency key is already bound to a different review package', {
-        idempotency_key: idempotencyKey,
-      });
-    }
-    return {
-      status: 'replayed',
-      idempotent: true,
-      attempts: 0,
-      record: replay,
-      readback,
-      verified,
-      workflow: null,
-      knowledge: null,
-    };
-  }
 
-  const workflow = await ports.prepareWorkflow?.({ org_id: orgId, project_id: projectId, review_package: reviewPackageWithOwners }) ?? null;
-  const knowledge = await ports.bridgeKnowledge?.({ org_id: orgId, project_id: projectId, review_package: reviewPackageWithOwners }) ?? null;
-  const now = (ports.now ?? (() => new Date()))().toISOString();
-  const record: MeetingAutomationRuntimeRecord = {
-    record_id: `mrev_${fingerprint.slice(0, 32)}`,
+  const claim = await ports.ledger.claimOrReplay({
     idempotency_key: idempotencyKey,
     fingerprint,
-    org_id: orgId,
-    project_id: projectId,
-    state: 'waiting_human',
-    review_package: reviewPackageWithOwners,
-    verified_loop_intents: verified.loopIntents.map(({ loop_intent }) => String(loop_intent.id ?? '')),
-    created_at: now,
-    actor_id: input.actor_id ?? null,
-  };
-  const persisted = await saveWithRetry(record, ports);
-  const readback = await ports.ledger.readback?.(persisted.record.record_id, scope) ?? persisted.record;
-  if (readback.fingerprint !== persisted.record.fingerprint) {
-    throw new MeetingAutomationRuntimeError('readback_mismatch', 'meeting automation ledger readback did not match the persisted record', {
-      record_id: persisted.record.record_id,
+    scope,
+    execute: async () => {
+      const workflow = await ports.prepareWorkflow?.({
+        org_id: orgId,
+        project_id: projectId,
+        review_package: reviewPackageWithOwners,
+        idempotency_key: idempotencyKey,
+      }) ?? null;
+      const now = (ports.now ?? (() => new Date()))().toISOString();
+      const record: MeetingAutomationRuntimeRecord = {
+        record_id: `mrev_${fingerprint.slice(0, 32)}`,
+        idempotency_key: idempotencyKey,
+        input_fingerprint: inputFingerprint,
+        fingerprint,
+        org_id: orgId,
+        project_id: projectId,
+        state: 'waiting_human',
+        review_package: reviewPackageWithOwners,
+        verified_loop_intents: verified.loopIntents.map(({ loop_intent }) => String(loop_intent.id ?? '')),
+        created_at: now,
+        actor_id: input.actor_id ?? null,
+      };
+      const persisted = await saveWithRetry(record, ports);
+      return {
+        record: persisted.record,
+        attempts: persisted.attempts,
+        workflow,
+        knowledge: null,
+      };
+    },
+  });
+  const execution = claim.execution;
+  if (execution.record.input_fingerprint && execution.record.input_fingerprint !== inputFingerprint) {
+    throw new MeetingAutomationRuntimeError('idempotency_conflict', 'meeting automation claim returned a different input package', {
+      idempotency_key: idempotencyKey,
     });
   }
+  const readback = await ports.ledger.readback(execution.record.record_id, scope);
+  if (!readback || readback.fingerprint !== execution.record.fingerprint) {
+    throw new MeetingAutomationRuntimeError('readback_mismatch', 'meeting automation ledger readback did not match the persisted record', {
+      record_id: execution.record.record_id,
+    });
+  }
+  const knowledge = await runKnowledgeBridge({
+    ports,
+    orgId,
+    projectId,
+    reviewPackage: execution.record.review_package as MeetingReviewPackage,
+    record: readback,
+    idempotencyKey,
+  });
   return {
-    status: 'persisted',
-    idempotent: false,
-    attempts: persisted.attempts,
-    record: persisted.record,
+    status: claim.status,
+    idempotent: claim.status === 'replayed',
+    attempts: claim.status === 'replayed' ? 0 : execution.attempts,
+    record: execution.record,
     readback,
     verified,
-    workflow,
+    workflow: claim.status === 'replayed' ? null : execution.workflow,
     knowledge,
   };
+}
+
+async function runKnowledgeBridge({
+  ports,
+  orgId,
+  projectId,
+  reviewPackage,
+  record,
+  idempotencyKey,
+}: {
+  ports: MeetingAutomationRuntimePorts;
+  orgId: string;
+  projectId: string;
+  reviewPackage: MeetingReviewPackage;
+  record: MeetingAutomationRuntimeRecord;
+  idempotencyKey: string;
+}): Promise<UnknownRecord | null> {
+  if (!ports.bridgeKnowledge) return null;
+  if (!ports.runOnce) {
+    throw new MeetingAutomationRuntimeError(
+      'invalid_ports',
+      'meeting automation knowledge bridge requires a durable post-commit runOnce port',
+    );
+  }
+  const knowledge = await ports.runOnce(
+    `meeting-review:${idempotencyKey}:knowledge-bridge`,
+    () => ports.bridgeKnowledge?.({
+      org_id: orgId,
+      project_id: projectId,
+      review_package: reviewPackage,
+      record,
+      idempotency_key: idempotencyKey,
+    }) ?? null,
+  );
+  return (knowledge ?? null) as UnknownRecord | null;
 }

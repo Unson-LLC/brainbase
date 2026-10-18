@@ -14,7 +14,7 @@ export interface MeetingSourceArtifact extends UnknownRecord {
   readonly meeting_mode: string;
   readonly started_at: string | null;
   readonly ended_at: string | null;
-  readonly updated_at: string;
+  readonly updated_at: string | null;
   readonly participants: readonly unknown[];
   readonly mcp_resource_uri: string;
   readonly transcript_hash: string | null;
@@ -37,12 +37,26 @@ export interface MeetingSourceCluster {
   readonly meeting_mode: string;
 }
 
+export interface MeetingSourceSyncClaimRequest {
+  readonly idempotency_key: string;
+  /** Fingerprint of the provider/window request, computed before provider I/O. */
+  readonly fingerprint: string;
+  readonly execute: () => MaybePromise<MeetingSourceSyncResult>;
+}
+
+export interface MeetingSourceSyncClaimResult {
+  readonly status: 'persisted' | 'replayed';
+  readonly result: MeetingSourceSyncResult;
+}
+
 export interface MeetingSourceSyncPorts {
   readonly provider: (input: { provider: MeetingSourceProvider; cursor: UnknownRecord; since?: string | null; until?: string | null }) => MaybePromise<readonly UnknownRecord[]>;
   readonly sink: {
+    /** Durable idempotency claim enclosing provider fetch, save and retry. */
+    readonly claimOrReplay: (request: MeetingSourceSyncClaimRequest) => MaybePromise<MeetingSourceSyncClaimResult>;
     findByIdempotencyKey?: (key: string) => MaybePromise<MeetingSourceSyncResult | null>;
     save: (result: MeetingSourceSyncResult) => MaybePromise<MeetingSourceSyncResult | void>;
-    readback?: (idempotencyKey: string) => MaybePromise<MeetingSourceSyncResult | null>;
+    readonly readback: (idempotencyKey: string) => MaybePromise<MeetingSourceSyncResult | null>;
   };
   readonly now?: () => Date;
   readonly max_attempts?: number;
@@ -52,6 +66,8 @@ export interface MeetingSourceSyncPorts {
 export interface MeetingSourceSyncResult {
   readonly schema_version: typeof MEETING_SOURCE_SYNC_VERSION;
   readonly idempotency_key: string;
+  /** Fingerprint of provider/window input; excludes wall-clock ingestion time. */
+  readonly input_fingerprint?: string;
   readonly provider: MeetingSourceProvider;
   readonly artifacts: readonly MeetingSourceArtifact[];
   readonly clusters: readonly MeetingSourceCluster[];
@@ -66,8 +82,11 @@ function stable(value: unknown): unknown {
   return Object.fromEntries(Object.keys(value as UnknownRecord).sort().map((key) => [key, stable((value as UnknownRecord)[key])]));
 }
 
-export function stableMeetingSourceHash(value: unknown): string {
-  return createHash('sha256').update(String(value || '')).digest('hex');
+export function stableMeetingSourceHash(value: string): string {
+  if (typeof value !== 'string') {
+    throw new TypeError('stableMeetingSourceHash accepts text only; use stableMeetingSourceFingerprint for objects');
+  }
+  return createHash('sha256').update(value).digest('hex');
 }
 
 function stableMeetingSourceFingerprint(value: unknown): string {
@@ -136,7 +155,11 @@ function completenessScore(artifact: MeetingSourceArtifact): number {
   return (artifact.has_text ? 4 : 0) + (artifact.started_at ? 2 : 0) + (artifact.ended_at ? 1 : 0) + (artifact.participants.length ? 1 : 0) + (artifact.title ? 1 : 0) + (artifact.mcp_resource_uri ? 1 : 0);
 }
 
-export function normalizeMeetingSourceArtifact(raw: UnknownRecord = {}, providerInput: unknown = raw.provider): MeetingSourceArtifact {
+export function normalizeMeetingSourceArtifact(
+  raw: UnknownRecord = {},
+  providerInput: unknown = raw.provider,
+  _options: { readonly now?: () => Date } = {},
+): MeetingSourceArtifact {
   const provider = safeProvider(providerInput);
   const transcript = transcriptSegmentsToText(raw.text ?? raw.transcript ?? raw.transcript_text ?? '');
   const normalizedText = normalizeMultilineText(transcript);
@@ -144,11 +167,15 @@ export function normalizeMeetingSourceArtifact(raw: UnknownRecord = {}, provider
   const startedAt = typeof (raw.started_at ?? raw.start_time ?? raw.created_at ?? raw.recorded_at) === 'string' ? String(raw.started_at ?? raw.start_time ?? raw.created_at ?? raw.recorded_at) : null;
   const title = normalizeWhitespace(raw.title ?? raw.meeting_title ?? raw.name ?? 'Untitled meeting source');
   const participants = Array.isArray(raw.participants) ? raw.participants : [];
-  const resourceUri = String(raw.mcp_resource_uri ?? raw.resource_uri ?? raw.url ?? raw.permalink ?? raw.file_url ?? `${provider}:${raw.id ?? raw.external_id ?? stableMeetingSourceHash(JSON.stringify(raw)).slice(0, 16)}`);
+  const resourceUri = String(raw.mcp_resource_uri ?? raw.resource_uri ?? raw.url ?? raw.permalink ?? raw.file_url ?? `${provider}:${raw.id ?? raw.external_id ?? stableMeetingSourceFingerprint(raw).slice(0, 16)}`);
   const externalId = String(raw.external_id ?? raw.id ?? stableMeetingSourceHash(`${provider}:${resourceUri}`).slice(0, 24));
   const transcriptHash = normalizedText ? stableMeetingSourceHash(normalizedText) : null;
   const sourceTextKind = normalizedText ? 'transcript' : (providerNote ? 'provider_note_available' : 'empty');
-  const updatedAt = String(raw.updated_at ?? raw.modified_at ?? raw.created_at ?? startedAt ?? new Date().toISOString());
+  // A wall-clock fallback makes identical provider payloads conflict on a
+  // retry.  Preserve provider/start timestamps and use a stable null when no
+  // source timestamp exists; the sync result's synced_at remains clock-owned.
+  const updatedAtValue = raw.updated_at ?? raw.modified_at ?? raw.created_at ?? startedAt ?? null;
+  const updatedAt = typeof updatedAtValue === 'string' && updatedAtValue.trim() ? updatedAtValue : null;
   return {
     provider,
     external_id: externalId,
@@ -212,28 +239,59 @@ export async function runMeetingSourceSync(
 ): Promise<MeetingSourceSyncResult> {
   const provider = safeProvider(input.provider);
   const cursor = input.cursor ?? {};
-  const rawArtifacts = await ports.provider({ provider, cursor, since: input.since, until: input.until });
-  const artifacts = rawArtifacts.map((raw) => normalizeMeetingSourceArtifact(raw, provider));
-  const clusters = dedupeMeetingSourceArtifacts(artifacts);
-  const nextCursor = providerCursorAfterArtifacts(artifacts, cursor);
-  const idempotencyKey = input.idempotency_key ?? `meeting-source:${provider}:${stableMeetingSourceFingerprint({ artifacts, cursor: nextCursor })}`;
-  const fingerprint = stableMeetingSourceFingerprint({ provider, artifacts, clusters, cursor: nextCursor });
-  const replay = await ports.sink.findByIdempotencyKey?.(idempotencyKey);
-  if (replay) {
-    if (replay.fingerprint !== fingerprint) throw new Error('meeting source sync idempotency conflict');
-    return replay;
+  if (!ports?.sink?.claimOrReplay || !ports?.sink?.readback || !ports?.sink?.save) {
+    throw new Error('meeting source sync requires durable claimOrReplay, save and readback ports');
   }
-  const result: MeetingSourceSyncResult = { schema_version: MEETING_SOURCE_SYNC_VERSION, idempotency_key: idempotencyKey, provider, artifacts, clusters, cursor: nextCursor, synced_at: (ports.now ?? (() => new Date()))().toISOString(), fingerprint };
-  const maxAttempts = Math.max(1, Math.min(5, ports.max_attempts ?? 2));
-  let saved: MeetingSourceSyncResult | void = undefined;
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    try { saved = await ports.sink.save(result); break; }
-    catch (error) {
-      if (!(ports.is_retryable?.(error) ?? Boolean((error as { retryable?: boolean } | null)?.retryable)) || attempt >= maxAttempts) throw error;
-    }
+  // The request key is deterministic without reading the provider.  Provider
+  // I/O therefore runs inside the durable claim and cannot be duplicated by
+  // two workers racing on the same cursor window.
+  const idempotencyKey = input.idempotency_key?.trim()
+    || `meeting-source:${provider}:${stableMeetingSourceFingerprint({ cursor, since: input.since ?? null, until: input.until ?? null })}`;
+  const inputFingerprint = stableMeetingSourceFingerprint({
+    provider,
+    cursor,
+    since: input.since ?? null,
+    until: input.until ?? null,
+  });
+  const claim = await ports.sink.claimOrReplay({
+    idempotency_key: idempotencyKey,
+    fingerprint: inputFingerprint,
+    execute: async () => {
+      const rawArtifacts = await ports.provider({ provider, cursor, since: input.since, until: input.until });
+      const artifacts = rawArtifacts.map((raw) => normalizeMeetingSourceArtifact(raw, provider, { now: ports.now }));
+      const clusters = dedupeMeetingSourceArtifacts(artifacts);
+      const nextCursor = providerCursorAfterArtifacts(artifacts, cursor);
+      // updated_at may be null when the provider does not expose a timestamp;
+      // it is intentionally excluded from a separate identity projection so
+      // a retry at a different wall-clock time keeps the same fingerprint.
+      const fingerprint = stableMeetingSourceFingerprint({ provider, artifacts, clusters, cursor: nextCursor });
+      const result: MeetingSourceSyncResult = {
+        schema_version: MEETING_SOURCE_SYNC_VERSION,
+        idempotency_key: idempotencyKey,
+        input_fingerprint: inputFingerprint,
+        provider,
+        artifacts,
+        clusters,
+        cursor: nextCursor,
+        synced_at: (ports.now ?? (() => new Date()))().toISOString(),
+        fingerprint,
+      };
+      const maxAttempts = Math.max(1, Math.min(5, ports.max_attempts ?? 2));
+      let saved: MeetingSourceSyncResult | void = undefined;
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        try { saved = await ports.sink.save(result); break; }
+        catch (error) {
+          if (!(ports.is_retryable?.(error) ?? Boolean((error as { retryable?: boolean } | null)?.retryable)) || attempt >= maxAttempts) throw error;
+        }
+      }
+      return saved ?? result;
+    },
+  });
+  const persisted = claim.result;
+  if (persisted.input_fingerprint && persisted.input_fingerprint !== inputFingerprint) {
+    throw new Error('meeting source sync idempotency conflict');
   }
-  const persisted = saved ?? result;
-  const readback = await ports.sink.readback?.(idempotencyKey) ?? persisted;
-  if (readback.fingerprint !== fingerprint) throw new Error('meeting source sync readback mismatch');
-  return persisted;
+  const readback = await ports.sink.readback(idempotencyKey);
+  if (!readback || readback.fingerprint !== persisted.fingerprint) throw new Error('meeting source sync readback mismatch');
+  return readback;
 }
