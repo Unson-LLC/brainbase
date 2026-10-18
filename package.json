@@ -123,6 +123,10 @@
       "types": "./dist/company-os-receipt-adapter.d.ts",
       "import": "./dist/company-os-receipt-adapter.js"
     },
+    "./run-receipt": {
+      "types": "./dist/run-receipt.d.ts",
+      "import": "./dist/run-receipt.js"
+    },
     "./company-os-learning-adoption": {
       "types": "./dist/company-os-learning-adoption.d.ts",
       "import": "./dist/company-os-learning-adoption.js"
@@ -302,6 +306,10 @@
     "./meeting-minutes": {
       "types": "./dist/meeting-minutes.d.ts",
       "import": "./dist/meeting-minutes.js"
+    },
+    "./meeting-automation": {
+      "types": "./dist/meeting-automation.d.ts",
+      "import": "./dist/meeting-automation.js"
     },
     "./meeting-minutes-http": {
       "types": "./dist/meeting-minutes-http.d.ts",
