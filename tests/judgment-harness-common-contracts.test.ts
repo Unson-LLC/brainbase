@@ -179,6 +179,60 @@ describe('portable judgment harness common contracts', () => {
     expect(toKnowledgeEventFromJudgmentEpisode({ completion_status: 'partial' })).toBeNull();
   });
 
+  it('keeps organization identity in the Org adapter while portable event fields match', () => {
+    const ossEvent = toKnowledgeEventFromJudgmentEpisode({
+      episode_id: 'episode-1',
+      session_id: 'session-1',
+      turn_id: 'turn-1',
+      finalized_at: '2026-10-18T00:00:00.000Z',
+      answer_digest: 'digest-1',
+      completion_status: 'complete',
+      final_answer: 'The answer'
+    });
+    if (!ossEvent) throw new Error('expected OSS event');
+
+    const localAdapterEvent = {
+      schema_version: 'knowledge_event.v1',
+      contract_version: 'knowledge_event.v1',
+      event_id: 'kev_da2fd4b1420f0b35fa76c8b2b8075cadaadf2cf9aed811fe46faef4378ef202c',
+      occurred_at: '2026-10-18T00:00:00.000Z',
+      captured_at: '2026-10-18T00:00:00.000Z',
+      source: { type: 'codex_judgment', ref: 'session-1:turn-1' },
+      subject: { type: 'judgment_episode', id: 'episode-1' },
+      decision_authority: {
+        kind: 'judgment_receipt',
+        authorized: false,
+        graph_promotion_allowed: false
+      },
+      organization_id: 'org_unson',
+      applicability_scope: {
+        scope: 'judgment_episode',
+        project_code: 'brainbase',
+        organization_id: 'org_unson'
+      },
+      permission_snapshot: { knowledge_registration: true, external_action: false },
+      source_pointer: { uri: 'codex://threads/session-1#turn=turn-1' },
+      body_hash: 'digest-1',
+      parent_episode_id: 'episode-1',
+      payload: { summary: 'The answer' }
+    };
+    const portableProjection = (value: Record<string, unknown>) => {
+      const scope = value.applicability_scope as Record<string, unknown>;
+      const { organization_id: _organizationId, ...portableScope } = scope;
+      const { organization_id: _topLevelOrganizationId, ...portableEvent } = value;
+      return { ...portableEvent, applicability_scope: portableScope };
+    };
+
+    expect(portableProjection(ossEvent as unknown as Record<string, unknown>))
+      .toEqual(portableProjection(localAdapterEvent));
+    expect(ossEvent).not.toHaveProperty('organization_id');
+    expect(ossEvent.applicability_scope).not.toHaveProperty('organization_id');
+    expect(localAdapterEvent).toMatchObject({
+      organization_id: 'org_unson',
+      applicability_scope: { organization_id: 'org_unson' }
+    });
+  });
+
   it('publishes the existing Host and the portable contracts through package exports', () => {
     const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
       exports: Record<string, unknown>;
