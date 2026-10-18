@@ -43,6 +43,22 @@
       "types": "./dist/judgment-value-proof.d.ts",
       "import": "./dist/judgment-value-proof.js"
     },
+    "./judgment-host": {
+      "types": "./dist/judgment-host.d.ts",
+      "import": "./dist/judgment-host.js"
+    },
+    "./judgment-execution-outcome": {
+      "types": "./dist/judgment-execution-outcome.d.ts",
+      "import": "./dist/judgment-execution-outcome.js"
+    },
+    "./judgment-node-evidence": {
+      "types": "./dist/judgment-node-evidence.d.ts",
+      "import": "./dist/judgment-node-evidence.js"
+    },
+    "./judgment-event-adapter": {
+      "types": "./dist/judgment-event-adapter.d.ts",
+      "import": "./dist/judgment-event-adapter.js"
+    },
     "./judgment-value-proof-review": {
       "types": "./dist/judgment-value-proof-review.d.ts",
       "import": "./dist/judgment-value-proof-review.js"
