@@ -238,4 +238,3 @@ describe('portable judgment lifecycle core', () => {
     expect(enqueueFinalized).toHaveBeenCalledTimes(2);
   });
 });
-
