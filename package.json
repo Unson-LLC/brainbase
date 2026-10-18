@@ -319,6 +319,10 @@
       "types": "./dist/onboarding-runtime.d.ts",
       "import": "./dist/onboarding-runtime.js"
     },
+    "./connected-onboarding": {
+      "types": "./dist/connected-onboarding.d.ts",
+      "import": "./dist/connected-onboarding.js"
+    },
     "./mcp-runtime": {
       "types": "./dist/mcp-runtime.d.ts",
       "import": "./dist/mcp-runtime.js"

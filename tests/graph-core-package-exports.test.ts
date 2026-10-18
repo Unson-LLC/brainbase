@@ -71,6 +71,21 @@ describe('共通昇格処理の公開契約', () => {
   });
 });
 
+describe('接続オンボーディングの公開契約', () => {
+  it('ランタイムと候補スキャンをpackageの出口から取り込める', async () => {
+    const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+    expect(manifest.exports['./connected-onboarding']).toEqual({
+      types: './dist/connected-onboarding.d.ts',
+      import: './dist/connected-onboarding.js',
+    });
+    const onboarding = await importExport(manifest, './connected-onboarding');
+    expect(typeof onboarding.ConnectedOnboardingRuntime).toBe('function');
+    expect(typeof onboarding.scanOnboardingContent).toBe('function');
+    expect(Array.isArray(onboarding.ONBOARDING_BLOCK_PATTERNS)).toBe(true);
+    expect(Array.isArray(onboarding.ONBOARDING_PII_PATTERNS)).toBe(true);
+  });
+});
+
 describe('判断の枠組みの公開契約', () => {
   it('一覧の組み立て・表示・記録の照合をpackageの出口から取り込める', async () => {
     const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
