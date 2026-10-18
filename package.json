@@ -43,6 +43,22 @@
       "types": "./dist/judgment-value-proof.d.ts",
       "import": "./dist/judgment-value-proof.js"
     },
+    "./judgment-host": {
+      "types": "./dist/judgment-host.d.ts",
+      "import": "./dist/judgment-host.js"
+    },
+    "./judgment-execution-outcome": {
+      "types": "./dist/judgment-execution-outcome.d.ts",
+      "import": "./dist/judgment-execution-outcome.js"
+    },
+    "./judgment-node-evidence": {
+      "types": "./dist/judgment-node-evidence.d.ts",
+      "import": "./dist/judgment-node-evidence.js"
+    },
+    "./judgment-event-adapter": {
+      "types": "./dist/judgment-event-adapter.d.ts",
+      "import": "./dist/judgment-event-adapter.js"
+    },
     "./judgment-value-proof-review": {
       "types": "./dist/judgment-value-proof-review.d.ts",
       "import": "./dist/judgment-value-proof-review.js"
@@ -134,6 +150,10 @@
     "./company-os-receipt-adapter": {
       "types": "./dist/company-os-receipt-adapter.d.ts",
       "import": "./dist/company-os-receipt-adapter.js"
+    },
+    "./run-receipt": {
+      "types": "./dist/run-receipt.d.ts",
+      "import": "./dist/run-receipt.js"
     },
     "./company-os-learning-adoption": {
       "types": "./dist/company-os-learning-adoption.d.ts",
@@ -314,6 +334,10 @@
     "./meeting-minutes": {
       "types": "./dist/meeting-minutes.d.ts",
       "import": "./dist/meeting-minutes.js"
+    },
+    "./meeting-automation": {
+      "types": "./dist/meeting-automation.d.ts",
+      "import": "./dist/meeting-automation.js"
     },
     "./meeting-minutes-http": {
       "types": "./dist/meeting-minutes-http.d.ts",
