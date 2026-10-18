@@ -99,6 +99,18 @@
       "types": "./dist/canonical-task-service.d.ts",
       "import": "./dist/canonical-task-service.js"
     },
+    "./canonical-task-postgres": {
+      "types": "./dist/canonical-task-postgres.d.ts",
+      "import": "./dist/canonical-task-postgres.js"
+    },
+    "./canonical-task-operations": {
+      "types": "./dist/canonical-task-operations.d.ts",
+      "import": "./dist/canonical-task-operations.js"
+    },
+    "./canonical-task-store-config": {
+      "types": "./dist/canonical-task-store-config.d.ts",
+      "import": "./dist/canonical-task-store-config.js"
+    },
     "./foundation-catalog": {
       "types": "./dist/foundation-catalog.d.ts",
       "import": "./dist/foundation-catalog.js"
