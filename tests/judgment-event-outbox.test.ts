@@ -1,9 +1,12 @@
-import { mkdtemp, readFile, readdir, rm, stat, utimes } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   JUDGMENT_EVENT_DELIVERY_RECEIPT_SCHEMA_VERSION,
+  JUDGMENT_EVENT_OUTBOX_SCHEMA_VERSION,
   JUDGMENT_EVENT_READBACK_SCHEMA_VERSION,
   enqueueJudgmentKnowledgeEvent,
   deliverJudgmentKnowledgeEventOutbox,
@@ -59,6 +62,30 @@ async function waitForFile(path: string): Promise<void> {
   throw new Error(`file did not appear: ${path}`);
 }
 
+function runEnqueueWorker(directory: string, candidate: JudgmentKnowledgeEvent): Promise<{
+  status: string;
+  path: string;
+}> {
+  const worker = fileURLToPath(new URL('./fixtures/judgment-outbox-enqueue-worker.mjs', import.meta.url));
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, ['--import', 'tsx', worker, directory, JSON.stringify(candidate)], {
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => { stdout += chunk; });
+    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    child.once('error', reject);
+    child.once('exit', (code) => {
+      if (code !== 0) {
+        reject(new Error(`enqueue worker failed (${code}): ${stderr}`));
+        return;
+      }
+      try { resolve(JSON.parse(stdout)); } catch (error) { reject(error); }
+    });
+  });
+}
+
 function readback(eventId: string, candidateId: string) {
   return {
     schema_version: JUDGMENT_EVENT_READBACK_SCHEMA_VERSION,
@@ -90,6 +117,51 @@ describe('portable judgment knowledge event outbox', () => {
     expect(() => enqueueJudgmentKnowledgeEvent({ ...event(), payload: { summary: 'changed' } }, {
       directory: paths.outboxDir
     })).toThrow('knowledge_event_outbox_conflict');
+  });
+
+  it('publishes one complete record when two processes enqueue the same event', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'brainbase-judgment-outbox-'));
+    roots.push(root);
+    const paths = pathsFor(root);
+    const candidate = event('event-concurrent');
+    const [first, second] = await Promise.all([
+      runEnqueueWorker(paths.outboxDir, candidate),
+      runEnqueueWorker(paths.outboxDir, candidate)
+    ]);
+    expect([first.status, second.status].sort()).toEqual(['existing', 'queued']);
+    expect(JSON.parse(await readFile(join(paths.outboxDir, 'event-concurrent.json'), 'utf8'))).toMatchObject({
+      schema_version: 'judgment_event_outbox.v1',
+      event: candidate,
+      delivery: { attempt: 1 }
+    });
+  }, 15_000);
+
+  it('dead-letters invalid schema, unsafe event ids, and filename mismatches', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'brainbase-judgment-outbox-'));
+    roots.push(root);
+    const paths = pathsFor(root);
+    expect(() => enqueueJudgmentKnowledgeEvent(event('../escape'), { directory: paths.outboxDir }))
+      .toThrow('knowledge event_id is invalid');
+    await mkdir(paths.outboxDir, { recursive: true });
+    await writeFile(join(paths.outboxDir, 'wrong-name.json'), JSON.stringify({
+      schema_version: JUDGMENT_EVENT_OUTBOX_SCHEMA_VERSION,
+      event: event('event-inside'),
+      delivery: { attempt: 1, queued_at: '2026-10-18T00:00:00.000Z' }
+    }));
+    await writeFile(join(paths.outboxDir, 'bad-schema.json'), JSON.stringify({
+      schema_version: 'judgment_event_outbox.legacy',
+      event: event('bad-schema'),
+      delivery: { attempt: 1, queued_at: '2026-10-18T00:00:00.000Z' }
+    }));
+    const result = await deliverJudgmentKnowledgeEventOutbox({
+      paths,
+      delivery: {
+        post: async () => { throw new Error('invalid record should not be posted'); },
+        readback: async () => { throw new Error('invalid record should not be read back'); }
+      }
+    });
+    expect(result).toMatchObject({ status: 'processed', failed: 2, dead_lettered: 2, pending: 0 });
+    expect((await readdir(paths.deadLetterDir)).sort()).toEqual(['bad-schema.json', 'wrong-name.json']);
   });
 
   it('serializes senders and recovers a stale sender lock', async () => {

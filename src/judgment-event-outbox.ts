@@ -1,5 +1,6 @@
 import {
   closeSync,
+  linkSync,
   mkdirSync,
   openSync,
   readdirSync,
@@ -44,6 +45,8 @@ export interface JudgmentOutboxStorage {
   unlink(path: string): void;
   writeFile(path: string, value: string, options: { mode: number }): void;
   writeExclusive(path: string, value: string, mode: number): void;
+  /** Publish a fully written file without replacing an existing path. */
+  link(from: string, to: string): void;
   stat(path: string): { mtimeMs: number };
 }
 
@@ -62,6 +65,7 @@ const nodeStorage: JudgmentOutboxStorage = {
       closeSync(descriptor);
     }
   },
+  link: (from, to) => linkSync(from, to),
   stat: (path) => statSync(path)
 };
 
@@ -194,15 +198,51 @@ function atomicWrite(
   storage.rename(temporary, target);
 }
 
+/**
+ * Publish a new queue item without replacing a file another sender created.
+ * The temporary file is complete before the hardlink makes the target visible,
+ * so readers see either the old file or the complete new file.
+ */
+function atomicPublishNoReplace(
+  target: string,
+  value: unknown,
+  storage: JudgmentOutboxStorage
+): void {
+  const temporary = `${target}.${process.pid}.${Date.now()}.tmp`;
+  const serialized = `${JSON.stringify(value, null, 2)}\n`;
+  storage.writeFile(temporary, serialized, { mode: 0o600 });
+  try {
+    // Hard-link publication is required. A writeExclusive fallback can expose
+    // a partial target to a concurrent reader, so custom storage adapters must
+    // implement this port or fail closed before production use.
+    if (typeof storage.link !== 'function') throw new Error('judgment_event_outbox_atomic_link_required');
+    storage.link(temporary, target);
+  } finally {
+    try { storage.unlink(temporary); } catch { /* publication may have failed */ }
+  }
+}
+
 function parseJson(path: string, storage: JudgmentOutboxStorage): unknown {
   return JSON.parse(storage.readFile(path));
 }
 
-function queuedEvent(value: unknown): JudgmentQueuedEvent {
+const SAFE_EVENT_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,255}$/u;
+
+function queuedEvent(value: unknown, expectedFile?: string): JudgmentQueuedEvent {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('judgment_event_outbox_invalid');
   const candidate = value as Record<string, unknown>;
+  if (candidate.schema_version !== JUDGMENT_EVENT_OUTBOX_SCHEMA_VERSION) {
+    throw new Error('judgment_event_outbox_schema_invalid');
+  }
   if (!candidate.event || typeof candidate.event !== 'object' || Array.isArray(candidate.event)) {
     throw new Error('judgment_event_outbox_event_missing');
+  }
+  const event = candidate.event as Record<string, unknown>;
+  if (typeof event.event_id !== 'string' || !SAFE_EVENT_ID.test(event.event_id)) {
+    throw new Error('judgment_event_outbox_event_id_invalid');
+  }
+  if (expectedFile && expectedFile !== `${event.event_id}${JSON_SUFFIX}`) {
+    throw new Error('judgment_event_outbox_filename_mismatch');
   }
   if (!candidate.delivery || typeof candidate.delivery !== 'object' || Array.isArray(candidate.delivery)) {
     throw new Error('judgment_event_outbox_delivery_missing');
@@ -219,6 +259,9 @@ export function enqueueJudgmentKnowledgeEvent(
     throw new Error('knowledge event_id is required');
   }
   if (!options.directory) throw new Error('knowledge event outbox directory is required');
+  if (!SAFE_EVENT_ID.test(event.event_id)) {
+    throw new Error('knowledge event_id is invalid');
+  }
   const storage = options.storage ?? nodeStorage;
   const now = options.now ?? (() => new Date());
   storage.mkdir(options.directory, { recursive: true, mode: 0o700 });
@@ -232,12 +275,24 @@ export function enqueueJudgmentKnowledgeEvent(
   } catch (error) {
     if (!isCode(error, 'ENOENT')) throw error;
   }
-  atomicWrite(target, {
+  const value = {
     schema_version: JUDGMENT_EVENT_OUTBOX_SCHEMA_VERSION,
     event,
     delivery: { attempt: 1, queued_at: now().toISOString() }
-  }, storage);
-  return { status: 'queued', path: target };
+  };
+  try {
+    atomicPublishNoReplace(target, value, storage);
+    return { status: 'queued', path: target };
+  } catch (error) {
+    if (!isCode(error, 'EEXIST')) throw error;
+    // Another process won publication. Re-read its complete record and only
+    // accept it when the event body is identical; never overwrite a winner.
+    const existing = queuedEvent(parseJson(target, storage), `${event.event_id}${JSON_SUFFIX}`);
+    if (JSON.stringify(existing.event) !== JSON.stringify(event)) {
+      throw new Error('knowledge_event_outbox_conflict');
+    }
+    return { status: 'existing', path: target };
+  }
 }
 
 function normalizeErrorCode(error: unknown, fallback: string): string {
@@ -354,7 +409,7 @@ function deliverCore(options: Required<Pick<JudgmentOutboxDeliveryOptions, 'path
       const target = join(options.paths.outboxDir, file);
       let queued: JudgmentQueuedEvent;
       try {
-        queued = queuedEvent(parseJson(target, storage));
+        queued = queuedEvent(parseJson(target, storage), file);
       } catch {
         processed += 1;
         failed += 1;
@@ -600,7 +655,7 @@ export function summarizeJudgmentKnowledgeEventOutbox(options: {
   const files = jsonFiles(options.paths.outboxDir, storage);
   for (const file of files) {
     let queued: JudgmentQueuedEvent;
-    try { queued = queuedEvent(parseJson(join(options.paths.outboxDir, file), storage)); } catch { failing += 1; continue; }
+    try { queued = queuedEvent(parseJson(join(options.paths.outboxDir, file), storage), file); } catch { failing += 1; continue; }
     const failedAt = queued.delivery.last_failed_at;
     if (!failedAt) {
       const queuedAt = Date.parse(queued.delivery.queued_at);
@@ -625,7 +680,7 @@ export async function listJudgmentKnowledgeEventOutboxExceptions(options: {
   const storage = options.storage ?? nodeStorage;
   return jsonFiles(options.directory, storage).map((file) => {
     try {
-      const queued = queuedEvent(parseJson(join(options.directory, file), storage));
+      const queued = queuedEvent(parseJson(join(options.directory, file), storage), file);
       return {
         code: 'knowledge_event_outbox',
         event_id: queued.event.event_id,
@@ -645,7 +700,7 @@ export async function listKnowledgeEventDeadLetters(options: {
   const storage = options.storage ?? nodeStorage;
   return jsonFiles(options.directory, storage).map((file) => {
     let queued: JudgmentQueuedEvent | null = null;
-    try { queued = queuedEvent(parseJson(join(options.directory, file), storage)); } catch { /* corrupt dead letter */ }
+    try { queued = queuedEvent(parseJson(join(options.directory, file), storage), file); } catch { /* corrupt dead letter */ }
     return {
       code: 'knowledge_event_dead_letter',
       event_id: queued?.event.event_id ?? file.replace(/\.json$/u, ''),
