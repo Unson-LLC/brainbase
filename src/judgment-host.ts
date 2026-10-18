@@ -21,6 +21,11 @@ import {
   type JudgmentAutonomyEvaluation,
   type JudgmentAutonomyResolver
 } from './judgment-autonomy.js';
+import {
+  toKnowledgeEventFromJudgmentEpisode,
+  type JudgmentKnowledgeEvent
+} from './judgment-event-adapter.js';
+import type { JudgmentKnowledgeEventSink } from './judgment-event-outbox.js';
 import { canonicalJson } from './judgment-resolution-contract.js';
 
 type Environment = Record<string, string | undefined>;
@@ -134,6 +139,8 @@ export interface JudgmentHostOptions {
   autonomyMode?: JudgmentAutonomyMode;
   autonomyCanaryProjects?: readonly string[];
   trustedConversationMessages?: ConversationMessage[];
+  /** Optional adapter-owned queue. The default Host lifecycle remains unchanged. */
+  knowledgeEventSink?: JudgmentKnowledgeEventSink;
 }
 
 export type JudgmentAutonomyMode = 'off' | 'canary' | 'on';
@@ -1791,7 +1798,8 @@ async function evaluateAutonomyStop(
 
 async function finalizeEpisode(
   payload: JudgmentHookPayload,
-  env: Environment
+  env: Environment,
+  knowledgeEventSink?: JudgmentKnowledgeEventSink
 ): Promise<JudgmentFinalReceipt | JudgmentStopBlock> {
   const { sessionRef, turnId } = hookIdentity(payload);
   const paths = journalPaths(sessionRef, turnId, env);
@@ -1818,6 +1826,13 @@ async function finalizeEpisode(
         || existing.answer_digest !== answerDigest) {
         throw new Error('judgment_final_conflict');
       }
+      await enqueueFinalizedKnowledgeEvent(
+        knowledgeEventSink,
+        sessionRef,
+        turnId,
+        existing,
+        payload.last_assistant_message ?? ''
+      );
       return existing;
     } catch (error) {
       if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
@@ -1899,8 +1914,30 @@ async function finalizeEpisode(
       final_digest: sha256(canonicalJson(finalWithoutDigest))
     };
     writeImmutableJson(paths.final, final as unknown as Record<string, unknown>);
+    await enqueueFinalizedKnowledgeEvent(knowledgeEventSink, sessionRef, turnId, final, answer);
     return final;
   });
+}
+
+async function enqueueFinalizedKnowledgeEvent(
+  sink: JudgmentKnowledgeEventSink | undefined,
+  sessionRef: string,
+  turnId: string,
+  final: JudgmentFinalReceipt,
+  answer: string
+): Promise<JudgmentKnowledgeEvent | null> {
+  if (!sink) return null;
+  const event = toKnowledgeEventFromJudgmentEpisode({
+    episode_id: `${sessionRef}:${turnId}`,
+    session_id: sessionRef,
+    turn_id: turnId,
+    finalized_at: final.finalized_at,
+    answer_digest: final.answer_digest,
+    completion_status: 'complete',
+    final_answer: answer
+  });
+  if (event) await sink.enqueue(event);
+  return event;
 }
 
 export async function processJudgmentHook(
@@ -1917,7 +1954,7 @@ export async function processJudgmentHook(
   if (eventName === 'Stop') {
     const autonomyBlock = await evaluateAutonomyStop(payload, env, options);
     if (autonomyBlock) return autonomyBlock;
-    const output = await finalizeEpisode(payload, env);
+    const output = await finalizeEpisode(payload, env, options.knowledgeEventSink);
     if ('decision' in output && output.decision === 'block' && payload.stop_hook_active === true) {
       throw new Error('judgment_stop_repair_exhausted');
     }

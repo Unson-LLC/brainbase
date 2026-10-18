@@ -59,6 +59,10 @@
       "types": "./dist/judgment-event-adapter.d.ts",
       "import": "./dist/judgment-event-adapter.js"
     },
+    "./judgment-event-outbox": {
+      "types": "./dist/judgment-event-outbox.d.ts",
+      "import": "./dist/judgment-event-outbox.js"
+    },
     "./judgment-value-proof-review": {
       "types": "./dist/judgment-value-proof-review.d.ts",
       "import": "./dist/judgment-value-proof-review.js"
@@ -520,5 +524,15 @@
   },
   "engines": {
     "node": ">=20"
-  }
+  },
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "keywords": [],
+  "author": "",
+  "bugs": {
+    "url": "https://github.com/Unson-LLC/brainbase/issues"
+  },
+  "homepage": "https://github.com/Unson-LLC/brainbase#readme"
 }
