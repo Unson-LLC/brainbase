@@ -529,6 +529,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json && node scripts/build-stage3b-candidate-bundle.mjs",
+    "typecheck:config-parser": "tsc -p tsconfig.config-parser-types.json --pretty false",
     "test": "vitest run --exclude tests/npm-prepublication-evidence.integration.test.ts",
     "test:integration": "vitest run tests/mcp-contract.test.ts tests/ontology-cli.test.ts tests/npm-release-validation.integration.test.ts tests/npm-consumer-smoke.integration.test.ts",
     "test:canonical-task-postgres": "vitest run tests/canonical-task-postgres-service.integration.test.ts",
