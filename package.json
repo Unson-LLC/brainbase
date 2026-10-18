@@ -351,6 +351,10 @@
       "types": "./dist/server-support.d.ts",
       "import": "./dist/server-support.js"
     },
+    "./config-parser": {
+      "types": "./dist/config-parser.d.ts",
+      "import": "./dist/config-parser.js"
+    },
     "./company-os-impact-review": {
       "types": "./dist/company-os-impact-review.d.ts",
       "import": "./dist/company-os-impact-review.js"
@@ -559,6 +563,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.31.0",
     "graphology": "0.26.0",
+    "js-yaml": "^4.1.1",
     "sigma": "3.0.3",
     "zod": "^3.25.56"
   },
