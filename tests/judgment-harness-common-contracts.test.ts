@@ -187,7 +187,8 @@ describe('portable judgment harness common contracts', () => {
       './judgment-host',
       './judgment-execution-outcome',
       './judgment-node-evidence',
-      './judgment-event-adapter'
+      './judgment-event-adapter',
+      './judgment-event-outbox'
     ]) {
       expect(packageJson.exports[name]).toEqual({
         types: expect.stringMatching(/^\.\/dist\/.+\.d\.ts$/u),
