@@ -275,9 +275,29 @@
       "types": "./dist/knowledge-promotion.d.ts",
       "import": "./dist/knowledge-promotion.js"
     },
+    "./knowledge-event": {
+      "types": "./dist/knowledge-event.d.ts",
+      "import": "./dist/knowledge-event.js"
+    },
     "./organization-connection": {
       "types": "./dist/organization-connection.d.ts",
       "import": "./dist/organization-connection.js"
+    },
+    "./mesh": {
+      "types": "./dist/mesh.d.ts",
+      "import": "./dist/mesh.js"
+    },
+    "./honcho": {
+      "types": "./dist/honcho.d.ts",
+      "import": "./dist/honcho.js"
+    },
+    "./onboarding-runtime": {
+      "types": "./dist/onboarding-runtime.d.ts",
+      "import": "./dist/onboarding-runtime.js"
+    },
+    "./mcp-runtime": {
+      "types": "./dist/mcp-runtime.d.ts",
+      "import": "./dist/mcp-runtime.js"
     },
     "./resource-reservations": {
       "types": "./dist/resource-reservations.d.ts",
