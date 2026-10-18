@@ -869,7 +869,11 @@ describe('meeting minutes page review', () => {
     const guard = css.slice(css.indexOf('.bb-minutes-edit-guard.is-info'), css.indexOf('.bb-minutes-source-link'));
     expect(guard).toContain('var(--bb-color-muted)');
     expect(guard).not.toContain('danger');
-    expect(source).not.toContain('未確認');
+    // The version history never says 未確認; only the 参加者 row's badge does (story-meeting-participants-row-v1).
+    const history = source.slice(source.indexOf('function historyStamp'), source.indexOf('function hasParticipants'));
+    expect(history.length).toBeGreaterThan(0);
+    expect(history).not.toContain('未確認');
+    expect(source.replace(/`\$\{participant\.displayName\}（未確認）`/u, '')).not.toContain('未確認');
     expect(source).toContain('function historyStamp');
     expect(source).toContain('function historySecondLine');
     expect(source).toContain("const TOKYO = 'Asia/Tokyo'");

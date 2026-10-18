@@ -208,6 +208,52 @@ function normalizeConnections(value) {
   ]));
 }
 
+// 参加者の行 (story-meeting-participants-row-v1). The host decides who is linked,
+// unconfirmed or not a person; anything malformed is unreadable, never a person (P9).
+const PARTICIPANT_STATES = new Set(['linked', 'unconfirmed', 'not_person']);
+
+function normalizeParticipant(value) {
+  if (!isRecord(value) || !PARTICIPANT_STATES.has(value.state)) return null;
+  const displayName = text(value.display_name);
+  if (!displayName) return null;
+  const others = Number(value.other_meetings);
+  const participant = {
+    displayName,
+    state: value.state,
+    removable: value.removable === true,
+    otherMeetings: Number.isInteger(others) && others > 0 ? others : 0,
+  };
+  if (value.state === 'linked') {
+    const name = text(value.name);
+    const entityId = text(value.entity_id);
+    if (!name || !entityId) return null;
+    participant.name = name;
+    participant.entityId = entityId;
+    participant.href = connectionHref(value.href);
+  }
+  return participant;
+}
+
+function normalizeParticipants(value) {
+  if (!isRecord(value) || !['recorded', 'none', 'unavailable'].includes(value.status)) return { status: 'unavailable' };
+  if (value.status !== 'recorded') return { status: value.status };
+  const participants = Array.isArray(value.participants) ? value.participants.map(normalizeParticipant) : [];
+  if (participants.some((participant) => participant === null)) return { status: 'unavailable' };
+  if (!participants.length) return { status: 'none' };
+  return { status: 'recorded', participants, redrafting: value.redrafting === true };
+}
+
+function normalizeCandidateList(values, idField) {
+  if (!Array.isArray(values)) return [];
+  return values.flatMap((value) => {
+    const id = text(value?.[idField]);
+    const name = text(value?.name);
+    if (!id || !name) return [];
+    const evidence = Array.isArray(value.evidence) ? value.evidence.map((item) => text(item)).filter(Boolean) : [];
+    return [{ id, name, company: text(value.company), evidence }];
+  });
+}
+
 function firstDate(values) {
   for (const value of values) {
     const date = parseDate(value);
@@ -636,6 +682,7 @@ export function createMeetingMinutesUI({
   versionActionExtensions = [],
   meetingLabel,
   meetingConnections,
+  meetingParticipants,
   canCreateMeeting,
   createUnavailableReason,
   canEditMinutes,
@@ -666,11 +713,14 @@ export function createMeetingMinutesUI({
     withdrawingMinutesId: null,
     // { meetingId, rows } where rows is null while the host is answering.
     connections: null,
+    // { meetingId, value, openName } for the 参加者 row (story-meeting-participants-row-v1).
+    participants: null,
   };
   let listRequestGeneration = 0;
   let detailRequestGeneration = 0;
   let createReasonSequence = 0;
   let connectionsSlot = null;
+  let participantsSlot = null;
   let railProjectSlot = null;
   let railProjectMeeting = null;
 
@@ -1050,6 +1100,260 @@ export function createMeetingMinutesUI({
     state.connections = { meetingId, rows };
     if (connectionsSlot) fillConnections(connectionsSlot, rows);
     if (railProjectSlot && railProjectMeeting?.meeting_id === meetingId) fillRailProject(railProjectSlot, railProjectMeeting);
+  }
+
+  function hasParticipants() {
+    return isRecord(meetingParticipants) && typeof meetingParticipants.read === 'function';
+  }
+
+  function currentParticipants(meeting) {
+    const value = state.participants;
+    return value && value.meetingId === meeting?.meeting_id ? value : null;
+  }
+
+  function participantError(error, fallback) {
+    const reason = text(error?.message);
+    return reason && !/^[a-z_]+$/u.test(reason) ? reason : fallback;
+  }
+
+  function fillParticipants(slot, meeting) {
+    const current = currentParticipants(meeting);
+    const value = current?.value ?? null;
+    slot.hidden = value?.status === 'none';
+    if (value?.status === 'none') {
+      slot.replaceChildren();
+      return;
+    }
+    const row = makeElement(doc, 'div', { className: 'bb-minutes-participants-row' });
+    row.append(makeElement(doc, 'span', { className: 'bb-minutes-connection-label', textContent: '参加者' }));
+    if (!value) {
+      row.append(makeElement(doc, 'p', { className: 'bb-minutes-connection-note', textContent: '読み込んでいます' }));
+      slot.replaceChildren(row);
+      return;
+    }
+    if (value.status !== 'recorded') {
+      row.append(makeElement(doc, 'p', { className: 'bb-minutes-connection-note is-unavailable', textContent: '参加者を読み込めませんでした' }));
+      slot.replaceChildren(row);
+      return;
+    }
+    const list = makeElement(doc, 'ul', { className: 'bb-minutes-participant-items' });
+    for (const participant of value.participants) {
+      const entry = makeElement(doc, 'li', { attrs: { 'data-participant-state': participant.state } });
+      if (participant.state === 'linked') {
+        entry.append(connectionLink({ label: participant.name, href: participant.href }, 'bb-minutes-connection-link'));
+        if (participant.name !== participant.displayName) {
+          entry.append(makeElement(doc, 'span', { className: 'bb-minutes-connection-detail', textContent: `（${participant.displayName}）` }));
+        }
+      } else if (participant.state === 'unconfirmed') {
+        const open = current.openName === participant.displayName;
+        const badge = button(doc, `${participant.displayName}（未確認）`, () => toggleParticipantPanel(meeting, participant.displayName), {
+          className: 'bb-minutes-participant-badge',
+          attrs: { 'aria-expanded': open ? 'true' : 'false' },
+        });
+        entry.append(badge);
+      } else {
+        entry.append(makeElement(doc, 'span', { textContent: participant.displayName }));
+        entry.append(makeElement(doc, 'span', { className: 'bb-minutes-connection-detail', textContent: '（人ではない）' }));
+      }
+      if (participant.removable && typeof meetingParticipants.unlink === 'function') {
+        entry.append(button(doc, '取り消す', () => void unlinkParticipant(meeting, participant), { className: 'bb-minutes-participant-undo' }));
+      }
+      list.append(entry);
+    }
+    row.append(list);
+    const children = [row];
+    if (value.redrafting) {
+      children.push(makeElement(doc, 'p', { className: 'bb-minutes-connection-note', textContent: '名前を結んだので、この議事録を作り直しています。' }));
+    }
+    if (current.notice) {
+      children.push(makeElement(doc, 'p', { className: 'bb-minutes-participant-notice', textContent: current.notice, attrs: { role: 'status' } }));
+    }
+    if (current.openName && value.participants.some((participant) => participant.state === 'unconfirmed' && participant.displayName === current.openName)) {
+      children.push(renderParticipantPanel(meeting, current));
+    }
+    slot.replaceChildren(...children);
+  }
+
+  function refreshParticipants(meeting) {
+    if (participantsSlot && state.detail?.meeting?.meeting_id === meeting.meeting_id) fillParticipants(participantsSlot, meeting);
+  }
+
+  async function loadParticipants(detail, isCurrentRequest, { notice = '' } = {}) {
+    const meetingId = detail.meeting.meeting_id;
+    const previous = currentParticipants(detail.meeting);
+    state.participants = { meetingId, value: previous?.value ?? null, openName: null, notice };
+    let value;
+    try {
+      value = normalizeParticipants(await meetingParticipants.read({
+        meeting: detail.meeting,
+        minutes: detail.minutes,
+        versions: detail.versions,
+      }));
+    } catch {
+      value = { status: 'unavailable' };
+    }
+    if (!isCurrentRequest() || state.participants?.meetingId !== meetingId) return;
+    state.participants = { ...state.participants, value };
+    refreshParticipants(detail.meeting);
+  }
+
+  function reloadParticipants(meeting, notice) {
+    const detail = state.detail;
+    if (!detail || detail.meeting?.meeting_id !== meeting.meeting_id) return Promise.resolve();
+    return loadParticipants(detail, () => state.detail?.meeting?.meeting_id === meeting.meeting_id, { notice });
+  }
+
+  function toggleParticipantPanel(meeting, displayName) {
+    const current = currentParticipants(meeting);
+    if (!current) return;
+    const closing = current.openName === displayName;
+    state.participants = { ...current, openName: closing ? null : displayName, panel: closing ? null : { status: 'loading' }, notice: '' };
+    refreshParticipants(meeting);
+    if (!closing) void loadCandidates(meeting, displayName);
+  }
+
+  async function loadCandidates(meeting, displayName) {
+    let panel;
+    try {
+      if (typeof meetingParticipants.candidates !== 'function') throw new Error('候補を読み込めませんでした');
+      const value = await meetingParticipants.candidates({ meeting }, displayName);
+      if (!isRecord(value)) throw new Error('候補を読み込めませんでした');
+      const others = Number(value.other_meetings);
+      panel = {
+        status: 'ready',
+        people: normalizeCandidateList(value.people, 'entity_id'),
+        contacts: normalizeCandidateList(value.contacts, 'contact_id'),
+        companies: normalizeCandidateList(value.companies, 'entity_id'),
+        otherMeetings: Number.isInteger(others) && others > 0 ? others : 0,
+      };
+    } catch (error) {
+      panel = { status: 'error', message: participantError(error, '候補を読み込めませんでした') };
+    }
+    const current = currentParticipants(meeting);
+    if (!current || current.openName !== displayName) return;
+    state.participants = { ...current, panel: { ...panel, name: current.panel?.name ?? displayName } };
+    refreshParticipants(meeting);
+  }
+
+  function candidateRow(name, evidence, actionLabel, onClick, busy) {
+    const item = makeElement(doc, 'li', { className: 'bb-minutes-participant-candidate' });
+    const body = makeElement(doc, 'div');
+    body.append(makeElement(doc, 'strong', { textContent: name }));
+    if (evidence.length) body.append(makeElement(doc, 'span', { className: 'bb-minutes-connection-detail', textContent: evidence.join('・') }));
+    item.append(body, button(doc, actionLabel, onClick, { disabled: busy }));
+    return item;
+  }
+
+  function renderParticipantPanel(meeting, current) {
+    const displayName = current.openName;
+    const panelState = current.panel ?? { status: 'loading' };
+    const busy = panelState.busy === true;
+    const panel = makeElement(doc, 'div', {
+      className: 'bb-minutes-participant-panel',
+      attrs: { role: 'group', 'aria-label': `${displayName}を人物に結ぶ` },
+    });
+    panel.append(makeElement(doc, 'p', { className: 'bb-minutes-participant-panel-title', textContent: `「${displayName}」は誰ですか` }));
+    if (panelState.status === 'loading') {
+      panel.append(makeElement(doc, 'p', { className: 'bb-minutes-connection-note', textContent: '候補を読み込んでいます' }));
+    } else if (panelState.status === 'error' && !panelState.people) {
+      panel.append(makeElement(doc, 'p', { className: 'bb-minutes-connection-note is-unavailable', textContent: panelState.message, attrs: { role: 'alert' } }));
+    }
+    if (panelState.people) {
+      if (panelState.otherMeetings > 0) {
+        panel.append(makeElement(doc, 'p', {
+          className: 'bb-minutes-participant-others',
+          textContent: `同じ表示名の議事録があと${panelState.otherMeetings}件あります。結ぶとそれらも作り直します。`,
+        }));
+      }
+      const list = makeElement(doc, 'ul', { className: 'bb-minutes-participant-candidates' });
+      for (const person of panelState.people) {
+        list.append(candidateRow(person.name, person.evidence, 'この人', () => void linkParticipant(meeting, displayName, { action: 'person', entity_id: person.id }), busy));
+      }
+      for (const contact of panelState.contacts) {
+        const evidence = contact.evidence.length ? contact.evidence : contact.company ? [`名刺：${contact.company}`] : ['名刺'];
+        list.append(candidateRow(contact.name, evidence, 'この名刺の名前で登録', () => void linkParticipant(meeting, displayName, { action: 'new_person', name: contact.name, contact_id: contact.id }), busy));
+      }
+      if (!panelState.people.length && !panelState.contacts.length) {
+        panel.append(makeElement(doc, 'p', { className: 'bb-minutes-connection-note', textContent: '人物と名刺に、それらしい候補はありませんでした。' }));
+      } else {
+        panel.append(list);
+      }
+      const form = makeElement(doc, 'div', { className: 'bb-minutes-participant-new' });
+      const field = labelInput(doc, '新しい人として登録する名前', { value: panelState.name ?? displayName, name: 'participant_name' });
+      field.input.addEventListener('input', () => {
+        const latest = currentParticipants(meeting);
+        if (latest?.panel) latest.panel.name = field.input.value;
+      });
+      form.append(field.wrapper, button(doc, '新しい人として登録', () => void linkParticipant(meeting, displayName, {
+        action: 'new_person',
+        name: text(field.input.value, displayName),
+      }), { disabled: busy, className: 'bb-minutes-button is-primary' }));
+      panel.append(form);
+      const notPerson = makeElement(doc, 'div', { className: 'bb-minutes-participant-not-person' });
+      notPerson.append(makeElement(doc, 'span', { className: 'bb-minutes-connection-label', textContent: '人ではない' }));
+      for (const company of panelState.companies) {
+        notPerson.append(button(doc, `${company.name}（会社）に結ぶ`, () => void linkParticipant(meeting, displayName, { action: 'company', entity_id: company.id }), { disabled: busy }));
+      }
+      notPerson.append(button(doc, '結ばない', () => void linkParticipant(meeting, displayName, { action: 'not_person' }), { disabled: busy }));
+      panel.append(notPerson);
+      if (panelState.message) {
+        panel.append(makeElement(doc, 'p', { className: 'bb-minutes-connection-note is-unavailable', textContent: panelState.message, attrs: { role: 'alert' } }));
+      }
+      if (panelState.existing) {
+        panel.append(candidateRow(panelState.existing.name, ['同じ名前の人がいます'], 'この人', () => void linkParticipant(meeting, displayName, { action: 'person', entity_id: panelState.existing.id }), busy));
+      }
+    }
+    panel.append(button(doc, 'あとで', () => toggleParticipantPanel(meeting, displayName), { className: 'bb-minutes-button is-quiet' }));
+    return panel;
+  }
+
+  function setPanel(meeting, displayName, patch) {
+    const current = currentParticipants(meeting);
+    if (!current || current.openName !== displayName) return false;
+    state.participants = { ...current, panel: { ...current.panel, ...patch } };
+    refreshParticipants(meeting);
+    return true;
+  }
+
+  function redraftNotice(result, done) {
+    const count = Number(result?.redraft?.meetings);
+    return Number.isInteger(count) && count > 0
+      ? `${done}議事録${count}件を作り直します（数分かかります）。`
+      : `${done}`;
+  }
+
+  async function linkParticipant(meeting, displayName, input) {
+    if (typeof meetingParticipants.link !== 'function') return;
+    if (!setPanel(meeting, displayName, { busy: true, message: '', existing: null })) return;
+    try {
+      const result = await meetingParticipants.link({ meeting }, { display_name: displayName, ...input });
+      const linkedName = text(result?.linked?.name);
+      await reloadParticipants(meeting, redraftNotice(result, linkedName ? `「${displayName}」を${linkedName}に結びました。` : `「${displayName}」を記録しました。`));
+    } catch (error) {
+      const existing = isRecord(error?.candidate) && text(error.candidate.entity_id) && text(error.candidate.name)
+        ? { id: text(error.candidate.entity_id), name: text(error.candidate.name) }
+        : null;
+      setPanel(meeting, displayName, {
+        busy: false,
+        existing,
+        message: existing ? '同じ名前の人がいます。この人で良ければ選んでください。' : participantError(error, '結べませんでした。もう一度試してください。'),
+      });
+    }
+  }
+
+  async function unlinkParticipant(meeting, participant) {
+    try {
+      const result = await meetingParticipants.unlink({ meeting }, {
+        display_name: participant.displayName,
+        ...(participant.entityId ? { entity_id: participant.entityId } : {}),
+      });
+      await reloadParticipants(meeting, redraftNotice(result, `「${participant.displayName}」の結び付きを取り消しました。`));
+    } catch (error) {
+      const current = currentParticipants(meeting);
+      if (!current) return;
+      state.participants = { ...current, notice: participantError(error, '取り消せませんでした。') };
+      refreshParticipants(meeting);
+    }
   }
 
   function appendLoadError(parent, message, retry) {
@@ -1448,6 +1752,7 @@ export function createMeetingMinutesUI({
   function renderDetail(detail, documentRecord = null, selectedVersion = null) {
     clear(detailPane);
     connectionsSlot = null;
+    participantsSlot = null;
     if (state.detailError) {
       const retry = state.meetingId === null ? loadMeetings : () => loadDetail(state.meetingId);
       appendLoadError(detailPane, state.detailError.startsWith('会議詳細を読み込めませんでした。')
@@ -1480,6 +1785,15 @@ export function createMeetingMinutesUI({
       textContent: participants ? `${when} / ${participants}` : when,
     }));
     detailPane.append(header);
+    participantsSlot = null;
+    if (hasParticipants()) {
+      participantsSlot = makeElement(doc, 'section', {
+        className: 'bb-minutes-participants',
+        attrs: { 'aria-label': '参加者' },
+      });
+      fillParticipants(participantsSlot, meeting);
+      detailPane.append(participantsSlot);
+    }
     if (hasConnections()) {
       connectionsSlot = makeElement(doc, 'section', {
         className: 'bb-minutes-connections',
@@ -1631,9 +1945,11 @@ export function createMeetingMinutesUI({
       state.detail = detail;
       state.detailError = null;
       if (hasConnections()) state.connections = { meetingId, rows: null };
+      if (hasParticipants() && state.participants?.meetingId !== meetingId) state.participants = null;
       renderDetail(detail);
       setStatus('会議詳細を読み込みました。');
       if (hasConnections()) void loadConnections(detail, isCurrentRequest);
+      if (hasParticipants()) void loadParticipants(detail, isCurrentRequest);
     } catch (error) {
       if (!isCurrentRequest()) return state.detail;
       const preserved = preserveLoadedStateOnFailure(error) && state.detail?.meeting?.meeting_id === meetingId

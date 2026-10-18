@@ -698,3 +698,125 @@
 .bb-minutes-connection-note.is-unavailable {
   color: var(--bb-color-warning);
 }
+
+/* 参加者 (story-meeting-participants-row-v1): linked names, 未確認 badges and the link panel. */
+.bb-minutes-participants {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 4px;
+  padding: 8px 12px;
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-md, 6px);
+  background: var(--bb-color-surface);
+}
+
+.bb-minutes-participants[hidden] {
+  display: none;
+}
+
+.bb-minutes-participants-row {
+  display: grid;
+  grid-template-columns: 7em minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.bb-minutes-participant-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+
+.bb-minutes-participant-items li {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.bb-minutes-participant-badge {
+  padding: 0 8px;
+  border: 1px dashed var(--bb-color-warning);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--bb-color-ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.bb-minutes-participant-badge[aria-expanded="true"] {
+  border-style: solid;
+  background: var(--bb-color-warning-soft);
+}
+
+.bb-minutes-participant-undo {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.bb-minutes-participant-notice {
+  margin: 0;
+  font-size: 13px;
+}
+
+.bb-minutes-participant-panel {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-md, 6px);
+  background: var(--bb-color-paper);
+  font-size: 13px;
+}
+
+.bb-minutes-participant-panel-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.bb-minutes-participant-others {
+  margin: 0;
+  color: var(--bb-color-muted);
+}
+
+.bb-minutes-participant-candidates {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bb-minutes-participant-candidate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+}
+
+.bb-minutes-participant-candidate > div {
+  display: grid;
+  min-width: 0;
+}
+
+.bb-minutes-participant-new,
+.bb-minutes-participant-not-person {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 6px 8px;
+}
