@@ -29,6 +29,7 @@ import type { FoundationAcl, FoundationScope, ModelDefinition, VariableDefinitio
 import type { FoundationRef } from '../src/foundation-catalog.js';
 
 const dataDirs: string[] = [];
+const TEST_TMP_ROOT = process.env.BRAINBASE_TEST_FIXTURE_ROOT ?? tmpdir();
 
 afterEach(async () => {
   await Promise.all(dataDirs.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
@@ -161,7 +162,7 @@ function makeEvaluationPort(record: CompanyOsEvaluationRecord): LearningEvaluati
 }
 
 async function makeHarness() {
-  const dataDir = await mkdtemp(join(tmpdir(), 'brainbase-company-os-learning-adoption-'));
+  const dataDir = await mkdtemp(join(TEST_TMP_ROOT, 'brainbase-company-os-learning-adoption-'));
   dataDirs.push(dataDir);
   await initializePersonalOs(dataDir);
   const foundationStore = createFoundationRevisionStore({ dataDir });

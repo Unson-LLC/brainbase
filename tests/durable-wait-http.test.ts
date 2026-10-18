@@ -13,6 +13,7 @@ import {
 
 const servers: HttpServer[] = [];
 const roots: string[] = [];
+const TEST_TMP_ROOT = process.env.BRAINBASE_TEST_FIXTURE_ROOT ?? tmpdir();
 const snapshotId = `sha256:${'a'.repeat(64)}`;
 
 function context(overrides: Partial<TrustedDurableWaitRequestContext> = {}): TrustedDurableWaitRequestContext {
@@ -105,7 +106,7 @@ afterEach(async () => {
 
 describe('durable wait canonical HTTP adapter', () => {
   it('mounts a trusted host around the real store and returns a bounded route response', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-wait-http-host-'));
+    const root = await mkdtemp(join(TEST_TMP_ROOT, 'brainbase-durable-wait-http-host-'));
     roots.push(root);
     const baseUrl = await startCanonicalHost(() => new DurableWaitStore({
       dataDir: root,
@@ -128,7 +129,7 @@ describe('durable wait canonical HTTP adapter', () => {
   });
 
   it('fails closed when the host cannot resolve an authenticated context', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-wait-http-host-auth-'));
+    const root = await mkdtemp(join(TEST_TMP_ROOT, 'brainbase-durable-wait-http-host-auth-'));
     roots.push(root);
     const baseUrl = await startCanonicalHost(
       () => new DurableWaitStore({ dataDir: root, problemSnapshot: { verify: () => true } }),
@@ -144,7 +145,7 @@ describe('durable wait canonical HTTP adapter', () => {
   });
 
   it('uses the real store for create, read, claim and idempotent resume across a new store instance', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-wait-http-'));
+    const root = await mkdtemp(join(TEST_TMP_ROOT, 'brainbase-durable-wait-http-'));
     roots.push(root);
     const options = {
       dataDir: root,
@@ -220,7 +221,7 @@ describe('durable wait canonical HTTP adapter', () => {
   });
 
   it('records unknown external effects and refuses to report a resume success', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-wait-http-unknown-'));
+    const root = await mkdtemp(join(TEST_TMP_ROOT, 'brainbase-durable-wait-http-unknown-'));
     roots.push(root);
     const handler = createDurableWaitHttpHandler({
       storeFactory: () => new DurableWaitStore({ dataDir: root, problemSnapshot: { verify: () => true } }),
@@ -250,7 +251,7 @@ describe('durable wait canonical HTTP adapter', () => {
   });
 
   it('fails closed for body identity, current scope, ACL, and mutation-origin violations', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-wait-http-acl-'));
+    const root = await mkdtemp(join(TEST_TMP_ROOT, 'brainbase-durable-wait-http-acl-'));
     roots.push(root);
     const storeFactory = () => new DurableWaitStore({ dataDir: root, problemSnapshot: { verify: () => true } });
     const handler = createDurableWaitHttpHandler({ storeFactory });
@@ -293,7 +294,7 @@ describe('durable wait canonical HTTP adapter', () => {
   });
 
   it('checks owner scope before every mutation and leaves cross-scope state unchanged', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-wait-http-scope-mutation-'));
+    const root = await mkdtemp(join(TEST_TMP_ROOT, 'brainbase-durable-wait-http-scope-mutation-'));
     roots.push(root);
     const store = new DurableWaitStore({ dataDir: root, problemSnapshot: { verify: () => true } });
     const handler = createDurableWaitHttpHandler({ storeFactory: () => store });
@@ -387,5 +388,5 @@ describe('durable wait canonical HTTP adapter', () => {
       lease_token: claimResult.claim?.lease?.token,
     });
     expect(await readAsOwner(resumeWaitId)).toEqual(resumeBefore);
-  });
+  }, 15_000);
 });

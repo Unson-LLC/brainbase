@@ -62,6 +62,7 @@ import {
 } from '../src/company-os-learning-adoption.js';
 
 const dataDirs: string[] = [];
+const TEST_TMP_ROOT = process.env.BRAINBASE_TEST_FIXTURE_ROOT ?? tmpdir();
 const tenantId = 'tenant-hotel-pilot';
 const ownerId = 'owner-1';
 const hotelId = 'hotel-alpha';
@@ -329,7 +330,7 @@ describe('company OS hotel pilot', () => {
   // (Node 22 complete). Run 38661339112 hit the 30s bound before this finished.
   // 90s stays above that shared-runner measurement.
   it('starts from an isolated local fixture', async () => {
-    const dataDir = await mkdtemp(join(tmpdir(), 'brainbase-company-os-hotel-pilot-'));
+    const dataDir = await mkdtemp(join(TEST_TMP_ROOT, 'brainbase-company-os-hotel-pilot-'));
     dataDirs.push(dataDir);
     await initializePersonalOs(dataDir);
     const foundationStore = createFoundationRevisionStore({ dataDir });

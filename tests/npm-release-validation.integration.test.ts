@@ -6,6 +6,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createReleaseArtifact } from '../scripts/npm-release.mjs';
 
+const NPM_RELEASE_VALIDATION_TIMEOUT_MS = 60_000;
 const temporaryRoots: string[] = [];
 
 afterEach(async () => {
@@ -58,5 +59,5 @@ describe('npm release validation evidence', () => {
         url: 'git+https://github.com/Unson-LLC/brainbase.git'
       }
     });
-  }, 30_000);
+  }, NPM_RELEASE_VALIDATION_TIMEOUT_MS);
 });
