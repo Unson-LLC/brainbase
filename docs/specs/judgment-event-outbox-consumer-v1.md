@@ -18,6 +18,7 @@
 - `event_id` の同一内容enqueueは既存キューを返し、同一IDで本文が変わればconflictにする。
 - `event_id` は安全な文字集合（英数字開始、英数字・`.`・`_`・`:`・`-`、最大256文字）に限定し、保存ファイル名は常に `${event_id}.json` と一致させる。
 - 本番のNode storageは完全書込済み一時ファイルをhard linkで排他的に公開する。`EEXIST`時は勝者を再読して同一本文だけを`existing`として受け入れ、別本文はconflictにする。custom storageも`link(from, to)`を必須実装とし、未実装なら`judgment_event_outbox_atomic_link_required`でfail-closedにする。部分書込を見せるstorage実装は本番接続に使わない。
+- dead-letterへの移動も`rename`による同名置換を使わず、完全な元ファイルをhard linkで保存してから元をunlinkする。同じfilenameが再発した場合は衝突しない履歴名へ退避し、過去のdead-letterを上書きしない。
 - POST成功後のreadback失敗ではPOST ackをキューへ保持し、再試行時にPOSTを再送しない。
 - transport障害ではpost attemptを消費しない。HTTP 409または上限超過はdead-letterへ移す。
 - confirmed receiptのreadbackが取れるまでキューを削除しない。receiptにはevent/candidateの同一性と `retrievable`/`active` を保存する。

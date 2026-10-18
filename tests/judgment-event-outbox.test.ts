@@ -164,6 +164,46 @@ describe('portable judgment knowledge event outbox', () => {
     expect((await readdir(paths.deadLetterDir)).sort()).toEqual(['bad-schema.json', 'wrong-name.json']);
   });
 
+  it('preserves dead-letter history when the source filename is reused', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'brainbase-judgment-outbox-'));
+    roots.push(root);
+    const paths = pathsFor(root);
+    await mkdir(paths.outboxDir, { recursive: true });
+    const duplicateFile = join(paths.outboxDir, 'duplicate-name.json');
+    const invalidRecord = (eventId: string) => JSON.stringify({
+      schema_version: 'judgment_event_outbox.legacy',
+      event: event(eventId),
+      delivery: { attempt: 1, queued_at: '2026-10-18T00:00:00.000Z' }
+    });
+
+    await writeFile(duplicateFile, invalidRecord('first-dead-letter'));
+    const first = await deliverJudgmentKnowledgeEventOutbox({
+      paths,
+      delivery: {
+        post: async () => { throw new Error('invalid record should not be posted'); },
+        readback: async () => { throw new Error('invalid record should not be read back'); }
+      }
+    });
+    await writeFile(duplicateFile, invalidRecord('second-dead-letter'));
+    const second = await deliverJudgmentKnowledgeEventOutbox({
+      paths,
+      delivery: {
+        post: async () => { throw new Error('invalid record should not be posted'); },
+        readback: async () => { throw new Error('invalid record should not be read back'); }
+      }
+    });
+
+    expect(first).toMatchObject({ status: 'processed', failed: 1, dead_lettered: 1, pending: 0 });
+    expect(second).toMatchObject({ status: 'processed', failed: 1, dead_lettered: 1, pending: 0 });
+    const deadLetters = (await readdir(paths.deadLetterDir)).filter((file) => file.startsWith('duplicate-name'));
+    expect(deadLetters).toHaveLength(2);
+    expect(deadLetters).toContain('duplicate-name.json');
+    expect(deadLetters.some((file) => file !== 'duplicate-name.json')).toBe(true);
+    const contents = await Promise.all(deadLetters.map((file) => readFile(join(paths.deadLetterDir, file), 'utf8')));
+    expect(contents.some((content) => content.includes('first-dead-letter'))).toBe(true);
+    expect(contents.some((content) => content.includes('second-dead-letter'))).toBe(true);
+  });
+
   it('serializes senders and recovers a stale sender lock', async () => {
     const root = await mkdtemp(join(tmpdir(), 'brainbase-judgment-outbox-'));
     roots.push(root);

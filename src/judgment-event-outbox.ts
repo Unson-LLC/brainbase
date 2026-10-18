@@ -373,7 +373,24 @@ function moveToDeadLetter(
   storage: JudgmentOutboxStorage
 ): void {
   storage.mkdir(directory, { recursive: true, mode: 0o700 });
-  storage.rename(target, join(directory, file));
+  if (typeof storage.link !== 'function') throw new Error('judgment_event_outbox_atomic_link_required');
+  const base = file.endsWith(JSON_SUFFIX) ? file.slice(0, -JSON_SUFFIX.length) : file;
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    const destinationName = attempt === 0
+      ? file
+      : `${base}.${process.pid}.${Date.now()}.${attempt}${JSON_SUFFIX}`;
+    try {
+      // A hard-link followed by unlink preserves an existing dead-letter with
+      // the same source filename. EEXIST selects a fresh history filename;
+      // rename would replace the older record on POSIX.
+      storage.link(target, join(directory, destinationName));
+      storage.unlink(target);
+      return;
+    } catch (error) {
+      if (!isCode(error, 'EEXIST')) throw error;
+    }
+  }
+  throw new Error('judgment_event_dead_letter_destination_exhausted');
 }
 
 function deliverCore(options: Required<Pick<JudgmentOutboxDeliveryOptions, 'paths'>> & Omit<JudgmentOutboxDeliveryOptions, 'paths'>): Promise<JudgmentOutboxDeliveryResult> {
