@@ -82,6 +82,134 @@ describe('Canonical Task operation and readiness adapters', () => {
     })).rejects.toMatchObject({ code: 'idempotency_conflict', status: 409 });
   });
 
+  it('revalidates completed and prepared delete replays from the persisted authorization snapshot', async () => {
+    const result = { task_id: 'task-1', deleted: true, version: 2 };
+    const snapshot = { task_id: 'task-1', task_version: 1, task: { id: 'task-1', version: 1 } };
+    const writerRow = { rows: [{ '?column?': 1 }], rowCount: 1 };
+    const completedPool = {
+      query: vi.fn(async (text: string) => {
+        if (text.includes('SELECT 1 FROM canonical_task_writer')) return writerRow;
+        if (text.includes("scope = 'task-delete'")) {
+          return { rows: [{ fingerprint: 'delete-fingerprint', state: 'completed', result_json: result, authorization_snapshot: snapshot }], rowCount: 1 };
+        }
+        throw new Error(`unexpected completed replay query: ${text}`);
+      }),
+    };
+    const completedAuthorizeReplay = vi.fn().mockResolvedValue(undefined);
+    const completed = new CanonicalTaskOperationRepository({
+      pool: completedPool,
+      writerToken: 'writer-token',
+      processIdentity: { pid: 42 },
+      writerEnabled: true,
+    });
+
+    await expect(completed.executePreparedDeleteCoordinated({
+      operationKey: 'delete-1',
+      versionClaimKey: 'version-1',
+      fingerprint: 'delete-fingerprint',
+      versionFingerprint: 'version-fingerprint',
+      principalNamespace: 'principal-1',
+      prepare: vi.fn(),
+      findTask: vi.fn(),
+      removeTask: vi.fn(),
+      authorizeReplay: completedAuthorizeReplay,
+    })).resolves.toEqual(result);
+    expect(completedAuthorizeReplay).toHaveBeenCalledWith(snapshot, result);
+
+    const clientQuery = vi.fn(async (text: string) => {
+      if (text === 'BEGIN' || text === 'COMMIT' || text === 'ROLLBACK') return { rows: [], rowCount: 0 };
+      if (text.includes('SELECT 1 FROM canonical_task_writer')) return writerRow;
+      if (text.includes("SET state = 'completed'")) return { rows: [], rowCount: 1 };
+      throw new Error(`unexpected prepared replay client query: ${text}`);
+    });
+    const preparedPool = {
+      query: vi.fn(async (text: string) => {
+        if (text.includes('SELECT 1 FROM canonical_task_writer')) return writerRow;
+        if (text.includes("scope = 'task-delete'")) {
+          return { rows: [{ fingerprint: 'delete-fingerprint', state: 'prepared', result_json: result, authorization_snapshot: snapshot }], rowCount: 1 };
+        }
+        throw new Error(`unexpected prepared replay query: ${text}`);
+      }),
+      connect: vi.fn(async () => ({ query: clientQuery, release: vi.fn() })),
+    };
+    const preparedAuthorizeReplay = vi.fn().mockResolvedValue(undefined);
+    const findTask = vi.fn().mockResolvedValue(null);
+    const removeTask = vi.fn();
+    const prepared = new CanonicalTaskOperationRepository({
+      pool: preparedPool,
+      writerToken: 'writer-token',
+      processIdentity: { pid: 42 },
+      writerEnabled: true,
+    });
+
+    await expect(prepared.executePreparedDeleteCoordinated({
+      operationKey: 'delete-1',
+      versionClaimKey: 'version-1',
+      fingerprint: 'delete-fingerprint',
+      versionFingerprint: 'version-fingerprint',
+      principalNamespace: 'principal-1',
+      prepare: vi.fn(),
+      findTask,
+      removeTask,
+      authorizeReplay: preparedAuthorizeReplay,
+    })).resolves.toEqual(result);
+    expect(findTask).toHaveBeenCalledTimes(1);
+    expect(removeTask).not.toHaveBeenCalled();
+    expect(preparedAuthorizeReplay).toHaveBeenCalledWith(snapshot, result);
+  });
+
+  it('rejects completed and prepared delete replays when the authorization snapshot is missing', async () => {
+    const result = { task_id: 'task-1', deleted: true, version: 2 };
+    const writerRow = { rows: [{ '?column?': 1 }], rowCount: 1 };
+    const createPool = (state: 'completed' | 'prepared') => ({
+      query: vi.fn(async (text: string) => {
+        if (text.includes('SELECT 1 FROM canonical_task_writer')) return writerRow;
+        if (text.includes("scope = 'task-delete'")) {
+          return { rows: [{ fingerprint: 'delete-fingerprint', state, result_json: result }], rowCount: 1 };
+        }
+        throw new Error(`unexpected missing snapshot query: ${text}`);
+      }),
+    });
+    const authorizeReplay = vi.fn().mockResolvedValue(undefined);
+    const completed = new CanonicalTaskOperationRepository({
+      pool: createPool('completed'),
+      writerToken: 'writer-token',
+      processIdentity: { pid: 42 },
+      writerEnabled: true,
+    });
+    await expect(completed.executePreparedDeleteCoordinated({
+      operationKey: 'delete-1',
+      versionClaimKey: 'version-1',
+      fingerprint: 'delete-fingerprint',
+      versionFingerprint: 'version-fingerprint',
+      principalNamespace: 'principal-1',
+      prepare: vi.fn(),
+      findTask: vi.fn(),
+      removeTask: vi.fn(),
+      authorizeReplay,
+    })).rejects.toMatchObject({ code: 'canonical_task_authorization_snapshot_unavailable', status: 503 });
+    expect(authorizeReplay).not.toHaveBeenCalled();
+
+    const prepared = new CanonicalTaskOperationRepository({
+      pool: createPool('prepared'),
+      writerToken: 'writer-token',
+      processIdentity: { pid: 42 },
+      writerEnabled: true,
+    });
+    await expect(prepared.executePreparedDeleteCoordinated({
+      operationKey: 'delete-1',
+      versionClaimKey: 'version-1',
+      fingerprint: 'delete-fingerprint',
+      versionFingerprint: 'version-fingerprint',
+      principalNamespace: 'principal-1',
+      prepare: vi.fn(),
+      findTask: vi.fn(),
+      removeTask: vi.fn(),
+      authorizeReplay,
+    })).rejects.toMatchObject({ code: 'canonical_task_authorization_snapshot_unavailable', status: 503 });
+    expect(authorizeReplay).not.toHaveBeenCalled();
+  });
+
   it('requires persisted readiness to match writer, manifest, schema, source head, and evidence', async () => {
     const row: CanonicalTaskReadinessRow = {
       ready: true,

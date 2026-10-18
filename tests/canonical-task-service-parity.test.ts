@@ -403,6 +403,45 @@ describe('CanonicalTaskService parity contracts', () => {
     expect(readinessCalls).toBeGreaterThan(0);
   });
 
+  it('closes create, update, and transition recovery when readiness changes before replay', async () => {
+    let open = true;
+    const readiness = {
+      async assertMutationReady() {
+        if (!open) {
+          throw new CanonicalTaskError('canonical_task_mutation_not_ready', 'Canonical Task mutation is not ready', 503);
+        }
+      },
+    };
+    const completedOperations = new Set<string>();
+    const operationRepository: CanonicalTaskOperationRepository = {
+      async execute<T>(request: CanonicalTaskOperationRequest<T>): Promise<T> {
+        if (!completedOperations.has(request.operationKey)) {
+          completedOperations.add(request.operationKey);
+          return request.run();
+        }
+        open = false;
+        const recovered = await request.recover?.();
+        return recovered?.recovered ? recovered.result as T : request.run();
+      },
+    };
+    const fixture = createCanonicalTaskServiceFixture({ readiness, operationRepository });
+    const service = fixture.service;
+
+    const created = await service.createTask({ title: 'Replay readiness task' }, taskContext('create-replay'));
+    await expect(service.createTask({ title: 'Replay readiness task' }, taskContext('create-replay')))
+      .rejects.toMatchObject({ code: 'canonical_task_mutation_not_ready', status: 503 });
+
+    open = true;
+    const updated = await service.updateTask(created.id, { title: 'Replay readiness update' }, created.version, taskContext());
+    await expect(service.updateTask(created.id, { title: 'Replay readiness update' }, created.version, taskContext()))
+      .rejects.toMatchObject({ code: 'canonical_task_mutation_not_ready', status: 503 });
+
+    open = true;
+    await service.transitionTask(created.id, 'in_progress', updated.version, taskContext());
+    await expect(service.transitionTask(created.id, 'in_progress', updated.version, taskContext()))
+      .rejects.toMatchObject({ code: 'canonical_task_mutation_not_ready', status: 503 });
+  });
+
   it('preserves completed_at when an ordinary update follows a completed transition', async () => {
     const fixture = createCanonicalTaskServiceFixture();
     await fixture.service.createTask({ title: 'Completed task' }, taskContext('create-1'));

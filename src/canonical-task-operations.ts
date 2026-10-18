@@ -30,6 +30,14 @@ function sameProcessIdentity(left: unknown, right: unknown): boolean {
   return JSON.stringify(normalize(left)) === JSON.stringify(normalize(right));
 }
 
+function authorizationSnapshotRecord(value: unknown): JsonRecord | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const record = value as JsonRecord;
+  return record.task && typeof record.task === 'object' && !Array.isArray(record.task)
+    ? record
+    : null;
+}
+
 export interface CanonicalTaskOperationRepositoryOptions {
   pool?: CanonicalTaskPgPool | null;
   writerToken?: string | null;
@@ -464,7 +472,15 @@ export class CanonicalTaskOperationRepository {
             503,
           );
         }
-        await authorizeReplay(row.authorization_snapshot, row.result_json as T);
+        const authorizationSnapshot = authorizationSnapshotRecord(row.authorization_snapshot);
+        if (!authorizationSnapshot) {
+          throw canonicalTaskOperationError(
+            'canonical_task_authorization_snapshot_unavailable',
+            'Completed Canonical Task delete operation cannot be replayed without authorization revalidation',
+            503,
+          );
+        }
+        await authorizeReplay(authorizationSnapshot, row.result_json as T);
         return row.result_json;
       }
       if (row.state !== 'prepared') {
@@ -554,13 +570,8 @@ export class CanonicalTaskOperationRepository {
     authorizeReplay?: (authorizationSnapshot: JsonRecord, result: T) => Promise<void>;
   }): Promise<T> {
     await this.assertWriter();
-    const authorizationSnapshot = row.authorization_snapshot;
-    const snapshotRecord = authorizationSnapshot && typeof authorizationSnapshot === 'object'
-      && !Array.isArray(authorizationSnapshot)
-      ? authorizationSnapshot as JsonRecord
-      : null;
-    if (!snapshotRecord || !snapshotRecord.task || typeof snapshotRecord.task !== 'object'
-      || Array.isArray(snapshotRecord.task)) {
+    const snapshotRecord = authorizationSnapshotRecord(row.authorization_snapshot);
+    if (!snapshotRecord) {
       throw canonicalTaskOperationError(
         'canonical_task_authorization_snapshot_unavailable',
         'Prepared Canonical Task delete operation has no authorization snapshot',
@@ -578,7 +589,7 @@ export class CanonicalTaskOperationRepository {
           503,
         );
       }
-      await authorizeReplay(authorizationSnapshot as JsonRecord, row.result_json as T);
+      await authorizeReplay(snapshotRecord, row.result_json as T);
     }
 
     const client = await this.connect();
@@ -615,15 +626,15 @@ export class CanonicalTaskOperationRepository {
             503,
           );
         }
-        const replaySnapshot = replay.rows[0].authorization_snapshot;
-        if (!replaySnapshot || typeof replaySnapshot !== 'object' || Array.isArray(replaySnapshot)) {
+        const replaySnapshot = authorizationSnapshotRecord(replay.rows[0].authorization_snapshot);
+        if (!replaySnapshot) {
           throw canonicalTaskOperationError(
             'canonical_task_authorization_snapshot_unavailable',
             'Completed Canonical Task delete operation cannot be replayed without authorization revalidation',
             503,
           );
         }
-        await authorizeReplay(replaySnapshot as JsonRecord, replay.rows[0].result_json as T);
+        await authorizeReplay(replaySnapshot, replay.rows[0].result_json as T);
         await client.query('COMMIT');
         return replay.rows[0].result_json;
       }
