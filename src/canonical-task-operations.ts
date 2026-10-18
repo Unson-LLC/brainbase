@@ -61,6 +61,11 @@ const READINESS_COLUMNS = `ready, writer_token, manifest_hash, schema_version, s
  * retry with the same input replays and a different input conflicts.
  */
 export class CanonicalTaskOperationRepository {
+  /**
+   * A PostgreSQL coordinator is a durable mutation boundary. Callers must
+   * bind it to the release readiness gate before exposing mutations.
+   */
+  readonly requiresReadiness = true;
   readonly pool: CanonicalTaskPgPool | null;
   readonly writerToken: string | null;
   readonly processIdentity: JsonRecord | null;
@@ -434,6 +439,7 @@ export class CanonicalTaskOperationRepository {
 
   async executePreparedDeleteCoordinated<T>({
     operationKey, versionClaimKey, fingerprint, versionFingerprint, principalNamespace, prepare, findTask, removeTask,
+    authorizeReplay,
   }: CanonicalTaskPreparedDeleteCoordination<T>): Promise<T> {
     this.assertWriterEnabled();
     this.assertConfigured();
@@ -450,11 +456,21 @@ export class CanonicalTaskOperationRepository {
       if (row.fingerprint !== fingerprint) {
         throw canonicalTaskOperationError('idempotency_conflict', 'Idempotency key was reused with different input', 409);
       }
-      if (row.state === 'completed') return row.result_json;
+      if (row.state === 'completed') {
+        if (typeof authorizeReplay !== 'function') {
+          throw canonicalTaskOperationError(
+            'canonical_task_authorization_snapshot_unavailable',
+            'Completed Canonical Task delete operation cannot be replayed without authorization revalidation',
+            503,
+          );
+        }
+        await authorizeReplay(row.authorization_snapshot, row.result_json as T);
+        return row.result_json;
+      }
       if (row.state !== 'prepared') {
         throw canonicalTaskOperationError('canonical_task_operation_in_progress', 'Canonical Task delete operation is already in progress', 409);
       }
-      return this.completePreparedDelete({ operationKey, versionClaimKey, row, findTask, removeTask });
+      return this.completePreparedDelete({ operationKey, versionClaimKey, row, findTask, removeTask, authorizeReplay });
     }
 
     const versionClaim = await this.pool!.query(
@@ -525,19 +541,45 @@ export class CanonicalTaskOperationRepository {
       row: { fingerprint, result_json: prepared.result, authorization_snapshot: authorizationSnapshot },
       findTask,
       removeTask,
+      authorizeReplay,
     });
   }
 
-  async completePreparedDelete<T>({ operationKey, versionClaimKey, row, findTask, removeTask }: {
+  async completePreparedDelete<T>({ operationKey, versionClaimKey, row, findTask, removeTask, authorizeReplay }: {
     operationKey: string;
     versionClaimKey: string;
     row: { fingerprint: string; result_json: unknown; authorization_snapshot?: unknown };
     findTask: () => Promise<unknown>;
     removeTask: (task: any) => Promise<void>;
+    authorizeReplay?: (authorizationSnapshot: JsonRecord, result: T) => Promise<void>;
   }): Promise<T> {
     await this.assertWriter();
+    const authorizationSnapshot = row.authorization_snapshot;
+    const snapshotRecord = authorizationSnapshot && typeof authorizationSnapshot === 'object'
+      && !Array.isArray(authorizationSnapshot)
+      ? authorizationSnapshot as JsonRecord
+      : null;
+    if (!snapshotRecord || !snapshotRecord.task || typeof snapshotRecord.task !== 'object'
+      || Array.isArray(snapshotRecord.task)) {
+      throw canonicalTaskOperationError(
+        'canonical_task_authorization_snapshot_unavailable',
+        'Prepared Canonical Task delete operation has no authorization snapshot',
+        503,
+      );
+    }
     const task = await findTask();
-    if (task) await removeTask(task);
+    if (task) {
+      await removeTask(task);
+    } else {
+      if (typeof authorizeReplay !== 'function') {
+        throw canonicalTaskOperationError(
+          'canonical_task_authorization_snapshot_unavailable',
+          'Prepared Canonical Task delete operation cannot be resumed without authorization revalidation',
+          503,
+        );
+      }
+      await authorizeReplay(authorizationSnapshot as JsonRecord, row.result_json as T);
+    }
 
     const client = await this.connect();
     try {
@@ -558,7 +600,7 @@ export class CanonicalTaskOperationRepository {
       );
       if (!completed.rowCount) {
         const replay = await client.query(
-          `SELECT fingerprint, state, result_json
+          `SELECT fingerprint, state, result_json, authorization_snapshot
            FROM canonical_task_operations
            WHERE scope = 'task-delete' AND operation_key = $1 FOR UPDATE`,
           [operationKey],
@@ -566,6 +608,22 @@ export class CanonicalTaskOperationRepository {
         if (replay.rows[0]?.fingerprint !== row.fingerprint || replay.rows[0]?.state !== 'completed') {
           throw canonicalTaskOperationError('canonical_task_operation_in_progress', 'Canonical Task delete completion could not be claimed', 409);
         }
+        if (typeof authorizeReplay !== 'function') {
+          throw canonicalTaskOperationError(
+            'canonical_task_authorization_snapshot_unavailable',
+            'Completed Canonical Task delete operation cannot be replayed without authorization revalidation',
+            503,
+          );
+        }
+        const replaySnapshot = replay.rows[0].authorization_snapshot;
+        if (!replaySnapshot || typeof replaySnapshot !== 'object' || Array.isArray(replaySnapshot)) {
+          throw canonicalTaskOperationError(
+            'canonical_task_authorization_snapshot_unavailable',
+            'Completed Canonical Task delete operation cannot be replayed without authorization revalidation',
+            503,
+          );
+        }
+        await authorizeReplay(replaySnapshot as JsonRecord, replay.rows[0].result_json as T);
         await client.query('COMMIT');
         return replay.rows[0].result_json;
       }
@@ -609,6 +667,8 @@ export interface CanonicalTaskPreparedDeleteCoordination<T> {
   prepare: () => Promise<{ result: T; authorizationSnapshot?: JsonRecord; task?: unknown }>;
   findTask: () => Promise<unknown>;
   removeTask: (task: any) => Promise<void>;
+  /** Reauthorize a completed or already-applied delete from its durable snapshot. */
+  authorizeReplay?: (authorizationSnapshot: JsonRecord, result: T) => Promise<void>;
 }
 
 export class CanonicalTaskReadinessError extends Error {

@@ -43,6 +43,10 @@ function repository(pool: CanonicalTaskPgPool, options: Partial<ConstructorParam
 }
 
 describe('CanonicalTaskPostgresRepository', () => {
+  it('marks durable persistence as requiring a readiness binding', () => {
+    expect(repository({ query: vi.fn() }).requiresReadiness).toBe(true);
+  });
+
   it('normalizes cancelled tasks and signs IDs to one store identity', () => {
     const repo = repository({ query: vi.fn() });
     const normalized = repo.normalize({ ...persisted, status: 'cancelled' });

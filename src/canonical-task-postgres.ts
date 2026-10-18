@@ -208,6 +208,11 @@ export class CanonicalTaskUnavailableRepository {
  * `scopeCondition`, and authorization stays in the service policy.
  */
 export class CanonicalTaskPostgresRepository {
+  /**
+   * PostgreSQL is a durable mutation boundary. Services must bind it to the
+   * persisted release readiness gate before exposing mutations.
+   */
+  readonly requiresReadiness = true;
   readonly pool: CanonicalTaskPgPool;
   readonly schemaVersion: string;
   readonly legacyIdentity: CanonicalTaskLegacyIdentity | null;

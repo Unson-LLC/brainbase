@@ -3,6 +3,7 @@ import {
   type CanonicalTaskOperationRepository,
   type CanonicalTaskAuditEntry,
   type CanonicalTaskContext,
+  type CanonicalTaskMutationReadiness,
   type CanonicalTaskPage,
   type CanonicalTaskRecord,
   type CanonicalTaskRepository,
@@ -11,7 +12,10 @@ import {
 function clone<T>(value: T): T {
   return structuredClone(value);
 }
-export function createCanonicalTaskServiceFixture(options: { operationRepository?: CanonicalTaskOperationRepository } = {}) {
+export function createCanonicalTaskServiceFixture(options: {
+  operationRepository?: CanonicalTaskOperationRepository;
+  readiness?: CanonicalTaskMutationReadiness | null;
+} = {}) {
   const tasks = new Map<string, CanonicalTaskRecord>();
   const auditEntries: CanonicalTaskAuditEntry[] = [];
   const auditCalls: CanonicalTaskAuditEntry[] = [];
@@ -81,6 +85,7 @@ export function createCanonicalTaskServiceFixture(options: { operationRepository
     repository,
     auditRepository,
     ...(options.operationRepository ? { operationRepository: options.operationRepository } : {}),
+    ...(options.readiness ? { readiness: options.readiness } : {}),
     policy: {
       authorize({ action }) {
         actions.push(action);

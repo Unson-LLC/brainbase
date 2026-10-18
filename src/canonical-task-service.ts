@@ -175,6 +175,8 @@ export interface CanonicalTaskAuditEntry extends JsonRecord {
 }
 
 export interface CanonicalTaskRepository {
+  /** Durable PostgreSQL repositories require a release readiness binding. */
+  requiresReadiness?: boolean;
   list(filters: CanonicalTaskListFilters, storageScope?: string): Promise<CanonicalTaskPage>;
   search(filters: CanonicalTaskSearchFilters, storageScope?: string): Promise<CanonicalTaskPage>;
   get(taskId: string, storageScope?: string): Promise<CanonicalTaskRecord | null>;
@@ -250,11 +252,20 @@ export interface CanonicalTaskPreparedDeleteRequest<T> {
   }>;
   findTask: () => Promise<CanonicalTaskRecord | null>;
   removeTask: (task?: CanonicalTaskRecord) => Promise<void>;
+  /** Reauthorize a completed or already-applied delete from its durable snapshot. */
+  authorizeReplay?: (authorizationSnapshot: JsonRecord, result: T) => Promise<void>;
   projectResult?: (result: T) => unknown;
   recover?: () => Promise<CanonicalTaskOperationRecovery<T>>;
 }
 
+export interface CanonicalTaskMutationReadiness {
+  /** Reject the mutation unless the persisted release readiness still matches. */
+  assertMutationReady(): Promise<void>;
+}
+
 export interface CanonicalTaskOperationRepository {
+  /** Durable PostgreSQL coordinators set this marker and require readiness binding. */
+  requiresReadiness?: boolean;
   execute<T>(request: CanonicalTaskOperationRequest<T>): Promise<T>;
   executePreparedDelete?<T>(request: CanonicalTaskPreparedDeleteRequest<T>): Promise<T>;
 }
@@ -264,6 +275,7 @@ export interface CanonicalTaskServiceOptions {
   auditRepository?: CanonicalTaskAuditRepository;
   policy?: CanonicalTaskPolicy;
   operationRepository?: CanonicalTaskOperationRepository;
+  readiness?: CanonicalTaskMutationReadiness | null;
   clock?: CanonicalTaskClock;
   baseUrl?: CanonicalTaskBaseUrl;
 }
@@ -678,6 +690,7 @@ export class CanonicalTaskService {
   private readonly auditRepository?: CanonicalTaskAuditRepository;
   private readonly policy: CanonicalTaskPolicy;
   private readonly operationRepository?: CanonicalTaskOperationRepository;
+  private readonly readiness?: CanonicalTaskMutationReadiness;
   private readonly clock: CanonicalTaskClock;
   private readonly baseUrl?: CanonicalTaskBaseUrl;
 
@@ -687,6 +700,14 @@ export class CanonicalTaskService {
     this.auditRepository = options.auditRepository;
     this.policy = options.policy ?? { authorize: () => undefined };
     this.operationRepository = options.operationRepository;
+    if (options.readiness != null && typeof options.readiness.assertMutationReady !== 'function') {
+      throw new Error('Canonical Task readiness must provide assertMutationReady()');
+    }
+    this.readiness = options.readiness ?? undefined;
+    if ((this.repository.requiresReadiness === true || this.operationRepository?.requiresReadiness === true)
+      && !this.readiness) {
+      throw new Error('Canonical Task readiness is required for durable persistence or operation coordination');
+    }
     this.clock = options.clock ?? (() => new Date());
     this.baseUrl = options.baseUrl;
     if (typeof options.baseUrl === 'string' && options.baseUrl && !validHttpUrl(options.baseUrl)) {
@@ -741,10 +762,12 @@ export class CanonicalTaskService {
     const normalizedContext = await this.normalizeContext(context);
     const clientKey = this.requireIdempotencyKey(normalizedContext);
     const payload = this.normalizeCreateInput(input);
+    await this.assertMutationReady();
     await this.authorize('create', normalizedContext, undefined, payload);
     const operation = operationKey(normalizedContext, clientKey, 'api:');
     const inputFingerprint = fingerprint(payload);
     const recover = async (): Promise<CanonicalTaskOperationRecovery<CanonicalTaskRecord>> => {
+      await this.assertMutationReady();
       const existing = await this.read(() => this.repository.findByIdempotencyKey(operation, ...this.scopeArgs(normalizedContext)));
       if (!existing) return { recovered: false };
       const existingFingerprint = extractPersistedFingerprint(existing);
@@ -761,6 +784,7 @@ export class CanonicalTaskService {
     const run = async (): Promise<CanonicalTaskRecord> => {
       const recovered = await recover();
       if (recovered.recovered && recovered.result) return recovered.result;
+      await this.assertMutationReady();
       const created = await this.read(() => this.repository.create({
         ...payload,
         status: 'pending',
@@ -873,14 +897,23 @@ export class CanonicalTaskService {
       ? expectedVersionOrInput
       : expectedVersionOrInput.expected_version);
     const clientKey = this.requireIdempotencyKey(normalizedContext);
+    await this.assertMutationReady();
     // A prepared-delete coordinator owns the durable operation lookup. Do not
     // require the row to remain visible before entering it: a completed
     // operation may legitimately recover after the delete removed the row.
     // The fallback path still performs the ordinary read and authorization
     // checks before invoking the local operation runner.
-    if (normalizedContext.storageScope !== undefined) await this.authorize('delete', normalizedContext);
     let task: CanonicalTaskRecord | null = null;
-    if (!this.operationRepository?.executePreparedDelete) {
+    if (this.operationRepository?.executePreparedDelete) {
+      // Read and authorize a visible task before entering the coordinator. A
+      // completed replay can legitimately have no row, so absence is left to
+      // the durable snapshot reauthorization below.
+      task = await this.read(() => this.repository.get(normalizedId, ...this.scopeArgs(normalizedContext)));
+      if (task) {
+        await this.authorize('delete', normalizedContext, task);
+        this.assertVersion(task, version);
+      }
+    } else {
       task = await this.read(() => this.repository.get(normalizedId, ...this.scopeArgs(normalizedContext)));
       if (!task) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: normalizedId });
       await this.authorize('delete', normalizedContext, task);
@@ -916,6 +949,7 @@ export class CanonicalTaskService {
       task: CanonicalTaskRecord;
       authorizationSnapshot: JsonRecord;
     }> => {
+      await this.assertMutationReady();
       const current = await this.read(() => this.repository.get(normalizedId, ...this.scopeArgs(normalizedContext)));
       if (!current) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: normalizedId });
       await this.authorize('delete', normalizedContext, current);
@@ -934,6 +968,7 @@ export class CanonicalTaskService {
           ...(normalizedContext.storageScope === undefined ? {} : { storage_scope: normalizedContext.storageScope }),
           actor: normalizedContext.principal,
           auth_source: normalizedContext.authSource ?? null,
+          task: current,
         },
       };
     };
@@ -943,6 +978,7 @@ export class CanonicalTaskService {
         return current;
       });
     const removeTask = async (current?: CanonicalTaskRecord): Promise<void> => {
+      await this.assertMutationReady();
       const taskToRemove = current ?? await this.read(() => this.repository.get(normalizedId, ...this.scopeArgs(normalizedContext)));
       if (!taskToRemove) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: normalizedId });
       task = taskToRemove;
@@ -952,6 +988,34 @@ export class CanonicalTaskService {
       await this.authorize('delete', normalizedContext, taskToRemove);
       this.assertVersion(taskToRemove, version);
       await this.read(() => this.repository.delete(normalizedId, version, ...this.scopeArgs(normalizedContext)));
+    };
+    const authorizeReplay = async (authorizationSnapshot: JsonRecord): Promise<void> => {
+      await this.assertMutationReady();
+      const snapshotTask = authorizationSnapshot?.task;
+      if (!snapshotTask || typeof snapshotTask !== 'object' || Array.isArray(snapshotTask)) {
+        throw new CanonicalTaskError(
+          'canonical_task_authorization_snapshot_unavailable',
+          'Completed Canonical Task delete operation has no authorization snapshot',
+          503,
+        );
+      }
+      const taskSnapshot = snapshotTask as CanonicalTaskRecord;
+      if (authorizationSnapshot.task_id !== normalizedId
+        || authorizationSnapshot.task_version !== version
+        || taskSnapshot.id !== normalizedId
+        || taskSnapshot.version !== version) {
+        throw new CanonicalTaskError(
+          'canonical_task_authorization_snapshot_unavailable',
+          'Completed Canonical Task delete operation has an invalid authorization snapshot',
+          503,
+        );
+      }
+      const snapshotScope = authorizationSnapshot.storage_scope;
+      if (snapshotScope !== normalizedContext.storageScope
+        && (snapshotScope !== undefined || normalizedContext.storageScope !== undefined)) {
+        throw new CanonicalTaskError('task_not_found', 'Task was not found', 404);
+      }
+      await this.authorize('delete', normalizedContext, taskSnapshot);
     };
     let deleted: CanonicalTaskDeleteOperationResult;
     if (this.operationRepository?.executePreparedDelete) {
@@ -966,6 +1030,7 @@ export class CanonicalTaskService {
         prepare,
         findTask,
         removeTask,
+        authorizeReplay,
         projectResult: projectTaskResult,
       });
     } else {
@@ -1029,6 +1094,7 @@ export class CanonicalTaskService {
   }): Promise<CanonicalTaskRecord> {
     const taskId = normalizeString(input.taskId, 'task_id', { required: true, max: 200 }) as string;
     const expectedVersion = this.requireExpectedVersion(input.expectedVersion);
+    await this.assertMutationReady();
     const current = await this.read(() => this.repository.get(taskId, ...this.scopeArgs(input.context)));
     if (!current) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: taskId });
     await this.authorize(input.action, input.context, current, input.patch);
@@ -1072,6 +1138,7 @@ export class CanonicalTaskService {
       }
     }
     const recover = async (): Promise<CanonicalTaskOperationRecovery<CanonicalTaskRecord>> => {
+      await this.assertMutationReady();
       const latest = await this.read(() => this.repository.get(taskId, ...this.scopeArgs(input.context)));
       if (!latest) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: taskId });
       await this.authorize(input.action, input.context, latest, input.patch);
@@ -1086,6 +1153,7 @@ export class CanonicalTaskService {
       return { recovered: false };
     };
     const run = async (): Promise<CanonicalTaskRecord> => {
+      await this.assertMutationReady();
       const latest = await this.read(() => this.repository.get(taskId, ...this.scopeArgs(input.context)));
       if (!latest) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: taskId });
       if (wasApplied(latest)) return this.normalizeResponse(latest);
@@ -1290,6 +1358,10 @@ export class CanonicalTaskService {
 
   private async authorize(action: CanonicalTaskAction, context: CanonicalTaskContext, task?: CanonicalTaskRecord | null, input?: unknown): Promise<void> {
     await this.policy.authorize({ action, context, task, input });
+  }
+
+  private async assertMutationReady(): Promise<void> {
+    if (this.readiness) await this.readiness.assertMutationReady();
   }
 
   private async scopeFilters<T extends CanonicalTaskListFilters | CanonicalTaskSearchFilters>(operation: 'list' | 'search', context: CanonicalTaskContext, filters: T): Promise<T> {
