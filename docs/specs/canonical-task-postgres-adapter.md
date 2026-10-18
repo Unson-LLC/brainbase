@@ -66,6 +66,10 @@ readinessはwriter、manifest hash、schema version、source head、evidence has
 - `tests/canonical-task-postgres.test.ts`: ID、visibility、pagination/search、CAS、authority、scope fail-closed
 - `tests/canonical-task-operations.test.ts`: writer/readiness/source-head guard
 - `tests/canonical-task-store-config.test.ts`: manifest identity/backend fail-closed
+- `tests/canonical-task-postgres-service.integration.test.ts`: 明示したlocalhostの使い捨てPostgreSQLへstore/operation schemaを作成し、
+  実PGのadapter→Service CRUD、opaque ID readback、operation replay、readiness fail-closed、
+  注入されたGraph organization policy・assignee-only no-project・audit sinkを検証する。
+  通常suiteには含めず、`CANONICAL_TASK_PG_TEST_URL=... npm run test:canonical-task-postgres`で実行する。
 
-このStageの完了証跡はlocal unit test、TypeScript build、diff check、draft PRまでとし、実DBschema apply、
-production same-ID readback、consumer切替は未確認として扱う。
+このStageの完了証跡はlocal unit test、TypeScript build、専用local PostgreSQL integration test、diff check、
+draft PRまでとし、production DB schema apply、production same-ID readback、consumer切替は未確認として扱う。
