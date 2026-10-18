@@ -11,7 +11,7 @@ async function importExport(manifest: { exports: Record<string, { import: string
 }
 
 describe('Stage 3 common contract package exports', () => {
-    it('publishes run receipt and meeting automation as independent subpaths', async () => {
+    it('publishes run receipt and meeting components as independent subpaths', async () => {
         const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
 
         expect(manifest.exports['./run-receipt']).toEqual({
@@ -22,6 +22,18 @@ describe('Stage 3 common contract package exports', () => {
             types: './dist/meeting-automation.d.ts',
             import: './dist/meeting-automation.js'
         });
+        expect(manifest.exports['./meeting-automation-runtime']).toEqual({
+            types: './dist/meeting-automation-runtime.d.ts',
+            import: './dist/meeting-automation-runtime.js'
+        });
+        expect(manifest.exports['./meeting-minutes-context-receipt']).toEqual({
+            types: './dist/meeting-minutes-context-receipt.d.ts',
+            import: './dist/meeting-minutes-context-receipt.js'
+        });
+        expect(manifest.exports['./meeting-source-sync']).toEqual({
+            types: './dist/meeting-source-sync.d.ts',
+            import: './dist/meeting-source-sync.js'
+        });
 
         const runReceipt = await importExport(manifest, './run-receipt');
         expect(typeof runReceipt.normalizeRunReceipt).toBe('function');
@@ -30,5 +42,14 @@ describe('Stage 3 common contract package exports', () => {
         const meetingAutomation = await importExport(manifest, './meeting-automation');
         expect(typeof meetingAutomation.assertMeetingCandidatesInput).toBe('function');
         expect(typeof meetingAutomation.verifyMeetingReviewPackage).toBe('function');
+
+        const meetingAutomationRuntime = await importExport(manifest, './meeting-automation-runtime');
+        expect(typeof meetingAutomationRuntime.runMeetingAutomationRuntime).toBe('function');
+        const contextReceipt = await importExport(manifest, './meeting-minutes-context-receipt');
+        expect(typeof contextReceipt.createMeetingMinutesContextReceipt).toBe('function');
+        expect(typeof contextReceipt.readMeetingMinutesContextReceipt).toBe('function');
+        const sourceSync = await importExport(manifest, './meeting-source-sync');
+        expect(typeof sourceSync.normalizeMeetingSourceArtifact).toBe('function');
+        expect(typeof sourceSync.runMeetingSourceSync).toBe('function');
     });
 });
