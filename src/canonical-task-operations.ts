@@ -811,15 +811,14 @@ export function createCanonicalTaskSourceHeadGuard({
     throw new Error('Canonical Task source head guard requires guarded paths');
   }
   const lockedEntry = async (head: string, name: string) => {
-    let text: string;
     try {
-      text = String((await execFile('git', ['-C', repoDir!, 'show', `${head}:${lockfilePath}`])).stdout);
+      const text = String((await execFile('git', ['-C', repoDir!, 'show', `${head}:${lockfilePath}`])).stdout);
+      const lock = JSON.parse(text);
+      const entry = lock?.packages?.[`node_modules/${name}`] ?? lock?.dependencies?.[name] ?? null;
+      return entry ? { version: entry.version ?? null, resolved: entry.resolved ?? null, integrity: entry.integrity ?? null } : null;
     } catch {
       return null;
     }
-    const lock = JSON.parse(text);
-    const entry = lock?.packages?.[`node_modules/${name}`] ?? lock?.dependencies?.[name] ?? null;
-    return entry ? { version: entry.version ?? null, resolved: entry.resolved ?? null, integrity: entry.integrity ?? null } : null;
   };
   return async function canRebindSourceHead({ fromHead, toHead } = {}) {
     if (!repoDir) return { allowed: false, reason: 'source_head_guard_repo_missing' };
@@ -832,6 +831,14 @@ export function createCanonicalTaskSourceHeadGuard({
       const changedPackages: string[] = [];
       for (const name of guardedPackages) {
         const [before, after] = [await lockedEntry(fromHead, name), await lockedEntry(toHead, name)];
+        if (!before || !after) {
+          return {
+            allowed: false,
+            reason: 'canonical_task_package_lock_unreadable',
+            changedPaths: [],
+            changedPackages: [name],
+          };
+        }
         if (JSON.stringify(before) !== JSON.stringify(after)) changedPackages.push(name);
       }
       if (changedPackages.length > 0) {

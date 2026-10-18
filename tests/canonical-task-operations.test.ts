@@ -159,4 +159,37 @@ describe('Canonical Task operation and readiness adapters', () => {
       changedPackages: ['@unson/brainbase-mcp'],
     });
   });
+
+  it('fails closed when a guarded package lock entry is unreadable or missing on either release', async () => {
+    const unreadableGuard = createCanonicalTaskSourceHeadGuard({
+      repoDir: '/repo',
+      guardedPaths: ['src/canonical-task-service.ts'],
+      guardedPackages: ['@unson/brainbase-mcp'],
+      execFile: async (_file, args) => {
+        if (args[2] === 'diff') return { stdout: '' };
+        throw new Error('lockfile unavailable');
+      },
+    });
+    await expect(unreadableGuard({ fromHead: 'old', toHead: 'new' })).resolves.toMatchObject({
+      allowed: false,
+      reason: 'canonical_task_package_lock_unreadable',
+      changedPackages: ['@unson/brainbase-mcp'],
+    });
+
+    const missingEntryGuard = createCanonicalTaskSourceHeadGuard({
+      repoDir: '/repo',
+      guardedPaths: ['src/canonical-task-service.ts'],
+      guardedPackages: ['@unson/brainbase-mcp'],
+      execFile: async (_file, args) => {
+        if (args[2] === 'diff') return { stdout: '' };
+        if (args[3] === 'old:package-lock.json') return { stdout: JSON.stringify({ packages: {} }) };
+        return { stdout: JSON.stringify({ packages: { 'node_modules/@unson/brainbase-mcp': { version: '0.44.0' } } }) };
+      },
+    });
+    await expect(missingEntryGuard({ fromHead: 'old', toHead: 'new' })).resolves.toMatchObject({
+      allowed: false,
+      reason: 'canonical_task_package_lock_unreadable',
+      changedPackages: ['@unson/brainbase-mcp'],
+    });
+  });
 });
