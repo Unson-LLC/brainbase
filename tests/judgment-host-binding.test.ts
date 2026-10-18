@@ -47,6 +47,49 @@ afterEach(async () => {
 });
 
 describe('Judgment Host adapter binding', () => {
+  it('uses the local adapter binding when no expected binding is configured', async () => {
+    const root = await tempDir();
+    const output = await runJudgmentHost({
+      prompt: 'この仕組みを説明して',
+      session_id: 'binding-local-default-session',
+      turn_id: 'turn-1',
+      cwd: root
+    }, {
+      env: { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') }
+    });
+
+    expect(output.receipt.host_binding).toEqual({
+      adapter_id: 'brainbase-local',
+      adapter_version: '1',
+      status: 'managed',
+      enforcement_level: 'host_contract'
+    });
+  });
+
+  it.each([
+    ['null', null],
+    ['array', []],
+    ['string', 'brainbase-local'],
+    ['number', 1],
+    ['incomplete object', { adapter_id: 'brainbase-local' }]
+  ])('fails closed for an invalid expected binding (%s)', async (_label, expectedHostBinding) => {
+    const root = await tempDir();
+    const resolver = vi.fn();
+
+    await expect(runJudgmentHost({
+      prompt: 'この仕組みを説明して',
+      session_id: 'binding-invalid-config-session',
+      turn_id: 'turn-1',
+      cwd: root
+    }, {
+      env: { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') },
+      resolver,
+      expectedHostBinding: expectedHostBinding as JudgmentHostBinding
+    })).rejects.toThrow('judgment_host_binding_config_invalid');
+
+    expect(resolver).not.toHaveBeenCalled();
+  });
+
   it('keeps the local default fail-closed and does not rewrite a mismatched receipt', async () => {
     const root = await tempDir();
     const returnedReceipts: JudgmentReceipt[] = [];

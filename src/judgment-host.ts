@@ -352,8 +352,9 @@ function record(value: unknown): Record<string, unknown> | null {
 }
 
 function normalizeExpectedHostBinding(value: JudgmentHostBinding | undefined): JudgmentHostBinding {
-  const candidate = record(value) ?? DEFAULT_HOST_BINDING;
-  if (typeof candidate.adapter_id !== 'string'
+  const candidate = value === undefined ? DEFAULT_HOST_BINDING : record(value);
+  if (!candidate
+    || typeof candidate.adapter_id !== 'string'
     || candidate.adapter_id.trim().length === 0
     || typeof candidate.adapter_version !== 'string'
     || candidate.adapter_version.trim().length === 0
