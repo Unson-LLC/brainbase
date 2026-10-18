@@ -351,6 +351,18 @@
       "types": "./dist/meeting-automation.d.ts",
       "import": "./dist/meeting-automation.js"
     },
+    "./meeting-automation-runtime": {
+      "types": "./dist/meeting-automation-runtime.d.ts",
+      "import": "./dist/meeting-automation-runtime.js"
+    },
+    "./meeting-minutes-context-receipt": {
+      "types": "./dist/meeting-minutes-context-receipt.d.ts",
+      "import": "./dist/meeting-minutes-context-receipt.js"
+    },
+    "./meeting-source-sync": {
+      "types": "./dist/meeting-source-sync.d.ts",
+      "import": "./dist/meeting-source-sync.js"
+    },
     "./meeting-minutes-http": {
       "types": "./dist/meeting-minutes-http.d.ts",
       "import": "./dist/meeting-minutes-http.js"
