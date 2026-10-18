@@ -147,7 +147,10 @@ function assertOptionalCandidateString(
     collectionName: string
 ) {
     const value = candidate[fieldName];
-    if (value !== undefined && typeof value !== 'string') {
+    // Normalized candidates deliberately use null for absent optional values.
+    // Keep that representation valid when a host owner resolver returns the
+    // normalized package for post-resolution contract verification.
+    if (value !== undefined && value !== null && typeof value !== 'string') {
         throw validationError(`${collectionName}[${index}].${fieldName} must be a string`, 'blocked_invalid_candidates');
     }
     const maxLength = EXTERNAL_RUNTIME_CANDIDATE_FIELD_MAX_LENGTHS[fieldName];
