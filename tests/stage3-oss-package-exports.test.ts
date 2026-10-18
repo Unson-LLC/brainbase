@@ -1,4 +1,5 @@
-import { readFile } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -52,4 +53,19 @@ describe('Stage 3 common contract package exports', () => {
         expect(typeof meetingAutomation.assertMeetingCandidatesInput).toBe('function');
         expect(typeof meetingAutomation.verifyMeetingReviewPackage).toBe('function');
     });
+
+    it('keeps onboarding-runtime importable from an isolated package tree', async () => {
+        const isolatedRoot = await mkdtemp(path.join(os.tmpdir(), 'brainbase-stage3b-onboarding-'));
+        try {
+            await cp(path.join(root, 'dist'), path.join(isolatedRoot, 'dist'), { recursive: true });
+            await writeFile(path.join(isolatedRoot, 'package.json'), '{"type":"module"}\n');
+
+            const onboarding = await import(
+                pathToFileURL(path.join(isolatedRoot, 'dist/onboarding-runtime.js')).href,
+            );
+            expect(typeof onboarding.normalizeFirstValueRecord).toBe('function');
+        } finally {
+            await rm(isolatedRoot, { recursive: true, force: true });
+        }
+    }, 30_000);
 });
