@@ -149,7 +149,8 @@ describe('durable wait canonical HTTP adapter', () => {
     const options = {
       dataDir: root,
       problemSnapshot: { verify: () => true },
-      defaultLeaseMs: 1000,
+      // Keep the normal lease path deterministic while HTTP and file I/O run.
+      clock: () => new Date('2026-10-18T00:00:00.000Z'),
     } as const;
     const handler = createDurableWaitHttpHandler({
       storeFactory: () => new DurableWaitStore(options),
