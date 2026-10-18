@@ -1,3 +1,5 @@
+export * from './routine-runtime.js';
+
 export type RoutineKind = 'ohayo' | 'oyasumi' | 'retro';
 export type RoutineTarget = 'codex' | 'claude';
 

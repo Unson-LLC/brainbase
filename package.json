@@ -159,6 +159,14 @@
       "types": "./dist/run-receipt.d.ts",
       "import": "./dist/run-receipt.js"
     },
+    "./routines": {
+      "types": "./dist/routines.d.ts",
+      "import": "./dist/routines.js"
+    },
+    "./automation-run": {
+      "types": "./dist/automation-run.d.ts",
+      "import": "./dist/automation-run.js"
+    },
     "./company-os-learning-adoption": {
       "types": "./dist/company-os-learning-adoption.d.ts",
       "import": "./dist/company-os-learning-adoption.js"
