@@ -11,12 +11,20 @@ async function importExport(manifest: { exports: Record<string, { import: string
 }
 
 describe('Stage 3 common contract package exports', () => {
-    it('publishes run receipt and meeting automation as independent subpaths', async () => {
+    it('publishes run receipt, routines, automation run, and meeting automation as independent subpaths', async () => {
         const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
 
         expect(manifest.exports['./run-receipt']).toEqual({
             types: './dist/run-receipt.d.ts',
             import: './dist/run-receipt.js'
+        });
+        expect(manifest.exports['./routines']).toEqual({
+            types: './dist/routines.d.ts',
+            import: './dist/routines.js'
+        });
+        expect(manifest.exports['./automation-run']).toEqual({
+            types: './dist/automation-run.d.ts',
+            import: './dist/automation-run.js'
         });
         expect(manifest.exports['./meeting-automation']).toEqual({
             types: './dist/meeting-automation.d.ts',
@@ -26,6 +34,15 @@ describe('Stage 3 common contract package exports', () => {
         const runReceipt = await importExport(manifest, './run-receipt');
         expect(typeof runReceipt.normalizeRunReceipt).toBe('function');
         expect(typeof runReceipt.createRunReceiptIdentity).toBe('function');
+
+        const routines = await importExport(manifest, './routines');
+        expect(typeof routines.buildRoutines).toBe('function');
+        expect(typeof routines.parseRoutineExpectations).toBe('function');
+        expect(typeof routines.createRoutineRuntime).toBe('function');
+
+        const automationRun = await importExport(manifest, './automation-run');
+        expect(typeof automationRun.AutomationRunService).toBe('function');
+        expect(typeof automationRun.createAutomationRunService).toBe('function');
 
         const meetingAutomation = await importExport(manifest, './meeting-automation');
         expect(typeof meetingAutomation.assertMeetingCandidatesInput).toBe('function');
