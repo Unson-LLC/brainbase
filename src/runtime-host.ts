@@ -43,10 +43,10 @@ export interface RuntimeTenantPort {
 }
 
 export type RuntimeAuthorization =
-  | boolean
-  | void
+  | true
+  | false
   | {
-      approved: boolean;
+      allowed: boolean;
       context?: unknown;
     };
 
@@ -121,13 +121,11 @@ export async function resolveRuntimeHostContext(
   }
 
   const authorization = await ports.auth.authorize({ ...input, tenantId, identity });
-  if (
-    authorization === false
+  const allowed = authorization === true
     || (typeof authorization === 'object'
       && authorization !== null
-      && 'approved' in authorization
-      && authorization.approved === false)
-  ) {
+      && authorization.allowed === true);
+  if (!allowed) {
     throw new Error(`runtime authorization denied for ${input.operation}`);
   }
 
