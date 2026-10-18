@@ -1,0 +1,189 @@
+/*
+ * 受信箱. Load after workspace-kit.css.
+ * The two tabs, the sections by what to do, the rows with their buttons on
+ * the right, and the lines for kinds that could not be read or are not
+ * collected yet.  A kind that could not be read is told by words in the
+ * warning tone, never left out.  Uses only the shared tokens in
+ * brainbase-tokens.css.
+ */
+.bb-inbox-tabs {
+  display: flex;
+  gap: var(--bb-space-1);
+  margin: 0 0 var(--bb-space-4);
+  border-bottom: 1px solid var(--bb-color-border);
+}
+
+.bb-inbox-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 8px 12px;
+  background: transparent;
+  color: var(--bb-color-muted);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.bb-inbox-tab.is-selected {
+  border-bottom-color: var(--bb-color-accent);
+  color: var(--bb-color-ink);
+  font-weight: 600;
+}
+
+.bb-inbox-count {
+  min-width: 20px;
+  border-radius: 999px;
+  padding: 0 6px;
+  background: var(--bb-color-accent-soft);
+  color: var(--bb-color-accent);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.bb-inbox-loading {
+  height: 2px;
+  margin: 0 0 10px;
+  overflow: hidden;
+  background: var(--bb-color-accent-soft);
+  color: transparent;
+  font-size: 0;
+}
+
+.bb-inbox-group {
+  margin: 0 0 var(--bb-space-5);
+}
+
+.bb-inbox-group-title {
+  margin: 0 0 var(--bb-space-2);
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.bb-inbox-list {
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-md);
+  background: var(--bb-color-paper);
+}
+
+.bb-inbox-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--bb-space-2) var(--bb-space-3);
+  padding: var(--bb-space-3) var(--bb-space-4);
+  border-top: 1px solid var(--bb-color-border);
+}
+
+.bb-inbox-row:first-child {
+  border-top: 0;
+}
+
+.bb-inbox-row-main {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.bb-inbox-title {
+  color: var(--bb-color-ink);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+a.bb-inbox-title:hover,
+a.bb-inbox-title:focus-visible {
+  color: var(--bb-color-accent-strong);
+  text-decoration: underline;
+}
+
+.bb-inbox-detail {
+  margin: 2px 0 0;
+  color: var(--bb-color-muted);
+  font-size: 13px;
+}
+
+.bb-inbox-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bb-space-2);
+  margin-top: 4px;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-inbox-blocking {
+  border-radius: 999px;
+  padding: 0 8px;
+  background: var(--bb-color-warning-soft);
+  color: var(--bb-color-warning);
+  font-weight: 600;
+}
+
+.bb-inbox-due {
+  color: var(--bb-color-ink);
+}
+
+.bb-inbox-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bb-space-1);
+}
+
+.bb-inbox-later-menu {
+  display: flex;
+  flex-wrap: wrap;
+  flex-basis: 100%;
+  justify-content: flex-end;
+  gap: var(--bb-space-1);
+}
+
+.bb-inbox-source {
+  margin: var(--bb-space-2) 0 0;
+  font-size: 13px;
+}
+
+.bb-inbox-source.is-unavailable {
+  border-radius: var(--bb-radius-sm);
+  padding: var(--bb-space-2) var(--bb-space-3);
+  background: var(--bb-color-warning-soft);
+  color: var(--bb-color-warning);
+}
+
+.bb-inbox-source.is-not-connected,
+.bb-inbox-uncollected {
+  color: var(--bb-color-muted);
+}
+
+.bb-inbox-uncollected {
+  margin: 0 0 var(--bb-space-3);
+  font-size: 13px;
+}
+
+.bb-inbox-empty {
+  margin: 0 0 var(--bb-space-3);
+  color: var(--bb-color-ink);
+  font-size: 14px;
+}
+
+.bb-inbox-elsewhere {
+  display: flex;
+  gap: var(--bb-space-2);
+}
+
+@media (max-width: 640px) {
+  .bb-inbox-row {
+    padding: var(--bb-space-3);
+  }
+
+  .bb-inbox-row-actions {
+    width: 100%;
+  }
+}

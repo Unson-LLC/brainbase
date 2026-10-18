@@ -1,6 +1,6 @@
 {
   "name": "@unson/brainbase-mcp",
-  "version": "0.42.0",
+  "version": "0.43.0",
   "description": "Local-first Brainbase judgment OS that lets supported AI agents reuse a user's approved goals, priorities, decisions, and judgment criteria.",
   "type": "module",
   "license": "MIT",
@@ -335,6 +335,8 @@
     "./ui/personal-memory": "./ui/personal-memory.js",
     "./ui/personal-memory.css": "./ui/personal-memory.css",
     "./ui/personal-memory-http-port": "./ui/personal-memory-http-port.js",
+    "./ui/inbox": "./ui/inbox.js",
+    "./ui/inbox.css": "./ui/inbox.css",
     "./ui/area-nav": "./ui/area-nav.js",
     "./ui/area-nav.css": "./ui/area-nav.css",
     "./ui/local-web-shell": "./ui/local-web-shell.js",

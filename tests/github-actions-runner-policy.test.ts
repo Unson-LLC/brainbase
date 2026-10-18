@@ -57,7 +57,8 @@ describe('public CI self-hosted runner policy', () => {
     const validationJob = workflow.slice(workflow.indexOf('  validate:'), workflow.indexOf('  publish:'));
     const publishJob = workflow.slice(workflow.indexOf('  publish:'));
 
-    expect(workflow).toMatch(/pull_request_target:/u);
+    expect(workflow).not.toMatch(/pull_request_target:/u);
+    expect(workflow).toMatch(/  push:\n    branches:\n      - develop\n/u);
     expect(workflow).not.toMatch(/github\.event\.pull_request\.head\.(sha|ref)/u);
     expect(workflow).not.toMatch(/ref: \$\{\{ github\.event\.pull_request\.head/u);
     expect(validationJob).toMatch(/ref: develop/u);

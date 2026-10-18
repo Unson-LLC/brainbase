@@ -1,15 +1,66 @@
 /*
- * Area navigation (ledger D10, stage 2): the area links on the left and the
- * tabs of the current area above the page. Uses only the shared tokens in
- * brainbase-tokens.css; a host gives the area links its own look through
+ * Area navigation (ledger D10): the destinations on the left, grouped under
+ * small headings with 設定 at the bottom, and the tabs of a destination with
+ * several screens above the page. Uses only the shared tokens in
+ * brainbase-tokens.css; a host gives the links its own look through
  * `linkClassName`.
  */
 .bb-area-nav {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bb-area-section,
+.bb-area-section-links {
   display: grid;
   gap: 2px;
 }
 
+/* Space between the groups; the footer group sits at the bottom of the nav. */
+.bb-area-section + .bb-area-section {
+  margin-top: var(--bb-space-4);
+}
+
+.bb-area-section.is-footer {
+  margin-top: auto;
+  padding-top: var(--bb-space-4);
+}
+
+.bb-area-section-label {
+  padding: 0 10px 4px;
+  color: var(--bb-color-rail-muted, var(--bb-color-muted));
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
+.bb-area-section-link {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 6px;
+  padding-top: 4px;
+  text-decoration: none;
+}
+
+/* A heading that opens a screen says so with a chevron (not part of its name). */
+.bb-area-section-link::after {
+  content: "›";
+  font-size: 13px;
+  line-height: 1;
+}
+
+.bb-area-section-link:hover,
+.bb-area-section-link[aria-current="page"] {
+  color: var(--bb-color-accent);
+}
+
 .bb-area-link[hidden],
+.bb-area-section[hidden],
+.bb-area-section-label[hidden],
+.bb-area-section-links[hidden],
 .bb-area-tabs[hidden] {
   display: none;
 }
@@ -67,7 +118,8 @@
 }
 
 .bb-area-tab:focus-visible,
-.bb-area-link:focus-visible {
+.bb-area-link:focus-visible,
+.bb-area-section-link:focus-visible {
   outline: 2px solid var(--bb-color-accent);
   outline-offset: -2px;
 }
