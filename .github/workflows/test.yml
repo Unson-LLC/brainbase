@@ -73,3 +73,95 @@ jobs:
             echo '- Expected: package changes pass the build and required suite; docs-only changes use the docs workflow.'
             echo '- Unknown: inspect the failed step and runner log; this workflow has no release or deployment side effect.'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  formal-release-validate-linux:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Check out immutable pull request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+
+      - name: Resolve immutable validation target
+        id: target
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+          test -n "$HEAD_REF"
+          TRUSTED_REF="origin/$HEAD_REF"
+          git rev-parse --verify "$TRUSTED_REF^{commit}" >/dev/null
+          git merge-base --is-ancestor "$HEAD_SHA" "$TRUSTED_REF"
+          VERSION=$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")
+          test -n "$VERSION"
+          {
+            echo "sha=$HEAD_SHA"
+            echo "trusted_ref=$TRUSTED_REF"
+            echo "version=$VERSION"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Install release dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run formal release validation without publication credentials
+        env:
+          RELEASE_SHA: ${{ steps.target.outputs.sha }}
+          RELEASE_VERSION: ${{ steps.target.outputs.version }}
+          TRUSTED_REF: ${{ steps.target.outputs.trusted_ref }}
+        run: >-
+          npm run release:validate --
+          --version "$RELEASE_VERSION"
+          --sha "$RELEASE_SHA"
+          --trusted-ref "$TRUSTED_REF"
+          --proof-file "$RUNNER_TEMP/npm-release-validation.json"
+
+      - name: Upload formal release proof and artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: npm-release-pr-${{ github.event.pull_request.number }}-${{ steps.target.outputs.sha }}
+          path: |
+            ${{ runner.temp }}/npm-release-validation.json
+            ${{ runner.temp }}/unson-brainbase-mcp-${{ steps.target.outputs.version }}.tgz
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Summarize failed or cancelled formal validation
+        if: ${{ always() && (failure() || cancelled()) }}
+        env:
+          RELEASE_VERSION: ${{ steps.target.outputs.version }}
+          RELEASE_SHA: ${{ steps.target.outputs.sha }}
+          TRUSTED_REF: ${{ steps.target.outputs.trusted_ref }}
+          PROOF_FILE: ${{ runner.temp }}/npm-release-validation.json
+          ARTIFACT_FILE: ${{ runner.temp }}/unson-brainbase-mcp-${{ steps.target.outputs.version }}.tgz
+        run: |
+          release_version="${RELEASE_VERSION:-unknown}"
+          release_sha="${RELEASE_SHA:-unknown}"
+          trusted_ref="${TRUSTED_REF:-unknown}"
+          proof_file="${PROOF_FILE:-unknown}"
+          artifact_file="${ARTIFACT_FILE:-unknown}"
+          proof_state='missing'
+          artifact_state='missing'
+          if [ "$proof_file" != 'unknown' ] && [ -f "$proof_file" ]; then proof_state='present'; fi
+          if [ "$artifact_file" != 'unknown' ] && [ -f "$artifact_file" ]; then artifact_state='present'; fi
+          {
+            echo '## Linux formal release validation failure/cancellation summary'
+            echo
+            echo '- Protection: immutable pull request head, real PR branch trusted ref, full release validation, and read-only permissions.'
+            echo "- Target: version \`$release_version\`, SHA \`$release_sha\`, trusted ref \`$trusted_ref\`."
+            echo "- Proof: \`$proof_file\` ($proof_state); artifact: \`$artifact_file\` ($artifact_state)."
+            echo "- Reproduce: \`npm ci --ignore-scripts && npm run release:validate -- --version $release_version --sha $release_sha --trusted-ref $trusted_ref --proof-file $proof_file\`."
+            echo '- Expected: validation produces the proof and tarball; this job does not publish or deploy.'
+            echo '- Unknown: inspect the failed step before treating the package as formally validated.'
+          } >> "$GITHUB_STEP_SUMMARY"
