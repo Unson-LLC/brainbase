@@ -597,12 +597,14 @@ export function createJudgmentLifecycleCore(ports: JudgmentLifecyclePorts): Judg
         const existing = await ports.journal.readEpisode(identity);
         if (existing) {
           assertIdentity(existing, identity);
-          if (existing.request_text_digest !== sha256Hex(request.request)
-            || existing.initial_receipt_digest !== sha256Hex(canonicalJson(existing.adoption.receipt))) {
-            throw new Error('judgment_episode_binding_mismatch');
-          }
-          if (existing.adoption.request.conversation_context.source_digest !== request.conversation_context.source_digest) {
+          const existingRequest = assertCanonicalJudgmentRequest(existing.adoption.request);
+          const existingReceipt = assertReceiptForRequest(existing.adoption.receipt, existingRequest);
+          if (sha256Hex(canonicalJson(existingRequest)) !== sha256Hex(canonicalJson(request))) {
             throw new Error('judgment_episode_request_conflict');
+          }
+          if (existing.request_text_digest !== sha256Hex(existingRequest.request)
+            || existing.initial_receipt_digest !== sha256Hex(canonicalJson(existingReceipt))) {
+            throw new Error('judgment_episode_binding_mismatch');
           }
           return existing;
         }

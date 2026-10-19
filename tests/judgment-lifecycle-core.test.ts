@@ -15,6 +15,7 @@ import {
   createJudgmentLifecycleCore,
   createJudgmentToolEvent,
   normalizeJudgmentRequest,
+  type JudgmentLifecycleRequestInput,
   type JudgmentLifecycleEpisode,
   type JudgmentLifecycleFinalReceipt,
   type JudgmentLifecycleIdentity,
@@ -32,15 +33,36 @@ const messages: ConversationMessage[] = [
   { role: 'assistant', turn_id: 'turn-1', text: '公開用のcoreを切り出します' }
 ];
 
-function request(): JudgmentRequest {
+const requestInput: JudgmentLifecycleRequestInput = {
+  request: 'それでいい。修正して',
+  turn_id: 'turn-2',
+  session_ref: digest('session-core'),
+  messages,
+  runtime: { host: 'codex', model: 'test-model', permission_mode: 'never', project_binding: null },
+  completeness: 'complete'
+};
+
+function requestWith(overrides: Partial<JudgmentLifecycleRequestInput> = {}): JudgmentRequest {
   return normalizeJudgmentRequest({
-    request: 'それでいい。修正して',
-    turn_id: 'turn-2',
-    session_ref: digest('session-core'),
-    messages,
-    runtime: { host: 'codex', model: 'test-model', permission_mode: 'never', project_binding: null },
-    completeness: 'complete'
+    ...requestInput,
+    ...overrides,
+    runtime: { ...requestInput.runtime, ...(overrides.runtime ?? {}) }
   });
+}
+
+function request(): JudgmentRequest {
+  return requestWith();
+}
+
+async function expectRequestConflict(firstRequest: JudgmentRequest, changedRequest: JudgmentRequest): Promise<void> {
+  const journal = new MemoryJournal();
+  const resolver = vi.fn(async (value: JudgmentRequest) => receiptFor(value));
+  const core = createJudgmentLifecycleCore({ journal, resolver: { resolve: resolver } });
+
+  await core.start({ request: firstRequest, accepted_at: '2026-10-19T00:00:00.000Z' });
+  await expect(core.start({ request: changedRequest, accepted_at: '2026-10-19T00:01:00.000Z' }))
+    .rejects.toThrow('judgment_episode_request_conflict');
+  expect(resolver).toHaveBeenCalledTimes(1);
 }
 
 async function receiptFor(value: JudgmentRequest): Promise<JudgmentReceipt> {
@@ -236,5 +258,43 @@ describe('portable judgment lifecycle core', () => {
       audit: { complete: true, line_count: 2 }
     })).toEqual(final);
     expect(enqueueFinalized).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects a replay when project scope changes', async () => {
+    await expectRequestConflict(
+      requestWith({ project_code: 'project-a' }),
+      requestWith({ project_code: 'project-b' })
+    );
+  });
+
+  it('rejects a replay when project scope is omitted', async () => {
+    await expectRequestConflict(
+      requestWith({ project_code: 'project-a' }),
+      requestWith()
+    );
+  });
+
+  it('rejects a replay when another request field changes', async () => {
+    await expectRequestConflict(
+      requestWith(),
+      requestWith({ request: '別の依頼' })
+    );
+  });
+
+  it('rejects a stored adoption whose request no longer matches its receipt', async () => {
+    const value = requestWith({ project_code: 'project-a' });
+    const journal = new MemoryJournal();
+    const resolver = vi.fn(async (input: JudgmentRequest) => receiptFor(input));
+    const core = createJudgmentLifecycleCore({ journal, resolver: { resolve: resolver } });
+
+    await core.start({ request: value, accepted_at: '2026-10-19T00:00:00.000Z' });
+    if (!journal.episode) throw new Error('test fixture missing episode');
+    const corrupted = structuredClone(journal.episode);
+    corrupted.adoption.request = { ...corrupted.adoption.request, project_code: 'project-b' };
+    journal.episode = corrupted;
+
+    await expect(core.start({ request: value, accepted_at: '2026-10-19T00:01:00.000Z' }))
+      .rejects.toThrow('judgment_receipt_request_mismatch');
+    expect(resolver).toHaveBeenCalledTimes(1);
   });
 });
