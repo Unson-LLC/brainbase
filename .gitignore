@@ -6,5 +6,8 @@ coverage/
 .brainbase-test/
 .vibepro/*
 !.vibepro/config.json
+!.vibepro/pr/
+!.vibepro/pr/**
 .vibepro-store/
 .worktrees/vibepro/
+!.vibepro/reviews/

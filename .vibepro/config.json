@@ -891,6 +891,18 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-judgment-harness-common-contracts-v1",
+        "title": "判断Hostの共通契約をOSSの公開packageへ移す",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
     "current_story_id": "story-ci-impact-based-verification"

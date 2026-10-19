@@ -1,0 +1,14 @@
+
+ RUN  v4.1.8 /workspace
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  04:36:08
+   Duration  9.73s (transform 59ms, setup 0ms, import 78ms, tests 9.57s, environment 0ms)
+
+npm notice
+npm notice New major version of npm available! 10.9.9 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
