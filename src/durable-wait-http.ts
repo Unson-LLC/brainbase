@@ -183,7 +183,7 @@ const premiseChangedSchema = identitySchema.extend({
 const effectUnknownSchema = identitySchema.extend({
   wait_id: boundedText,
   reason: boundedText,
-  external_operation_id: boundedText,
+  external_operation_id: boundedText.optional(),
   responsible: responsibleSchema.optional(),
 }).strict();
 

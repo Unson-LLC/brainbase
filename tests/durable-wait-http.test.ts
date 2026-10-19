@@ -306,6 +306,28 @@ describe('durable wait canonical HTTP adapter', () => {
     expect(readAfterRestart.body?.result?.resume_receipt?.resume_id).toBe(resumed.body?.result?.resume_id);
   });
 
+  it('keeps the previous unbound behavior when effect-unknown omits external_operation_id', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-wait-http-unbound-'));
+    roots.push(root);
+    const handler = createDurableWaitHttpHandler({
+      storeFactory: () => new DurableWaitStore({ dataDir: root, problemSnapshot: { verify: () => true }, unknownEffect }),
+    });
+    const baseUrl = await start(handler);
+    const created = await request(baseUrl, '/api/v1/durable-waits/create', { method: 'POST', body: createBody('wait-unbound') });
+    expect(created.response.status).toBe(200);
+    const unknown = await request(baseUrl, '/api/v1/durable-waits/effect-unknown', {
+      method: 'POST', body: { wait_id: 'wait-unbound', reason: 'external effect response was lost' },
+    });
+    expect(unknown.response.status).toBe(200);
+    expect(unknown.body?.result?.state).toBe('reconciliation_wait');
+    expect(unknown.body?.result?.reconciliation?.external_operation_id).toBeUndefined();
+    expect(unknown.body?.result?.reconciliation?.binding_status).toBeUndefined();
+    const reconcile = await request(baseUrl, '/api/v1/durable-waits/reconcile-external-effect', {
+      method: 'POST', body: { wait_id: 'wait-unbound', request_id: 'check-1', external_operation_id: 'effect-1', evidence_ref: 'receipt-1' },
+    });
+    expect(reconcile.response.status).not.toBe(200);
+  });
+
   it('records unknown external effects and refuses to report a resume success', async () => {
     const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-wait-http-unknown-'));
     roots.push(root);
@@ -324,11 +346,11 @@ describe('durable wait canonical HTTP adapter', () => {
     });
     expect(effectClaim.response.status).toBe(200);
 
-    const missingOperation = await request(baseUrl, '/api/v1/durable-waits/effect-unknown', {
-      method: 'POST', body: { wait_id: 'wait-unknown', reason: 'external effect response was lost' },
+    const invalidOperation = await request(baseUrl, '/api/v1/durable-waits/effect-unknown', {
+      method: 'POST', body: { wait_id: 'wait-unknown', reason: 'external effect response was lost', external_operation_id: '' },
     });
-    expect(missingOperation.response.status).toBe(400);
-    expect(missingOperation.body?.error?.code).toBe('invalid_request');
+    expect(invalidOperation.response.status).toBe(400);
+    expect(invalidOperation.body?.error?.code).toBe('invalid_request');
 
     const unknown = await request(baseUrl, '/api/v1/durable-waits/effect-unknown', {
       method: 'POST',

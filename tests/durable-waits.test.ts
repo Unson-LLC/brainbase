@@ -339,6 +339,21 @@ describe('DurableWaitStore', () => {
     await expect(store.markPremiseChanged({ wait_id: 'wait-1', principal: 'owner', reason: 'new premise', new_problem_snapshot: { snapshot_id: nextSnapshotId, problem_id: 'problem-1', revision: '2' } })).rejects.toMatchObject({ code: 'reconciliation_required' });
   });
 
+  it('keeps the previous unbound behavior when external_operation_id is absent and never auto-releases it', async () => {
+    const { store } = await makeStore();
+    await createWait(store);
+    const unknown = await store.markEffectUnknown({ wait_id: 'wait-1', principal: 'owner', reason: 'external call outcome was lost' });
+    expect(unknown.state).toBe('reconciliation_wait');
+    expect(unknown.reconciliation?.reason).toBe('external call outcome was lost');
+    expect(unknown.reconciliation?.external_operation_id).toBeUndefined();
+    expect(unknown.reconciliation?.claim_id).toBeUndefined();
+    expect(unknown.reconciliation?.binding_status).toBeUndefined();
+    expect(unknown.history.at(-1)).toMatchObject({ action: 'effect_unknown', detail: 'external call outcome was lost', to_state: 'reconciliation_wait' });
+    await expect(store.markEffectUnknown({ wait_id: 'wait-1', principal: 'owner', reason: 'again', external_operation_id: '' })).rejects.toMatchObject({ code: 'invalid_request' });
+    await expect(store.reconcileExternalEffect({ wait_id: 'wait-1', principal: 'owner', request_id: 'check-1', external_operation_id: 'effect-1', evidence_ref: 'receipt-1' })).rejects.toMatchObject({ code: 'reconciliation_required' });
+    await expect(store.resume({ wait_id: 'wait-1', principal: 'owner', request_id: 'request-owner', claim_id: 'claim-1', lease_id: 'lease-1', lease_token: 'token-1' })).rejects.toMatchObject({ code: 'reconciliation_required' });
+  });
+
   it('quarantines an unknown effect even when execution-intent binding fails and forbids lease handoff', async () => {
     const { root, store, clock } = await makeStore();
     await createWait(store);

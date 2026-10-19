@@ -238,7 +238,12 @@ export interface DurableWaitPremiseChangedInput extends DurableWaitReadInput {
 
 export interface DurableWaitEffectUnknownInput extends DurableWaitReadInput {
   readonly reason: string;
-  readonly external_operation_id: string;
+  /**
+   * Optional for compatibility. When absent, the wait moves to
+   * `reconciliation_wait` with the previous (unbound) behavior; such a record
+   * is never released by reconcileExternalEffect and needs manual reconciliation.
+   */
+  readonly external_operation_id?: string;
   readonly responsible?: DurableWaitResponsible;
 }
 
@@ -803,6 +808,8 @@ export class DurableWaitStore {
 
   async markEffectUnknown(input: DurableWaitEffectUnknownInput): Promise<DurableWaitRecord> {
     const normalized = normalizeEffectUnknownInput(input);
+    const externalOperationId = normalized.external_operation_id;
+    if (externalOperationId === undefined) return this.markEffectUnknownUnbound(normalized);
     await this.initialize();
     const preflight = await this.captureMutationPreflight(normalized.wait_id);
     const preflightRecord = requireMutationRecord(preflight, normalized.wait_id);
@@ -818,7 +825,7 @@ export class DurableWaitStore {
           principal: normalized.principal,
           wait: freezeClone(preflightRecord),
           claim_id: preflightRecord.claim.claim_id,
-          external_operation_id: normalized.external_operation_id
+          external_operation_id: externalOperationId
         });
       } catch {
         // The effect is still uncertain. Persist a quarantine rather than
@@ -828,7 +835,7 @@ export class DurableWaitStore {
     const bindingVerified = !!bindingVerification && bindingVerification.wait_id === normalized.wait_id
       && bindingVerification.claim_id === preflightRecord.claim.claim_id
       && bindingVerification.run_id === preflightRecord.run_ref.run_id
-      && bindingVerification.external_operation_id === normalized.external_operation_id
+      && bindingVerification.external_operation_id === externalOperationId
       && bindingVerification.status === 'unknown';
     await this.authorize('write', normalized.principal, preflightRecord.read_policy, preflightRecord);
     return mutatePersonalOsWithSidecar(this.dataDir, this.sidecarPath, (current, content) => {
@@ -842,7 +849,7 @@ export class DurableWaitStore {
       const updated = updateRecord(record, {
         state: 'reconciliation_wait',
         responsible,
-        reconciliation: { reason: normalized.reason, recorded_at: now, responsible, external_operation_id: normalized.external_operation_id, claim_id: record.claim.claim_id, binding_status: bindingVerified ? 'verified' : 'unverified' },
+        reconciliation: { reason: normalized.reason, recorded_at: now, responsible, external_operation_id: externalOperationId, claim_id: record.claim.claim_id, binding_status: bindingVerified ? 'verified' : 'unverified' },
         updated_at: now,
         history: appendHistory(record, {
           action: 'effect_unknown',
@@ -850,7 +857,42 @@ export class DurableWaitStore {
           principal: normalized.principal,
           from_state: record.state,
           to_state: 'reconciliation_wait',
-          detail: `${normalized.reason}:${normalized.external_operation_id}`,
+          detail: `${normalized.reason}:${externalOperationId}`,
+          responsible
+        })
+      });
+      replaceWait(ledger, updated);
+      return { next: current, sidecarContent: serializeLedger(ledger), result: freezeClone(updated) };
+    });
+  }
+
+  /** Previous behavior, kept for callers that do not send external_operation_id. */
+  private async markEffectUnknownUnbound(normalized: DurableWaitEffectUnknownInput): Promise<DurableWaitRecord> {
+    await this.initialize();
+    const preflight = await this.captureMutationPreflight(normalized.wait_id);
+    const preflightRecord = requireMutationRecord(preflight, normalized.wait_id);
+    await this.authorize('claim', normalized.principal, preflightRecord.read_policy, preflightRecord);
+    await this.verifyProblem(normalized.principal, preflightRecord.problem_snapshot);
+    return mutatePersonalOsWithSidecar(this.dataDir, this.sidecarPath, (current, content) => {
+      const ledger = this.assertMutationPreflight(current, content, preflight, normalized.wait_id);
+      const record = findWait(ledger, normalized.wait_id);
+      if (record.state === 'resumed' || record.state === 'cancelled' || record.state === 'failed' || record.state === 'effect_confirmed') {
+        throw new DurableWaitError('state_conflict', `Wait ${record.wait_id} is ${record.state}`, record.wait_id);
+      }
+      const now = this.now().toISOString();
+      const responsible = normalized.responsible ?? record.responsible;
+      const updated = updateRecord(record, {
+        state: 'reconciliation_wait',
+        responsible,
+        reconciliation: { reason: normalized.reason, recorded_at: now, responsible },
+        updated_at: now,
+        history: appendHistory(record, {
+          action: 'effect_unknown',
+          occurred_at: now,
+          principal: normalized.principal,
+          from_state: record.state,
+          to_state: 'reconciliation_wait',
+          detail: normalized.reason,
           responsible
         })
       });
@@ -1169,7 +1211,12 @@ function normalizeEffectUnknownInput(input: DurableWaitEffectUnknownInput): Dura
   const base = normalizeReadInput(input);
   assertText(input.reason, 'reason');
   const responsible = input.responsible === undefined ? undefined : normalizeResponsible(input.responsible, 'responsible');
-  return { ...base, reason: input.reason, external_operation_id: boundedText(input.external_operation_id, 'external_operation_id'), ...(responsible === undefined ? {} : { responsible }) };
+  return {
+    ...base,
+    reason: input.reason,
+    ...(input.external_operation_id === undefined ? {} : { external_operation_id: boundedText(input.external_operation_id, 'external_operation_id') }),
+    ...(responsible === undefined ? {} : { responsible })
+  };
 }
 
 function normalizeReconcileExternalEffectInput(input: DurableWaitReconcileExternalEffectInput): DurableWaitReconcileExternalEffectInput {
