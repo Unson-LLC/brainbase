@@ -6,7 +6,7 @@
 
 | 変更・操作 | 実行する検証 | 副作用 |
 | --- | --- | --- |
-| パッケージ関連のPull Request | Node 22の`npm test`（Vitestの完全収集）とbuild、Node 20の代表統合スイート | deployなし |
+| パッケージ関連のPull Request | Node 22の`npm test -- --maxWorkers=4`（Vitestの完全収集）とbuild、Node 20の代表統合スイート | deployなし |
 | ドキュメント関連のPull Request | `docs:check`、公開契約テスト、VitePress build、built HTML smoke | deployなし |
 | `develop`への公開サイト入力のpush | 上記ドキュメント検証、Cloudflare Pages deploy、`docs:verify-public`による公開後readback | 公開サイトのみ |
 | npm公開 | immutable commitのrelease validation、artifact/proofの受け渡し、GitHub-hosted runnerでのprovenance付きpublish（publishジョブだけが`id-token: write`を持つ）、GitHub Release確認 | npm公開権限はrelease workflowだけが使用 |
