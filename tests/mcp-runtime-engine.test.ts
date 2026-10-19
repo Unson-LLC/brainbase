@@ -90,4 +90,32 @@ describe('local MCP runtime engine', () => {
       await server.close();
     }
   });
+
+  it('delegates an unadvertised tool call to the host-owned fallback', async () => {
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: 'local-runtime-unknown-hook-test', version: '1.0.0' });
+    const calls: Array<{ name: string; arguments_: Record<string, unknown> }> = [];
+    const server = createLocalMcpServer({
+      name: 'brainbase-local-runtime',
+      version: '1.0.0',
+      tools: [getOntology],
+      onUnknownTool: async (name, arguments_) => {
+        calls.push({ name, arguments_ });
+        return { content: [{ type: 'text', text: 'host handled' }], isError: true };
+      }
+    });
+
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+    try {
+      await expect(client.callTool({ name: 'retired_tool', arguments: { scope: 'foreign' } })).resolves.toMatchObject({
+        isError: true,
+        content: [{ type: 'text', text: 'host handled' }]
+      });
+      expect(calls).toEqual([{ name: 'retired_tool', arguments_: { scope: 'foreign' } }]);
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
 });

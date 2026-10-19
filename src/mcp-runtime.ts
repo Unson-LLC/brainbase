@@ -47,6 +47,18 @@ export type LocalMcpToolHandler = (
   extra: RequestHandlerExtra<ServerRequest, ServerNotification>
 ) => CallToolResult | Promise<CallToolResult>;
 
+/**
+ * Optional host-owned fallback for calls that are intentionally absent from
+ * the advertised tools/list surface. The runtime only performs the SDK
+ * dispatch; the host decides whether the call is a retired tool, an unknown
+ * name, or an authenticated request that must be rejected.
+ */
+export type LocalMcpUnknownToolHandler = (
+  name: string,
+  arguments_: Record<string, unknown>,
+  extra: RequestHandlerExtra<ServerRequest, ServerNotification>
+) => CallToolResult | Promise<CallToolResult>;
+
 export interface LocalMcpRuntimeTool {
   definition: Tool;
   handler: LocalMcpToolHandler;
@@ -59,6 +71,8 @@ export interface LocalMcpRuntimeOptions {
   tools: readonly LocalMcpRuntimeTool[];
   /** The host may observe the exact SDK tools/list surface for its audit trail. */
   onListTools?: (tools: readonly Tool[]) => void | Promise<void>;
+  /** The host may preserve behavior for calls outside the advertised surface. */
+  onUnknownTool?: LocalMcpUnknownToolHandler;
   /** The host may inject HTTP, stdio, or an in-memory SDK transport. */
   transport?: Transport;
 }
@@ -108,6 +122,7 @@ function normalizeRuntimeOptions(options: LocalMcpRuntimeOptions): {
   instructions?: string;
   tools: LocalMcpRuntimeTool[];
   onListTools?: (tools: readonly Tool[]) => void | Promise<void>;
+  onUnknownTool?: LocalMcpUnknownToolHandler;
   transport?: Transport;
 } {
   const name = text(options.name, 'name');
@@ -134,6 +149,7 @@ function normalizeRuntimeOptions(options: LocalMcpRuntimeOptions): {
     ...(options.instructions === undefined ? {} : { instructions: text(options.instructions, 'instructions') }),
     tools,
     ...(options.onListTools === undefined ? {} : { onListTools: options.onListTools }),
+    ...(options.onUnknownTool === undefined ? {} : { onUnknownTool: options.onUnknownTool }),
     transport: options.transport
   };
 }
@@ -163,9 +179,18 @@ export function createLocalMcpServer(options: LocalMcpRuntimeOptions): Server {
   });
   server.setRequestHandler(CallToolRequestSchema, async (request, extra): Promise<CallToolResult> => {
     const registered = toolsByName.get(request.params.name);
-    if (!registered) return textResult(`Unknown tool: ${request.params.name}`, true);
-
     const arguments_ = request.params.arguments ?? {};
+    if (!registered) {
+      if (normalized.onUnknownTool) {
+        try {
+          return await normalized.onUnknownTool(request.params.name, structuredClone(arguments_), extra);
+        } catch {
+          return textResult(`Tool execution failed: ${request.params.name}`, true);
+        }
+      }
+      return textResult(`Unknown tool: ${request.params.name}`, true);
+    }
+
     try {
       return await registered.handler(structuredClone(arguments_), extra);
     } catch {
