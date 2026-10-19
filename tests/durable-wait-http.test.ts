@@ -20,6 +20,7 @@ function context(overrides: Partial<TrustedDurableWaitRequestContext> = {}): Tru
     tenantId: 'tenant-a',
     principal: 'owner',
     scopeId: 'org-1',
+    scopeType: 'organization',
     verifiedMutationOrigin: 'https://mana.example.test',
     ...overrides,
   };
@@ -104,6 +105,88 @@ afterEach(async () => {
 });
 
 describe('durable wait canonical HTTP adapter', () => {
+  it('exposes scoped due candidates without accepting query identity or claiming them', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-wait-http-due-'));
+    roots.push(root);
+    const store = new DurableWaitStore({
+      dataDir: root,
+      clock: () => new Date('2026-09-24T00:00:00.000Z'),
+      problemSnapshot: { verify: () => true },
+    });
+    const baseUrl = await start(createDurableWaitHttpHandler({ storeFactory: () => store }), {
+      default: context(),
+      otherScope: context({ scopeId: 'org-2' }),
+      otherType: context({ scopeType: 'project' }),
+      otherTenant: context({ tenantId: 'tenant-b' }),
+      missingType: context({ scopeType: undefined }),
+      anonymous: null,
+    });
+    for (const waitId of ['due-a', 'due-b']) {
+      const created = await request(baseUrl, '/api/v1/durable-waits/create', {
+        method: 'POST',
+        body: createBody(waitId, { deadline: { due_at: '2026-09-23T00:00:00.000Z' } }),
+      });
+      expect(created.response.status).toBe(200);
+    }
+    const otherTenantCreated = await request(baseUrl, '/api/v1/durable-waits/create', {
+      method: 'POST',
+      headers: { 'x-test-context': 'otherTenant' },
+      body: createBody('due-other-tenant', { deadline: { due_at: '2026-09-23T00:00:00.000Z' } }),
+    });
+    expect(otherTenantCreated.response.status).toBe(200);
+    const first = await request(baseUrl, '/api/v1/durable-waits:due?limit=1', { method: 'GET' });
+    expect(first.response.status).toBe(200);
+    expect(first.body?.result?.candidates).toEqual([{ wait_id: 'due-a', due_at: '2026-09-23T00:00:00.000Z' }]);
+    expect(first.body?.result?.next_cursor).toBeTruthy();
+    const second = await request(baseUrl, `/api/v1/durable-waits:due?limit=1&cursor=${first.body?.result?.next_cursor}`, { method: 'GET' });
+    expect(second.body?.result?.candidates.map((candidate: { wait_id: string }) => candidate.wait_id)).toEqual(['due-b']);
+    const crossScope = await request(baseUrl, '/api/v1/durable-waits:due', { method: 'GET', headers: { 'x-test-context': 'otherScope' } });
+    expect(crossScope.body?.result?.candidates).toEqual([]);
+    const crossType = await request(baseUrl, '/api/v1/durable-waits:due', { method: 'GET', headers: { 'x-test-context': 'otherType' } });
+    expect(crossType.body?.result?.candidates).toEqual([]);
+    const crossTypeRead = await request(baseUrl, '/api/v1/durable-waits/due-a', { method: 'GET', headers: { 'x-test-context': 'otherType' } });
+    expect(crossTypeRead.response.status).toBe(403);
+    const crossTypeClaim = await request(baseUrl, '/api/v1/durable-waits/claim', {
+      method: 'POST', headers: { 'x-test-context': 'otherType' },
+      body: { wait_id: 'due-a', request_id: 'cross-scope-type', trigger: 'manual' },
+    });
+    expect(crossTypeClaim.response.status).toBe(403);
+    const missingType = await request(baseUrl, '/api/v1/durable-waits:due', { method: 'GET', headers: { 'x-test-context': 'missingType' } });
+    expect(missingType.response.status).toBe(400);
+    const missingTypeRead = await request(baseUrl, '/api/v1/durable-waits/due-a', { method: 'GET', headers: { 'x-test-context': 'missingType' } });
+    expect(missingTypeRead.response.status).toBe(403);
+    const wrongTypeCreate = await request(baseUrl, '/api/v1/durable-waits/create', {
+      method: 'POST', headers: { 'x-test-context': 'otherType' }, body: createBody('wrong-scope-type'),
+    });
+    expect(wrongTypeCreate.response.status).toBe(400);
+    await expect(store.read({ wait_id: 'wrong-scope-type', principal: 'owner' })).rejects.toMatchObject({ code: 'not_found' });
+    const crossTenant = await request(baseUrl, '/api/v1/durable-waits:due', { method: 'GET', headers: { 'x-test-context': 'otherTenant' } });
+    expect(crossTenant.body?.result?.candidates.map((candidate: { wait_id: string }) => candidate.wait_id)).toEqual(['due-other-tenant']);
+    const reusedCursor = await request(baseUrl, `/api/v1/durable-waits:due?cursor=${first.body?.result?.next_cursor}`, {
+      method: 'GET', headers: { 'x-test-context': 'otherTenant' },
+    });
+    expect(reusedCursor.response.status).toBe(400);
+    const crossTenantRead = await request(baseUrl, '/api/v1/durable-waits/due-a', { method: 'GET', headers: { 'x-test-context': 'otherTenant' } });
+    expect(crossTenantRead.response.status).toBe(403);
+    const crossTenantClaim = await request(baseUrl, '/api/v1/durable-waits/claim', {
+      method: 'POST', headers: { 'x-test-context': 'otherTenant' },
+      body: { wait_id: 'due-a', request_id: 'cross-tenant', trigger: 'timer' },
+    });
+    expect(crossTenantClaim.response.status).toBe(403);
+    const anonymous = await request(baseUrl, '/api/v1/durable-waits:due', { method: 'GET', headers: { 'x-test-context': 'anonymous' } });
+    expect(anonymous.response.status).toBe(401);
+    const queryIdentity = await request(baseUrl, '/api/v1/durable-waits:due?tenantId=tenant-b', { method: 'GET' });
+    expect(queryIdentity.response.status).toBe(400);
+    const duplicateLimit = await request(baseUrl, '/api/v1/durable-waits:due?limit=1&limit=2', { method: 'GET' });
+    expect(duplicateLimit.response.status).toBe(400);
+    const read = await request(baseUrl, '/api/v1/durable-waits/due-a', { method: 'GET' });
+    expect(read.body?.result?.state).toBe('waiting');
+    const reservedId = await request(baseUrl, '/api/v1/durable-waits/create', { method: 'POST', body: createBody('due') });
+    expect(reservedId.response.status).toBe(200);
+    const readReservedId = await request(baseUrl, '/api/v1/durable-waits/due', { method: 'GET' });
+    expect(readReservedId.body?.result?.wait_id).toBe('due');
+  });
+
   it('mounts a trusted host around the real store and returns a bounded route response', async () => {
     const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-wait-http-host-'));
     roots.push(root);
