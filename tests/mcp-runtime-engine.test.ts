@@ -37,10 +37,12 @@ describe('local MCP runtime engine', () => {
   it('supports SDK initialize, tools/list, tools/call, and ping over an injected transport', async () => {
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: 'local-runtime-contract-test', version: '1.0.0' });
+    const listed: string[][] = [];
     const runtime = await runLocalMcpServer({
       name: 'brainbase-local-runtime',
       version: '1.0.0',
       tools: [getOntology, echo],
+      onListTools: (tools) => listed.push(tools.map((tool) => tool.name)),
       transport: serverTransport
     });
 
@@ -53,6 +55,7 @@ describe('local MCP runtime engine', () => {
           { name: 'echo' }
         ]
       });
+      expect(listed).toEqual([['get_ontology', 'echo']]);
       await expect(client.callTool({ name: 'get_ontology', arguments: {} })).resolves.toMatchObject({
         content: [{ type: 'text' }]
       });

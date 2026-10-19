@@ -57,6 +57,8 @@ export interface LocalMcpRuntimeOptions {
   version: string;
   instructions?: string;
   tools: readonly LocalMcpRuntimeTool[];
+  /** The host may observe the exact SDK tools/list surface for its audit trail. */
+  onListTools?: (tools: readonly Tool[]) => void | Promise<void>;
   /** The host may inject HTTP, stdio, or an in-memory SDK transport. */
   transport?: Transport;
 }
@@ -105,6 +107,7 @@ function normalizeRuntimeOptions(options: LocalMcpRuntimeOptions): {
   version: string;
   instructions?: string;
   tools: LocalMcpRuntimeTool[];
+  onListTools?: (tools: readonly Tool[]) => void | Promise<void>;
   transport?: Transport;
 } {
   const name = text(options.name, 'name');
@@ -130,6 +133,7 @@ function normalizeRuntimeOptions(options: LocalMcpRuntimeOptions): {
     version,
     ...(options.instructions === undefined ? {} : { instructions: text(options.instructions, 'instructions') }),
     tools,
+    ...(options.onListTools === undefined ? {} : { onListTools: options.onListTools }),
     transport: options.transport
   };
 }
@@ -152,9 +156,11 @@ export function createLocalMcpServer(options: LocalMcpRuntimeOptions): Server {
     }
   );
 
-  server.setRequestHandler(ListToolsRequestSchema, async (): Promise<ListToolsResult> => ({
-    tools: normalized.tools.map((tool) => structuredClone(tool.definition))
-  }));
+  server.setRequestHandler(ListToolsRequestSchema, async (): Promise<ListToolsResult> => {
+    const tools = normalized.tools.map((tool) => structuredClone(tool.definition));
+    await normalized.onListTools?.(tools);
+    return { tools };
+  });
   server.setRequestHandler(CallToolRequestSchema, async (request, extra): Promise<CallToolResult> => {
     const registered = toolsByName.get(request.params.name);
     if (!registered) return textResult(`Unknown tool: ${request.params.name}`, true);
