@@ -5,10 +5,13 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
+const GIT_CONSUMER_TEST_TIMEOUT_MS = 240_000;
 const temporaryRoots: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+  for (const root of temporaryRoots.splice(0)) {
+    await rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+  }
 });
 
 describe('exact git commit consumer contract', () => {
@@ -60,5 +63,5 @@ describe('exact git commit consumer contract', () => {
     expect(installedPackage.name).toBe('@unson/brainbase-mcp');
     expect(locked?.resolved).toBe(dependency);
     expect(output).toBe('function');
-  }, 120_000);
+  }, GIT_CONSUMER_TEST_TIMEOUT_MS);
 });

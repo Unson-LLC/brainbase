@@ -186,7 +186,7 @@ describe('OSS npm release OIDC endpoint correction acceptance', () => {
       'tests/npm-prepublication-evidence.integration.test.ts'
     );
     expect(packageJson.scripts['test:e2e'], 'ac-7 keeps the E2E runner available for the focused Story file').toMatch(/^vitest run /u);
-    expect(packageJson.scripts.build, 'ac-7 keeps the TypeScript build validation').toBe('tsc -p tsconfig.json');
+    expect(packageJson.scripts.build.split('&&')[0].trim(), 'ac-7 keeps the TypeScript build validation').toBe('tsc -p tsconfig.json');
   });
 
   // story-brainbase-oss-npm-release-oidc-endpoint ac:8 executable phase-aware registry contract coverage

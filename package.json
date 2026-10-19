@@ -1,6 +1,6 @@
 {
   "name": "@unson/brainbase-mcp",
-  "version": "0.44.0",
+  "version": "0.44.1",
   "description": "Local-first Brainbase judgment OS that lets supported AI agents reuse a user's approved goals, priorities, decisions, and judgment criteria.",
   "type": "module",
   "license": "MIT",
@@ -42,6 +42,30 @@
     "./judgment-value-proof": {
       "types": "./dist/judgment-value-proof.d.ts",
       "import": "./dist/judgment-value-proof.js"
+    },
+    "./judgment-host": {
+      "types": "./dist/judgment-host.d.ts",
+      "import": "./dist/judgment-host.js"
+    },
+    "./judgment-lifecycle-core": {
+      "types": "./dist/judgment-lifecycle-core.d.ts",
+      "import": "./dist/judgment-lifecycle-core.js"
+    },
+    "./judgment-execution-outcome": {
+      "types": "./dist/judgment-execution-outcome.d.ts",
+      "import": "./dist/judgment-execution-outcome.js"
+    },
+    "./judgment-node-evidence": {
+      "types": "./dist/judgment-node-evidence.d.ts",
+      "import": "./dist/judgment-node-evidence.js"
+    },
+    "./judgment-event-adapter": {
+      "types": "./dist/judgment-event-adapter.d.ts",
+      "import": "./dist/judgment-event-adapter.js"
+    },
+    "./judgment-event-outbox": {
+      "types": "./dist/judgment-event-outbox.d.ts",
+      "import": "./dist/judgment-event-outbox.js"
     },
     "./judgment-value-proof-review": {
       "types": "./dist/judgment-value-proof-review.d.ts",
@@ -99,6 +123,18 @@
       "types": "./dist/canonical-task-service.d.ts",
       "import": "./dist/canonical-task-service.js"
     },
+    "./canonical-task-postgres": {
+      "types": "./dist/canonical-task-postgres.d.ts",
+      "import": "./dist/canonical-task-postgres.js"
+    },
+    "./canonical-task-operations": {
+      "types": "./dist/canonical-task-operations.d.ts",
+      "import": "./dist/canonical-task-operations.js"
+    },
+    "./canonical-task-store-config": {
+      "types": "./dist/canonical-task-store-config.d.ts",
+      "import": "./dist/canonical-task-store-config.js"
+    },
     "./foundation-catalog": {
       "types": "./dist/foundation-catalog.d.ts",
       "import": "./dist/foundation-catalog.js"
@@ -122,6 +158,18 @@
     "./company-os-receipt-adapter": {
       "types": "./dist/company-os-receipt-adapter.d.ts",
       "import": "./dist/company-os-receipt-adapter.js"
+    },
+    "./run-receipt": {
+      "types": "./dist/run-receipt.d.ts",
+      "import": "./dist/run-receipt.js"
+    },
+    "./routines": {
+      "types": "./dist/routines.d.ts",
+      "import": "./dist/routines.js"
+    },
+    "./automation-run": {
+      "types": "./dist/automation-run.d.ts",
+      "import": "./dist/automation-run.js"
     },
     "./company-os-learning-adoption": {
       "types": "./dist/company-os-learning-adoption.d.ts",
@@ -186,6 +234,10 @@
     "./judgment-resolution-contract": {
       "types": "./dist/judgment-resolution-contract.d.ts",
       "import": "./dist/judgment-resolution-contract.js"
+    },
+    "./judgment-runtime-resolution": {
+      "types": "./dist/judgment-runtime-resolution.public.d.ts",
+      "import": "./dist/judgment-runtime-resolution.js"
     },
     "./graph-maintenance-engine": {
       "types": "./dist/graph-maintenance-engine.d.ts",
@@ -255,9 +307,33 @@
       "types": "./dist/knowledge-promotion.d.ts",
       "import": "./dist/knowledge-promotion.js"
     },
+    "./knowledge-event": {
+      "types": "./dist/knowledge-event.d.ts",
+      "import": "./dist/knowledge-event.js"
+    },
     "./organization-connection": {
       "types": "./dist/organization-connection.d.ts",
       "import": "./dist/organization-connection.js"
+    },
+    "./mesh": {
+      "types": "./dist/mesh.d.ts",
+      "import": "./dist/mesh.js"
+    },
+    "./honcho": {
+      "types": "./dist/honcho.d.ts",
+      "import": "./dist/honcho.js"
+    },
+    "./onboarding-runtime": {
+      "types": "./dist/onboarding-runtime.d.ts",
+      "import": "./dist/onboarding-runtime.js"
+    },
+    "./connected-onboarding": {
+      "types": "./dist/connected-onboarding.d.ts",
+      "import": "./dist/connected-onboarding.js"
+    },
+    "./mcp-runtime": {
+      "types": "./dist/mcp-runtime.d.ts",
+      "import": "./dist/mcp-runtime.js"
     },
     "./resource-reservations": {
       "types": "./dist/resource-reservations.d.ts",
@@ -287,6 +363,10 @@
       "types": "./dist/server-support.d.ts",
       "import": "./dist/server-support.js"
     },
+    "./config-parser": {
+      "types": "./dist/config-parser.d.ts",
+      "import": "./dist/config-parser.js"
+    },
     "./company-os-impact-review": {
       "types": "./dist/company-os-impact-review.d.ts",
       "import": "./dist/company-os-impact-review.js"
@@ -302,6 +382,22 @@
     "./meeting-minutes": {
       "types": "./dist/meeting-minutes.d.ts",
       "import": "./dist/meeting-minutes.js"
+    },
+    "./meeting-automation": {
+      "types": "./dist/meeting-automation.d.ts",
+      "import": "./dist/meeting-automation.js"
+    },
+    "./meeting-automation-runtime": {
+      "types": "./dist/meeting-automation-runtime.d.ts",
+      "import": "./dist/meeting-automation-runtime.js"
+    },
+    "./meeting-minutes-context-receipt": {
+      "types": "./dist/meeting-minutes-context-receipt.d.ts",
+      "import": "./dist/meeting-minutes-context-receipt.js"
+    },
+    "./meeting-source-sync": {
+      "types": "./dist/meeting-source-sync.d.ts",
+      "import": "./dist/meeting-source-sync.js"
     },
     "./meeting-minutes-http": {
       "types": "./dist/meeting-minutes-http.d.ts",
@@ -444,9 +540,12 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/copy-judgment-runtime-resolution-public-types.mjs && tsc -p tsconfig.judgment-runtime-resolution-types.json --pretty false && node scripts/build-stage3b-candidate-bundle.mjs",
+    "typecheck:config-parser": "tsc -p tsconfig.config-parser-types.json --pretty false",
+    "typecheck:judgment-runtime-resolution": "tsc -p tsconfig.judgment-runtime-resolution-types.json --pretty false",
     "test": "vitest run --exclude tests/npm-prepublication-evidence.integration.test.ts",
     "test:integration": "vitest run tests/mcp-contract.test.ts tests/ontology-cli.test.ts tests/npm-release-validation.integration.test.ts tests/npm-consumer-smoke.integration.test.ts",
+    "test:canonical-task-postgres": "vitest run tests/canonical-task-postgres-service.integration.test.ts",
     "test:consumer-smoke": "vitest run tests/npm-consumer-smoke.integration.test.ts",
     "test:integration:release-evidence": "vitest run tests/npm-release-validation.integration.test.ts tests/npm-prepublication-evidence.integration.test.ts",
     "test:e2e": "vitest run tests/e2e/brainbase-mcp-only-acceptance.spec.ts tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
@@ -478,6 +577,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.31.0",
     "graphology": "0.26.0",
+    "js-yaml": "^4.1.1",
     "sigma": "3.0.3",
     "zod": "^3.25.56"
   },
@@ -487,7 +587,9 @@
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
     "@types/node": "^22.15.29",
+    "@types/pg": "^8.23.1",
     "esbuild": "0.28.2",
+    "pg": "^8.23.1",
     "three": "0.186.1",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
@@ -496,5 +598,15 @@
   },
   "engines": {
     "node": ">=20"
-  }
+  },
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "keywords": [],
+  "author": "",
+  "bugs": {
+    "url": "https://github.com/Unson-LLC/brainbase/issues"
+  },
+  "homepage": "https://github.com/Unson-LLC/brainbase#readme"
 }

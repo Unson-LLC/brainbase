@@ -14,10 +14,12 @@ async function readRepoFile(path: string): Promise<string> {
 }
 
 describe('public CI self-hosted runner policy', () => {
-  it('AC-001 runs every workflow job on the EVO-X2 self-hosted labels except the npm publish job', async () => {
+  it('AC-001 runs package CI and every non-publication job on the EVO-X2 labels, with explicit hosted validation exceptions', async () => {
     const workflows = await Promise.all(workflowPaths.map((path) => readRepoFile(path)));
     for (const [index, workflow] of workflows.entries()) {
-      const jobs = workflowPaths[index] === '.github/workflows/npm-publish.yml'
+      const jobs = workflowPaths[index] === '.github/workflows/test.yml'
+        ? workflow.slice(0, workflow.indexOf('  formal-release-validate-linux:'))
+        : workflowPaths[index] === '.github/workflows/npm-publish.yml'
         ? workflow.slice(0, workflow.indexOf('  publish:'))
         : workflow;
       const runsOn = jobs.match(/^[ \t]*runs-on:.*$/gmu) ?? [];
@@ -25,9 +27,18 @@ describe('public CI self-hosted runner policy', () => {
       expect(runsOn.every((line) => line.trim() === selfHostedRunner), workflowPaths[index]).toBe(true);
       expect(jobs, workflowPaths[index]).not.toMatch(/ubuntu-latest|windows-latest|macos-latest/u);
     }
+
+    const formalValidationJob = workflows[workflowPaths.indexOf('.github/workflows/test.yml')]
+      .slice(workflows[workflowPaths.indexOf('.github/workflows/test.yml')].indexOf('  formal-release-validate-linux:'));
+    expect(formalValidationJob).toMatch(/^  formal-release-validate-linux:\n/u);
+    expect(formalValidationJob).toMatch(/^    runs-on: ubuntu-latest$/mu);
+    expect(formalValidationJob).toMatch(/^    permissions:\n      contents: read$/mu);
+    expect(formalValidationJob).toMatch(/github\.event\.pull_request\.head\.sha/u);
+    expect(formalValidationJob).toMatch(/persist-credentials: false/u);
+    expect(formalValidationJob).not.toMatch(/secrets\.|id-token:\s*write/u);
   });
 
-  it('AC-009 runs only the npm publish job on a GitHub-hosted runner, because npm rejects provenance from self-hosted runners', async () => {
+  it('AC-009 keeps npm publication on a GitHub-hosted runner because npm rejects provenance from self-hosted runners', async () => {
     const workflow = await readRepoFile('.github/workflows/npm-publish.yml');
     const publishJob = workflow.slice(workflow.indexOf('  publish:'));
     expect(publishJob.match(/^[ \t]*runs-on:.*$/gmu)?.map((line) => line.trim())).toEqual(['runs-on: ubuntu-latest']);
@@ -72,8 +83,9 @@ describe('public CI self-hosted runner policy', () => {
 
   it('AC-004 documents the runner labels and the fork pull request boundary', async () => {
     const guide = await readRepoFile('docs/guides/github-actions-cicd-operating-guide.md');
-    expect(guide).toContain('GitHub-hosted runnerを使わない');
-    expect(guide).toContain('例外は`npm-publish.yml`のpublish jobだけで、`runs-on: ubuntu-latest`で実行する。');
+    expect(guide).toContain('CIの通常jobは、組織のself-hosted runnerである次のラベルだけで実行する。');
+    expect(guide).toContain('例外は、PR headの正式release検証を隔離する`test.yml`の`formal-release-validate-linux` job');
+    expect(guide).toContain('npm provenance（sigstoreの来歴署名）を付けて公開する`npm-publish.yml`のpublish job');
     expect(guide).toContain('`actions/setup-node`の`cache: npm`を使わない');
     expect(guide).toContain(selfHostedRunner);
     expect(guide).toContain('github.event.pull_request.head.repo.full_name == github.repository');
@@ -132,7 +144,7 @@ describe('public CI self-hosted runner policy', () => {
   it('AC-006 sets persist-credentials false on every checkout', async () => {
     const workflows = await Promise.all(workflowPaths.map((path) => readRepoFile(path)));
     const checkouts = workflows.flatMap((workflow) => checkoutSections(workflow));
-    expect(checkouts).toHaveLength(5);
+    expect(checkouts).toHaveLength(6);
     for (const section of checkouts) {
       expect(section).toMatch(/persist-credentials: false/u);
     }

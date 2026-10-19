@@ -1,0 +1,145 @@
+{
+  "schema_version": "0.1.0",
+  "status": "pass",
+  "exit_code": 0,
+  "evidence_source": "runner_direct",
+  "producer": "vibepro verify run",
+  "kind": "build",
+  "story_id": "story-judgment-harness-common-contracts-v1",
+  "runtime_identity": {
+    "schema_version": "0.2.0",
+    "collected_at": "2026-10-19T04:36:21.454Z",
+    "mode": "normal",
+    "source_kind": "npm_package",
+    "test_context": null,
+    "package": {
+      "name": "vibepro",
+      "version": "0.2.0-beta.34",
+      "exact_version": "0.2.0-beta.34",
+      "root": "/home/ubuntu/.local/lib/node_modules/vibepro"
+    },
+    "cli": {
+      "entrypoint": "/home/ubuntu/.local/lib/node_modules/vibepro/bin/vibepro.js",
+      "invoked_as": "/home/ubuntu/.local/bin/vibepro",
+      "runtime_module": "/home/ubuntu/.local/lib/node_modules/vibepro/src/runtime-info.js"
+    },
+    "release_manifest": {
+      "status": "valid",
+      "manifest": {
+        "schema_version": "0.1.0",
+        "package": {
+          "name": "vibepro",
+          "version": "0.2.0-beta.34",
+          "package_json_sha256": "63f42ef6e7ed01f31ad569eb59a7a25dc30a4c84d2713b8f3e279ebf40a7d8ff",
+          "entrypoint": "bin/vibepro.js"
+        },
+        "source_git": {
+          "commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+          "origin_url": "https://github.com/Unson-LLC/vibepro",
+          "origin_main_commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+          "origin_main_relation": "same",
+          "dirty": false
+        }
+      },
+      "errors": []
+    },
+    "source_git": {
+      "is_git_repo": false,
+      "commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro",
+      "origin_main_commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+      "origin_main_relation": "published",
+      "dirty": false,
+      "dirty_summary": []
+    },
+    "identity_digest": "acde717f71e18065e09cee4715ffadae002a8db2e43ed4021abd14195a96a7fd",
+    "integrity": {
+      "status": "trusted",
+      "code": null,
+      "purpose": "evidence_generation",
+      "reasons": [
+        "manifested immutable npm runtime"
+      ]
+    }
+  },
+  "head_sha": "231d059a61c98c3bfcdfa66fa76aa04e610eb724",
+  "observed": {
+    "status": "pass",
+    "evidence_source": "runner_direct",
+    "run_artifact": ".vibepro/pr/story-judgment-harness-common-contracts-v1/verification-runs/build.json",
+    "run_log": ".vibepro/pr/story-judgment-harness-common-contracts-v1/verification-runs/build.log",
+    "exit_code": "0",
+    "duration_ms": "7213",
+    "started_at": "2026-10-19T04:36:21.470Z",
+    "finished_at": "2026-10-19T04:36:28.672Z",
+    "head_sha_before": "231d059a61c98c3bfcdfa66fa76aa04e610eb724",
+    "head_sha_after": "231d059a61c98c3bfcdfa66fa76aa04e610eb724",
+    "head_sha": "231d059a61c98c3bfcdfa66fa76aa04e610eb724",
+    "worktree_sampled": "true",
+    "worktree_sampling_complete": "true",
+    "worktree_sha256_before": "538bdcbcb38ef3da60ecd5dfa6d4a8d5608afcfecf60d526e27710171315d5dd",
+    "worktree_sha256_after": "538bdcbcb38ef3da60ecd5dfa6d4a8d5608afcfecf60d526e27710171315d5dd",
+    "stdout_sha256": "980a0186cb88b12968c148134470fbc633a5ff037e247b08ae76b32ae88dd067",
+    "output_sha256": "980a0186cb88b12968c148134470fbc633a5ff037e247b08ae76b32ae88dd067",
+    "output_bytes": "251",
+    "log_truncated": "false",
+    "output_metrics": "none",
+    "timed_out": "false",
+    "output_limit_exceeded": "false",
+    "external_kill_signal": "none",
+    "timeout_ms": "7200000",
+    "max_output_bytes": "67108864",
+    "harness_env_removed": "none",
+    "runner_node_version": "v22.14.0",
+    "tree_mutated_during_run": "false",
+    "head_moved_during_run": "false",
+    "worktree_changed_during_run": "false",
+    "worktree_status_sha256_before": "517db6e98c3179cb0c180b51ce0780b48ab1ea33c20f8b159e7d0b5612054f25",
+    "worktree_status_sha256_after": "517db6e98c3179cb0c180b51ce0780b48ab1ea33c20f8b159e7d0b5612054f25",
+    "worktree_diff_sha256_before": "8fb9835c2f797adff6352a0ca3b598027d72e41245c4508c65f70e0d9633f3b0",
+    "worktree_diff_sha256_after": "8fb9835c2f797adff6352a0ca3b598027d72e41245c4508c65f70e0d9633f3b0"
+  },
+  "run": {
+    "argv": [
+      "npm",
+      "run",
+      "build"
+    ],
+    "command": "npm run build",
+    "cwd": ".",
+    "started_at": "2026-10-19T04:36:21.470Z",
+    "finished_at": "2026-10-19T04:36:28.672Z",
+    "duration_ms": 7213,
+    "exit_code": 0,
+    "signal": null,
+    "timed_out": false,
+    "output_limit_exceeded": false,
+    "external_kill_signal": null,
+    "timeout_ms": 7200000,
+    "max_output_bytes": 67108864,
+    "head_sha_before": "231d059a61c98c3bfcdfa66fa76aa04e610eb724",
+    "head_sha_after": "231d059a61c98c3bfcdfa66fa76aa04e610eb724",
+    "worktree_sha256_before": "538bdcbcb38ef3da60ecd5dfa6d4a8d5608afcfecf60d526e27710171315d5dd",
+    "worktree_sha256_after": "538bdcbcb38ef3da60ecd5dfa6d4a8d5608afcfecf60d526e27710171315d5dd",
+    "tree_mutated_during_run": false,
+    "head_moved_during_run": false,
+    "worktree_changed_during_run": false,
+    "worktree_sampled": true,
+    "worktree_sampling_complete": true,
+    "output_metrics": "none",
+    "counts": null,
+    "node_version": "v22.14.0",
+    "harness_env_removed": [],
+    "log": ".vibepro/pr/story-judgment-harness-common-contracts-v1/verification-runs/build.log",
+    "log_truncated": false
+  },
+  "discarded_agent_observations": [],
+  "warnings": [
+    {
+      "id": "verification_run_counts_not_parsed",
+      "command_name": "verify run",
+      "reason": "the command exited 0 but no test counts could be parsed from its output; the record proves the command did not fail, not how much it checked"
+    }
+  ]
+}

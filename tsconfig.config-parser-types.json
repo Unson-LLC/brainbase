@@ -1,0 +1,12 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "noEmit": true,
+        "rootDir": "."
+    },
+    "include": [],
+    "files": [
+        "src/js-yaml.d.ts",
+        "tests/config-parser-typecheck.ts"
+    ]
+}

@@ -31,10 +31,13 @@ import type {
 } from '../src/ontology-foundation.js';
 import type { FoundationRef } from '../src/foundation-catalog.js';
 
+const TEST_TMP_ROOT = process.env.BRAINBASE_TEST_FIXTURE_ROOT ?? tmpdir();
 const dataDirs: string[] = [];
 
 afterEach(async () => {
-  await Promise.all(dataDirs.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
+  for (const directory of dataDirs.splice(0)) {
+    await rm(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+  }
 });
 
 function digest(value: unknown): `sha256:${string}` {
@@ -227,7 +230,7 @@ function createOutcomeCasePort(sourceConditions: unknown = { pilot: 'hotel-ai' }
 }
 
 async function makeHarness(sourceConditions: unknown = { pilot: 'hotel-ai' }) {
-  const dataDir = await mkdtemp(join(tmpdir(), 'brainbase-company-os-evaluation-'));
+  const dataDir = await mkdtemp(join(TEST_TMP_ROOT, 'brainbase-company-os-evaluation-'));
   dataDirs.push(dataDir);
   await initializePersonalOs(dataDir);
   const foundationStore = createFoundationRevisionStore({ dataDir });

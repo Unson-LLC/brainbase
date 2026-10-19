@@ -13,6 +13,10 @@ import {
   runJudgmentHost,
   type JudgmentReceipt
 } from '../src/judgment-host.js';
+import {
+  createJudgmentKnowledgeEventOutboxSink,
+  resolveJudgmentKnowledgeEventOutboxPaths
+} from '../src/judgment-event-outbox.js';
 import { runCli } from '../src/cli.js';
 
 const dirs: string[] = [];
@@ -352,6 +356,9 @@ describe('portable Judgment Resolver Host contract', () => {
       now: () => new Date('2026-08-09T00:00:00.000Z'),
       id: () => 'receipt-episode'
     }));
+    const knowledgeEventSink = createJudgmentKnowledgeEventOutboxSink({
+      paths: resolveJudgmentKnowledgeEventOutboxPaths({ root })
+    });
 
     const started = await processJudgmentHook({
       hook_event_name: 'UserPromptSubmit',
@@ -386,12 +393,12 @@ describe('portable Judgment Resolver Host contract', () => {
       hook_event_name: 'Stop',
       last_assistant_message: completeAnswer,
       ...identity
-    }, { env, resolver });
+    }, { env, resolver, knowledgeEventSink });
     const replayed = await processJudgmentHook({
       hook_event_name: 'Stop',
       last_assistant_message: completeAnswer,
       ...identity
-    }, { env, resolver });
+    }, { env, resolver, knowledgeEventSink });
 
     expect(resolver).toHaveBeenCalledTimes(1);
     expect(started).toMatchObject({ continue: true, receipt: { resolution_id: 'receipt-episode' } });
@@ -405,6 +412,9 @@ describe('portable Judgment Resolver Host contract', () => {
     const paths = episodePaths(journal, identity.session_id, identity.turn_id);
     const episode = JSON.parse(await readFile(paths.episode, 'utf8'));
     const final = JSON.parse(await readFile(paths.final, 'utf8'));
+    const outboxPaths = resolveJudgmentKnowledgeEventOutboxPaths({ root });
+    const outboxFiles = await readdir(outboxPaths.outboxDir);
+    const queuedKnowledgeEvent = JSON.parse(await readFile(join(outboxPaths.outboxDir, outboxFiles[0]), 'utf8'));
     const eventNames = (await readdir(paths.events)).sort();
     const events = await Promise.all(eventNames.map(async (name) => JSON.parse(await readFile(join(paths.events, name), 'utf8'))));
     expect(events.map((event) => event.sequence)).toEqual([1, 2]);
@@ -415,6 +425,15 @@ describe('portable Judgment Resolver Host contract', () => {
       event_count: 2
     });
     expect(final.event_set_digest).toBe(digest(canonicalJson(events)));
+    expect(queuedKnowledgeEvent).toMatchObject({
+      schema_version: 'judgment_event_outbox.v1',
+      event: {
+        schema_version: 'knowledge_event.v1',
+        parent_episode_id: expect.stringMatching(/:turn-1$/u),
+        decision_authority: { authorized: false, graph_promotion_allowed: false }
+      },
+      delivery: { attempt: 1 }
+    });
   });
 
   it('replays an identical tool_use_id idempotently', async () => {

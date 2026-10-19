@@ -1,3 +1,7 @@
+export * from './routine-runtime.js';
+export * from './routine-cycle.js';
+export * from './routine-liveness.js';
+
 export type RoutineKind = 'ohayo' | 'oyasumi' | 'retro';
 export type RoutineTarget = 'codex' | 'claude';
 
