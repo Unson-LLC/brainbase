@@ -371,9 +371,20 @@ export function workspaceFilterPopover(doc, { content, open = false, onToggle, t
   } };
 }
 
+/** Reusable notification surface. Hosts own content, placement and lifecycle.
+ * Tones use shared semantic tokens; unknown values stay informational.
+ */
+export function workspaceNotificationCard(doc, { tone = 'info', content, tag = 'section', className = '', role } = {}) {
+  const severity = tone === 'attention' ? 'warning' : ['info', 'warning', 'danger'].includes(tone) ? tone : 'info';
+  const card = el(doc, tag, { className: `bb-ws-notification-card is-${severity} ${className}`.trim(), attrs: { role } });
+  appendContent(card, doc, content);
+  return card;
+}
+
 /** Compact notification with a fixed-center, purely visual spinner. */
 export function workspaceLoadingCard(doc, { title = 'ロード中' } = {}) {
-  const card = el(doc, 'section', { className: 'bb-ws-error-card bb-ws-loading-card', attrs: { role: 'status', 'aria-live': 'polite' } });
+  const card = workspaceNotificationCard(doc, { className: 'bb-ws-error-card bb-ws-loading-card', role: 'status' });
+  card.setAttribute('aria-live', 'polite');
   card.append(el(doc, 'span', { className: 'bb-ws-loading-spinner', attrs: { 'aria-hidden': 'true' } }), el(doc, 'span', { text: title }));
   return card;
 }
@@ -404,7 +415,7 @@ export function workspaceDismissNotification(card, onDismiss) {
 
 /** Persistent, initially closed notification. The caller owns its lifecycle. */
 export function workspaceErrorCard(doc, { title, message, tone = 'danger', onRetry } = {}) {
-  const card = el(doc, 'section', { className: `bb-ws-error-card is-${tone}`, attrs: { role: 'listitem' } });
+  const card = workspaceNotificationCard(doc, { tone, className: 'bb-ws-error-card', role: 'listitem' });
   const details = el(doc, 'details');
   const summary = el(doc, 'summary', { attrs: { 'aria-label': `${title}の通知` } });
   summary.append(el(doc, 'span', { className: 'bb-ws-error-symbol', text: '!', attrs: { 'aria-hidden': 'true' } }), el(doc, 'span', { text: title }));

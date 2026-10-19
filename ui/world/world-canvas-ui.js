@@ -5,11 +5,13 @@
  * unanchored:true omits the pointer for a real record without a drawable lot.
  */
 
+import { workspaceNotificationCard } from '../../workspace-kit.js';
+
 const SKY_MODES = Object.freeze([
-  { value: 'auto', label: '時刻に合わせる', icon: '◷' },
-  { value: 'day', label: '昼', icon: '☀' },
-  { value: 'dusk', label: '夕方', icon: '◒' },
-  { value: 'night', label: '夜', icon: '☾' },
+  { value: 'auto', label: '自動（現在時刻）', icon: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5l3 1.8"/>' },
+  { value: 'day', label: '昼', icon: '<circle cx="12" cy="12" r="5" fill="currentColor" fill-opacity=".12"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/><path d="M10 12h.01M14 12h.01m-4 2.5q2 1.6 4 0"/>' },
+  { value: 'dusk', label: '夕方', icon: '<path d="M5.5 13a6.5 6.5 0 0 1 13 0" fill="currentColor" fill-opacity=".12"/><path d="M12 2v2M3.5 5.5 5 7m15.5-1.5L19 7M2 13h20M3 17q3-2 6 0t6 0 6 0M6 21q3-2 6 0t6 0"/>' },
+  { value: 'night', label: '夜', icon: '<path d="M19.5 15.5A8.5 8.5 0 0 1 8.5 4.5a8.5 8.5 0 1 0 11 11Z" fill="currentColor" fill-opacity=".12"/><path d="m18 3 .7 2.3L21 6l-2.3.7L18 9l-.7-2.3L15 6l2.3-.7ZM22 11h.01"/>' },
 ]);
 const CLOSE_DELAY = 220;
 let instanceId = 0;
@@ -57,7 +59,6 @@ export function createWorldCanvasUI({
   let taskOpen = false;
   let taskAnchor = null;
   let helpOpen = false;
-  let skyOpen = false;
   let skyMode = 'auto';
   let businesses = new Set();
   let overlayOrder = [];
@@ -138,10 +139,7 @@ export function createWorldCanvasUI({
   const reset = button('bb-world-canvas-control bb-world-canvas-reset', '世界全体に戻る', '全体に戻る');
   const city = element('select', 'bb-world-canvas-control bb-world-canvas-city', null, { 'aria-label': '都市を選ぶ' });
   const sky = button('bb-world-canvas-control bb-world-canvas-sky', '空：時刻に合わせる', '');
-  sky.setAttribute('aria-haspopup', 'menu');
-  sky.setAttribute('aria-expanded', 'false');
-  sky.setAttribute('aria-controls', `${id}-sky`);
-  const skyIcon = element('span', 'bb-world-canvas-sky-icon', SKY_MODES[0].icon, { 'aria-hidden': 'true' });
+  const skyIcon = element('span', 'bb-world-canvas-sky-icon', '', { 'aria-hidden': 'true' });
   sky.append(skyIcon);
   toolbar.append(reset, city, sky);
   const contextRoot = element('div', 'bb-world-canvas-context', null, {
@@ -153,22 +151,7 @@ export function createWorldCanvasUI({
   const contextNextAction = element('p', 'bb-world-canvas-context-next-action', worldContext.unavailableCity, {
     'data-world-context': 'next-action',
   });
-  contextRoot.append(contextPurpose, contextNextAction);
-  const skyMenu = element('div', 'bb-world-canvas-sky-menu', null, { id: `${id}-sky`, role: 'menu', 'aria-label': '空の時間帯' });
-  skyMenu.hidden = true;
-  const skyOptions = SKY_MODES.map((mode) => {
-    const option = button('bb-world-canvas-sky-option', mode.label);
-    option.setAttribute('role', 'menuitemradio');
-    option.setAttribute('aria-checked', String(mode.value === skyMode));
-    option.setAttribute('tabindex', '-1');
-    listen(option, 'click', () => {
-      setSky(mode.value);
-      closeSky(true);
-      onSky?.(mode.value);
-    });
-    skyMenu.append(option);
-    return option;
-  });
+  contextRoot.append(contextNextAction);
   const quests = element('div', 'bb-world-canvas-quests', null, { 'aria-live': 'polite', 'aria-label': '確認が必要なこと' });
 
   const edge = button('bb-world-canvas-edge', '都市の詳細を開く', '');
@@ -203,7 +186,7 @@ export function createWorldCanvasUI({
   const notes = element('div', 'bb-world-canvas-notes');
   helpBody.append(helpContent, notes);
   help.append(helpTop, helpBody);
-  root.append(toolbar, contextRoot, skyMenu, quests, edge, rail, task, helpButton, help);
+  root.append(toolbar, contextRoot, quests, edge, rail, task, helpButton, help);
   stage.append(root);
 
   function setCities(items = [], selectedCode = null) {
@@ -222,6 +205,7 @@ export function createWorldCanvasUI({
     }
     city.replaceChildren(...options);
     city.disabled = businesses.size === 0;
+    contextRoot.hidden = businesses.size > 0;
     contextNextAction.textContent = businesses.size === 0
       ? worldContext.unavailableCity
       : worldContext.knownCityAction;
@@ -236,27 +220,12 @@ export function createWorldCanvasUI({
     const match = SKY_MODES.find((entry) => entry.value === mode);
     if (!match) return;
     skyMode = mode;
-    skyIcon.textContent = match.icon;
-    sky.setAttribute('aria-label', `空：${match.label}`);
-    sky.setAttribute('title', `空：${match.label}`);
-    skyOptions.forEach((option, index) => option.setAttribute('aria-checked', String(SKY_MODES[index].value === mode)));
-  }
-  function openSky() {
-    if (disposed) return;
-    skyOpen = true;
-    skyMenu.hidden = false;
-    sky.setAttribute('aria-expanded', 'true');
-    activate('sky', skyMenu);
-    focus(skyOptions[SKY_MODES.findIndex((entry) => entry.value === skyMode)]);
-  }
-  function closeSky(restoreFocus = false) {
-    if (!skyOpen) return;
-    const shouldRestore = restoreFocus && focusedWithin(skyMenu);
-    skyOpen = false;
-    skyMenu.hidden = true;
-    sky.setAttribute('aria-expanded', 'false');
-    forget('sky');
-    if (shouldRestore) focus(sky);
+    // Artwork is fixed code, never host data. Native button activation covers Enter/Space.
+    skyIcon.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${match.icon}</svg>`;
+    const next = SKY_MODES[(SKY_MODES.indexOf(match) + 1) % SKY_MODES.length];
+    const label = `空：${match.label}。次は${next.label}`;
+    sky.setAttribute('aria-label', label);
+    sky.setAttribute('title', label);
   }
   function cancelRailTimer() {
     if (railTimer != null) clearTimeout(railTimer);
@@ -397,10 +366,10 @@ export function createWorldCanvasUI({
     // A quest is a way down (a link already checked by the caller, or an action in this page) and then the
     // whole row is pressable; without one it is drawn flat, so it never looks pressable (story-world-clickable-honesty-v1).
     const way = link?.href ? 'link' : typeof action?.onClick === 'function' ? 'action' : null;
-    const quest = element('p', `bb-world-canvas-quest ${way ? 'has-way' : 'is-static'}`);
-    const icon = tone === 'attention' || tone === 'warning' ? '!' : 'i';
+    const quest = workspaceNotificationCard(doc, { tag: 'p', tone, className: `bb-world-canvas-quest ${way ? 'has-way' : 'is-static'}` });
+    const icon = ['attention', 'warning', 'danger'].includes(tone) ? '!' : 'i';
     quest.append(
-      element('span', 'bb-world-canvas-quest-symbol', icon, { 'aria-hidden': 'true' }),
+      element('span', 'bb-world-canvas-quest-symbol bb-ws-notification-symbol', icon, { 'aria-hidden': 'true' }),
       element('span', 'bb-world-canvas-quest-text', summary.trim()),
     );
     // The accessible name contains the unabridged summary even when visual text
@@ -428,38 +397,23 @@ export function createWorldCanvasUI({
     // A selected task outside the camera is not a visible overlay to dismiss.
     const name = [...overlayOrder].reverse().find((entry) => entry !== 'task' || !task.hidden);
     if (!name) return false;
-    if (name === 'sky') closeSky(true);
-    else if (name === 'help') closeHelp();
+    if (name === 'help') closeHelp();
     else if (name === 'rail') closeRail();
     else if (name === 'task') dismissTask();
     return true;
   }
 
   listen(reset, 'click', () => {
-    closeSky();
     closeHelp();
     closeRail();
     closeTask();
     onReset?.();
   });
   listen(city, 'change', () => { if (businesses.has(city.value)) onCity?.(city.value); });
-  listen(sky, 'click', () => { if (skyOpen) closeSky(); else openSky(); });
-  listen(sky, 'keydown', (event) => {
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); openSky(); }
-  });
-  listen(skyMenu, 'keydown', (event) => {
-    let index = skyOptions.indexOf(doc.activeElement);
-    if (event.key === 'ArrowDown') index = (index + 1) % skyOptions.length;
-    else if (event.key === 'ArrowUp') index = (index - 1 + skyOptions.length) % skyOptions.length;
-    else if (event.key === 'Home') index = 0;
-    else if (event.key === 'End') index = skyOptions.length - 1;
-    else if (event.key === 'Tab') { closeSky(true); return; }
-    else return;
-    event.preventDefault();
-    focus(skyOptions[index]);
-  });
-  listen(skyMenu, 'focusout', (event) => {
-    if (!skyMenu.contains(event.relatedTarget) && event.relatedTarget !== sky) closeSky();
+  listen(sky, 'click', () => {
+    const next = SKY_MODES[(SKY_MODES.findIndex(entry => entry.value === skyMode) + 1) % SKY_MODES.length];
+    setSky(next.value);
+    onSky?.(next.value);
   });
   for (const target of [edge, rail]) {
     listen(target, 'pointerenter', railEnter);
@@ -493,10 +447,11 @@ export function createWorldCanvasUI({
   observer?.observe(stage);
   observer?.observe(taskBody);
   setCities([]);
+  setSky(skyMode);
 
   return {
     setCities, setCity, setSky, showRail, openRail, showTask, closeTask, setTaskAnchor,
-    setHelp(nodes) { if (!disposed) helpContent.replaceChildren(...nodeList(nodes)); },
+    setHelp(nodes) { if (!disposed) helpContent.replaceChildren(contextPurpose, element('p', '', worldContext.knownCityAction), ...nodeList(nodes)); },
     addNote, clearNotes, dismissOverlay,
     dispose() {
       if (disposed) return;
