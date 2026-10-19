@@ -371,7 +371,7 @@ export function routineScheduleMatches(
   }
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: expectation.timezone,
-    hour12: false,
+    hourCycle: 'h23',
     weekday: 'long',
     hour: '2-digit',
     minute: '2-digit'
