@@ -4,8 +4,8 @@
 
  Test Files  1 passed (1)
       Tests  1 passed (1)
-   Start at  04:36:08
-   Duration  9.73s (transform 59ms, setup 0ms, import 78ms, tests 9.57s, environment 0ms)
+   Start at  04:37:28
+   Duration  10.00s (transform 61ms, setup 0ms, import 79ms, tests 9.83s, environment 0ms)
 
 npm notice
 npm notice New major version of npm available! 10.9.9 -> 12.2.0
