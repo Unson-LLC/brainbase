@@ -517,7 +517,39 @@
 .bb-ws-error-stack { position: absolute; z-index: 55; top: 0; right: 0; width: min(300px,100%); max-height: none; padding-bottom: 64px; pointer-events: none; box-sizing: border-box; overflow: visible; }
 .bb-ws-error-list { display: grid; gap: 6px; }
 .bb-ws-error-count { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-.bb-ws-error-card { display: flex; align-items: start; gap: 8px; box-sizing: border-box; width: 100%; padding: 8px 10px; border: 1px solid var(--bb-color-notice-border); border-left: 3px solid var(--bb-color-notice-danger); border-radius: 4px; background: var(--bb-color-notice-background); backdrop-filter: blur(5px); color: var(--bb-color-notice-text); font-size: 12px; line-height: 1.5; pointer-events: auto; }
+.bb-ws-notification-card {
+  --bb-notification-accent: var(--bb-color-notice-control-border);
+  --bb-notification-symbol-border: var(--bb-color-notice-control-border);
+  --bb-notification-symbol-text: var(--bb-color-notice-text);
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--bb-color-notice-border);
+  border-left: 3px solid var(--bb-notification-accent);
+  border-radius: 4px;
+  background: var(--bb-color-notice-background);
+  backdrop-filter: blur(5px);
+  color: var(--bb-color-notice-text);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.bb-ws-notification-card.is-warning {
+  --bb-notification-accent: var(--bb-color-notice-warning);
+  --bb-notification-symbol-border: var(--bb-color-notice-warning-symbol-border);
+  --bb-notification-symbol-text: var(--bb-color-notice-warning-text);
+}
+.bb-ws-notification-card.is-danger {
+  --bb-notification-accent: var(--bb-color-notice-danger);
+  --bb-notification-symbol-border: var(--bb-color-notice-danger-symbol-border);
+  --bb-notification-symbol-text: var(--bb-color-notice-danger-text);
+}
+.bb-ws-notification-symbol {
+  display: grid; place-items: center; flex: none;
+  width: 18px; height: 18px; border-radius: 3px;
+  border: 1px solid var(--bb-notification-symbol-border);
+  color: var(--bb-notification-symbol-text);
+  font-size: 11px; font-weight: 700;
+}
+.bb-ws-error-card { display: flex; align-items: start; gap: 8px; width: 100%; pointer-events: auto; }
 .bb-ws-error-card.is-warning { border-left-color: var(--bb-color-notice-warning); }
 .bb-ws-error-card > details { flex: 1; min-width: 0; }
 .bb-ws-error-card summary { display: flex; align-items: center; gap: 6px; list-style: none; cursor: pointer; }

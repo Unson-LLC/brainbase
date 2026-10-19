@@ -6,6 +6,9 @@ import {
   workspaceLedger,
   workspaceMetrics,
   workspaceNotice,
+  workspaceNotificationCard,
+  workspaceErrorCard,
+  workspaceLoadingCard,
   workspacePageHeader,
   workspaceRailBlock,
   workspaceRailHead,
@@ -111,5 +114,26 @@ describe('workspace kit (the organization edition screen pattern)', () => {
     expect(button.attributes.type).toBe('button');
     button.listeners.get('click')();
     expect(clicked).toBe(1);
+  });
+});
+
+
+describe('reusable notification surfaces', () => {
+  it('shares the surface with expandable errors and normalizes semantic tones', () => {
+    const content = doc.createElement('button');
+    const card = workspaceNotificationCard(doc, { tone: 'attention', content, tag: 'p', className: 'host-placement' });
+    expect(card.tagName).toBe('P');
+    expect(card.className).toContain('bb-ws-notification-card is-warning');
+    expect(card.children).toContain(content);
+    expect(workspaceNotificationCard(doc, { tone: 'unexpected' }).className).toContain('is-info');
+    const loading = workspaceLoadingCard(doc);
+    expect(loading.className).toContain('bb-ws-notification-card is-info');
+    expect(loading.attributes['aria-live']).toBe('polite');
+    expect(loading.attributes.role).toBe('status');
+    const retry = () => {};
+    const error = workspaceErrorCard(doc, { title: '読み取り失敗', message: '0件とは未確認', onRetry: retry });
+    expect(error.className).toContain('bb-ws-notification-card is-danger');
+    expect(text(error)).toContain('0件とは未確認');
+    expect(byClass(error, 'bb-ws-button')[0].listeners.get('click')).toBe(retry);
   });
 });

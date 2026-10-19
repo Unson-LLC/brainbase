@@ -103,31 +103,7 @@
 .bb-world-canvas-ui .bb-world-canvas-city:disabled { cursor: default; opacity: .65; }
 .bb-world-canvas-ui .bb-world-canvas-sky { display: grid; place-items: center; padding: 0; }
 .bb-world-canvas-ui .bb-world-canvas-sky-icon { font-size: 22px; line-height: 1; }
-.bb-world-canvas-ui .bb-world-canvas-sky-menu {
-  position: absolute;
-  top: calc(var(--bb-world-toolbar-top) + 48px);
-  right: var(--bb-world-right-inset);
-  min-width: 150px;
-  padding: 5px;
-  border: 1px solid rgb(13 25 46 / 18%);
-  border-radius: 9px;
-  background: #fff;
-  box-shadow: 0 8px 25px #0d192e22;
-  pointer-events: auto;
-}
-.bb-world-canvas-ui .bb-world-canvas-sky-option {
-  display: block;
-  width: 100%;
-  padding: 8px 10px;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
-  color: inherit;
-  font-size: 12px;
-  text-align: left;
-}
-.bb-world-canvas-ui .bb-world-canvas-sky-option:hover,
-.bb-world-canvas-ui .bb-world-canvas-sky-option[aria-checked="true"] { background: #e5f8e1; }
+.bb-world-canvas-ui .bb-world-canvas-sky-icon svg { display: block; width: 23px; height: 23px; }
 
 .bb-world-canvas-ui .bb-world-canvas-quests {
   position: absolute;
@@ -147,28 +123,7 @@
   min-width: 0;
   margin: 0;
   padding: 7px 10px 7px 8px;
-  border: 1px solid rgb(255 255 255 / 18%);
-  border-left: 3px solid #9be891;
-  border-radius: 4px;
-  background: linear-gradient(110deg, rgb(13 25 46 / 88%), rgb(13 25 46 / 72%));
-  color: #fff;
-  font-size: 12px;
-  line-height: 18px;
   box-shadow: 0 3px 12px #0d192e18;
-  backdrop-filter: blur(5px);
-}
-.bb-world-canvas-ui .bb-world-canvas-quest-symbol {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 18px;
-  height: 18px;
-  border: 1px solid #9be89170;
-  border-radius: 3px;
-  background: #9be89112;
-  color: #b5f2ab;
-  font-size: 11px;
-  font-weight: 700;
 }
 .bb-world-canvas-ui .bb-world-canvas-quest-text { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 /* A quest with a way down (候補の確認, 区画の入口) is pressable as a whole row even though the quest list lets
@@ -181,7 +136,7 @@
 }
 .bb-world-canvas-ui .bb-world-canvas-quest.has-way:hover,
 .bb-world-canvas-ui .bb-world-canvas-quest.has-way:focus-within {
-  border-color: rgb(155 232 145 / 55%);
+  border-color: var(--bb-notification-accent);
   background: linear-gradient(110deg, rgb(20 44 62 / 94%), rgb(20 44 62 / 84%));
 }
 .bb-world-canvas-ui .bb-world-canvas-quest a,
@@ -191,7 +146,7 @@
   padding: 0;
   border: 0;
   background: none;
-  color: #b5f2ab;
+  color: var(--bb-notification-symbol-text);
   font: inherit;
   text-decoration: underline;
   text-underline-offset: 2px;
@@ -205,7 +160,7 @@
 .bb-world-canvas-ui .bb-world-canvas-quest a:focus-visible,
 .bb-world-canvas-ui .bb-world-canvas-quest-action:focus-visible { outline: none; }
 .bb-world-canvas-ui .bb-world-canvas-quest a:focus-visible::before,
-.bb-world-canvas-ui .bb-world-canvas-quest-action:focus-visible::before { outline: 2px solid #9be891; outline-offset: 1px; }
+.bb-world-canvas-ui .bb-world-canvas-quest-action:focus-visible::before { outline: 2px solid var(--bb-notification-symbol-text); outline-offset: 1px; }
 /* A quest with nowhere to go: flat and dashed, so it reads as a sign, not a button, with its reason. */
 .bb-world-canvas-ui .bb-world-canvas-quest.is-static {
   border-style: dashed;
