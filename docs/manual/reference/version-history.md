@@ -2,6 +2,13 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
+## 0.45.0 candidate — npm公開前
+
+- 今回の候補に含める公開subpathは `./run-receipt-port`、`./meeting-source-mcp-adapters`、`./mesh` の3つ。`./run-receipt-port` は実行記録の保存・照会をホストのportへ差し込む `RunReceiptPort` と `assertRunReceiptPort`、`./meeting-source-mcp-adapters` は Tactiq・Plaud のMCP応答を共通の会議ソースへ整形するadapterを提供する。接続、OAuth、資格情報、保存はホストの責務とする。
+- `./mesh` は `createMeshEnvelope`、`normalizeMeshEnvelope`、`parseMeshEnvelope`、`normalizeMeshNodeProfile`、`normalizeMeshQueryRequest`、`createMeshSendReceipt` の6関数を提供する。封筒・ノード・問い合わせの検査と整形、送信受付の `answer_status: "unknown"` の生成を行い、ネットワーク・認証・暗号・永続化は行わない。
+- 既存の `./routines` を拡張し、11個のホスト処理を検査する `RoutineProductionPorts`／`assertRoutineProductionPorts`／`createRoutineProductionPorts` と、会議ごとのPersonal KG候補を `adopted`・`rejected`・`needs_review` に集計する `extractRoutinePersonalKgCandidates` を公開する。認証、保存、Personal KGへの昇格、外部送信はホストに委譲する。
+- これらは公開候補の記録であり、consumer検証、npm公開、registry readback、本番反映は未確認である。
+
 ## 0.44.2 candidate — npm公開前
 
 - 世界の常設説明箱を除き、都市を選べない案内と見方・凡例は保持。
