@@ -17,6 +17,7 @@ import {
   createReleaseArtifact,
   npmDistTag,
   releaseStagingTag,
+  isVersionPublishedAtSha,
   planRelease,
   readNpmMetadata,
   reconcileDistTag,
@@ -44,8 +45,8 @@ describe('serialized publication context', () => {
       aud: 'brainbase-npm-publish',
       repository: 'Unson-LLC/brainbase',
       run_id: '123',
-      workflow_ref: 'Unson-LLC/brainbase/.github/workflows/npm-publish.yml@refs/heads/develop',
-      ref: 'refs/heads/develop',
+      workflow_ref: 'Unson-LLC/brainbase/.github/workflows/npm-publish.yml@refs/heads/main',
+      ref: 'refs/heads/main',
       ...overrides
     })).toString('base64url');
     return `${header}.${payload}.test-signature`;
@@ -286,6 +287,13 @@ describe('npm release CLI', () => {
     expect(planRelease('0.1.0', '0.1.1')).toEqual({ releaseRequired: true, version: '0.1.1' });
     expect(planRelease('0.1.0', '0.1.0')).toEqual({ releaseRequired: false, version: '0.1.0' });
     expect(planRelease('0.2.0', '0.1.0')).toEqual({ releaseRequired: false, version: '0.1.0' });
+  });
+
+  it('detects when a version is already published at the release SHA', async () => {
+    const metadata = vi.fn(async () => ({ version: '0.45.0', gitHead: 'abc' }));
+    await expect(isVersionPublishedAtSha('@unson/brainbase-mcp', '0.45.0', 'abc', metadata)).resolves.toBe(true);
+    await expect(isVersionPublishedAtSha('@unson/brainbase-mcp', '0.45.0', 'def', metadata)).resolves.toBe(false);
+    await expect(isVersionPublishedAtSha('@unson/brainbase-mcp', '0.45.0', 'abc', async () => null)).resolves.toBe(false);
   });
 
   it('rejects immutable version collisions', () => {

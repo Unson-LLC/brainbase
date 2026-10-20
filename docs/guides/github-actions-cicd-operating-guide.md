@@ -6,11 +6,12 @@
 
 | 変更・操作 | 実行する検証 | 副作用 |
 | --- | --- | --- |
-| パッケージ関連のPull Request | Node 22の`npm test -- --maxWorkers=4`（Vitestの完全収集）とbuild、Node 20の代表統合スイート | deployなし |
+| パッケージ関連のPull Request（`develop`または`main`向け） | Node 22の`npm test -- --maxWorkers=4`（Vitestの完全収集）とbuild、Node 20の代表統合スイート | deployなし |
 | パッケージ関連のPull Requestの正式release検証 | GitHub-hosted UbuntuのNode 22で、immutableなPR headと実在するPR branch remoteを対象に`npm run release:validate`（build、完全テスト、production依存監査、pack、consumer smoke）を実行 | npm公開・deployなし。proofとtarballを短期artifactとして保存 |
 | ドキュメント関連のPull Request | `docs:check`、公開契約テスト、VitePress build、built HTML smoke | deployなし |
-| `develop`への公開サイト入力のpush | 上記ドキュメント検証、Cloudflare Pages deploy、`docs:verify-public`による公開後readback | 公開サイトのみ |
-| npm公開 | immutable commitのrelease validation、artifact/proofの受け渡し、GitHub-hosted runnerでのprovenance付きpublish（publishジョブだけが`id-token: write`を持つ）、GitHub Release確認 | npm公開権限はrelease workflowだけが使用 |
+| `develop`への公開サイト入力のpush | 上記ドキュメント検証のみ（deployなし） | なし |
+| `main`への公開サイト入力のpush | 上記ドキュメント検証、Cloudflare Pages deploy、`docs:verify-public`による公開後readback | 公開サイトのみ |
+| npm公開 | `main`へのpushまたは手動dispatch。immutable commitのrelease validation、registry既存versionのskip、artifact/proofの受け渡し、GitHub-hosted runnerでのprovenance付きpublish（publishジョブだけが`id-token: write`を持つ）、GitHub Release確認 | npm公開権限はrelease workflowだけが使用 |
 | public-message promotion | 候補の契約検証とドキュメント検証を済ませたreview PRの作成 | 自動merge・自動deployなし |
 
 `docs-cloudflare-pages.yml`のpush deploy入力は、`docs/manual/**`、`docs/.vitepress/**`、`docs/publication/public-message.json`、`docs/publication/organization-teaser.json`、`package.json`、`package-lock.json`、同workflow自身に限定する。CIガイドやStoryなど内部文書だけの変更ではdeployしない。
@@ -41,7 +42,7 @@ CIの通常jobは、組織のself-hosted runnerである次のラベルだけで
 runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
 ```
 
-例外は、PR headの正式release検証を隔離する`test.yml`の`formal-release-validate-linux` jobと、npm provenance（sigstoreの来歴署名）を付けて公開する`npm-publish.yml`のpublish jobで、いずれも`runs-on: ubuntu-latest`で実行する。npmはprovenanceをGitHub-hosted runnerからしか受け付けず、self-hosted runnerでは`npm publish --provenance`が`E422 Unsupported GitHub Actions runner environment: "self-hosted"`で拒否される（2026-10-15、0.41.5のrun 38713407935）。正式release検証jobは`contents: read`だけを持ち、Secrets・OIDC・npm公開・deploy権限を持たない。publish jobはpull requestのheadを読まず、developとvalidate jobが作ったartifactだけを使う。
+例外は、PR headの正式release検証を隔離する`test.yml`の`formal-release-validate-linux` jobと、npm provenance（sigstoreの来歴署名）を付けて公開する`npm-publish.yml`のpublish jobで、いずれも`runs-on: ubuntu-latest`で実行する。npmはprovenanceをGitHub-hosted runnerからしか受け付けず、self-hosted runnerでは`npm publish --provenance`が`E422 Unsupported GitHub Actions runner environment: "self-hosted"`で拒否される（2026-10-15、0.41.5のrun 38713407935）。正式release検証jobは`contents: read`だけを持ち、Secrets・OIDC・npm公開・deploy権限を持たない。publish jobはpull requestのheadを読まず、`main`とvalidate jobが作ったartifactだけを使う。
 
 EVO-X2は1台の機械に複数のrunnerを載せている。Vitestは既定で機械のコア数に合わせて並列数を決めるため、複数のjobが同時に動くと機械が飽和し、変更と無関係なテストが5秒の上限で落ちる（2026-10-15、PR #786で3回続けて発生）。`test.yml`のテストは`--maxWorkers=4`で並列数を固定する。手元で全テストを3本同時に走らせると、既定では各9〜10件が時間切れになり、4に固定すると全件合格した。
 
@@ -61,7 +62,7 @@ if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.re
 
 `author_association`が`MEMBER`または`OWNER`であることだけを許可条件にしない。その条件を`head`リポジトリ一致とORで結ぶと、メンバーがforkから開いたpull requestもrunnerへ入る。ANDだけにすると、`author_association`が`NONE`の同一リポジトリ自動化（public-message promotionが開くreview PRなど）が止まる。forkを止める条件は、headリポジトリが`github.repository`と一致することに固定する。
 
-`pull_request_target`でpull requestのheadをcheckoutしない。`npm-publish.yml`は、developへの`push`と`workflow_dispatch`のときだけ動く。npmは`pull_request_target`から来たTrusted Publishingのトークンを拒否するので、このイベントでは起動しない。checkoutは`develop`と、pushされたcommitまたは`origin/develop`の祖先である。npmへの公開はpublish jobのnpm Trusted Publishing（OIDC）だけで認証し、npm tokenのsecretを使わない。validate jobは`id-token: write`も公開用secretも持たない。
+`pull_request_target`でpull requestのheadをcheckoutしない。`npm-publish.yml`は、`main`への`push`と`workflow_dispatch`のときだけ動く。npmは`pull_request_target`から来たTrusted Publishingのトークンを拒否するので、このイベントでは起動しない。checkoutは`main`と、pushされたcommitまたは`origin/main`の祖先である。version bumpが無い場合、またはnpm registryに同じ`gitHead`のversionが既にある場合は公開をskipする（`main`を既公開commitへ戻したときの再実行も失敗しない）。npmへの公開はpublish jobのnpm Trusted Publishing（OIDC）だけで認証し、npm tokenのsecretを使わない。validate jobは`id-token: write`も公開用secretも持たない。integrate branchは`develop`、production branchは`main`であり、npm公開と公開サイトdeployは`main`への昇格後だけ行う。
 
 `CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_API_TOKEN`、`BRAINBASE_SERVICE_JWT`はjobのenvに置かない。対象確認、Worker secret同期、deploy前確認の各stepのenvだけが、そのstepが使うsecretを読む。Cloudflare Pages deployのwrangler-actionは`with`で`secrets.*`を直接参照する。
 

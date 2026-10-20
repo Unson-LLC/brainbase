@@ -23,7 +23,7 @@ description: Brainbase OSSの@unson/brainbase-mcpをnpmへ公開、検証、監�
 |---|---|
 | `repository` | `Unson-LLC/brainbase` |
 | `package` | `@unson/brainbase-mcp` |
-| `default_branch` | `develop` |
+| `default_branch` | `main` (integration: `develop`) |
 | `version_source` | `package.json` |
 | `release_workflow` | `.github/workflows/npm-publish.yml` |
 | `release_plan` | `npm run release:plan -- --before <base-sha> --after <release-sha>` |
@@ -47,7 +47,7 @@ git diff --check
 npm run release:validate -- \
   --version <version> \
   --sha <full-release-sha> \
-  --trusted-ref upstream/develop \
+  --trusted-ref upstream/main \
   --proof-file <outside-repo-path>
 
 npm run release:verify -- --version <version> --sha <full-release-sha>
@@ -65,7 +65,7 @@ npm run release:verify -- --version <version> --sha <full-release-sha>
 - registry mutationは`npm-publish.yml`の直列化されたupstream GitHub Actions内だけで行う。localの`release:publish`で迂回しない。
 - workflowはreview済みrelease commitをdetach checkoutし、credentialなしのvalidate jobで作ったimmutable tarballとproofをpublish jobへ渡す。
 - publish jobはGitHub OIDC/provenanceとworkflow serialization markerを要求する。callerが設定したActions風環境変数を認証根拠にしない。
-- manual recoveryの`release_ref`も`develop`から到達可能なcommitだけを許可する。
+- manual recoveryの`release_ref`も`main`から到達可能なcommitだけを許可する。registryに同じversionと`gitHead`が既にある場合はworkflowがskipする。
 - `release:verify`はread-onlyである。dist-tag不一致を修復せず非0で報告する。
 
 ## Brainbase Convergence

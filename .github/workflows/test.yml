@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - develop
+      - main
     paths-ignore:
       - README.md
       - AGENTS.md

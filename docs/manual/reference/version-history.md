@@ -550,7 +550,7 @@
 - Judgment DAGの利用者向け説明とReleased / Develop / Plannedの状態ページを追加
 - `public-message.json`からREADME、manual、Core Philosophy、agent instructions、package descriptionを同期
 - Brainbase Graphのsnapshot hash付きcandidateから、review用PRを作るpromotion workflowを追加
-- pull requestでdocs check / build / smokeを行い、`develop` merge後にCloudflare Pagesへ自動deploy
+- pull requestと`develop` pushでdocs check / build / smokeを行い、`main`昇格後にCloudflare Pagesへ自動deploy
 - 配信後に公開URLをreadbackし、コピーとbuild SHAを確認
 
 ## 0.4.0

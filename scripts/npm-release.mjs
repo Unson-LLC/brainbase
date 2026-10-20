@@ -10,6 +10,10 @@ import { runConsumerSmoke } from './npm-consumer-smoke.mjs';
 const scriptPath = fileURLToPath(import.meta.url);
 const rootDefault = path.resolve(path.dirname(scriptPath), '..');
 export const EXPECTED_PACKAGE_NAME = '@unson/brainbase-mcp';
+export const NPM_PUBLISH_GIT_REF = 'refs/heads/main';
+export const NPM_PUBLISH_WORKFLOW_REF =
+  'Unson-LLC/brainbase/.github/workflows/npm-publish.yml@refs/heads/main';
+export const NPM_PUBLISH_TRUSTED_BRANCH_REF = 'origin/main';
 
 function isDirectInvocation() {
   if (!process.argv[1]) return false;
@@ -72,6 +76,17 @@ export function planRelease(beforeVersion, afterVersion) {
     releaseRequired: compareSemver(afterVersion, beforeVersion) > 0,
     version: afterVersion
   };
+}
+
+export async function isVersionPublishedAtSha(
+  packageName,
+  version,
+  expectedSha,
+  metadata = readNpmMetadata,
+  root = rootDefault
+) {
+  const published = await metadata(packageName, version, root);
+  return Boolean(published && published.gitHead === expectedSha);
 }
 
 function run(command, args, cwd = rootDefault) {
@@ -626,14 +641,14 @@ export async function assertSerializedPublicationContext(environment = process.e
   const body = await response.json();
   if (!body || typeof body.value !== 'string') throw new Error('GitHub Actions OIDC response did not contain a token');
   const claims = decodeJwtPayload(body.value);
-  const trustedWorkflowRef = 'Unson-LLC/brainbase/.github/workflows/npm-publish.yml@refs/heads/develop';
+  const trustedWorkflowRef = NPM_PUBLISH_WORKFLOW_REF;
   if (
     claims.iss !== 'https://token.actions.githubusercontent.com' ||
     claims.aud !== audience ||
     claims.repository !== environment.GITHUB_REPOSITORY ||
     String(claims.run_id) !== String(environment.GITHUB_RUN_ID) ||
     claims.workflow_ref !== trustedWorkflowRef ||
-    claims.ref !== 'refs/heads/develop'
+    claims.ref !== NPM_PUBLISH_GIT_REF
   ) {
     throw new Error('GitHub Actions OIDC claims do not match the serialized npm publication workflow');
   }
@@ -651,12 +666,30 @@ async function main(args) {
       throw new Error(`publication authority is fixed to ${EXPECTED_PACKAGE_NAME}`);
     }
     const plan = planRelease(beforePackage.version, afterPackage.version);
+    const sha = gitSha(rootDefault, after);
+    let releaseRequired = plan.releaseRequired;
+    if (
+      releaseRequired &&
+      await isVersionPublishedAtSha(EXPECTED_PACKAGE_NAME, plan.version, sha)
+    ) {
+      releaseRequired = false;
+    }
     await writeOutputs({
-      release_required: plan.releaseRequired,
+      release_required: releaseRequired,
       package_name: afterPackage.name,
       version: plan.version,
-      sha: gitSha(rootDefault, after)
+      sha
     });
+    return;
+  }
+  if (command === 'already-published') {
+    const version = option(rest, '--version');
+    const expectedSha = option(rest, '--sha');
+    if (!version || !expectedSha) {
+      throw new Error('Usage: npm-release.mjs already-published --version <version> --sha <git-sha>');
+    }
+    const skip = await isVersionPublishedAtSha(EXPECTED_PACKAGE_NAME, version, expectedSha);
+    process.exitCode = skip ? 0 : 1;
     return;
   }
   if (command === 'validate' || command === 'publish' || command === 'verify') {
@@ -702,7 +735,7 @@ async function main(args) {
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return;
   }
-  throw new Error('Usage: npm-release.mjs <plan|validate|publish|verify>');
+  throw new Error('Usage: npm-release.mjs <plan|already-published|validate|publish|verify>');
 }
 
 if (isDirectInvocation()) {

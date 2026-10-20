@@ -1,20 +1,22 @@
 name: Publish npm package
 
-# A push to develop (a merged pull request) or a manual dispatch starts this
+# A push to main (a merged release pull request) or a manual dispatch starts this
 # workflow. npm rejects Trusted Publishing tokens from pull_request_target
 # events, so publication must not start from one (GitHub changelog
-# 2026-10-02). Both jobs check out develop, then the pushed commit or a develop
-# ancestor. They never check out a pull request head.
+# 2026-10-02). Both jobs check out main, then the pushed commit or a main
+# ancestor. They never check out a pull request head. When the registry
+# already contains the target version at the release SHA, publication is
+# skipped without failing (idempotent replay after main reset).
 on:
   push:
     branches:
-      - develop
+      - main
   workflow_dispatch:
     inputs:
       release_ref:
         description: Git ref to publish and reconcile
         required: true
-        default: develop
+        default: main
 
 concurrency:
   group: npm-publish-unson-brainbase-mcp
@@ -26,7 +28,7 @@ jobs:
   validate:
     if: >-
       ${{ github.event_name == 'workflow_dispatch' ||
-          (github.event_name == 'push' && github.ref == 'refs/heads/develop') }}
+          (github.event_name == 'push' && github.ref == 'refs/heads/main') }}
     runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
     timeout-minutes: 30
     permissions:
@@ -40,7 +42,7 @@ jobs:
       - name: Check out trusted release tooling
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: develop
+          ref: main
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
@@ -58,15 +60,19 @@ jobs:
             node scripts/npm-release.mjs plan --before "$BEFORE_SHA" --after "$PUSHED_SHA"
           else
             RELEASE_SHA=$(git rev-parse "$RELEASE_REF")
-            git merge-base --is-ancestor "$RELEASE_SHA" origin/develop || {
-              echo "release_ref must resolve to a commit reachable from origin/develop" >&2
+            git merge-base --is-ancestor "$RELEASE_SHA" origin/main || {
+              echo "release_ref must resolve to a commit reachable from origin/main" >&2
               exit 1
             }
             VERSION=$(git show "$RELEASE_SHA:package.json" | node -e "let data=''; process.stdin.on('data', chunk => data += chunk); process.stdin.on('end', () => process.stdout.write(JSON.parse(data).version));")
             PACKAGE_NAME=$(git show "$RELEASE_SHA:package.json" | node -e "let data=''; process.stdin.on('data', chunk => data += chunk); process.stdin.on('end', () => process.stdout.write(JSON.parse(data).name));")
             test "$PACKAGE_NAME" = "@unson/brainbase-mcp"
+            RELEASE_REQUIRED=true
+            if node scripts/npm-release.mjs already-published --version "$VERSION" --sha "$RELEASE_SHA"; then
+              RELEASE_REQUIRED=false
+            fi
             {
-              echo "release_required=true"
+              echo "release_required=$RELEASE_REQUIRED"
               echo "package_name=$PACKAGE_NAME"
               echo "version=$VERSION"
               echo "sha=$RELEASE_SHA"
@@ -86,7 +92,7 @@ jobs:
           node scripts/npm-release.mjs validate
           --version "${{ steps.target.outputs.version }}"
           --sha "${{ steps.target.outputs.sha }}"
-          --trusted-ref origin/develop
+          --trusted-ref origin/main
           --proof-file "$RUNNER_TEMP/npm-release-validation.json"
       - name: Transfer validated release artifact
         if: ${{ steps.target.outputs.release_required == 'true' }}
@@ -100,7 +106,10 @@ jobs:
           retention-days: 1
       - name: Record skipped release
         if: ${{ steps.target.outputs.release_required != 'true' }}
-        run: echo "npm publish skipped because package version did not increase" >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          {
+            echo "npm publish skipped because no new version is required or the version is already on the registry at this commit"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Summarize failed or cancelled release validation
         if: ${{ always() && (failure() || cancelled()) }}
@@ -134,8 +143,8 @@ jobs:
             echo '- Protection: immutable release SHA, package artifact, validation proof, and trusted ref are checked before publication.'
             echo "- Target: version \`$release_version\`, SHA \`$release_sha\`."
             echo "- Proof: \`$proof_file\` ($proof_state); artifact: \`$artifact_file\` ($artifact_state)."
-            echo "- Reproduce: \`npm ci --ignore-scripts && node scripts/npm-release.mjs validate --version $release_version --sha $release_sha --trusted-ref origin/develop --proof-file $proof_file\`."
-            echo '- Expected: validation produces the proof and tarball consumed by the publish job; publication is skipped when no version increase is required.'
+            echo "- Reproduce: \`npm ci --ignore-scripts && node scripts/npm-release.mjs validate --version $release_version --sha $release_sha --trusted-ref origin/main --proof-file $proof_file\`."
+            echo '- Expected: validation produces the proof and tarball consumed by the publish job; publication is skipped when no version increase is required or the version already exists on the registry at this SHA.'
             echo '- Unknown: inspect the failed step; artifact publication, npm readback, and GitHub Release state require separate confirmation.'
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -156,7 +165,7 @@ jobs:
       - name: Check out trusted release tooling
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: develop
+          ref: main
           fetch-depth: 0
           persist-credentials: false
       # setup-node gets no registry URL, so it writes no token-reading .npmrc.
@@ -189,7 +198,7 @@ jobs:
           node scripts/npm-release.mjs publish
           --version "$VERSION"
           --sha "$RELEASE_SHA"
-          --trusted-ref origin/develop
+          --trusted-ref origin/main
           --proof-file "$RUNNER_TEMP/npm-release/npm-release-validation.json"
           --tarball-file "$RUNNER_TEMP/npm-release/unson-brainbase-mcp-${VERSION}.tgz"
           --provenance
@@ -244,7 +253,7 @@ jobs:
             echo '- Protection: only the validated immutable artifact is published with provenance from a GitHub-hosted runner, then npm and GitHub Release state are read back.'
             echo "- Target: version \`$release_version\`, SHA \`$release_sha\`."
             echo "- Proof: \`$proof_file\` ($proof_state); artifact: \`$artifact_file\` ($artifact_state)."
-            echo "- Reproduce preflight: \`npm ci --ignore-scripts && node scripts/npm-release.mjs validate --version $release_version --sha $release_sha --trusted-ref origin/develop --proof-file $proof_file\`."
+            echo "- Reproduce preflight: \`npm ci --ignore-scripts && node scripts/npm-release.mjs validate --version $release_version --sha $release_sha --trusted-ref origin/main --proof-file $proof_file\`."
             echo '- Expected: the publish job consumes the transferred proof and tarball and verifies the published release identity.'
             echo '- Unknown: npm registry and GitHub Release state are unconfirmed until their readback commands succeed; do not retry publication blindly.'
           } >> "$GITHUB_STEP_SUMMARY"
