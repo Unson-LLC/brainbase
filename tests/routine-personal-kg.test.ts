@@ -67,4 +67,22 @@ describe('routine Personal KG extraction boundary', () => {
       extract: () => { throw new Error('host extraction failed'); }
     })).toThrow('host extraction failed');
   });
+
+  it('rejects malformed extraction results instead of silently dropping candidates', () => {
+    expect(() => extractRoutinePersonalKgCandidates({
+      date: '2026-10-20',
+      sourceSystem: 'test-meeting-source',
+      meetings: [{ id: 'null-result' }],
+      extract: () => null as never
+    })).toThrow('routine Personal KG extraction result must be a non-null object');
+
+    for (const bucket of ['adopted', 'rejected', 'needs_review'] as const) {
+      expect(() => extractRoutinePersonalKgCandidates({
+        date: '2026-10-20',
+        sourceSystem: 'test-meeting-source',
+        meetings: [{ id: `invalid-${bucket}` }],
+        extract: () => ({ [bucket]: null } as never)
+      })).toThrow(`routine Personal KG extraction result ${bucket} must be an array`);
+    }
+  });
 });

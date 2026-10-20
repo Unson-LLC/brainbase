@@ -69,10 +69,25 @@ export function extractRoutinePersonalKgCandidates<TMeeting, TCandidate = unknow
   const meetings = Array.isArray(options.meetings) ? options.meetings : [];
 
   meetings.forEach((meeting, index) => {
-    const result = options.extract({ meeting, date: options.date, index }) || {};
-    adopted.push(...(Array.isArray(result.adopted) ? result.adopted : []));
-    rejected.push(...(Array.isArray(result.rejected) ? result.rejected : []));
-    needsReview.push(...(Array.isArray(result.needs_review) ? result.needs_review : []));
+    const result = options.extract({ meeting, date: options.date, index });
+    if (!result || typeof result !== 'object' || Array.isArray(result)) {
+      throw new Error('routine Personal KG extraction result must be a non-null object');
+    }
+
+    const buckets = [
+      ['adopted', result.adopted],
+      ['rejected', result.rejected],
+      ['needs_review', result.needs_review]
+    ] as const;
+    for (const [name, bucket] of buckets) {
+      if (bucket !== undefined && !Array.isArray(bucket)) {
+        throw new Error(`routine Personal KG extraction result ${name} must be an array`);
+      }
+    }
+
+    adopted.push(...(result.adopted ?? []));
+    rejected.push(...(result.rejected ?? []));
+    needsReview.push(...(result.needs_review ?? []));
   });
 
   const deduped = options.dedupe ? options.dedupe(adopted) : adopted;
