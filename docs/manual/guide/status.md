@@ -4,6 +4,14 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
+## Candidate — v0.45.0（npm公開前）
+
+- 今回追加する公開subpathは `./run-receipt-port`、`./meeting-source-mcp-adapters`、`./meeting-source-sync-common-adapter` の3つです。
+- `./run-receipt-port` は `RunReceiptPort` と `assertRunReceiptPort` を提供し、実行記録の保存・照会をホストのportへ差し込めます。`./meeting-source-mcp-adapters` は Tactiq と Plaud のMCP応答を共通の会議ソースへ整形します。`./meeting-source-sync-common-adapter` は会議ソース同期の共通adapter契約を提供します。接続、OAuth、資格情報、保存は利用側のホストが担当します。
+- 既存の `./mesh` を拡張し、`parseMeshEnvelope` を追加しました。既存の封筒・ノード・問い合わせの検査と整形、送信受付の `answer_status: "unknown"` の生成に加え、JSON文字列または値を同じ厳格な境界で検査できます。ネットワーク、認証、暗号、永続化は含みません。
+- 既存の `./routines` を拡張し、3つのAPI（`assertRoutineProductionPorts`、`createRoutineProductionPorts`、`extractRoutinePersonalKgCandidates`）と、`RoutineProductionPorts` の11個のホストport（`reconcile`、`compress`、`buildNightOutput`、`verify`、`recallGraph`、`recallPersonalKg`、`generate`、`recordUsage`、`evaluateMetrics`、`createImprovementCandidates`、`listKnowledgeReviews`）を提供します。前者2つはportの組み立て時検査、後者は会議ごとのPersonal KG候補を `adopted`・`rejected`・`needs_review` に集計します。認証、DB、Personal KGへの昇格、保存、外部送信は利用側のホストが担当します。
+- npm公開、registry readback、consumer確認、本番反映は、候補docsの記載だけでは未確認です。
+
 ## Candidate — v0.44.2（npm公開前）
 
 - 世界の通常説明箱を見方と凡例へ移し、都市を選べないときの案内は残します。
