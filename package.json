@@ -195,6 +195,10 @@
       "types": "./dist/meeting-source-connection.d.ts",
       "import": "./dist/meeting-source-connection.js"
     },
+    "./meeting-source-mcp-adapters": {
+      "types": "./dist/meeting-source-mcp-adapters.d.ts",
+      "import": "./dist/meeting-source-mcp-adapters.js"
+    },
     "./meeting-source-reader": {
       "types": "./dist/meeting-source-reader.d.ts",
       "import": "./dist/meeting-source-reader.js"
@@ -402,6 +406,10 @@
     "./meeting-source-sync": {
       "types": "./dist/meeting-source-sync.d.ts",
       "import": "./dist/meeting-source-sync.js"
+    },
+    "./meeting-source-sync-common-adapter": {
+      "types": "./dist/meeting-source-sync-common-adapter.d.ts",
+      "import": "./dist/meeting-source-sync-common-adapter.js"
     },
     "./meeting-minutes-http": {
       "types": "./dist/meeting-minutes-http.d.ts",
