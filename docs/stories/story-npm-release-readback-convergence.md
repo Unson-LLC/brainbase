@@ -17,7 +17,7 @@ run 38726775296（2026-10-15 20:21 JST、runner nucbox-evo-x2-wsl-linux-2）は 
 
 ## Options
 
-1. **採用:** registry を読む `npm view` すべてに `--prefer-online` を付ける。readback の 2 回目以降は使い捨ての `--cache` ディレクトリで cache を完全に迂回する。試行を 15 回（待ち 14 回 = 1+2+4+8+16 s のあと 30 s×9、合計 301 s = max-age 300 s をわずかに超える）にする。
+1. **採用:** registry を読む `npm view` すべてに `--prefer-online` を付ける。readback の 2 回目以降は使い捨ての `--cache` ディレクトリで cache を完全に迂回する。試行を 24 回（待ち 23 回 = 1+2+4+8+16 s のあと 30 s×18、合計 571 s）にする。15 回・301 sで終了した run 39350202761 では、公開自体は成功したがregistry readbackが収束前に期限切れになったため、15分のpublish job内で許容される範囲へ待機窓を延長する。
 2. `npm cache clean --force` を publish 後に実行する。runner 共有 cache を消す副作用があるので採らない。
 3. `--prefer-online` だけにする。npm が revalidate を省いた場合に cache の 404 が残りうるので、cache 迂回も併用する。
 
