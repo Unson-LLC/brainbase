@@ -59,9 +59,9 @@ jobs:
         if: ${{ matrix.suite == 'complete' }}
         run: npm test -- --maxWorkers=4
 
-      - name: Run representative integration suite on Node 20
+      - name: Run complete package suite on Node 20
         if: ${{ matrix.suite == 'representative' }}
-        run: npm run test:integration -- --maxWorkers=4
+        run: npm test -- --maxWorkers=4
 
       - name: Summarize failed or cancelled package validation
         if: ${{ always() && (failure() || cancelled()) }}
@@ -69,8 +69,8 @@ jobs:
           {
             echo '## Package CI failure/cancellation summary'
             echo
-            echo '- Protection: Node 22 complete package validation and Node 20 representative integration validation.'
-            echo '- Reproduce: `npm ci --ignore-scripts && npm run build && npm test -- --maxWorkers=4` (Node 22), or `npm ci --ignore-scripts && npm run build && npm run test:integration -- --maxWorkers=4` (Node 20).'
+            echo '- Protection: Node 22 and Node 20 complete package validation.'
+            echo '- Reproduce: `npm ci --ignore-scripts && npm run build && npm test -- --maxWorkers=4` on Node 22 or Node 20.'
             echo '- Expected: package changes pass the build and required suite; docs-only changes use the docs workflow.'
             echo '- Unknown: inspect the failed step and runner log; this workflow has no release or deployment side effect.'
           } >> "$GITHUB_STEP_SUMMARY"
