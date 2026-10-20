@@ -23,7 +23,8 @@ description: Brainbase OSSの@unson/brainbase-mcpをnpmへ公開、検証、監�
 |---|---|
 | `repository` | `Unson-LLC/brainbase` |
 | `package` | `@unson/brainbase-mcp` |
-| `default_branch` | `main` (integration: `develop`) |
+| `default_branch` | `develop` (GitHub default / integration) |
+| `release_branch` | `main` (npm publish and production deploy) |
 | `version_source` | `package.json` |
 | `release_workflow` | `.github/workflows/npm-publish.yml` |
 | `release_plan` | `npm run release:plan -- --before <base-sha> --after <release-sha>` |

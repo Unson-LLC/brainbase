@@ -654,32 +654,40 @@ export async function assertSerializedPublicationContext(environment = process.e
   }
 }
 
+export async function resolveReleasePlan(
+  beforeRef,
+  afterRef,
+  { root = rootDefault, metadata = readNpmMetadata } = {}
+) {
+  const beforePackage = packageAt(root, beforeRef);
+  const afterPackage = packageAt(root, afterRef);
+  if (beforePackage.name !== EXPECTED_PACKAGE_NAME || afterPackage.name !== EXPECTED_PACKAGE_NAME) {
+    throw new Error(`publication authority is fixed to ${EXPECTED_PACKAGE_NAME}`);
+  }
+  const plan = planRelease(beforePackage.version, afterPackage.version);
+  const sha = gitSha(root, afterRef);
+  let releaseRequired = plan.releaseRequired;
+  if (
+    releaseRequired &&
+    await isVersionPublishedAtSha(EXPECTED_PACKAGE_NAME, plan.version, sha, metadata, root)
+  ) {
+    releaseRequired = false;
+  }
+  return {
+    release_required: releaseRequired,
+    package_name: afterPackage.name,
+    version: plan.version,
+    sha
+  };
+}
+
 async function main(args) {
   const [command, ...rest] = args;
   if (command === 'plan') {
     const before = option(rest, '--before');
     const after = option(rest, '--after');
     if (!before || !after) throw new Error('Usage: npm-release.mjs plan --before <git-ref> --after <git-ref>');
-    const beforePackage = packageAt(rootDefault, before);
-    const afterPackage = packageAt(rootDefault, after);
-    if (beforePackage.name !== EXPECTED_PACKAGE_NAME || afterPackage.name !== EXPECTED_PACKAGE_NAME) {
-      throw new Error(`publication authority is fixed to ${EXPECTED_PACKAGE_NAME}`);
-    }
-    const plan = planRelease(beforePackage.version, afterPackage.version);
-    const sha = gitSha(rootDefault, after);
-    let releaseRequired = plan.releaseRequired;
-    if (
-      releaseRequired &&
-      await isVersionPublishedAtSha(EXPECTED_PACKAGE_NAME, plan.version, sha)
-    ) {
-      releaseRequired = false;
-    }
-    await writeOutputs({
-      release_required: releaseRequired,
-      package_name: afterPackage.name,
-      version: plan.version,
-      sha
-    });
+    await writeOutputs(await resolveReleasePlan(before, after));
     return;
   }
   if (command === 'already-published') {

@@ -115,10 +115,11 @@ jobs:
         id: deployment
         env:
           EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REF: ${{ github.ref }}
           MANUAL_DEPLOY: ${{ inputs.deploy }}
         run: |
           SHOULD_DEPLOY=false
-          if [ "$EVENT_NAME" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+          if [ "$EVENT_NAME" = "push" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; then
             SHOULD_DEPLOY=true
           elif [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$MANUAL_DEPLOY" = "true" ]; then
             SHOULD_DEPLOY=true
