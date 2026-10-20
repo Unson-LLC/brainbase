@@ -47,6 +47,30 @@ describe('CanonicalTaskPostgresRepository', () => {
     expect(repository({ query: vi.fn() }).requiresReadiness).toBe(true);
   });
 
+  it('runs create and audit in one transaction and rolls back when the audit fails', async () => {
+    const statements: string[] = [];
+    const clientQuery = vi.fn(async (text: string) => {
+      statements.push(text.trim().split(/\s+/)[0].toUpperCase());
+      return text.startsWith('INSERT INTO canonical_tasks') ? { rows: [persisted] } : { rows: [] };
+    });
+    const pool: CanonicalTaskPgPool = {
+      query: vi.fn(),
+      connect: vi.fn().mockResolvedValue({ query: clientQuery, release: vi.fn() }),
+    };
+    const repo = repository(pool);
+
+    await repo.createWithAudit({ ...persisted }, async (_task, client) => {
+      await client.query('SELECT 1 FROM audit_table');
+    });
+    expect(statements).toEqual(['BEGIN', 'INSERT', 'SELECT', 'COMMIT']);
+
+    statements.length = 0;
+    await expect(repo.createWithAudit({ ...persisted }, async () => {
+      throw new Error('audit unavailable');
+    })).rejects.toThrow('audit unavailable');
+    expect(statements).toEqual(['BEGIN', 'INSERT', 'ROLLBACK']);
+  });
+
   it('normalizes cancelled tasks and signs IDs to one store identity', () => {
     const repo = repository({ query: vi.fn() });
     const normalized = repo.normalize({ ...persisted, status: 'cancelled' });

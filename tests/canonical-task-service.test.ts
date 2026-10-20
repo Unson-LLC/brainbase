@@ -459,4 +459,87 @@ describe('CanonicalTaskService', () => {
         details: {},
       });
   });
+
+  it('writes the create audit inside the repository transaction when both capabilities exist', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const auditClients: unknown[] = [];
+    const transactionClient = { query: async () => ({ rows: [] }) };
+    const repository = {
+      ...fixture.repository,
+      async createWithAudit(input: Record<string, unknown>, runAudit: (created: unknown, client: unknown) => Promise<void>) {
+        const created = await fixture.repository.create(input);
+        await runAudit(created, transactionClient);
+        return created;
+      },
+    };
+    const service = new CanonicalTaskService({
+      repository,
+      auditRepository: {
+        supportsTransactionClient: true,
+        async upsertAuditLog(entry, options) {
+          auditClients.push(options?.client);
+          fixture.auditEntries.push(entry);
+        },
+      },
+    });
+
+    const created = await service.createTask({ title: 'Atomic audit' }, fixture.context('atomic-1'));
+    expect(created.id).toBe('task-1');
+    expect(auditClients).toEqual([transactionClient]);
+    expect(fixture.auditEntries).toHaveLength(1);
+  });
+
+  it('rolls back the create when the in-transaction audit write fails', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const repository = {
+      ...fixture.repository,
+      async createWithAudit(input: Record<string, unknown>, runAudit: (created: unknown, client: unknown) => Promise<void>) {
+        const created = await fixture.repository.create(input);
+        try {
+          await runAudit(created, { query: async () => ({ rows: [] }) });
+        } catch (error) {
+          await fixture.repository.delete(created.id, created.version);
+          throw error;
+        }
+        return created;
+      },
+    };
+    const service = new CanonicalTaskService({
+      repository,
+      auditRepository: {
+        supportsTransactionClient: true,
+        async upsertAuditLog() {
+          throw new Error('audit unavailable');
+        },
+      },
+    });
+
+    await expect(service.createTask({ title: 'Rolled back' }, fixture.context('atomic-2')))
+      .rejects.toMatchObject({ code: 'task_audit_unavailable', status: 503 });
+    expect(await fixture.repository.get('task-1')).toBeNull();
+  });
+
+  it('does not use the transactional create without an audit sink that declares the capability', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    let transactionalCalls = 0;
+    const repository = {
+      ...fixture.repository,
+      async createWithAudit(input: Record<string, unknown>) {
+        transactionalCalls += 1;
+        return fixture.repository.create(input);
+      },
+    };
+    const service = new CanonicalTaskService({
+      repository,
+      auditRepository: {
+        async upsertAuditLog() {
+          throw new Error('audit unavailable');
+        },
+      },
+    });
+
+    await expect(service.createTask({ title: 'Fallback path' }, fixture.context('atomic-3')))
+      .rejects.toMatchObject({ code: 'task_audit_unavailable', status: 503 });
+    expect(transactionalCalls).toBe(0);
+  });
 });
