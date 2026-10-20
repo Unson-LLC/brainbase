@@ -308,6 +308,59 @@ describe.skipIf(!postgresIntegrationEnabled)('Canonical Task PostgreSQL adapter 
     ]));
   });
 
+  it('commits the Task with the audit writer and rolls back when that writer fails', async () => {
+    let clientSeen: unknown = null;
+    const atomicService = new CanonicalTaskService({
+      repository,
+      operationRepository: operations,
+      readiness,
+      policy,
+      auditRepository: {
+        supportsTransactionClient: true,
+        async upsertAuditLog(_entry, options) {
+          clientSeen = options?.client ?? null;
+        },
+      },
+    });
+
+    const created = await atomicService.createTask({
+      title: 'Atomic commit task',
+      assignee_person_id: 'person-a',
+      project_codes: ['project-112'],
+    }, createServiceContext('person-a', 'org-techknight', 'atomic-commit-1'));
+    expect(clientSeen).not.toBeNull();
+    const committed = await pool.query(
+      'SELECT id FROM canonical_tasks WHERE idempotency_key LIKE $1',
+      ['%atomic-commit-1%'],
+    );
+    expect(committed.rows.map((row) => row.id)).toEqual([repository.decodeTaskLocator(created.id).value]);
+
+    const failingService = new CanonicalTaskService({
+      repository,
+      operationRepository: operations,
+      readiness,
+      policy,
+      auditRepository: {
+        supportsTransactionClient: true,
+        async upsertAuditLog() {
+          throw new Error('audit storage down');
+        },
+      },
+    });
+    await expect(failingService.createTask({
+      title: 'Atomic rollback task',
+      assignee_person_id: 'person-a',
+      project_codes: ['project-112'],
+    }, createServiceContext('person-a', 'org-techknight', 'atomic-rollback-1')))
+      .rejects.toMatchObject({ code: 'task_audit_unavailable', status: 503 });
+
+    const rolledBack = await pool.query(
+      'SELECT id FROM canonical_tasks WHERE idempotency_key LIKE $1',
+      ['%atomic-rollback-1%'],
+    );
+    expect(rolledBack.rowCount).toBe(0);
+  });
+
   it('fails closed for every Service mutation and replay when persisted readiness closes', async () => {
     const owner = createServiceContext('person-a', 'org-techknight', 'readiness-create-1');
     const task = await service.createTask({
