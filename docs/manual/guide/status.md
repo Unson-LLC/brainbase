@@ -4,6 +4,12 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
+## Candidate — v0.46.0（npm公開前）
+
+- Canonical Taskの作成と監査を同一DBトランザクションで確定できるよう、`CanonicalTaskRepository.createWithAudit`（任意）と、`CanonicalTaskAuditRepository.supportsTransactionClient` / `upsertAuditLog(entry, { client })` を追加しました。両方の能力が揃う場合だけ同一トランザクションを使い、監査writerが失敗した場合はTaskのINSERTをrollbackして `task_audit_unavailable` を返します。既存の構成の挙動は変わりません。
+- PostgreSQL storeに `createWithAudit` を追加し、BEGIN → Task INSERT → 監査 → COMMIT を同一clientで実行します。失敗時はROLLBACKします。`CANONICAL_TASK_PG_TEST_URL` を指定した統合テストでcommitとrollbackを検証できます。
+- これらは公開候補の記録であり、consumer検証、npm公開、registry readback、本番反映は未確認です。
+
 ## Candidate — v0.45.0（npm公開前）
 
 - 今回追加する公開subpathは `./run-receipt-port`、`./meeting-source-mcp-adapters`、`./meeting-source-sync-common-adapter` の3つです。
