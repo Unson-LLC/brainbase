@@ -4,8 +4,8 @@
 
 ```mermaid
 flowchart LR
-  merge["Reviewed develop commit"] --> resolve["Resolve immutable SHA"]
-  resolve --> trust["Develop ancestry and package identity"]
+  merge["Reviewed main commit"] --> resolve["Resolve immutable SHA"]
+  resolve --> trust["Main ancestry and package identity"]
   trust --> validate["Build test audit pack"]
   validate --> publish["Separate OIDC-enabled publish job"]
   publish --> metadata["gitHead integrity and dist-tag verification"]
@@ -20,7 +20,7 @@ flowchart LR
 npm run release:plan -- --before <git-ref> --after <git-ref>
 ```
 
-標準出力へ`release_required`、`version`、`sha`をGitHub Output互換形式で返す。after versionがbefore versionより大きい場合だけ`release_required=true`とする。version据え置き・downgradeは自動公開しない。
+標準出力へ`release_required`、`version`、`sha`をGitHub Output互換形式で返す。after versionがbefore versionより大きい場合だけ`release_required=true`とする。version据え置き・downgradeは自動公開しない。増加が必要でもnpm registryに同じ`gitHead`のversionが既にある場合は`release_required=false`とする（`main`を既公開commitへ戻した再実行を安全にする）。
 
 ### Validate
 
@@ -38,7 +38,7 @@ npm run release:validate -- --version <semver> --sha <full-commit-sha> --trusted
 npm run release:publish -- --version <semver> --sha <full-commit-sha> --trusted-ref <default-branch-ref> --proof-file <validated-proof> [--provenance]
 ```
 
-現在の固定package name/version、cleanなgit HEAD、trusted ref到達性、validation proofとtarballの両digestを再照合する。publishはupstream GitHub Actionsのrepository/run/serialization contextに加え、runner endpointから取得したGitHub発行OIDC tokenのaudience、repository、run ID、workflow ref、ref claimが一致する場合だけ許可する。workflow refはreview済み`Unson-LLC/brainbase/.github/workflows/npm-publish.yml@refs/heads/develop`、ref claimは`refs/heads/develop`へ完全固定し、ローカル直接実行、環境変数だけの偽装、別branch/tag上の同名workflowを拒否する。未公開versionだけ同じtarballを`npm publish <tarball> --ignore-scripts --access public --tag release-<commit>`で非consumer staging tagへ公開する。registry `dist.integrity`がproofのSHA-512 integrityと一致した後だけconsumer tagを同系列の最大versionへ前進させ、staging tagを除去する。workflowはpackage単位で公開処理を直列化し、CLIも変更直前に現在tagを再取得して、既に新しい同系列versionへ進んだtagを巻き戻さない。CLIの`--provenance`はnpmが対応するGitHub-hosted環境向けのoptionで、self-hosted runnerで動く現行workflowでは渡さない。
+現在の固定package name/version、cleanなgit HEAD、trusted ref到達性、validation proofとtarballの両digestを再照合する。publishはupstream GitHub Actionsのrepository/run/serialization contextに加え、runner endpointから取得したGitHub発行OIDC tokenのaudience、repository、run ID、workflow ref、ref claimが一致する場合だけ許可する。workflow refはreview済み`Unson-LLC/brainbase/.github/workflows/npm-publish.yml@refs/heads/main`、ref claimは`refs/heads/main`へ完全固定し、ローカル直接実行、環境変数だけの偽装、別branch/tag上の同名workflowを拒否する。未公開versionだけ同じtarballを`npm publish <tarball> --ignore-scripts --access public --tag release-<commit>`で非consumer staging tagへ公開する。registry `dist.integrity`がproofのSHA-512 integrityと一致した後だけconsumer tagを同系列の最大versionへ前進させ、staging tagを除去する。workflowはpackage単位で公開処理を直列化し、CLIも変更直前に現在tagを再取得して、既に新しい同系列versionへ進んだtagを巻き戻さない。CLIの`--provenance`はnpmが対応するGitHub-hosted環境向けのoptionで、self-hosted runnerで動く現行workflowでは渡さない。
 
 ### Verify
 
@@ -60,9 +60,9 @@ npm metadataの`version`と`gitHead`、期待するdist-tagをread-onlyで検証
 
 ## GitHub Actions contract
 
-- Trigger: `develop`向けPRのmerge、または`workflow_dispatch`。
-- PR merge: base SHAとmerge SHAのversion差分が増加した場合だけ公開する。
-- Manual dispatch: `origin/develop`の履歴内にある指定refのpackage versionだけを公開・照合する。初回公開と復旧に使う。
+- Trigger: `main`へのpush（`develop`→`main`のrelease PR mergeを含む）、または`workflow_dispatch`。
+- Push: base SHAとmerge SHAのversion差分が増加した場合だけ公開する。registryに同じ`gitHead`のversionが既にある場合はskipする。
+- Manual dispatch: `origin/main`の履歴内にある指定refのpackage versionだけを公開・照合する。初回公開と復旧に使う。registry既存versionはskipする。
 - Validation: `contents: read`だけのjobで`npm ci`、build、test、`npm audit --omit=dev`を完了し、実tarballと両digest-bound proofを作る。OIDCとnpm credentialは許可しない。
 - Publication: Actions artifactから同じtarball/proofを復元する別job（GitHub-hosted）だけへ`id-token: write`を許可する。npmへの認証はnpm Trusted Publishing（GitHub ActionsのOIDC）だけで行い、長期のnpm tokenはworkflowに置かない。npm CLIは11.21.1に固定する（OIDCでのdist-tag操作は11.21.0以上が要る）。`id-token: write`はpublish前のOIDCガード（`assertSerializedPublicationContext()`）、Trusted Publishing、`--provenance`に使う（story-npm-trusted-publishing-oidc）。
 - Completion: npm metadata照合後に`v<version>` GitHub Releaseを作成または既存tagのcommitを照合する。
@@ -71,12 +71,12 @@ npm metadataの`version`と`gitHead`、期待するdist-tagをread-onlyで検証
 
 ### Release note
 
-この変更は、`@unson/brainbase-mcp`に、review済み`develop` commitから同一tarballを検証・公開・registry再照合するmaintainer向けCLIとGitHub Actions経路を追加する。エンドユーザー向けruntimeコマンドやOntologyデータの意味は変更しない。
+この変更は、`@unson/brainbase-mcp`に、review済み`main` commitから同一tarballを検証・公開・registry再照合するmaintainer向けCLIとGitHub Actions経路を追加する。integrate branchは`develop`、production releaseは`main`への昇格後に行う。エンドユーザー向けruntimeコマンドやOntologyデータの意味は変更しない。
 
 ### Operator action and rollout
 
 1. npmjs.comの`@unson/brainbase-mcp`の設定で、Trusted Publisher（GitHub Actions、`Unson-LLC` / `brainbase` / `npm-publish.yml`）を登録し、`npm publish`とnpm dist-tagを許可する。npm tokenは使わない。
-2. 通常はversion bump済みPRを`develop`へmergeし、merge eventから自動公開する。初回の`0.1.0`公開または復旧ではActionsの`Publish npm package`を手動実行し、`release_ref=develop`を指定する。
+2. 通常はversion bump済み変更を`develop`で検証し、`main`へ昇格したpushから自動公開する。初回の`0.1.0`公開または復旧ではActionsの`Publish npm package`を手動実行し、`release_ref=main`（または対象commit）を指定する。
 3. `validate`と`publish`の両jobが成功した後、npm metadataのversion、`gitHead`、`dist.integrity`、dist-tag、およびGitHub Releaseのcommitを確認してrollout完了とする。
 
 ### Observability and support evidence

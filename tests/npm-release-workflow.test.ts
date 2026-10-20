@@ -6,16 +6,17 @@ describe('npm publish workflow', () => {
     const workflow = await readFile(new URL('../.github/workflows/npm-publish.yml', import.meta.url), 'utf8');
     const packageManifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
     // npm rejects Trusted Publishing tokens from pull_request_target (run 39031355466 failed
-    // with ENEEDAUTH), so the merge reaches the workflow as a push to develop.
+    // with ENEEDAUTH), so the merge reaches the workflow as a push to main.
     expect(workflow).not.toMatch(/pull_request_target:/u);
     expect(workflow).not.toMatch(/github\.event\.pull_request/u);
-    expect(workflow).toMatch(/on:\n  push:\n    branches:\n      - develop\n  workflow_dispatch:/u);
-    expect(workflow).toMatch(/github\.event_name == 'push' && github\.ref == 'refs\/heads\/develop'/u);
+    expect(workflow).toMatch(/on:\n  push:\n    branches:\n      - main\n  workflow_dispatch:/u);
+    expect(workflow).toMatch(/github\.event_name == 'push' && github\.ref == 'refs\/heads\/main'/u);
+    expect(workflow).toMatch(/already-published/u);
     expect(workflow).toMatch(/plan --before "\$BEFORE_SHA" --after "\$PUSHED_SHA"/u);
     expect(workflow).toMatch(/BEFORE_SHA: \$\{\{ github\.event\.before \}\}/u);
     expect(workflow).toMatch(/PUSHED_SHA: \$\{\{ github\.sha \}\}/u);
     expect(workflow).toMatch(/git checkout --detach/u);
-    expect(workflow).toMatch(/--trusted-ref origin\/develop/u);
+    expect(workflow).toMatch(/--trusted-ref origin\/main/u);
     // Publication authenticates only through npm Trusted Publishing (OIDC).
     expect(workflow).not.toMatch(/NODE_AUTH_TOKEN/u);
     expect(workflow).not.toMatch(/secrets\.NPM_TOKEN/u);
@@ -57,7 +58,7 @@ describe('npm publish workflow', () => {
     const workflow = await readFile(new URL('../.github/workflows/npm-publish.yml', import.meta.url), 'utf8');
     expect(workflow).toMatch(/workflow_dispatch:/u);
     expect(workflow).toMatch(/release_ref:/u);
-    expect(workflow).toMatch(/git merge-base --is-ancestor "\$RELEASE_SHA" origin\/develop/u);
+    expect(workflow).toMatch(/git merge-base --is-ancestor "\$RELEASE_SHA" origin\/main/u);
     expect(workflow).toMatch(/test "\$PACKAGE_NAME" = "@unson\/brainbase-mcp"/u);
     expect(workflow.indexOf('npm-release.mjs publish')).toBeLessThan(workflow.indexOf('gh release'));
     expect(workflow).toMatch(/git rev-parse -q --verify "refs\/tags\/v\$\{VERSION\}\^\{commit\}"/u);
@@ -84,7 +85,7 @@ describe('npm publish workflow', () => {
     const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8');
     const operation = readme.slice(readme.indexOf('### Maintainer release operation'));
     expect(operation).toMatch(/gh workflow run npm-publish\.yml/u);
-    expect(operation).toMatch(/--ref develop/u);
+    expect(operation).toMatch(/--ref main/u);
     expect(operation).toMatch(/-f release_ref="\$RELEASE_REF"/u);
     expect(operation).not.toMatch(/NODE_AUTH_TOKEN="\$NPM_TOKEN" node scripts\/npm-release\.mjs publish/u);
     expect(operation).toMatch(/Direct local `release:publish` is rejected/u);

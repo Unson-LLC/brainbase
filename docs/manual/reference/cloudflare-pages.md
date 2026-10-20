@@ -20,7 +20,11 @@ pull requestからはdeployしません。
 
 ### developへmerge後
 
-上記の検証に加えて、`docs/.vitepress/dist`をCloudflare Pages project `brainbase`へdeployします。その後、公開URLをreadbackし、次を確認します。
+上記の検証のみを行います。Cloudflare Pagesへはdeployしません。
+
+### mainへ昇格後
+
+上記の検証に加えて、`docs/.vitepress/dist`をCloudflare Pages project `brainbase`へdeployします（`main`へのpush、または手動dispatchで`main`をbuildしてdeployを有効化）。その後、公開URLをreadbackし、次を確認します。
 
 - 「自分の判断力を、ひとり分で終わらせない。」が表示される
 - システム構成ページと構成図が取得できる
@@ -68,7 +72,7 @@ npx --yes wrangler@latest pages project list
 ```bash
 npx --yes wrangler@latest pages deploy docs/.vitepress/dist \
   --project-name brainbase \
-  --branch develop \
+  --branch main \
   --commit-dirty=true
 ```
 
