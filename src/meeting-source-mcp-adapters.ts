@@ -324,7 +324,11 @@ export class MeetingSourceMcpAdapter {
   }
 
   async poll(input: MeetingSourceMcpPollInput = {}): Promise<MeetingSourceMcpArtifact[]> {
-    const providerPoll = this.config.provider_poll ?? !configuredTool(this.config);
+    // Preserve the legacy Host predicate: provider polling is selected when it
+    // is explicitly enabled or when no primary tool is configured. The legacy
+    // provider path intentionally treats poll_tool/list_tool as provider
+    // configuration and only uses them inside the provider-specific adapter.
+    const providerPoll = this.config.provider_poll === true || !this.config.tool;
     if (this.provider === 'tactiq' && providerPoll) return this.pollTactiq(input);
     if (this.provider === 'plaud' && providerPoll) return this.pollPlaud(input);
     const tool = configuredTool(this.config);

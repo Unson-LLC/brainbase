@@ -66,6 +66,60 @@ describe('meeting source MCP adapters', () => {
     ]);
   });
 
+  it('keeps Tactiq provider polling when poll_tool is configured', async () => {
+    const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
+    const adapter = new MeetingSourceMcpAdapter({
+      provider: 'tactiq',
+      client: {
+        callTool: async (name, args) => {
+          calls.push({ name, args });
+          if (name === 'custom_poll') {
+            return { records: [{ id: 't-custom', title: 'Base', createdAt: '2026-10-20T01:00:00.000Z' }] };
+          }
+          return { structuredContent: {
+            title: 'Expanded',
+            detailedSummary: { status: 'ready', content: 'Summary' },
+          } };
+        },
+      },
+      config: { poll_tool: 'custom_poll' },
+    });
+
+    await expect(adapter.poll()).resolves.toEqual([expect.objectContaining({
+      external_id: 't-custom',
+      title: 'Expanded',
+      note_text: 'Summary',
+    })]);
+    expect(calls).toEqual([
+      { name: 'custom_poll', args: { limit: 50 } },
+      { name: 'get_meeting', args: { id: 't-custom' } },
+    ]);
+  });
+
+  it('keeps provider polling when provider_poll is false without a primary tool', async () => {
+    const calls: string[] = [];
+    const adapter = new MeetingSourceMcpAdapter({
+      provider: 'plaud',
+      client: {
+        callTool: async (name) => {
+          calls.push(name);
+          if (name === 'list_files') {
+            return { records: [{ id: 'p-compat', name: 'Recording', start_at: '2026-10-20T01:00:00.000Z' }] };
+          }
+          return { structuredContent: { markdown: name === 'get_note' ? 'Note' : 'Transcript' } };
+        },
+      },
+      config: { provider_poll: false },
+    });
+
+    await expect(adapter.poll()).resolves.toEqual([expect.objectContaining({
+      external_id: 'p-compat',
+      transcript_text: 'Transcript',
+      note_text: 'Note',
+    })]);
+    expect(calls).toEqual(['list_files', 'get_transcript', 'get_note']);
+  });
+
   it('keeps Plaud transcript and note failures independent', async () => {
     const warn = vi.fn();
     const calls: string[] = [];
@@ -95,7 +149,7 @@ describe('meeting source MCP adapters', () => {
     expect(warn.mock.calls.flat().join(' ')).not.toContain('provider response contains a secret');
   });
 
-  it('supports an injected generic tool and resource fallback', async () => {
+  it('supports an injected generic tool', async () => {
     const genericCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
     const generic = new MeetingSourceMcpAdapter({
       provider: 'tactiq',
@@ -118,19 +172,6 @@ describe('meeting source MCP adapters', () => {
         cursor: { page: 2 },
       },
     });
-
-    const resources = new MeetingSourceMcpAdapter({
-      provider: 'plaud',
-      client: {
-        callTool: async () => [],
-        listResources: async () => ({ resources: [
-          { uri: 'keep:1', name: 'Keep', updated_at: '2026-10-20T01:00:00.000Z' },
-          { uri: 'drop:1', name: 'Drop' },
-        ] }),
-      },
-      config: { provider_poll: false, resource_prefix: 'keep:' },
-    });
-    await expect(resources.poll()).resolves.toEqual([expect.objectContaining({ id: 'keep:1', provider: 'plaud' })]);
   });
 
   it('reports injected-client capabilities and never requires a home directory', async () => {
