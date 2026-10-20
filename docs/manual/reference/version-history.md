@@ -2,6 +2,12 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
+## 0.46.0 candidate — npm公開前
+
+- Canonical Taskの作成と監査の原子性を追加interfaceで提供する。`CanonicalTaskRepository.createWithAudit`（任意）、`CanonicalTaskAuditRepository.supportsTransactionClient`、`upsertAuditLog(entry, { client })`。両能力が揃う場合だけ同一DBトランザクションを使い、監査失敗時はTask INSERTをrollbackして `task_audit_unavailable` を返す。既存構成の挙動は変えない。
+- PostgreSQL storeに `createWithAudit` を追加し、BEGIN/INSERT/監査/COMMITと失敗時ROLLBACKを実装した。`CANONICAL_TASK_PG_TEST_URL` 指定時の統合テストでcommitとrollbackを検証する。
+- これらは公開候補の記録であり、consumer検証、npm公開、registry readback、本番反映は未確認である。
+
 ## 0.45.0 candidate — npm公開前
 
 - 今回追加する公開subpathは `./run-receipt-port`、`./meeting-source-mcp-adapters`、`./meeting-source-sync-common-adapter` の3つ。`./run-receipt-port` は実行記録の保存・照会をホストのportへ差し込む `RunReceiptPort` と `assertRunReceiptPort`、`./meeting-source-mcp-adapters` は Tactiq・Plaud のMCP応答を共通の会議ソースへ整形するadapter、`./meeting-source-sync-common-adapter` は会議ソース同期の共通adapter契約を提供する。接続、OAuth、資格情報、保存はホストの責務とする。
