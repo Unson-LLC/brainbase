@@ -13,7 +13,7 @@
 ## 入力制約
 
 - knowledge eventは `schema_version=knowledge_event.v1`、12必須フィールド、ISO timestamp、SHA-256 body hashを要求する。raw bodyとsecretはhostが保存前に排除する。
-- meshは許可された6種類のtype、from/to/id/nonce、正のtimestampを要求する。送信受付receiptの `answer_status` は `unknown` 固定で、受信・回答・保存を成功扱いしない。
+- meshは許可された6種類のtype、from/to/id/nonce、正のtimestampを要求する。`parseMeshEnvelope` はHost実装と同じくJSON文字列またはオブジェクトを受け、payload省略時は `null` に正規化する。送信受付receiptの `answer_status` は `unknown` 固定で、受信・回答・保存を成功扱いしない。
 - Honcho URLは絶対HTTP(S) URLで、userinfo、query、hashを許可しない。secretはrequest本体に含めない。
 - onboardingのpermission snapshotは許可キーだけを受け、source receiptのcontent hashは `sha256:<64 hex>`、first-value answer hashも同形式とする。
 - local MCPはstdio/local/hostedDependency=falseを要求する。tool receiptの `verified` は必須booleanとする。

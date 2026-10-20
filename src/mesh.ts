@@ -46,31 +46,38 @@ function text(value: unknown, field: string): string {
   return value.trim();
 }
 
-function isJson(value: unknown): value is MeshJson {
-  if (value === null || ['string', 'number', 'boolean'].includes(typeof value)) return true;
-  if (Array.isArray(value)) return value.every(isJson);
-  if (typeof value === 'object') return Object.values(value as Record<string, unknown>).every(isJson);
-  return false;
+function isJson(value: unknown, ancestors = new Set<object>()): value is MeshJson {
+  if (value === null || ['string', 'boolean'].includes(typeof value)) return true;
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (typeof value !== 'object' || ancestors.has(value)) return false;
+  ancestors.add(value);
+  const valid = Array.isArray(value)
+    ? value.every((entry) => isJson(entry, ancestors))
+    : (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)
+      && Object.values(value as Record<string, unknown>).every((entry) => isJson(entry, ancestors));
+  ancestors.delete(value);
+  return valid;
 }
 
 export function createMeshEnvelope(
   input: MeshEnvelopeInput,
   options: { now?: number; idFactory?: () => string; nonceFactory?: () => string } = {}
 ): MeshEnvelope {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new MeshContractError('envelope');
   const from = text(input.from, 'from');
   const to = text(input.to, 'to');
   if (!MESH_ENVELOPE_TYPES.includes(input.type)) throw new MeshContractError('type');
   if (input.payload !== undefined && !isJson(input.payload)) throw new MeshContractError('payload');
   const ts = options.now ?? Date.now();
-  if (!Number.isFinite(ts)) throw new MeshContractError('ts');
+  if (!Number.isFinite(ts) || ts <= 0) throw new MeshContractError('ts');
   return {
-    id: options.idFactory?.() ?? randomUUID(),
+    id: text(options.idFactory?.() ?? randomUUID(), 'id'),
     from,
     to,
     type: input.type,
     payload: input.payload ?? null,
     ts,
-    nonce: options.nonceFactory?.() ?? randomUUID()
+    nonce: text(options.nonceFactory?.() ?? randomUUID(), 'nonce')
   };
 }
 
@@ -87,16 +94,38 @@ export function normalizeMeshEnvelope(value: unknown): MeshEnvelope {
   if (!Number.isFinite(candidate.ts) || typeof candidate.ts !== 'number' || candidate.ts <= 0) {
     throw new MeshContractError('ts');
   }
-  if (!isJson(candidate.payload)) throw new MeshContractError('payload');
+  const payload = candidate.payload ?? null;
+  if (!isJson(payload)) throw new MeshContractError('payload');
   return {
     id,
     from,
     to,
     type: candidate.type as MeshEnvelopeType,
-    payload: candidate.payload,
+    payload,
     ts: candidate.ts,
     nonce
   };
+}
+
+/**
+ * Parse a serialized or already-decoded envelope through the same strict
+ * boundary used by the host adapter.
+ *
+ * The host runtime accepts both JSON strings and objects. Keeping that input
+ * shape here lets a host compare the local contract result before handing an
+ * envelope to its network or crypto layer without moving either dependency
+ * into the portable package.
+ */
+export function parseMeshEnvelope(value: unknown): MeshEnvelope {
+  let decoded: unknown = value;
+  if (typeof value === 'string') {
+    try {
+      decoded = JSON.parse(value) as unknown;
+    } catch {
+      throw new MeshContractError('envelope', 'mesh envelope JSON is invalid');
+    }
+  }
+  return normalizeMeshEnvelope(decoded);
 }
 
 export interface MeshProjectPort {
@@ -130,7 +159,8 @@ export function normalizeMeshNodeProfile(value: unknown): MeshNodeProfile {
     const ports = item.ports === undefined
       ? undefined
       : item.ports && typeof item.ports === 'object' && !Array.isArray(item.ports)
-        && Object.entries(item.ports).every(([key, port]) => Boolean(key) && (typeof port === 'string' || typeof port === 'number'))
+        && Object.entries(item.ports).every(([key, port]) => Boolean(key)
+          && (typeof port === 'string' || (typeof port === 'number' && Number.isFinite(port))))
         ? { ...(item.ports as Record<string, string | number>) }
         : (() => { throw new MeshContractError(`projects.${index}.ports`); })();
     return { projectId, localPath, globInclude, ports };

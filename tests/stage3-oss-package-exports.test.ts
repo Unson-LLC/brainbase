@@ -31,6 +31,13 @@ describe('Stage 3 common contract package exports', () => {
         const promotion = await importExport(manifest, './knowledge-promotion');
         expect(typeof promotion.normalizePromotionPayload).toBe('function');
         expect(typeof promotion.KnowledgePromotionService).toBe('function');
+        const mesh = await importExport(manifest, './mesh');
+        for (const name of [
+            'createMeshEnvelope', 'normalizeMeshEnvelope', 'parseMeshEnvelope',
+            'normalizeMeshNodeProfile', 'normalizeMeshQueryRequest', 'createMeshSendReceipt'
+        ]) {
+            expect(typeof mesh[name]).toBe('function');
+        }
     }, 30_000);
 
     it('publishes run receipt and meeting automation as independent subpaths', async () => {
