@@ -18,6 +18,7 @@ import {
 } from '../src/routines.js';
 import { resolveRuntimeHostContext } from '../src/runtime-host.js';
 import { createRunReceiptIdentity, type RunReceiptSourceType } from '../src/run-receipt.js';
+import { assertRunReceiptPort } from '../src/run-receipt-port.js';
 
 function makeReceipt(externalRunId: string, sourceType = 'codex_automations') {
   const projectId = 'portable-project';
@@ -228,6 +229,13 @@ function memoryRunStore(): AutomationRunStorePort {
 }
 
 describe('Stage 3c injected runtime contracts', () => {
+  it('shares the receipt persist/query boundary across consumers', () => {
+    const port = { persist: () => ({ ok: true }), query: () => [] };
+    expect(() => assertRunReceiptPort(port, 'shared receipt')).not.toThrow();
+    expect(() => assertRunReceiptPort({ persist: () => ({ ok: true }) }, 'shared receipt'))
+      .toThrow('shared receipt port with persist and query is required');
+  });
+
   it('routes the consumer handlers through the portable routine cycle boundary', async () => {
     const calls: string[] = [];
     const runtime = createRoutineCycleRuntime({

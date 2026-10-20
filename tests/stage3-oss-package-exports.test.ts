@@ -40,6 +40,10 @@ describe('Stage 3 common contract package exports', () => {
             types: './dist/run-receipt.d.ts',
             import: './dist/run-receipt.js'
         });
+        expect(manifest.exports['./run-receipt-port']).toEqual({
+            types: './dist/run-receipt-port.d.ts',
+            import: './dist/run-receipt-port.js'
+        });
         expect(manifest.exports['./routines']).toEqual({
             types: './dist/routines.d.ts',
             import: './dist/routines.js'
@@ -68,6 +72,9 @@ describe('Stage 3 common contract package exports', () => {
         const runReceipt = await importExport(manifest, './run-receipt');
         expect(typeof runReceipt.normalizeRunReceipt).toBe('function');
         expect(typeof runReceipt.createRunReceiptIdentity).toBe('function');
+
+        const runReceiptPort = await importExport(manifest, './run-receipt-port');
+        expect(typeof runReceiptPort.assertRunReceiptPort).toBe('function');
 
         const routines = await importExport(manifest, './routines');
         expect(typeof routines.buildRoutines).toBe('function');
