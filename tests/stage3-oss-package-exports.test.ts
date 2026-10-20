@@ -31,6 +31,13 @@ describe('Stage 3 common contract package exports', () => {
         const promotion = await importExport(manifest, './knowledge-promotion');
         expect(typeof promotion.normalizePromotionPayload).toBe('function');
         expect(typeof promotion.KnowledgePromotionService).toBe('function');
+        const mesh = await importExport(manifest, './mesh');
+        for (const name of [
+            'createMeshEnvelope', 'normalizeMeshEnvelope', 'parseMeshEnvelope',
+            'normalizeMeshNodeProfile', 'normalizeMeshQueryRequest', 'createMeshSendReceipt'
+        ]) {
+            expect(typeof mesh[name]).toBe('function');
+        }
     }, 30_000);
 
     it('publishes run receipt and meeting automation as independent subpaths', async () => {
@@ -39,6 +46,10 @@ describe('Stage 3 common contract package exports', () => {
         expect(manifest.exports['./run-receipt']).toEqual({
             types: './dist/run-receipt.d.ts',
             import: './dist/run-receipt.js'
+        });
+        expect(manifest.exports['./run-receipt-port']).toEqual({
+            types: './dist/run-receipt-port.d.ts',
+            import: './dist/run-receipt-port.js'
         });
         expect(manifest.exports['./routines']).toEqual({
             types: './dist/routines.d.ts',
@@ -64,10 +75,21 @@ describe('Stage 3 common contract package exports', () => {
             types: './dist/meeting-source-sync.d.ts',
             import: './dist/meeting-source-sync.js'
         });
+        expect(manifest.exports['./meeting-source-mcp-adapters']).toEqual({
+            types: './dist/meeting-source-mcp-adapters.d.ts',
+            import: './dist/meeting-source-mcp-adapters.js'
+        });
+        expect(manifest.exports['./meeting-source-sync-common-adapter']).toEqual({
+            types: './dist/meeting-source-sync-common-adapter.d.ts',
+            import: './dist/meeting-source-sync-common-adapter.js'
+        });
 
         const runReceipt = await importExport(manifest, './run-receipt');
         expect(typeof runReceipt.normalizeRunReceipt).toBe('function');
         expect(typeof runReceipt.createRunReceiptIdentity).toBe('function');
+
+        const runReceiptPort = await importExport(manifest, './run-receipt-port');
+        expect(typeof runReceiptPort.assertRunReceiptPort).toBe('function');
 
         const routines = await importExport(manifest, './routines');
         expect(typeof routines.buildRoutines).toBe('function');
@@ -90,6 +112,11 @@ describe('Stage 3 common contract package exports', () => {
         const sourceSync = await importExport(manifest, './meeting-source-sync');
         expect(typeof sourceSync.normalizeMeetingSourceArtifact).toBe('function');
         expect(typeof sourceSync.runMeetingSourceSync).toBe('function');
+        const sourceAdapters = await importExport(manifest, './meeting-source-mcp-adapters');
+        expect(typeof sourceAdapters.MeetingSourceMcpAdapter).toBe('function');
+        expect(typeof sourceAdapters.createMeetingSourceMcpAdapter).toBe('function');
+        const commonAdapter = await importExport(manifest, './meeting-source-sync-common-adapter');
+        expect(typeof commonAdapter.createMeetingSourceSyncCommonAdapter).toBe('function');
     });
 
     it('keeps onboarding-runtime importable from an isolated package tree', async () => {

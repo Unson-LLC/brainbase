@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createLocalWebShell, LOCAL_WEB_SCREENS, parseLocalWebTarget } from '../../ui/local-web-shell.js';
 import {
   graphEntityPayload,
@@ -67,6 +67,13 @@ function jsonResponse(status, body) {
 const flush = () => new Promise((resolve) => setTimeout(resolve, 5));
 const flushMany = async (count = 3) => { for (let index = 0; index < count; index += 1) await flush(); };
 
+// Keep the source-navigation fixture inside the history screen's default
+// 30-day window as wall-clock time advances.
+function useFixtureClock() {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-09-26T00:00:00.000Z'));
+}
+
 function statusPayload(graph) {
   return {
     version: 'local-web-host.v1',
@@ -108,6 +115,7 @@ function hostFetcher(graph, overrides = {}) {
 
 const previousDocument = globalThis.document;
 afterEach(() => {
+  vi.useRealTimers();
   if (previousDocument === undefined) delete globalThis.document;
   else globalThis.document = previousDocument;
 });
@@ -529,6 +537,7 @@ describe('local Web shell', () => {
   });
 
   it('mounts 判断の履歴 without a summary band and keeps a selectable detail rail', async () => {
+    useFixtureClock();
     const { fetcher, calls } = hostFetcher(V2, {
       '/api/value-proofs/home': () => jsonResponse(200, sourceBearingHome()),
     });
@@ -552,6 +561,7 @@ describe('local Web shell', () => {
   });
 
   it('shows a retry action for an unavailable judgment history and mounts after the recheck succeeds', async () => {
+    useFixtureClock();
     let unavailable = true;
     const { fetcher } = hostFetcher(V2, {
       '/api/value-proofs/home': () => unavailable
@@ -574,6 +584,7 @@ describe('local Web shell', () => {
   });
 
   it('puts the selected judgment detail of 判断の履歴 and the selected objective of 目的と現状 in each screen\'s rail', async () => {
+    useFixtureClock();
     const proof = {
       schema_version: 'brainbase-judgment-value-proof-v1', intent_id: 'intent-1', decision_attempt_id: 'attempt-1',
       recorded_at: '2026-09-20T00:00:00.000Z', state: 'unconfirmed',
