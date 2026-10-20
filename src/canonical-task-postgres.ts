@@ -490,8 +490,7 @@ export class CanonicalTaskPostgresRepository {
     return this.normalize(result.rows[0] || null);
   }
 
-  async create(input: JsonRecord, storageScope?: string): Promise<JsonRecord> {
-    this.rejectStorageScope(storageScope);
+  private buildInsert(input: JsonRecord): { sql: string; values: unknown[] } {
     const columns: Array<[string, unknown, string?]> = [
       ['id', randomUUID()],
       ['title', input.title],
@@ -519,15 +518,56 @@ export class CanonicalTaskPostgresRepository {
       ['last_operation_key', input.last_operation_key ?? null],
       ['last_operation_fingerprint', input.last_operation_fingerprint ?? null],
     ];
-    const result = await this.query(
-      `INSERT INTO canonical_tasks (${columns.map(([column]) => column).join(', ')})
+    return {
+      sql: `INSERT INTO canonical_tasks (${columns.map(([column]) => column).join(', ')})
        VALUES (${columns.map(([, , cast = ''], index) => `$${index + 1}${cast}`).join(', ')})
        ON CONFLICT (idempotency_key) DO NOTHING
        RETURNING *`,
-      columns.map(([, value]) => value),
-    );
+      values: columns.map(([, value]) => value),
+    };
+  }
+
+  async create(input: JsonRecord, storageScope?: string): Promise<JsonRecord> {
+    this.rejectStorageScope(storageScope);
+    const { sql, values } = this.buildInsert(input);
+    const result = await this.query(sql, values);
     if (result.rows[0]) return this.normalize(result.rows[0])!;
     return (await this.findByIdempotencyKey(String(input.idempotency_key)))!;
+  }
+
+  /**
+   * Create the Task and run its audit writer in one transaction. A throwing
+   * writer rolls back the Task insert; the caller maps the audit error.
+   */
+  async createWithAudit(
+    input: JsonRecord,
+    runAudit: (created: JsonRecord, client: CanonicalTaskPgClient) => Promise<void>,
+    storageScope?: string,
+  ): Promise<JsonRecord> {
+    this.rejectStorageScope(storageScope);
+    if (typeof this.pool.connect !== 'function') {
+      throw this.unavailable(new Error('PostgreSQL transaction client is unavailable'));
+    }
+    const { sql, values } = this.buildInsert(input);
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await client.query(sql, values);
+      const row = result.rows[0] ?? (await client.query(
+        'SELECT * FROM canonical_tasks WHERE idempotency_key = $1 LIMIT 1',
+        [input.idempotency_key],
+      )).rows[0];
+      if (!row) throw storeError('task_store_unavailable', 'PostgreSQL Task store is unavailable', 503);
+      const created = this.normalize(row)!;
+      await runAudit(created, client);
+      await client.query('COMMIT');
+      return created;
+    } catch (error) {
+      try { await client.query('ROLLBACK'); } catch { /* preserve transaction error */ }
+      throw error;
+    } finally {
+      client.release?.();
+    }
   }
 
   async update(taskId: string, patch: JsonRecord, storageScope?: string): Promise<JsonRecord> {

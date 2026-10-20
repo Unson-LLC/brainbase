@@ -174,6 +174,10 @@ export interface CanonicalTaskAuditEntry extends JsonRecord {
   source_refs: unknown[];
 }
 
+export interface CanonicalTaskTransactionClient {
+  query(text: string, values?: unknown[]): Promise<{ rows: Array<Record<string, unknown>> }>;
+}
+
 export interface CanonicalTaskRepository {
   /** Durable PostgreSQL repositories require a release readiness binding. */
   requiresReadiness?: boolean;
@@ -182,12 +186,26 @@ export interface CanonicalTaskRepository {
   get(taskId: string, storageScope?: string): Promise<CanonicalTaskRecord | null>;
   findByIdempotencyKey(key: string, storageScope?: string): Promise<CanonicalTaskRecord | null>;
   create(input: JsonRecord, storageScope?: string): Promise<CanonicalTaskRecord>;
+  /**
+   * Create a Task and run the audit writer inside one database transaction.
+   * A throwing writer must roll back the Task insert.
+   */
+  createWithAudit?(
+    input: JsonRecord,
+    runAudit: (created: CanonicalTaskRecord, client: CanonicalTaskTransactionClient) => Promise<void>,
+    storageScope?: string,
+  ): Promise<CanonicalTaskRecord>;
   update(taskId: string, patch: JsonRecord, storageScope?: string): Promise<CanonicalTaskRecord>;
   delete(taskId: string, expectedVersion: number, storageScope?: string): Promise<void>;
 }
 
 export interface CanonicalTaskAuditRepository {
-  upsertAuditLog(entry: CanonicalTaskAuditEntry): Promise<void>;
+  /** Declare support before offering the same-transaction audit contract. */
+  supportsTransactionClient?: boolean;
+  upsertAuditLog(
+    entry: CanonicalTaskAuditEntry,
+    options?: { client?: CanonicalTaskTransactionClient },
+  ): Promise<void>;
 }
 
 export interface CanonicalTaskAuthorizationRequest {
@@ -781,17 +799,36 @@ export class CanonicalTaskService {
       await this.authorize('read', normalizedContext, existing);
       return { recovered: true, result: this.normalizeResponse(existing) };
     };
+    const transactionalAudit = typeof this.repository.createWithAudit === 'function'
+      && this.auditRepository?.supportsTransactionClient === true;
+    let auditedInTransaction = false;
     const run = async (): Promise<CanonicalTaskRecord> => {
       const recovered = await recover();
       if (recovered.recovered && recovered.result) return recovered.result;
       await this.assertMutationReady();
-      const created = await this.read(() => this.repository.create({
+      const input = {
         ...payload,
         status: 'pending',
         version: 1,
         idempotency_key: operation,
         payload_fingerprint: inputFingerprint,
-      }, ...this.scopeArgs(normalizedContext)));
+      };
+      if (transactionalAudit) {
+        return this.read(() => this.repository.createWithAudit!(input, async (created, client) => {
+          const normalizedCreated = this.normalizeResponse(created);
+          await this.audit(
+            normalizedContext,
+            'canonical_task.created',
+            normalizedCreated,
+            { before: null, after: normalizedCreated },
+            operation,
+            inputFingerprint,
+            client,
+          );
+          auditedInTransaction = true;
+        }, ...this.scopeArgs(normalizedContext)));
+      }
+      const created = await this.read(() => this.repository.create(input, ...this.scopeArgs(normalizedContext)));
       return this.normalizeResponse(created);
     };
     const result = await this.executeOperation({
@@ -804,17 +841,19 @@ export class CanonicalTaskService {
     });
     if (normalizedContext.storageScope !== undefined) await this.authorize('read', normalizedContext, result);
     const normalized = this.normalizeResponse(result);
-    // Audit each invocation, including a replay/recovery. The deterministic
-    // entry id lets an upsert sink collapse retries without losing evidence
-    // that the audit write was attempted again.
-    await this.audit(
-      normalizedContext,
-      'canonical_task.created',
-      normalized,
-      { before: null, after: normalized },
-      operation,
-      inputFingerprint,
-    );
+    if (!auditedInTransaction) {
+      // Audit each invocation, including a replay/recovery. The deterministic
+      // entry id lets an upsert sink collapse retries without losing evidence
+      // that the audit write was attempted again.
+      await this.audit(
+        normalizedContext,
+        'canonical_task.created',
+        normalized,
+        { before: null, after: normalized },
+        operation,
+        inputFingerprint,
+      );
+    }
     return normalized;
   }
 
@@ -1399,15 +1438,15 @@ export class CanonicalTaskService {
       : request.run();
   }
 
-  private async audit(
+  private buildAuditEntry(
     context: CanonicalTaskContext,
     action: CanonicalTaskAuditAction,
     task: CanonicalTaskRecord,
     changes: JsonRecord,
     operationKey: string,
     operationFingerprint: string,
-  ): Promise<void> {
-    if (!this.auditRepository) return;
+  ): CanonicalTaskAuditEntry | null {
+    if (!this.auditRepository) return null;
     const actor = context.auditPrincipal
       ? normalizeCanonicalTaskPrincipal(context.auditPrincipal)
       : context.principal;
@@ -1429,8 +1468,22 @@ export class CanonicalTaskService {
       changes,
       source_refs: Array.isArray(task.source_refs) ? task.source_refs : [],
     };
+    return entry;
+  }
+
+  private async audit(
+    context: CanonicalTaskContext,
+    action: CanonicalTaskAuditAction,
+    task: CanonicalTaskRecord,
+    changes: JsonRecord,
+    operationKey: string,
+    operationFingerprint: string,
+    client?: CanonicalTaskTransactionClient,
+  ): Promise<void> {
+    const entry = this.buildAuditEntry(context, action, task, changes, operationKey, operationFingerprint);
+    if (!entry) return;
     try {
-      await this.auditRepository.upsertAuditLog(entry);
+      await this.auditRepository!.upsertAuditLog(entry, client ? { client } : undefined);
     } catch {
       throw new CanonicalTaskError('task_audit_unavailable', 'Task audit is unavailable', 503);
     }
