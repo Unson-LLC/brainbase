@@ -14,8 +14,8 @@ describe('OSS npm release OIDC endpoint correction acceptance', () => {
       aud: 'brainbase-npm-publish',
       repository: 'Unson-LLC/brainbase',
       run_id: '123',
-      workflow_ref: 'Unson-LLC/brainbase/.github/workflows/npm-publish.yml@refs/heads/develop',
-      ref: 'refs/heads/develop',
+      workflow_ref: 'Unson-LLC/brainbase/.github/workflows/npm-publish.yml@refs/heads/main',
+      ref: 'refs/heads/main',
       ...overrides
     })).toString('base64url');
     return `${header}.${payload}.test-signature`;

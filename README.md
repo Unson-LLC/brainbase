@@ -247,8 +247,8 @@ Publication is serialized by the GitHub workflow. Direct local `release:publish`
 Dispatch the reviewed ref once when automatic publication needs recovery:
 
 ```bash
-RELEASE_REF="<reviewed-develop-commit>"
-gh workflow run npm-publish.yml --ref develop -f release_ref="$RELEASE_REF"
+RELEASE_REF="<reviewed-main-commit>"
+gh workflow run npm-publish.yml --ref main -f release_ref="$RELEASE_REF"
 ```
 
 After the workflow succeeds, verify npm `gitHead`, `dist.integrity`, and dist-tag, and verify that the GitHub Release targets the reviewed release commit. If npm already contains the version, treat that version as immutable; fix the source, increment the version, and run the reviewed workflow again.
