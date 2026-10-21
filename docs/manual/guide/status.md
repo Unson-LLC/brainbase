@@ -4,6 +4,12 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
+## Candidate — v0.46.1（npm公開前）
+
+- Plaud MCP 0.3.12+ が list / transcript 応答を `untrusted-user-data` ブロックで包む形式に対応しました。`payloadOf` で展開し、list の未知形状は空同期にせず失敗します。`listRevision` が 2 未満のときは 30 日分の再一覧を一度だけ行います（#856）。
+- `@modelcontextprotocol/sdk` と `hono` を npm audit 対応の版へ更新しました（#857）。
+- これらは公開候補の記録であり、consumer検証、npm公開、registry readback、本番反映は未確認です。
+
 ## Candidate — v0.46.0（npm公開前）
 
 - Canonical Taskの作成と監査を同一DBトランザクションで確定できるよう、`CanonicalTaskRepository.createWithAudit`（任意）と、`CanonicalTaskAuditRepository.supportsTransactionClient` / `upsertAuditLog(entry, { client })` を追加しました。両方の能力が揃う場合だけ同一トランザクションを使い、監査writerが失敗した場合はTaskのINSERTをrollbackして `task_audit_unavailable` を返します。既存の構成の挙動は変わりません。
