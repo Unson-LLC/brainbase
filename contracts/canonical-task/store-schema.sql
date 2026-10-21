@@ -50,6 +50,33 @@ ALTER TABLE canonical_tasks
         OR jsonb_typeof(completion_contract) = 'object'
     );
 
+-- botキューがTaskをclaimしているagent member ID。未claimはNULL。
+ALTER TABLE canonical_tasks
+    ADD COLUMN IF NOT EXISTS claimed_by TEXT;
+
+-- claimのリース期限。claimed_until < now() は期限切れ。
+ALTER TABLE canonical_tasks
+    ADD COLUMN IF NOT EXISTS claimed_until TIMESTAMPTZ;
+
+-- 保存statusの詳細。started / waiting_for_review / blocked 以外はNULL。
+ALTER TABLE canonical_tasks
+    ADD COLUMN IF NOT EXISTS status_detail TEXT;
+
+ALTER TABLE canonical_tasks
+    DROP CONSTRAINT IF EXISTS canonical_tasks_status_detail_check;
+ALTER TABLE canonical_tasks
+    ADD CONSTRAINT canonical_tasks_status_detail_check
+    CHECK (
+        status_detail IS NULL
+        OR status_detail IN ('started', 'waiting_for_review', 'blocked')
+    );
+
+ALTER TABLE canonical_tasks
+    DROP CONSTRAINT IF EXISTS canonical_tasks_claim_pair_check;
+ALTER TABLE canonical_tasks
+    ADD CONSTRAINT canonical_tasks_claim_pair_check
+    CHECK ((claimed_by IS NULL) = (claimed_until IS NULL));
+
 ALTER TABLE canonical_tasks
     DROP CONSTRAINT IF EXISTS canonical_tasks_purpose_label_check;
 ALTER TABLE canonical_tasks
@@ -75,3 +102,5 @@ CREATE INDEX IF NOT EXISTS canonical_tasks_assignee_due_idx
     ON canonical_tasks (assignee_person_id, due_at);
 CREATE INDEX IF NOT EXISTS canonical_tasks_project_codes_idx
     ON canonical_tasks USING GIN (project_codes);
+CREATE INDEX IF NOT EXISTS canonical_tasks_claimed_by_until_idx
+    ON canonical_tasks (claimed_by, claimed_until) WHERE claimed_by IS NOT NULL;
