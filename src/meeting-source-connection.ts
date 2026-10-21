@@ -48,6 +48,8 @@ import type {
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
+export const MEETING_SOURCE_LIST_REVISION = 2;
+export const MEETING_SOURCE_RELIST_LOOKBACK_MS = 30 * DAY_MS;
 const PROVIDERS: readonly MeetingSourceProvider[] = ['plaud', 'tactiq'];
 const CAPABILITIES: readonly MeetingSourceCapability[] = ['meetings:list', 'transcript:read'];
 const STATUSES: readonly MeetingSourceConnectionStatus[] = ['pending', 'connected', 'reauth_required', 'disabled', 'revoked'];
@@ -532,6 +534,8 @@ export interface MeetingSourceSyncState {
   provider: MeetingSourceProvider;
   syncEnabled: boolean;
   listedThrough: string | null;
+  /** List-reader revision that produced listedThrough; older cursors are re-listed once. */
+  listRevision?: number;
   pending: MeetingSourcePendingMeeting[];
   unobtainable: Array<{ meetingId: string; reason: string; message: string; decidedAt: string }>;
   delivered: Record<string, MeetingSourceDeliveredMeeting>;
@@ -633,11 +637,15 @@ export async function syncMeetingSourceConnection(input: {
   state.lastAttemptAt = started.toISOString();
   const callTool: MeetingSourceCallTool = (name, args) => input.runtime.callTool(connection, name, args);
   const until = input.window ? input.window.until : started.toISOString();
-  const since = input.window
-    ? input.window.since
-    : state.listedThrough
-      ? new Date(Date.parse(state.listedThrough) - (input.overlapMs ?? DAY_MS)).toISOString()
-      : new Date(started.getTime() - (input.initialLookbackMs ?? 7 * DAY_MS)).toISOString();
+  const normalSince = state.listedThrough
+    ? Date.parse(state.listedThrough) - (input.overlapMs ?? DAY_MS)
+    : started.getTime() - (input.initialLookbackMs ?? 7 * DAY_MS);
+  const sinceMs = !input.window
+    && state.listedThrough
+    && (state.listRevision ?? 1) < MEETING_SOURCE_LIST_REVISION
+    ? Math.min(normalSince, started.getTime() - MEETING_SOURCE_RELIST_LOOKBACK_MS)
+    : normalSince;
+  const since = input.window ? input.window.since : new Date(sinceMs).toISOString();
 
   const finish = async (failure: { reason: string; message: string } | null, delivered: MeetingSourceSyncResult['delivered']) => {
     if (failure) {
@@ -753,8 +761,11 @@ export async function syncMeetingSourceConnection(input: {
   if (budget) state.tactiqReads = budget.reads(now());
   if (!listed.complete) {
     failure ??= { reason: 'incomplete', message: 'The meeting list could not be read completely for the period' };
-  } else if (!input.window && (!state.listedThrough || Date.parse(until) > Date.parse(state.listedThrough))) {
-    state.listedThrough = until;
+  } else if (!input.window) {
+    if (!state.listedThrough || Date.parse(until) > Date.parse(state.listedThrough)) {
+      state.listedThrough = until;
+    }
+    state.listRevision = MEETING_SOURCE_LIST_REVISION;
   }
   return finish(failure, delivered);
 }
