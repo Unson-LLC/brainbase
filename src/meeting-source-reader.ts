@@ -292,7 +292,7 @@ async function listPlaud(
   const meetings: MeetingSourceMeeting[] = [];
   let complete = false;
   for (let page = 1; page <= MAX_PAGES; page += 1) {
-    const items = extractList(await invoke(callTool, 'list_files', { date_from: dateFrom, date_to: dateTo, page, page_size: pageSize }));
+    const items = plaudListItems(await invoke(callTool, 'list_files', { date_from: dateFrom, date_to: dateTo, page, page_size: pageSize }));
     for (const item of items) {
       const meeting = plaudMeeting(item, utcOffsetMinutes);
       if (!meeting) continue;
@@ -540,9 +540,22 @@ function payloadOf(result: unknown): unknown {
   if (record.structuredContent !== undefined) return record.structuredContent;
   if (Array.isArray(record.content)) {
     const text = contentText(record);
-    return parseJson(text) ?? text;
+    const parsed = parseJson(text);
+    if (parsed !== null) return parsed;
+    const wrapped = unwrapUntrustedUserData(text);
+    return wrapped.found ? wrapped.value : text;
   }
   return result;
+}
+
+function unwrapUntrustedUserData(text: string): { found: true; value: unknown } | { found: false } {
+  const opening = /<(untrusted-user-data-[0-9a-f]+)\s+source="[^"]*">/.exec(text);
+  if (!opening) return { found: false };
+  const start = opening.index + opening[0].length;
+  const end = text.lastIndexOf(`</${opening[1]}>`);
+  if (end < start) return { found: false };
+  const inner = text.slice(start, end).trim();
+  return { found: true, value: parseJson(inner) ?? inner };
 }
 
 function contentText(record: Record<string, unknown>): string {
@@ -552,6 +565,17 @@ function contentText(record: Record<string, unknown>): string {
     .filter((item): item is Record<string, unknown> => item?.type === 'text' && typeof item.text === 'string')
     .map((item) => item.text as string)
     .join('\n');
+}
+
+function plaudListItems(payload: unknown): unknown[] {
+  if (Array.isArray(payload)) return payload;
+  const record = asRecord(payload);
+  if (record) {
+    for (const key of ['data', 'files', 'items', 'results', 'records', 'recordings']) {
+      if (Array.isArray(record[key])) return record[key] as unknown[];
+    }
+  }
+  throw new UnexpectedShapeError('Plaud list_files returned a response in an unknown shape');
 }
 
 function extractList(payload: unknown): unknown[] {

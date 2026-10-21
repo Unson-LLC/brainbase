@@ -2,6 +2,12 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
+## 0.46.1 candidate — npm公開前
+
+- Plaud MCP 0.3.12+ の `untrusted-user-data` ラッパーを `payloadOf` で展開する。list の未知形状は空同期にせず失敗し、`listRevision` が 2 未満のときは 30 日分の再一覧を一度だけ行う（#856）。
+- `@modelcontextprotocol/sdk` と `hono` を npm audit 対応の版へ更新する（#857）。
+- これらは公開候補の記録であり、consumer検証、npm公開、registry readback、本番反映は未確認である。
+
 ## 0.46.0 candidate — npm公開前
 
 - Canonical Taskの作成と監査の原子性を追加interfaceで提供する。`CanonicalTaskRepository.createWithAudit`（任意）、`CanonicalTaskAuditRepository.supportsTransactionClient`、`upsertAuditLog(entry, { client })`。両能力が揃う場合だけ同一DBトランザクションを使い、監査失敗時はTask INSERTをrollbackして `task_audit_unavailable` を返す。既存構成の挙動は変えない。
