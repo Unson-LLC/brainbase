@@ -7,7 +7,7 @@
 | 変更・操作 | 実行する検証 | 副作用 |
 | --- | --- | --- |
 | パッケージ関連のPull Request（`develop`または`main`向け） | Node 22の`npm test -- --maxWorkers=4`（Vitestの完全収集）とbuild、Node 20の代表統合スイート | deployなし |
-| パッケージ関連のPull Requestの正式release検証 | GitHub-hosted UbuntuのNode 22で、immutableなPR headと実在するPR branch remoteを対象に`npm run release:validate`（build、完全テスト、production依存監査、pack、consumer smoke）を実行 | npm公開・deployなし。proofとtarballを短期artifactとして保存 |
+| パッケージ関連のPull Requestの正式release検証 | 組織のself-hosted runnerのNode 22で、immutableなPR headと実在するPR branch remoteを対象に`npm run release:validate`（build、完全テスト、production依存監査、pack、consumer smoke）を実行 | npm公開・deployなし。proofとtarballを短期artifactとして保存 |
 | ドキュメント関連のPull Request | `docs:check`、公開契約テスト、VitePress build、built HTML smoke | deployなし |
 | `develop`への公開サイト入力のpush | 上記ドキュメント検証のみ（deployなし） | なし |
 | `main`への公開サイト入力のpush | 上記ドキュメント検証、Cloudflare Pages deploy、`docs:verify-public`による公開後readback | 公開サイトのみ |
@@ -26,7 +26,7 @@
 
 | ジョブ名 | 目的 | ワークフロー | ランナー |
 | --- | --- | --- | --- |
-| PR headの正式release検証（`formal-release-validate-linux`） | pull requestのimmutableなheadでbuild、完全テスト、production依存監査、pack、consumer smokeを実行し、proofとtarballを短期保存する | `.github/workflows/test.yml`（`pull_request`） | `ubuntu-latest` |
+| PR headの正式release検証（`formal-release-validate-linux`） | pull requestのimmutableなheadでbuild、完全テスト、production依存監査、pack、consumer smokeを実行し、proofとtarballを短期保存する | `.github/workflows/test.yml`（`pull_request`） | `[self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]` |
 
 ## 手動実行
 
@@ -42,7 +42,7 @@ CIの通常jobは、組織のself-hosted runnerである次のラベルだけで
 runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
 ```
 
-例外は、PR headの正式release検証を隔離する`test.yml`の`formal-release-validate-linux` jobと、npm provenance（sigstoreの来歴署名）を付けて公開する`npm-publish.yml`のpublish jobで、いずれも`runs-on: ubuntu-latest`で実行する。npmはprovenanceをGitHub-hosted runnerからしか受け付けず、self-hosted runnerでは`npm publish --provenance`が`E422 Unsupported GitHub Actions runner environment: "self-hosted"`で拒否される（2026-10-15、0.41.5のrun 38713407935）。正式release検証jobは`contents: read`だけを持ち、Secrets・OIDC・npm公開・deploy権限を持たない。publish jobはpull requestのheadを読まず、`main`とvalidate jobが作ったartifactだけを使う。
+例外は、npm provenance（sigstoreの来歴署名）を付けて公開する`npm-publish.yml`のpublish jobだけで、`runs-on: ubuntu-latest`で実行する。npmはprovenanceをGitHub-hosted runnerからしか受け付けず、self-hosted runnerでは`npm publish --provenance`が`E422 Unsupported GitHub Actions runner environment: "self-hosted"`で拒否される（2026-10-15、0.41.5のrun 38713407935）。`test.yml`の`formal-release-validate-linux`は同じself-hostedラベルで実行する。このjobは`contents: read`だけを持ち、Secrets・OIDC・npm公開・deploy権限を持たない。publish jobはpull requestのheadを読まず、`main`とvalidate jobが作ったartifactだけを使う。
 
 EVO-X2は1台の機械に複数のrunnerを載せている。Vitestは既定で機械のコア数に合わせて並列数を決めるため、複数のjobが同時に動くと機械が飽和し、変更と無関係なテストが5秒の上限で落ちる（2026-10-15、PR #786で3回続けて発生）。`test.yml`のテストは`--maxWorkers=4`で並列数を固定する。手元で全テストを3本同時に走らせると、既定では各9〜10件が時間切れになり、4に固定すると全件合格した。
 

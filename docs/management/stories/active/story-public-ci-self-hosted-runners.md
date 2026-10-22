@@ -13,14 +13,14 @@ started_at: 2026-10-15
 ## Problem Frame
 
 - status: valid
-- statement: 公開リポジトリ Unson-LLC/brainbase のパッケージテストは EVO-X2 の self-hosted runner で実行し、pull request headを固定した正式release検証だけを GitHub-hosted runner の ubuntu-latest で実行している。
+- statement: 公開リポジトリ Unson-LLC/brainbase のパッケージテストと、pull request headを固定した正式release検証は EVO-X2 の self-hosted runner で実行する。npm-publish.yml の publish job だけを GitHub-hosted runner の ubuntu-latest で実行する。
 - reason: 佐藤さん 2026-10-15 08:53 の指示は、CIを self-hosted runner だけで回すことである。公開リポジトリの fork pull request が組織の self-hosted runner に載ると、未信頼のコードが組織のマシンで動く。
 
 ## Constraints
 
 ### self-hosted-only
 - kind: invariant
-- statement: test.yml の build-and-test job、npm-publish.yml・docs-cloudflare-pages.yml・public-message-promotion.yml の各job（npm-publish.yml の publish jobを除く）は runs-on に self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2 だけを使う。test.yml の formal-release-validate-linux は、pull request headを固定し、contents: read のみで、公開・配備なしの正式release検証例外として ubuntu-latest を使う。npm-publish.yml の publish jobも ubuntu-latest で実行する（npm が self-hosted runner からの provenance を拒否するため。2026-10-15 佐藤さんの判断）。
+- statement: test.yml の build-and-test と formal-release-validate-linux、npm-publish.yml の validate、docs-cloudflare-pages.yml、public-message-promotion.yml の各jobは runs-on に self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2 だけを使う。formal-release-validate-linux は pull request headを固定し、contents: read のみで、公開・配備なしの正式release検証を同じ self-hosted ラベルで実行する。npm-publish.yml の publish jobだけ ubuntu-latest を使う（npm が self-hosted runner からの provenance を拒否するため。2026-10-15 佐藤さんの判断）。
 
 ### same-repo-head
 - kind: invariant
@@ -33,7 +33,7 @@ started_at: 2026-10-15
 ## Options
 
 ### option-pin-self-hosted
-- summary: パッケージテストと公開CIを EVO-X2 の self-hosted ラベルへ置き、fork の pull_request は job の if で止める。formal-release-validate-linux は pull request head固定・contents: readのみの GitHub-hosted 検証例外とし、npm-publish の checkout と secret の位置は変えない。
+- summary: パッケージテスト、正式release検証、公開CIを EVO-X2 の self-hosted ラベルへ置き、fork の pull_request は job の if で止める。formal-release-validate-linux は pull request head固定・contents: readのみで同じ self-hosted ラベルを使い、npm-publish の checkout と secret の位置は変えない。publish job だけ ubuntu-latest を残す。
 - action: fix
 - addresses: self-hosted-only, same-repo-head, npm-secret-boundary
 - violates:
@@ -48,7 +48,7 @@ started_at: 2026-10-15
 
 ## Acceptance Criteria
 
-- [x] AC-001: `.github/workflows/test.yml`、`npm-publish.yml`、`docs-cloudflare-pages.yml`、`public-message-promotion.yml` の各job（`test.yml` の `formal-release-validate-linux` と `npm-publish.yml` の publish jobを除く）が `runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]` であり、`ubuntu-latest` を含まない。`formal-release-validate-linux` は pull request head固定・contents: readのみ・公開なしの正式検証例外として `ubuntu-latest` を使う。
+- [x] AC-001: `.github/workflows/test.yml`、`npm-publish.yml`、`docs-cloudflare-pages.yml`、`public-message-promotion.yml` の各job（`npm-publish.yml` の publish jobを除く）が `runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]` であり、`ubuntu-latest` を含まない。`formal-release-validate-linux` は pull request head固定・contents: readのみ・公開なしの正式検証として同じ self-hosted ラベルを使う。
 - [x] AC-002: `pull_request` で動くjobは `github.event.pull_request.head.repo.full_name == github.repository` のときだけ実行する。`docs-cloudflare-pages.yml` の push と workflow_dispatch は同じ条件で止まらない。
 - [x] AC-003: どのworkflowも `pull_request_target` で pull request head を checkout しない。`npm-publish.yml` は develop への push と `workflow_dispatch` だけで起動し、develop と push された commit または develop の祖先だけを checkout する。npm token は使わず、`id-token: write` は publish job だけが持つ。
 - [x] AC-004: `docs/guides/github-actions-cicd-operating-guide.md` がランナーラベル、fork pull request の止め方、`author_association` を OR にしない理由、npm-publish の checkout 境界を書く。
