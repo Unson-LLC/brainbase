@@ -2,6 +2,12 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
+## 0.47.0 candidate — npm公開前
+
+- `canonical_tasks` に bot task queue 用の nullable 列 `claimed_by`・`claimed_until`・`status_detail` を追加する（`ADD COLUMN IF NOT EXISTS`）。`status_detail` の CHECK（started / waiting_for_review / blocked / NULL）、claim の組の CHECK、部分索引 `canonical_tasks_claimed_by_until_idx` を含む。状態の5値 CHECK と GRANT は変えない（#861）。
+- 公開CIの正式リリース検証ジョブ `formal-release-validate-linux` を self-hosted runner で実行する。npm publish ジョブは `ubuntu-latest` のまま（#860）。
+- これらは公開候補の記録であり、consumer検証、npm公開、registry readback、本番反映は未確認である。
+
 ## 0.46.1 candidate — npm公開前
 
 - Plaud MCP 0.3.12+ の `untrusted-user-data` ラッパーを `payloadOf` で展開する。list の未知形状は空同期にせず失敗し、`listRevision` が 2 未満のときは 30 日分の再一覧を一度だけ行う（#856）。
