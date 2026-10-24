@@ -73,10 +73,9 @@ SSOT: local
 - blocking reasons: none
 
 ### Changed files
-- M	.vibepro/config.json
 - A	.vibepro/pr/story-ledger-record-kind-screen-v1/pr-body.md
 - A	.vibepro/pr/story-ledger-record-kind-screen-v1/pr-prepare.json
-- A	.vibepro/pr/story-ledger-record-kind-screen-v1/traceability.json
+- M	.vibepro/pr/story-ledger-record-kind-screen-v1/traceability.json
 - A	.vibepro/pr/story-ledger-record-kind-screen-v1/verification-evidence.json
 - A	.vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/build.json
 - A	.vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/build.log
