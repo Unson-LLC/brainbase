@@ -26,6 +26,18 @@ jobs:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: local-ci-test-only
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     strategy:
       fail-fast: false
       matrix:
@@ -57,6 +69,10 @@ jobs:
       # oversubscribe it and unrelated tests hit the 5s timeout.
       - name: Run complete package suite on Node 22
         if: ${{ matrix.suite == 'complete' }}
+        env:
+          CANONICAL_TASK_PG_TEST_ADMIN_URL: postgresql://postgres:local-ci-test-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgres
+          CANONICAL_TASK_PG_TEST_URL: postgresql://postgres:local-ci-test-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgres
+          CANONICAL_TASK_PG_TEST_REQUIRED: '1'
         run: npm test -- --maxWorkers=4
 
       - name: Run representative integration suite on Node 20
