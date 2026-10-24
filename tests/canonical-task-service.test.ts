@@ -1,8 +1,250 @@
 import { describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 import { CanonicalTaskError, CanonicalTaskService } from '../src/canonical-task-service.js';
 import { createCanonicalTaskServiceFixture } from './fixtures/canonical-task-service.js';
 
 describe('CanonicalTaskService', () => {
+  it.each([undefined, 'work', 'request', 'requirement'] as const)('creates record_kind %s and defaults omitted kind to work', async (recordKind) => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const task = await fixture.service.createTask({ title: 'Kind', ...(recordKind === undefined ? {} : { record_kind: recordKind }) }, fixture.context('kind'));
+    expect(task.record_kind).toBe(recordKind ?? 'work');
+    expect(fixture.tasks.get(task.id)?.record_kind).toBe(recordKind ?? 'work');
+  });
+
+  it.each([null, '', 'unknown', 'WORK', 0, false, [], {}])('rejects invalid create record_kind %j without a row or audit', async (recordKind) => {
+    const fixture = createCanonicalTaskServiceFixture();
+    await expect(fixture.service.createTask({ title: 'Invalid', record_kind: recordKind } as never, fixture.context('invalid-kind')))
+      .rejects.toMatchObject({ code: 'validation_error', status: 400, details: { field: 'record_kind' } });
+    expect(fixture.tasks.size).toBe(0);
+    expect(fixture.auditEntries).toEqual([]);
+  });
+
+  it('preserves historical work create fingerprints and distinguishes ledger creates', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const historicalPayload = {
+      title: 'Replay', description: null, priority: 'medium', assignee_person_id: null,
+      due_at: null, waiting_on: null, review_at: null, source_refs: [], project_codes: [],
+    };
+    const historicalFingerprint = createHash('sha256').update(JSON.stringify(Object.fromEntries(
+      Object.entries(historicalPayload).sort(([a], [b]) => a.localeCompare(b)),
+    ))).digest('hex');
+    const created = await fixture.service.createTask({ title: 'Replay' }, fixture.context('replay-kind'));
+    expect(fixture.tasks.get(created.id)?.payload_fingerprint).toBe(historicalFingerprint);
+    await expect(fixture.service.createTask({ title: 'Replay', record_kind: 'work' }, fixture.context('replay-kind')))
+      .resolves.toMatchObject({ id: created.id, record_kind: 'work' });
+    await expect(fixture.service.createTask({ title: 'Replay', record_kind: 'request' }, fixture.context('replay-kind')))
+      .rejects.toMatchObject({ code: 'idempotency_conflict', status: 409 });
+  });
+
+  it('update rejects record_kind as an unsupported field', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const task = await fixture.service.createTask({ title: 'Immutable kind' }, fixture.context('immutable-kind'));
+    for (const field of ['record_kind', 'ledger_attributes', 'ledger_agreed']) {
+      await expect(fixture.service.updateTask(task.id, { [field]: 'requirement' }, task.version, fixture.context()))
+        .rejects.toMatchObject({ code: 'validation_error', status: 400, details: { fields: [field] } });
+    }
+    expect(fixture.tasks.get(task.id)).toMatchObject({ record_kind: 'work', version: 1 });
+  });
+
+  it.each(['request', 'requirement'] as const)('refuses general updates and transitions of %s before operation coordination', async (recordKind) => {
+    const execute = vi.fn(async (request) => request.run());
+    const fixture = createCanonicalTaskServiceFixture({ operationRepository: { execute } });
+    const task = await fixture.service.createTask({ title: 'Ledger', record_kind: recordKind }, fixture.context('ledger-preflight'));
+    execute.mockClear();
+    const expected = { code: 'ledger_record_use_ledger_api', status: 409 };
+    await expect(fixture.service.updateTask(task.id, { title: 'Blocked' }, 1, fixture.context())).rejects.toMatchObject(expected);
+    await expect(fixture.service.updateTask(task.id, { source_refs_append: [{ type: 'manual', id: 'blocked' }] }, 1, fixture.context()))
+      .rejects.toMatchObject(expected);
+    await expect(fixture.service.transitionTask(task.id, 'in_progress', 1, fixture.context())).rejects.toMatchObject(expected);
+    expect(execute).not.toHaveBeenCalled();
+    expect(fixture.tasks.get(task.id)).toMatchObject({ record_kind: recordKind, version: 1, title: 'Ledger' });
+  });
+
+  it.each(['run', 'recover'] as const)('refuses a request discovered after work preflight in the operation %s callback', async (callback) => {
+    const execute = vi.fn(async (request) => request.run());
+    const fixture = createCanonicalTaskServiceFixture({ operationRepository: { execute } });
+    const task = await fixture.service.createTask({ title: 'Work at preflight' }, fixture.context('race-create'));
+    const get = vi.spyOn(fixture.repository, 'get');
+    const update = vi.spyOn(fixture.repository, 'update');
+    execute.mockClear();
+    execute.mockImplementation(async (request) => {
+      expect(get).toHaveBeenCalledTimes(1);
+      Object.assign(fixture.tasks.get(task.id)!, {
+        record_kind: 'request',
+        // Recovery must reject even an apparently already-applied command.
+        ...(callback === 'recover' ? {
+          version: 2, _last_operation_key: request.operationKey, _last_operation_fingerprint: request.fingerprint,
+        } : {}),
+      });
+      if (callback === 'recover') return (await request.recover()).result;
+      return request.run();
+    });
+    await expect(fixture.service.updateTask(task.id, { title: 'Blocked' }, 1, fixture.context()))
+      .rejects.toMatchObject({ code: 'ledger_record_use_ledger_api', status: 409 });
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(update).not.toHaveBeenCalled();
+    expect(fixture.tasks.get(task.id)?.title).toBe('Work at preflight');
+    expect(fixture.auditEntries).toHaveLength(1);
+  });
+
+  it.each([false, true])('refuses ledger deletes before coordination (prepared delete: %s)', async (prepared) => {
+    const execute = vi.fn(async (request) => request.run());
+    const executePreparedDelete = vi.fn();
+    const fixture = createCanonicalTaskServiceFixture({ operationRepository: {
+      execute, ...(prepared ? { executePreparedDelete } : {}),
+    } });
+    for (const kind of ['request', 'requirement'] as const) {
+      const task = await fixture.service.createTask({ title: 'Ledger', record_kind: kind }, fixture.context(`delete-${kind}`));
+      execute.mockClear();
+      await expect(fixture.service.deleteTask(task.id, 1, fixture.context(`blocked-${kind}`)))
+        .rejects.toMatchObject({ code: 'ledger_record_use_ledger_api', status: 409 });
+      expect(execute).not.toHaveBeenCalled();
+      expect(executePreparedDelete).not.toHaveBeenCalled();
+      expect(fixture.tasks.get(task.id)).toMatchObject({ record_kind: kind, version: 1 });
+    }
+    expect(fixture.auditEntries).toHaveLength(2);
+  });
+
+  it('keeps general mutations for older repositories that omit record_kind and refuses null or future kinds', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const created = await fixture.service.createTask({ title: 'Older repository' }, fixture.context('older-create'));
+    const { record_kind: _recordKind, ...olderRow } = fixture.tasks.get(created.id)!;
+    fixture.tasks.set(created.id, olderRow);
+    expect(fixture.tasks.get(created.id)).not.toHaveProperty('record_kind');
+    await expect(fixture.service.updateTask(created.id, { title: 'Updated' }, 1, fixture.context('older-update')))
+      .resolves.toMatchObject({ title: 'Updated', version: 2 });
+    expect(fixture.tasks.get(created.id)).toMatchObject({ title: 'Updated', version: 2 });
+    expect(fixture.tasks.get(created.id)).not.toHaveProperty('record_kind');
+    await expect(fixture.service.transitionTask(created.id, 'in_progress', 2, fixture.context('older-transition')))
+      .resolves.toMatchObject({ status: 'in_progress', version: 3 });
+    expect(fixture.tasks.get(created.id)).toMatchObject({ status: 'in_progress', version: 3 });
+    expect(fixture.tasks.get(created.id)).not.toHaveProperty('record_kind');
+    await expect(fixture.service.deleteTask(created.id, 3, fixture.context('older-delete')))
+      .resolves.toMatchObject({ deleted: true });
+    expect(fixture.tasks.has(created.id)).toBe(false);
+
+    for (const kind of [null, 'future-kind']) {
+      const task = await fixture.service.createTask({ title: 'Invalid stored kind' }, fixture.context(`invalid-create-${kind}`));
+      Object.assign(fixture.tasks.get(task.id)!, { record_kind: kind });
+      const before = structuredClone(fixture.tasks.get(task.id));
+      const expected = { status: 409, code: 'ledger_record_use_ledger_api' };
+      await expect(fixture.service.updateTask(task.id, { title: 'Blocked' }, 1, fixture.context(`invalid-update-${kind}`)))
+        .rejects.toMatchObject(expected);
+      expect(fixture.tasks.get(task.id)).toEqual(before);
+      await expect(fixture.service.transitionTask(task.id, 'in_progress', 1, fixture.context(`invalid-transition-${kind}`)))
+        .rejects.toMatchObject(expected);
+      expect(fixture.tasks.get(task.id)).toEqual(before);
+      await expect(fixture.service.deleteTask(task.id, 1, fixture.context(`invalid-delete-${kind}`)))
+        .rejects.toMatchObject(expected);
+      expect(fixture.tasks.get(task.id)).toEqual(before);
+    }
+  });
+
+  it.each([undefined, null, 'future-kind'])('reports unknown persisted record_kind %s without silently using work', async (recordKind) => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const task = await fixture.service.createTask({ title: 'Unknown kind' }, fixture.context('unknown-kind'));
+    Object.assign(fixture.tasks.get(task.id)!, {
+      record_kind: recordKind,
+      normalization_warnings: [{ code: 'legacy_warning', message: 'Keep this warning' }],
+    });
+    const read = await fixture.service.getTask(task.id, fixture.context());
+    expect(read.record_kind).toBe('unknown');
+    expect(read.normalization_warnings).toEqual([
+      { code: 'legacy_warning', message: 'Keep this warning' },
+      expect.objectContaining({ code: 'unknown_record_kind' }),
+    ]);
+    for (const page of [
+      await fixture.service.listTasks({}, fixture.context()),
+      await fixture.service.searchTasks({ q: 'Unknown' }, fixture.context()),
+    ]) {
+      expect(page.items[0].record_kind).toBe('unknown');
+      expect(page.warnings).toContain('unknown_record_kind');
+    }
+  });
+
+  it('accepts create-only ledger metadata and rejects invalid shapes or non-requirement agreement', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    for (const agreed of [null, false, true]) {
+      const task = await fixture.service.createTask({
+        title: 'Requirement', record_kind: 'requirement', ledger_attributes: { basis: 'User decision' }, ledger_agreed: agreed,
+      }, fixture.context(`metadata-${agreed}`));
+      expect(task).toMatchObject({
+        record_kind: 'requirement', ledger_attributes: { basis: 'User decision' },
+        ...(agreed === null ? {} : { ledger_agreed: agreed }),
+      });
+      if (agreed === null) expect(fixture.tasks.get(task.id)).not.toHaveProperty('ledger_agreed');
+    }
+    for (const invalid of [
+      { ledger_attributes: [] }, { ledger_attributes: 'text' },
+      { record_kind: 'requirement', ledger_agreed: 'true' },
+      { record_kind: 'work', ledger_agreed: false }, { record_kind: 'request', ledger_agreed: true },
+    ]) {
+      await expect(fixture.service.createTask({ title: 'Invalid metadata', ...invalid } as never, fixture.context('invalid-metadata')))
+        .rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    }
+    expect(fixture.tasks.size).toBe(3);
+  });
+
+  it.each([undefined, 'work'] as const)('rejects ledger metadata on work creates (%s), including explicit NULL', async (recordKind) => {
+    const fixture = createCanonicalTaskServiceFixture();
+    for (const [field, values] of [
+      ['ledger_attributes', [{ basis: 'Decision' }, null]],
+      ['ledger_agreed', [true, false, null]],
+    ] as const) {
+      for (const value of values) {
+        await expect(fixture.service.createTask({ title: 'Work', record_kind: recordKind, [field]: value }, fixture.context('work-metadata')))
+          .rejects.toMatchObject({ code: 'validation_error', status: 400, details: { field } });
+      }
+    }
+    expect(fixture.tasks.size).toBe(0);
+    expect(fixture.auditEntries).toEqual([]);
+  });
+
+  it('caps ledger_attributes at 64 KiB of UTF-8 JSON and 128 object/array levels', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const atSizeLimit = { text: 'x'.repeat(64 * 1024 - Buffer.byteLength(JSON.stringify({ text: '' }))) };
+    const atDepthLimit: Record<string, unknown> = {};
+    let cursor = atDepthLimit;
+    for (let depth = 1; depth < 128; depth += 1) {
+      const next = {};
+      cursor.nested = next;
+      cursor = next;
+    }
+    const atArrayDepthLimit: Record<string, unknown> = { nested: [] };
+    let arrayCursor = atArrayDepthLimit.nested as unknown[];
+    // The root object plus 127 arrays makes 128 container levels.
+    for (let depth = 2; depth < 128; depth += 1) {
+      const next: unknown[] = [];
+      arrayCursor.push(next);
+      arrayCursor = next;
+    }
+    for (const [index, attributes] of [atSizeLimit, atDepthLimit, atArrayDepthLimit].entries()) {
+      await expect(fixture.service.createTask({ title: 'Bounded', record_kind: 'request', ledger_attributes: attributes },
+        fixture.context(`bounded-${index}`))).resolves.toMatchObject({ ledger_attributes: attributes });
+    }
+    cursor.nested = {};
+    arrayCursor.push([]);
+    for (const attributes of [atDepthLimit, atArrayDepthLimit, { text: `${atSizeLimit.text}x` }, { text: 'あ'.repeat(22000) }]) {
+      await expect(fixture.service.createTask({ title: 'Excessive', record_kind: 'request', ledger_attributes: attributes },
+        fixture.context('excessive-metadata'))).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    }
+    expect(fixture.tasks.size).toBe(3);
+    expect(fixture.auditEntries).toHaveLength(3);
+  });
+
+  it('rejects non-JSON and cyclic ledger_attributes before persistence', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const cyclic: Record<string, unknown> = {};
+    cyclic.self = cyclic;
+    for (const attributes of [cyclic, { value: undefined }, { value: NaN }, { value: 1n }, { value: new Date() }]) {
+      await expect(fixture.service.createTask({ title: 'Invalid JSON', record_kind: 'request', ledger_attributes: attributes },
+        fixture.context('invalid-json'))).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    }
+    expect(fixture.tasks.size).toBe(0);
+    expect(fixture.auditEntries).toEqual([]);
+  });
+
   it('keeps task behavior policy-neutral and uses injected repository, audit, clock, and base URL', async () => {
     const fixture = createCanonicalTaskServiceFixture();
     const created = await fixture.service.createTask({
