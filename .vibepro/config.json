@@ -903,8 +903,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-ledger-record-kind-screen-v1",
+        "title": "要件台帳 Spec 1: record_kind（kernel 側）",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-ci-impact-based-verification"
+    "current_story_id": "story-ledger-record-kind-screen-v1"
   }
 }
