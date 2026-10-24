@@ -389,6 +389,24 @@ export function workspaceLoadingCard(doc, { title = 'ロード中' } = {}) {
   return card;
 }
 
+/** Friendly, centered loading stage for a whole screen. */
+export function workspaceLoadingStage(doc, { title = '準備しています', detail, slow = false } = {}) {
+  const stage = el(doc, 'div', {
+    className: `bb-ws-loading-stage${slow ? ' is-slow' : ''}`,
+    // No aria-busy here: on a live region it would hold back the announcement (Codex r2).
+    attrs: { role: 'status', 'aria-live': 'polite' },
+  });
+  const mark = el(doc, 'span', { className: 'bb-ws-loading-stage-mark', attrs: { 'aria-hidden': 'true' } });
+  // The dots sit inside the aria-hidden mark, so they need no aria-hidden of their own.
+  for (let index = 0; index < 3; index += 1) {
+    mark.append(el(doc, 'span', { className: 'bb-ws-loading-stage-dot' }));
+  }
+  stage.append(mark, el(doc, 'p', { className: 'bb-ws-loading-stage-title', text: title }));
+  const detailText = typeof detail === 'string' && detail.trim() ? detail : (slow ? '時間がかかっています。このままお待ちください。' : null);
+  if (detailText) stage.append(el(doc, 'p', { className: 'bb-ws-loading-stage-detail', text: detailText }));
+  return stage;
+}
+
 /** Fade right then remove. Calling the returned cancel function restores a reusable card. */
 export function workspaceDismissNotification(card, onDismiss) {
   const remove = () => {

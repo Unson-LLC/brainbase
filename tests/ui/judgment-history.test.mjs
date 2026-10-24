@@ -1195,7 +1195,7 @@ describe('judgment history UI', () => {
     view.dispose();
   });
 
-  it('shows placeholder rows and an in-page loading line instead of a floating card, and disables reload', async () => {
+  it('shows the centered loading stage instead of placeholder rows or a floating card, and hides reload until rows arrive', async () => {
     const root = new FakeElement('div');
     const rail = new FakeElement('aside');
     let resolve;
@@ -1212,20 +1212,22 @@ describe('judgment history UI', () => {
     });
     const loading = view.load();
     await Promise.resolve();
-    expect(collectText(root)).toContain('判断の履歴を読み込んでいます…');
+    expect(collectText(root)).toContain('判断の履歴を準備しています');
+    expect(collectText(root)).not.toContain('判断の履歴を読み込んでいます…');
     expect(collectText(root)).not.toContain('ロード中');
     expect(findAll(root, node => node.className?.split(' ').includes('bb-ws-loading-card'))).toHaveLength(0);
-    expect(findAll(root, (node) => node.className?.includes('bb-jh-skeleton-row'))).toHaveLength(5);
-    expect(findAll(root, (node) => node.attributes.role === 'columnheader').map((node) => node.textContent)).toEqual(['日時', '行った判断', '使った参照', '判断したAI']);
-    const reload = findAll(root, (node) => node.attributes['data-action'] === 'reload')[0];
-    expect(reload.attributes.disabled).toBe('');
+    expect(findAll(root, node => node.className?.split(' ').includes('bb-ws-loading-stage'))).toHaveLength(1);
+    expect(findAll(root, (node) => node.className?.includes('bb-jh-skeleton-row'))).toHaveLength(0);
+    expect(findAll(root, (node) => node.attributes.role === 'columnheader')).toHaveLength(0);
+    expect(findAll(root, (node) => node.attributes['data-action'] === 'reload')).toHaveLength(0);
     expect(collectText(root)).not.toContain('確認しています…');
     expect(collectText(root)).not.toMatch(/0件/u);
     expect(collectText(root)).not.toContain('この期間の判断履歴はありません。');
     expect(collectText(root)).not.toContain('この期間に取得できた判断履歴はありません。');
-    expect(collectText(rail)).toContain('読み込み中の行も、届いたものから選べます。');
+    expect(collectText(rail)).toContain('行を選ぶと、使った参照と行った判断を確認できます。');
     resolve({ ok: true, status: 200, json: async () => normalHome([normalRecord()]) });
     await loading;
+    expect(findAll(root, node => node.className?.split(' ').includes('bb-ws-loading-stage'))).toHaveLength(0);
     expect(findAll(root, (node) => node.className?.includes('bb-jh-skeleton-row'))).toHaveLength(0);
     view.dispose();
   });
@@ -1270,7 +1272,47 @@ describe('judgment history UI', () => {
     view.dispose();
   });
 
-  it('keeps the in-page loading line after the slow delay with reduced motion', async () => {
+  it('keeps the full screen, not the centered stage, when a filter hides every arrived row while still loading', async () => {
+    const root = new FakeElement('div');
+    let resolve;
+    const pending = new Promise((settle) => { resolve = settle; });
+    // Rows have arrived, but they fall outside the default past30days window, so
+    // the period filter hides them all. The full-screen stage must not return.
+    const arrived = normalHome([normalRecord({ record_id: 'old-1', recorded_at: '2026-01-01T09:00:00.000Z' })], {
+      status: 'partial',
+      coverage: {
+        complete: false,
+        total: null,
+        sources: [
+          { entrypoint: 'codex', status: 'partial', reason: null },
+          { entrypoint: 'claude_code', status: 'pending', reason: null },
+        ],
+      },
+    });
+    const view = createJudgmentHistoryUI({
+      root,
+      document: new FakeDocument(),
+      autoLoad: false,
+      skeletonDelayMs: 60000,
+      slowDelayMs: 60000,
+      fetcher: async (_path, _init, context) => {
+        context.report(arrived);
+        return pending;
+      },
+      now: OWNER_NOW,
+    });
+    const loading = view.load();
+    await Promise.resolve();
+    expect(findAll(root, (node) => node.className?.split(' ').includes('bb-ws-loading-stage'))).toHaveLength(0);
+    expect(collectText(root)).not.toContain('判断の履歴を準備しています');
+    // The screen still renders as busy while the rest of the history loads.
+    expect(findAll(root, (node) => node.attributes['aria-busy'] === 'true')).not.toHaveLength(0);
+    resolve({ ok: true, status: 200, json: async () => arrived });
+    await loading;
+    view.dispose();
+  });
+
+  it('shows the slow detail on the centered stage after the slow delay with reduced motion', async () => {
     const root = new FakeElement('div');
     const previous = globalThis.matchMedia;
     globalThis.matchMedia = (query) => ({ matches: String(query).includes('prefers-reduced-motion'), media: query });
@@ -1287,11 +1329,38 @@ describe('judgment history UI', () => {
     });
     const loading = view.load();
     await Promise.resolve();
-    expect(collectText(root)).toContain('判断の履歴を読み込んでいます…');
-    expect(findAll(root, (node) => node.className?.includes('is-reduced-motion'))).toHaveLength(1);
+    expect(collectText(root)).toContain('判断の履歴を準備しています');
+    expect(collectText(root)).toContain('時間がかかっています。このままお待ちください。');
+    const stage = findAll(root, (node) => node.className?.split(' ').includes('bb-ws-loading-stage'))[0];
+    expect(stage).toBeTruthy();
+    expect(stage.className).toContain('is-slow');
     resolve({ ok: false, status: 503 });
     await loading;
+    expect(findAll(root, (node) => node.className?.split(' ').includes('bb-ws-loading-stage'))).toHaveLength(0);
     globalThis.matchMedia = previous;
+    view.dispose();
+  });
+
+  it('removes the centered stage when the history load fails', async () => {
+    const root = new FakeElement('div');
+    let resolve;
+    const pending = new Promise((settle) => { resolve = settle; });
+    const view = createJudgmentHistoryUI({
+      root,
+      document: new FakeDocument(),
+      autoLoad: false,
+      skeletonDelayMs: 60000,
+      slowDelayMs: 60000,
+      fetcher: async () => pending,
+      now: OWNER_NOW,
+    });
+    const loading = view.load();
+    await Promise.resolve();
+    expect(findAll(root, (node) => node.className?.split(' ').includes('bb-ws-loading-stage'))).toHaveLength(1);
+    resolve({ ok: false, status: 503 });
+    await loading;
+    expect(findAll(root, (node) => node.className?.split(' ').includes('bb-ws-loading-stage'))).toHaveLength(0);
+    expect(findAll(root, (node) => node.className?.includes('bb-jh-banner'))).not.toHaveLength(0);
     view.dispose();
   });
 
@@ -1392,17 +1461,18 @@ describe('judgment history shared drawer and filter lifecycle', () => {
     });
     try {
       const first = view.load();
-      expect(collectText(root)).toContain('判断の履歴を読み込んでいます…');
+      expect(collectText(root)).toContain('判断の履歴を準備しています');
       pending.shift()({ ok: true, json: async () => normalHome([normalRecord()]) }); await first;
-      expect(collectText(root)).not.toContain('読み込んでいます');
+      expect(collectText(root)).not.toContain('準備しています');
       const retry = view.load(); view.render();
-      expect(collectText(root)).toContain('判断の履歴を読み込んでいます…');
+      expect(collectText(root)).toContain('判断の履歴を準備しています');
       pending.shift()({ ok: true, json: async () => normalHome([normalRecord()], {
         status: 'partial', coverage: { complete: false, sources: [{ entrypoint: 'mana', status: 'unavailable', reason: 'mana_not_connected' }] },
       }) }); await retry;
       view.render();
       vi.advanceTimersByTime(500);
       expect(findAll(root, node => node.classList?.contains('bb-ws-loading-card'))).toHaveLength(0);
+      expect(findAll(root, node => node.classList?.contains('bb-ws-loading-stage'))).toHaveLength(0);
       const cards = findAll(root, node => node.classList?.contains('bb-jh-banner'));
       expect(cards).toHaveLength(1);
       const details = findAll(cards[0], node => node.tagName === 'DETAILS')[0];

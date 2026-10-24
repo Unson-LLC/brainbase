@@ -21,6 +21,7 @@ import {
   workspacePageHeader,
   workspaceRailBlock,
   workspaceRailHead,
+  workspaceLoadingStage,
 } from './workspace-kit.js';
 
 export const JUDGMENT_HISTORY_UI_CONTRACT_VERSION = 'brainbase.judgment-history-ui.v1';
@@ -1860,6 +1861,14 @@ function skeletonRows(doc, count = 5) {
   }));
 }
 
+// Have any rows arrived in the raw payload, regardless of the active
+// period/query filter?  Used only while loading to decide the full-screen stage.
+function hasArrivedRows(arrived) {
+  if (!arrived) return false;
+  const list = arrived.mode === 'normal' ? arrived.records : arrived.items;
+  return Array.isArray(list) && list.length > 0;
+}
+
 function loadingLine(doc) {
   return makeWorkspaceElement(doc, 'p', {
     className: 'bb-jh-summary bb-jh-loading',
@@ -2391,11 +2400,14 @@ export function createJudgmentHistoryUI({
   function render() {
     if (state.disposed) return;
     updateNotifications(state.phase === 'loading');
-    if (state.phase === 'loading' && !state.showSkeleton && !state.arrived) {
-      // Before the placeholder rows appear, say in the page what is happening.
+    if (state.phase === 'loading' && !hasArrivedRows(state.arrived)) {
+      // Before any rows arrive, say in the page what is happening. Decide this
+      // from the raw arrived payload, not a filtered aggregate: once rows have
+      // arrived, a period/query filter that hides them must not bring back the
+      // full-screen stage, and we skip a second aggregation per render.
       const pending = makeWorkspaceElement(doc, 'div', { className: 'bb-jh', attrs: { 'aria-busy': 'true' } });
       if (!notificationRoot) pending.append(notifications);
-      pending.append(loadingLine(doc));
+      pending.append(workspaceLoadingStage(doc, { title: '判断の履歴を準備しています', slow: state.slow }));
       root.replaceChildren(pending);
       return;
     }
