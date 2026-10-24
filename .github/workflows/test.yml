@@ -71,6 +71,7 @@ jobs:
         if: ${{ matrix.suite == 'complete' }}
         env:
           CANONICAL_TASK_PG_TEST_ADMIN_URL: postgresql://postgres:local-ci-test-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgres
+          CANONICAL_TASK_PG_TEST_URL: postgresql://postgres:local-ci-test-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgres
           CANONICAL_TASK_PG_TEST_REQUIRED: '1'
         run: npm test -- --maxWorkers=4
 
