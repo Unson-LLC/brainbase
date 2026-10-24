@@ -21,6 +21,7 @@ function responseForBody(body) {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -136,6 +137,177 @@ describe('createGraphEmbeddingProvider', () => {
     expect(malformedError.code).toBe('embedding_provider_invalid_response');
     expect(malformedError.message).not.toContain(apiKey);
     expect(malformedError.message).not.toContain('another text');
+  });
+
+  it('includes the Gemini HTTP 402 status and message from text()', async () => {
+    const body = {
+      error: {
+        code: 402,
+        message: 'Your prepayment credits are depleted. Please go to AI Studio ...',
+        status: 'RESOURCE_EXHAUSTED',
+      },
+    };
+    const fetchImpl = vi.fn(async () => ({
+      ok: false,
+      status: 402,
+      json: async () => body,
+      text: async () => JSON.stringify(body),
+    }));
+    const provider = createGraphEmbeddingProvider({ apiKey: 'test-secret-key-0000', fetchImpl });
+
+    const error = await provider.embed(['hello'], 'query').catch(value => value);
+
+    expect(error).toBeInstanceOf(GraphEmbeddingProviderError);
+    expect(error.code).toBe('embedding_provider_http_error');
+    expect(error.status).toBe(402);
+    expect(error.upstreamStatus).toBe('RESOURCE_EXHAUSTED');
+    expect(error.upstreamMessage).toContain('Your prepayment credits are depleted');
+    expect(error.detail).toContain('HTTP 402');
+    expect(error.message).toContain('HTTP 402');
+    expect(error.message).toContain('RESOURCE_EXHAUSTED');
+  });
+
+  it('includes the Gemini HTTP 402 status and message from json() only', async () => {
+    const body = {
+      error: {
+        code: 402,
+        message: 'Your prepayment credits are depleted. Please go to AI Studio ...',
+        status: 'RESOURCE_EXHAUSTED',
+      },
+    };
+    const fetchImpl = vi.fn(async () => ({ ok: false, status: 402, json: async () => body }));
+    const provider = createGraphEmbeddingProvider({ apiKey: 'test-secret-key-0000', fetchImpl });
+
+    const error = await provider.embed(['hello'], 'query').catch(value => value);
+
+    expect(error.code).toBe('embedding_provider_http_error');
+    expect(error.status).toBe(402);
+    expect(error.upstreamStatus).toBe('RESOURCE_EXHAUSTED');
+    expect(error.upstreamMessage).toContain('Your prepayment credits are depleted');
+    expect(error.detail).toContain('HTTP 402 RESOURCE_EXHAUSTED');
+  });
+
+  it('redacts keys, headers, query parameters, and echoed API keys from upstream details', async () => {
+    const apiKey = 'test-secret-key-0000';
+    const fakeKey = `AIza${'A'.repeat(35)}`;
+    const message = [
+      `leaked key ${fakeKey}`,
+      'x-goog-api-key: secretvalue123',
+      'Authorization: Bearer abc.def.ghi',
+      'https://x.googleapis.com/v1?key=zzz123&alt=json',
+      `configured ${apiKey}`,
+    ].join(' ');
+    const fetchImpl = vi.fn(async () => ({
+      ok: false,
+      status: 402,
+      text: async () => JSON.stringify({ error: { status: 'INVALID_ARGUMENT', message } }),
+    }));
+    const provider = createGraphEmbeddingProvider({ apiKey, fetchImpl });
+
+    const error = await provider.embed(['redaction'], 'query').catch(value => value);
+    const exposed = [error.message, error.detail, error.upstreamMessage].join('\n');
+
+    for (const secret of [fakeKey, 'secretvalue123', 'abc.def.ghi', 'zzz123', apiKey]) {
+      expect(exposed).not.toContain(secret);
+    }
+    expect(exposed).toContain('[REDACTED]');
+  });
+
+  it('truncates upstream details and does not leak a key fragment at the boundary', async () => {
+    const message = `${'a'.repeat(480)}AIza${'B'.repeat(12)}${'c'.repeat(5000)}`;
+    const fetchImpl = vi.fn(async () => ({
+      ok: false,
+      status: 402,
+      text: async () => JSON.stringify({ error: { status: 'RESOURCE_EXHAUSTED', message } }),
+    }));
+    const provider = createGraphEmbeddingProvider({ apiKey: 'test-secret-key-0000', fetchImpl });
+
+    const error = await provider.embed(['truncation'], 'query').catch(value => value);
+
+    expect(error.detail.length).toBeLessThanOrEqual(501);
+    expect(error.upstreamMessage.length).toBeLessThanOrEqual(501);
+    expect(error.message.length).toBeLessThanOrEqual(600);
+    expect(error.detail).not.toMatch(/AIza[0-9A-Za-z_-]{4,}/);
+    expect(error.upstreamMessage).not.toMatch(/AIza[0-9A-Za-z_-]{4,}/);
+  });
+
+  it('uses a non-JSON error body as the upstream message', async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: false,
+      status: 402,
+      text: async () => '<html><body>Payment Required</body></html>',
+    }));
+    const provider = createGraphEmbeddingProvider({ apiKey: 'test-secret-key-0000', fetchImpl });
+
+    const error = await provider.embed(['plain body'], 'query').catch(value => value);
+
+    expect(error.code).toBe('embedding_provider_http_error');
+    expect(error.detail).toContain('Payment Required');
+    expect(error.upstreamStatus).toBeUndefined();
+  });
+
+  it('keeps the original message when reading the error body fails', async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: false,
+      status: 500,
+      json: async () => ({}),
+      text: async () => {
+        throw new Error('read failed');
+      },
+    }));
+    const provider = createGraphEmbeddingProvider({ apiKey: 'test-secret-key-0000', fetchImpl });
+
+    const error = await provider.embed(['read failure'], 'query').catch(value => value);
+
+    expect(error.code).toBe('embedding_provider_http_error');
+    expect(error.status).toBe(500);
+    expect(error.message).toBe('Embedding provider request failed (HTTP 500)');
+    expect(error.detail).toBeUndefined();
+    expect(error.upstreamStatus).toBeUndefined();
+    expect(error.upstreamMessage).toBeUndefined();
+  });
+
+  it('keeps the original message when reading the error body never resolves', async () => {
+    vi.useFakeTimers();
+    const fetchImpl = vi.fn(async () => ({
+      ok: false,
+      status: 503,
+      json: async () => ({}),
+      text: () => new Promise<string>(() => {}),
+    }));
+    const provider = createGraphEmbeddingProvider({ apiKey: 'test-secret-key-0000', fetchImpl });
+
+    const pending = provider.embed(['never resolves'], 'query').catch(value => value);
+    await vi.advanceTimersByTimeAsync(2_000);
+    const error = await pending;
+
+    expect(error.code).toBe('embedding_provider_http_error');
+    expect(error.status).toBe(503);
+    expect(error.message).toBe('Embedding provider request failed (HTTP 503)');
+    expect(error.detail).toBeUndefined();
+  });
+
+  it('does not reflect fetch headers or the configured API key echoed by the body', async () => {
+    const apiKey = 'test-secret-key-0000';
+    const fetchImpl = vi.fn(async (_url, options) => ({
+      ok: false,
+      status: 403,
+      text: async () => JSON.stringify({
+        error: {
+          status: 'PERMISSION_DENIED',
+          message: `x-goog-api-key: ${options.headers['x-goog-api-key']} key=${options.headers['x-goog-api-key']}`,
+        },
+      }),
+    }));
+    const provider = createGraphEmbeddingProvider({ apiKey, fetchImpl });
+
+    const error = await provider.embed(['headers'], 'query').catch(value => value);
+
+    expect(error.code).toBe('embedding_provider_http_error');
+    expect(error.message).not.toContain(apiKey);
+    expect(error.detail).not.toContain(apiKey);
+    expect(error.upstreamMessage).not.toContain(apiKey);
+    expect(error.detail).toContain('[REDACTED]');
   });
 
   it('normalizes and rejects non-finite, wrong-dimension, and zero vectors', async () => {
