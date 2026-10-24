@@ -21,8 +21,8 @@ import { CanonicalTaskPostgresRepository } from '../src/canonical-task-postgres.
  * With CANONICAL_TASK_PG_TEST_ADMIN_URL, creates and drops a disposable local
  * database. The older CANONICAL_TASK_PG_TEST_URL instead isolates a schema in
  * an already disposable test database. Without either URL the suite is skipped
- * (the package CI does not provision PostgreSQL yet), unless
- * CANONICAL_TASK_PG_TEST_REQUIRED=1 requires a URL and fails without one.
+ * unless CANONICAL_TASK_PG_TEST_REQUIRED=1 requires a URL and fails without one.
+ * The package CI sets a URL and CANONICAL_TASK_PG_TEST_REQUIRED=1.
  *
  *   CANONICAL_TASK_PG_TEST_URL=postgres://... npm run test:canonical-task-postgres
  */

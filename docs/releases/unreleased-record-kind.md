@@ -55,10 +55,12 @@ suites. `npm run test:canonical-task-postgres` accepts
 or the existing `CANONICAL_TASK_PG_TEST_URL` for an isolated schema in a
 disposable local database. Missing configuration skips the suite (unchanged
 behaviour); `CANONICAL_TASK_PG_TEST_REQUIRED=1` fails when neither URL is set.
-The package CI does not provision PostgreSQL yet; adding a
-PostgreSQL service to `.github/workflows/test.yml` is a separate workflow change
-(this PR does not change workflows). The PostgreSQL suite was run on a
-disposable box-local PostgreSQL.
+The package CI (`.github/workflows/test.yml`, Node 22 complete suite)
+provisions PostgreSQL and sets `CANONICAL_TASK_PG_TEST_ADMIN_URL`,
+`CANONICAL_TASK_PG_TEST_URL` and `CANONICAL_TASK_PG_TEST_REQUIRED=1`, so the
+suite runs there and fails instead of skipping if the URL goes missing. Other
+`npm test` callers without PostgreSQL (for example release validation) still
+skip it. The PostgreSQL suite was run on a disposable box-local PostgreSQL.
 
 Rollback: before any ledger rows exist, the kernel can be reverted to 0.47.0
 and the host migration operator may drop the two constraints and partial index.
