@@ -5,6 +5,7 @@ import {
   FOUNDATION_OVERVIEW_CONTRACT_VERSION,
   createFoundationOverview,
   renderFoundationCollectionOverview,
+  renderFoundationOverview,
   normalizeFoundationCatalog,
 } from '../../ui/foundation-overview.js';
 
@@ -412,19 +413,57 @@ test('collection deduplicates exact shared revisions, preserves conflicting dige
 });
 
 
+test('standalone loading shows one centered stage instead of the floating card', () => {
+  const root = new FakeElement('main');
+  renderFoundationOverview(root, { status: 'loading' }, { document: doc, scopeId: 'project-alpha' });
+  assert.equal(byClass(root, 'bb-ws-loading-stage').length, 1);
+  assert.equal(byClass(root, 'bb-ws-loading-card').length, 0);
+  assert.match(textOf(root), /目的と現状を準備しています/);
+});
+
+test('ready and failed standalone renders show no loading stage', () => {
+  const root = new FakeElement('main');
+  renderFoundationOverview(root, { status: 'ready', catalog: normalizeFoundationCatalog(catalog(), 'project-alpha') }, {
+    document: doc, scopeId: 'project-alpha',
+  });
+  assert.equal(byClass(root, 'bb-ws-loading-stage').length, 0);
+  assert.equal(byClass(root, 'bb-ws-loading-card').length, 0);
+
+  const failed = new FakeElement('main');
+  renderFoundationOverview(failed, { status: 'error', error: { message: '目的を確認できません' } }, {
+    document: doc, scopeId: 'project-alpha', callbacks: { load() {} },
+  });
+  assert.equal(byClass(failed, 'bb-ws-loading-stage').length, 0);
+  assert.equal(byClass(failed, 'bb-ws-loading-card').length, 0);
+  assert.match(textOf(failed), /目的を確認できません/);
+});
+
+test('standalone collection with every source loading shows one stage and no floating card', () => {
+  const root = new FakeElement('main');
+  const sources = ['Alpha', 'Beta'].map(label => ({ label, scopeId: label, state: { status: 'loading' } }));
+  renderFoundationCollectionOverview(root, sources, { document: doc });
+  assert.equal(byClass(root, 'bb-ws-loading-stage').length, 1);
+  assert.equal(byClass(root, 'bb-ws-loading-card').length, 0);
+  assert.match(textOf(root), /目的と現状を準備しています/);
+});
+
 test('collection reports one pending state without per-project loading bands or false empty sections', () => {
   const root = doc.createElement('div');
   const loading = [];
   const sources = ['Alpha', 'Beta'].map(label => ({ label, scopeId: label, state: { status: 'loading' } }));
   renderFoundationCollectionOverview(root, sources, { document: doc, onLoading: value => loading.push(value) });
   assert.deepEqual(loading, [true]);
-  assert.equal(root.children.length, 0, 'pending catalogs have no empty-state content');
+  assert.equal(byClass(root, 'bb-ws-loading-stage').length, 1, 'pending catalogs share one centered stage');
+  assert.equal(byClass(root, 'bb-ws-loading-card').length, 0);
+  assert.doesNotMatch(textOf(root), /登録された目的がありません|取得済みの範囲/);
   sources[0].state = { status: 'ready', catalog: catalog({ scopeId: 'Alpha' }) };
   renderFoundationCollectionOverview(root, sources, { document: doc, onLoading: value => loading.push(value) });
   assert.equal(loading.at(-1), true, 'one slow scope keeps the aggregate loading state');
+  assert.equal(byClass(root, 'bb-ws-loading-stage').length, 0, 'ready content keeps today\'s aggregate loading signal');
   sources[1].state = { status: 'error', error: { message: 'catalog unavailable' } };
   renderFoundationCollectionOverview(root, sources, { document: doc, onLoading: value => loading.push(value) });
   assert.equal(loading.at(-1), false);
+  assert.equal(byClass(root, 'bb-ws-loading-stage').length, 0);
   assert.match(textOf(root), /catalog unavailable/);
   assert.doesNotMatch(textOf(root), /取得済みの範囲|読み込んでいます/);
 });

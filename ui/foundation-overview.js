@@ -14,7 +14,7 @@ import {
   workspaceNotice,
   workspacePageHeader,
   workspaceSectionTitle,
-  workspaceHelp, workspaceDialog, workspaceDisclosure, workspaceErrorCard, workspaceLoadingCard, workspaceDismissNotification,
+  workspaceHelp, workspaceDialog, workspaceDisclosure, workspaceErrorCard, workspaceLoadingCard, workspaceLoadingStage, workspaceDismissNotification,
 } from './workspace-kit.js';
 
 export const FOUNDATION_OVERVIEW_CONTRACT_VERSION = 'foundation-overview.v1';
@@ -920,7 +920,11 @@ export function renderFoundationOverview(root, state, {
     else surface.append(workspaceErrorCard(doc, notice));
   };
   if (state.status === 'loading') {
-    root.append(surface); renderLoadingState(doc, root, viewState, true, onLoading); return surface;
+    surface.append(workspaceLoadingStage(doc, { title: '目的と現状を準備しています' }));
+    root.append(surface);
+    if (onLoading) onLoading(true);
+    else renderLoadingState(doc, root, viewState, false);
+    return surface;
   }
   if (state.status !== 'ready') {
     notify({ title: '取得失敗', message: `${state.error?.message ?? '目的・哲学・世界モデルを確認できません。'} 登録なし・0件として表示していません。`, onRetry: callbacks.load });
@@ -1002,7 +1006,14 @@ export function renderFoundationCollectionOverview(root, sources, {
     });
     root.append(mount);
   }
-  renderLoadingState(doc, root, viewState, sources.some(source => source.state.status === 'loading'), onLoading);
+  const loading = sources.some(source => source.state.status === 'loading');
+  if (loading && ready === 0) {
+    if (onLoading) onLoading(true);
+    else renderLoadingState(doc, root, viewState, false);
+    root.append(workspaceLoadingStage(doc, { title: '目的と現状を準備しています' }));
+  } else {
+    renderLoadingState(doc, root, viewState, loading, onLoading);
+  }
   return root;
 }
 
