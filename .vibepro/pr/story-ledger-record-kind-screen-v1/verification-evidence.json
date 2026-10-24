@@ -1,0 +1,1049 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-ledger-record-kind-screen-v1",
+  "updated_at": "2026-10-24T10:42:56.928Z",
+  "runtime_identity": {
+    "schema_version": "0.2.0",
+    "collected_at": "2026-10-24T10:42:56.895Z",
+    "mode": "normal",
+    "source_kind": "npm_package",
+    "test_context": null,
+    "package": {
+      "name": "vibepro",
+      "version": "0.2.0-beta.34",
+      "exact_version": "0.2.0-beta.34",
+      "root": "/home/box/.local/lib/node_modules/vibepro"
+    },
+    "cli": {
+      "entrypoint": "/home/box/.local/lib/node_modules/vibepro/bin/vibepro.js",
+      "invoked_as": "/home/box/.local/bin/vibepro",
+      "runtime_module": "/home/box/.local/lib/node_modules/vibepro/src/runtime-info.js"
+    },
+    "release_manifest": {
+      "status": "valid",
+      "manifest": {
+        "schema_version": "0.1.0",
+        "package": {
+          "name": "vibepro",
+          "version": "0.2.0-beta.34",
+          "package_json_sha256": "63f42ef6e7ed01f31ad569eb59a7a25dc30a4c84d2713b8f3e279ebf40a7d8ff",
+          "entrypoint": "bin/vibepro.js"
+        },
+        "source_git": {
+          "commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+          "origin_url": "https://github.com/Unson-LLC/vibepro",
+          "origin_main_commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+          "origin_main_relation": "same",
+          "dirty": false
+        }
+      },
+      "errors": []
+    },
+    "source_git": {
+      "is_git_repo": false,
+      "commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro",
+      "origin_main_commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+      "origin_main_relation": "published",
+      "dirty": false,
+      "dirty_summary": []
+    },
+    "identity_digest": "b44cefd5f8c3cc7e5283c6aeb1499732b647653b36c3bf98664a2c0f2926a484",
+    "integrity": {
+      "status": "trusted",
+      "code": null,
+      "purpose": "evidence_generation",
+      "reasons": [
+        "manifested immutable npm runtime"
+      ]
+    }
+  },
+  "warnings": [
+    {
+      "id": "verification_run_counts_not_parsed",
+      "command_name": "verify run",
+      "reason": "the command exited 0 but no test counts could be parsed from its output; the record proves the command did not fail, not how much it checked"
+    }
+  ],
+  "commands": [
+    {
+      "kind": "integration",
+      "status": "pass",
+      "command": "npx vitest run tests/canonical-task-postgres-service.integration.test.ts",
+      "summary": "vibepro verify run executed the integration command: exit_code=0, duration_ms=1044, status=pass computed from the exit code | agent summary: box-local disposable PostgreSQL 17: schema upgrade, CHECKs, atomic ledger guards",
+      "artifact": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/integration.json",
+      "artifact_check": {
+        "status": "verified",
+        "format": "generic_status",
+        "artifact_outcome": "pass",
+        "reason": "generic_status artifact outcome matches the claimed status (status=pass)"
+      },
+      "artifact_observed_values": {
+        "status": "pass",
+        "exit_code": "0",
+        "evidence_source": "runner_direct",
+        "run_artifact": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/integration.json",
+        "run_log": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/integration.log",
+        "duration_ms": "1044",
+        "started_at": "2026-10-24T10:42:55.841Z",
+        "finished_at": "2026-10-24T10:42:56.873Z",
+        "head_sha_before": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+        "head_sha_after": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+        "head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+        "worktree_sampled": "true",
+        "worktree_sampling_complete": "true",
+        "worktree_sha256_before": "3f789ec2cf6cd6ba7934ce534208c5a2b5b02370006c025ca88cd2b0a78f78fd",
+        "worktree_sha256_after": "3f789ec2cf6cd6ba7934ce534208c5a2b5b02370006c025ca88cd2b0a78f78fd",
+        "stdout_sha256": "0c4e0dc1fa49f245675767fb62e0120e3dbd908d2fdca8c2056494738999f1a6",
+        "output_sha256": "0c4e0dc1fa49f245675767fb62e0120e3dbd908d2fdca8c2056494738999f1a6",
+        "output_bytes": "207",
+        "log_truncated": "false",
+        "output_metrics": "none",
+        "timed_out": "false",
+        "output_limit_exceeded": "false",
+        "external_kill_signal": "none",
+        "timeout_ms": "900000",
+        "max_output_bytes": "67108864",
+        "harness_env_removed": "none",
+        "runner_node_version": "v22.23.4",
+        "tree_mutated_during_run": "false",
+        "head_moved_during_run": "false",
+        "worktree_changed_during_run": "false",
+        "worktree_status_sha256_before": "90304b7b6a419f8e3b5079303e9f6db006c39f7f0fa99f4fb32c7c2d1814e7f6",
+        "worktree_status_sha256_after": "90304b7b6a419f8e3b5079303e9f6db006c39f7f0fa99f4fb32c7c2d1814e7f6",
+        "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "observation": {
+        "targets": [
+          "contracts/canonical-task/store-schema.sql",
+          "tests/canonical-task-postgres-service.integration.test.ts"
+        ],
+        "scenarios": [
+          "existing rows become work; ledger_agreed CHECK NOT VALID; idempotent reapply",
+          "concurrent kind change cannot let general UPDATE/DELETE touch a ledger row"
+        ],
+        "values": {
+          "status": "pass",
+          "exit_code": "0",
+          "evidence_source": "runner_direct",
+          "run_artifact": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/integration.json",
+          "run_log": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/integration.log",
+          "duration_ms": "1044",
+          "started_at": "2026-10-24T10:42:55.841Z",
+          "finished_at": "2026-10-24T10:42:56.873Z",
+          "head_sha_before": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+          "head_sha_after": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+          "head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+          "worktree_sampled": "true",
+          "worktree_sampling_complete": "true",
+          "worktree_sha256_before": "3f789ec2cf6cd6ba7934ce534208c5a2b5b02370006c025ca88cd2b0a78f78fd",
+          "worktree_sha256_after": "3f789ec2cf6cd6ba7934ce534208c5a2b5b02370006c025ca88cd2b0a78f78fd",
+          "stdout_sha256": "0c4e0dc1fa49f245675767fb62e0120e3dbd908d2fdca8c2056494738999f1a6",
+          "output_sha256": "0c4e0dc1fa49f245675767fb62e0120e3dbd908d2fdca8c2056494738999f1a6",
+          "output_bytes": "207",
+          "log_truncated": "false",
+          "output_metrics": "none",
+          "timed_out": "false",
+          "output_limit_exceeded": "false",
+          "external_kill_signal": "none",
+          "timeout_ms": "900000",
+          "max_output_bytes": "67108864",
+          "harness_env_removed": "none",
+          "runner_node_version": "v22.23.4",
+          "tree_mutated_during_run": "false",
+          "head_moved_during_run": "false",
+          "worktree_changed_during_run": "false",
+          "worktree_status_sha256_before": "90304b7b6a419f8e3b5079303e9f6db006c39f7f0fa99f4fb32c7c2d1814e7f6",
+          "worktree_status_sha256_after": "90304b7b6a419f8e3b5079303e9f6db006c39f7f0fa99f4fb32c7c2d1814e7f6",
+          "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "observation_check": {
+        "status": "recorded",
+        "reason": "observation states the inspected targets and what was observed"
+      },
+      "evidence_source": "runner_direct",
+      "computed_observation": {
+        "producer": "vibepro verify run",
+        "computed_keys": [
+          "status",
+          "evidence_source",
+          "run_artifact",
+          "run_log",
+          "exit_code",
+          "duration_ms",
+          "started_at",
+          "finished_at",
+          "head_sha_before",
+          "head_sha_after",
+          "head_sha",
+          "worktree_sampled",
+          "worktree_sampling_complete",
+          "worktree_sha256_before",
+          "worktree_sha256_after",
+          "stdout_sha256",
+          "output_sha256",
+          "output_bytes",
+          "log_truncated",
+          "output_metrics",
+          "timed_out",
+          "output_limit_exceeded",
+          "external_kill_signal",
+          "timeout_ms",
+          "max_output_bytes",
+          "harness_env_removed",
+          "runner_node_version",
+          "tree_mutated_during_run",
+          "head_moved_during_run",
+          "worktree_changed_during_run",
+          "worktree_status_sha256_before",
+          "worktree_status_sha256_after",
+          "worktree_diff_sha256_before",
+          "worktree_diff_sha256_after"
+        ],
+        "values": {
+          "status": "pass",
+          "evidence_source": "runner_direct",
+          "run_artifact": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/integration.json",
+          "run_log": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/integration.log",
+          "exit_code": "0",
+          "duration_ms": "1044",
+          "started_at": "2026-10-24T10:42:55.841Z",
+          "finished_at": "2026-10-24T10:42:56.873Z",
+          "head_sha_before": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+          "head_sha_after": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+          "head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+          "worktree_sampled": "true",
+          "worktree_sampling_complete": "true",
+          "worktree_sha256_before": "3f789ec2cf6cd6ba7934ce534208c5a2b5b02370006c025ca88cd2b0a78f78fd",
+          "worktree_sha256_after": "3f789ec2cf6cd6ba7934ce534208c5a2b5b02370006c025ca88cd2b0a78f78fd",
+          "stdout_sha256": "0c4e0dc1fa49f245675767fb62e0120e3dbd908d2fdca8c2056494738999f1a6",
+          "output_sha256": "0c4e0dc1fa49f245675767fb62e0120e3dbd908d2fdca8c2056494738999f1a6",
+          "output_bytes": "207",
+          "log_truncated": "false",
+          "output_metrics": "none",
+          "timed_out": "false",
+          "output_limit_exceeded": "false",
+          "external_kill_signal": "none",
+          "timeout_ms": "900000",
+          "max_output_bytes": "67108864",
+          "harness_env_removed": "none",
+          "runner_node_version": "v22.23.4",
+          "tree_mutated_during_run": "false",
+          "head_moved_during_run": "false",
+          "worktree_changed_during_run": "false",
+          "worktree_status_sha256_before": "90304b7b6a419f8e3b5079303e9f6db006c39f7f0fa99f4fb32c7c2d1814e7f6",
+          "worktree_status_sha256_after": "90304b7b6a419f8e3b5079303e9f6db006c39f7f0fa99f4fb32c7c2d1814e7f6",
+          "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "artifact_derived_keys": [
+          "status",
+          "exit_code",
+          "evidence_source",
+          "run_artifact",
+          "run_log",
+          "duration_ms",
+          "started_at",
+          "finished_at",
+          "head_sha_before",
+          "head_sha_after",
+          "head_sha",
+          "worktree_sampled",
+          "worktree_sampling_complete",
+          "worktree_sha256_before",
+          "worktree_sha256_after",
+          "stdout_sha256",
+          "output_sha256",
+          "output_bytes",
+          "log_truncated",
+          "output_metrics",
+          "timed_out",
+          "output_limit_exceeded",
+          "external_kill_signal",
+          "timeout_ms",
+          "max_output_bytes",
+          "harness_env_removed",
+          "runner_node_version",
+          "tree_mutated_during_run",
+          "head_moved_during_run",
+          "worktree_changed_during_run",
+          "worktree_status_sha256_before",
+          "worktree_status_sha256_after",
+          "worktree_diff_sha256_before",
+          "worktree_diff_sha256_after"
+        ],
+        "run_artifact": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/integration.json",
+        "run_log": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/integration.log",
+        "tree_mutated_during_run": false,
+        "head_moved_during_run": false,
+        "worktree_changed_during_run": false,
+        "worktree_sampled": true,
+        "worktree_sampling_complete": true,
+        "output_metrics": "none"
+      },
+      "executed_at": "2026-10-24T10:42:56.873Z",
+      "git_context": {
+        "head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+        "current_branch": "cursor/ledger-kernel-record-kind",
+        "dirty": false,
+        "raw_dirty": true,
+        "status_fingerprint_hash": "05b5c7222577a0865b348ed7949dcbb8345975d7107e09b5a711d95448b85848",
+        "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+        "fingerprint_scope": {
+          "user_excludes": [
+            ".vibepro/",
+            ".worktrees/vibepro/"
+          ]
+        },
+        "recorded_at": "2026-10-24T10:42:56.919Z"
+      },
+      "content_binding": {
+        "schema_version": "0.1.0",
+        "model": "vibepro-content-scoped-evidence-freshness-v1",
+        "mode": "content_surface",
+        "status": "recorded",
+        "reason": "content surface recorded for 2 file(s)",
+        "recorded_head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+        "surface_files": [
+          {
+            "path": "contracts/canonical-task/store-schema.sql",
+            "sha256": "ceaf546bf7047cc17ba314b4adb4b2afffbe600497d7c38cb56077d9bfc06ff2",
+            "size": 5515
+          },
+          {
+            "path": "tests/canonical-task-postgres-service.integration.test.ts",
+            "sha256": "350466d53eab9709b8532fffc06ed8165ca1806434ad1de31996babfb05dac0e",
+            "size": 31115
+          }
+        ],
+        "missing_files": [],
+        "surface_hash": "8285af75038e24c23a2697d50a0fb68afaf95ad032389dca32cefe402be11908"
+      },
+      "runtime_identity": {
+        "schema_version": "0.2.0",
+        "collected_at": "2026-10-24T10:42:56.895Z",
+        "mode": "normal",
+        "source_kind": "npm_package",
+        "test_context": null,
+        "package": {
+          "name": "vibepro",
+          "version": "0.2.0-beta.34",
+          "exact_version": "0.2.0-beta.34",
+          "root": "/home/box/.local/lib/node_modules/vibepro"
+        },
+        "cli": {
+          "entrypoint": "/home/box/.local/lib/node_modules/vibepro/bin/vibepro.js",
+          "invoked_as": "/home/box/.local/bin/vibepro",
+          "runtime_module": "/home/box/.local/lib/node_modules/vibepro/src/runtime-info.js"
+        },
+        "release_manifest": {
+          "status": "valid",
+          "manifest": {
+            "schema_version": "0.1.0",
+            "package": {
+              "name": "vibepro",
+              "version": "0.2.0-beta.34",
+              "package_json_sha256": "63f42ef6e7ed01f31ad569eb59a7a25dc30a4c84d2713b8f3e279ebf40a7d8ff",
+              "entrypoint": "bin/vibepro.js"
+            },
+            "source_git": {
+              "commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+              "origin_url": "https://github.com/Unson-LLC/vibepro",
+              "origin_main_commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+              "origin_main_relation": "same",
+              "dirty": false
+            }
+          },
+          "errors": []
+        },
+        "source_git": {
+          "is_git_repo": false,
+          "commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+          "branch": null,
+          "origin_url": "https://github.com/Unson-LLC/vibepro",
+          "origin_main_commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+          "origin_main_relation": "published",
+          "dirty": false,
+          "dirty_summary": []
+        },
+        "identity_digest": "b44cefd5f8c3cc7e5283c6aeb1499732b647653b36c3bf98664a2c0f2926a484",
+        "integrity": {
+          "status": "trusted",
+          "code": null,
+          "purpose": "evidence_generation",
+          "reasons": [
+            "manifested immutable npm runtime"
+          ]
+        }
+      },
+      "managed_worktree_context": null,
+      "warnings": [
+        {
+          "id": "verification_run_counts_not_parsed",
+          "command_name": "verify run",
+          "reason": "the command exited 0 but no test counts could be parsed from its output; the record proves the command did not fail, not how much it checked"
+        }
+      ]
+    },
+    {
+      "kind": "unit",
+      "status": "pass",
+      "command": "npx vitest run tests/canonical-task-service.test.ts tests/canonical-task-postgres.test.ts",
+      "summary": "vibepro verify run executed the unit command: exit_code=0, duration_ms=752, status=pass computed from the exit code | agent summary: kernel record_kind: vitest Service and PostgreSQL adapter unit suites",
+      "artifact": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/unit.json",
+      "artifact_check": {
+        "status": "verified",
+        "format": "generic_status",
+        "artifact_outcome": "pass",
+        "reason": "generic_status artifact outcome matches the claimed status (status=pass)"
+      },
+      "artifact_observed_values": {
+        "status": "pass",
+        "exit_code": "0",
+        "evidence_source": "runner_direct",
+        "run_artifact": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/unit.json",
+        "run_log": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/unit.log",
+        "duration_ms": "752",
+        "started_at": "2026-10-24T10:42:54.921Z",
+        "finished_at": "2026-10-24T10:42:55.662Z",
+        "head_sha_before": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+        "head_sha_after": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+        "head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+        "worktree_sampled": "true",
+        "worktree_sampling_complete": "true",
+        "worktree_sha256_before": "10791a2897c42fe9f64787ec22f1de5dd9155c90ea6dde65a781dac3b6ce7865",
+        "worktree_sha256_after": "10791a2897c42fe9f64787ec22f1de5dd9155c90ea6dde65a781dac3b6ce7865",
+        "stdout_sha256": "9d5cd2e0dedf51bef69e2e69fffafcd1c0b8ff28eef77eaa97bd0aefbb4ef0a9",
+        "output_sha256": "9d5cd2e0dedf51bef69e2e69fffafcd1c0b8ff28eef77eaa97bd0aefbb4ef0a9",
+        "output_bytes": "206",
+        "log_truncated": "false",
+        "output_metrics": "none",
+        "timed_out": "false",
+        "output_limit_exceeded": "false",
+        "external_kill_signal": "none",
+        "timeout_ms": "900000",
+        "max_output_bytes": "67108864",
+        "harness_env_removed": "none",
+        "runner_node_version": "v22.23.4",
+        "tree_mutated_during_run": "false",
+        "head_moved_during_run": "false",
+        "worktree_changed_during_run": "false",
+        "worktree_status_sha256_before": "e2a86cce26d44219936dfa3ed2b6e4ebcb49a78efe3b4418a0f9167eebb46e1d",
+        "worktree_status_sha256_after": "e2a86cce26d44219936dfa3ed2b6e4ebcb49a78efe3b4418a0f9167eebb46e1d",
+        "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "observation": {
+        "targets": [
+          "src/canonical-task-service.ts",
+          "src/canonical-task-postgres.ts",
+          "tests/canonical-task-service.test.ts",
+          "tests/canonical-task-postgres.test.ts"
+        ],
+        "scenarios": [
+          "create accepts record_kind work/request/requirement; invalid and NULL rejected; ledger metadata create-only",
+          "general update/transition/delete of ledger rows refused with 409 ledger_record_use_ledger_api",
+          "older repositories without record_kind keep general mutations; null/future kinds refused"
+        ],
+        "values": {
+          "status": "pass",
+          "exit_code": "0",
+          "evidence_source": "runner_direct",
+          "run_artifact": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/unit.json",
+          "run_log": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/unit.log",
+          "duration_ms": "752",
+          "started_at": "2026-10-24T10:42:54.921Z",
+          "finished_at": "2026-10-24T10:42:55.662Z",
+          "head_sha_before": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+          "head_sha_after": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+          "head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+          "worktree_sampled": "true",
+          "worktree_sampling_complete": "true",
+          "worktree_sha256_before": "10791a2897c42fe9f64787ec22f1de5dd9155c90ea6dde65a781dac3b6ce7865",
+          "worktree_sha256_after": "10791a2897c42fe9f64787ec22f1de5dd9155c90ea6dde65a781dac3b6ce7865",
+          "stdout_sha256": "9d5cd2e0dedf51bef69e2e69fffafcd1c0b8ff28eef77eaa97bd0aefbb4ef0a9",
+          "output_sha256": "9d5cd2e0dedf51bef69e2e69fffafcd1c0b8ff28eef77eaa97bd0aefbb4ef0a9",
+          "output_bytes": "206",
+          "log_truncated": "false",
+          "output_metrics": "none",
+          "timed_out": "false",
+          "output_limit_exceeded": "false",
+          "external_kill_signal": "none",
+          "timeout_ms": "900000",
+          "max_output_bytes": "67108864",
+          "harness_env_removed": "none",
+          "runner_node_version": "v22.23.4",
+          "tree_mutated_during_run": "false",
+          "head_moved_during_run": "false",
+          "worktree_changed_during_run": "false",
+          "worktree_status_sha256_before": "e2a86cce26d44219936dfa3ed2b6e4ebcb49a78efe3b4418a0f9167eebb46e1d",
+          "worktree_status_sha256_after": "e2a86cce26d44219936dfa3ed2b6e4ebcb49a78efe3b4418a0f9167eebb46e1d",
+          "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "observation_check": {
+        "status": "recorded",
+        "reason": "observation states the inspected targets and what was observed"
+      },
+      "evidence_source": "runner_direct",
+      "computed_observation": {
+        "producer": "vibepro verify run",
+        "computed_keys": [
+          "status",
+          "evidence_source",
+          "run_artifact",
+          "run_log",
+          "exit_code",
+          "duration_ms",
+          "started_at",
+          "finished_at",
+          "head_sha_before",
+          "head_sha_after",
+          "head_sha",
+          "worktree_sampled",
+          "worktree_sampling_complete",
+          "worktree_sha256_before",
+          "worktree_sha256_after",
+          "stdout_sha256",
+          "output_sha256",
+          "output_bytes",
+          "log_truncated",
+          "output_metrics",
+          "timed_out",
+          "output_limit_exceeded",
+          "external_kill_signal",
+          "timeout_ms",
+          "max_output_bytes",
+          "harness_env_removed",
+          "runner_node_version",
+          "tree_mutated_during_run",
+          "head_moved_during_run",
+          "worktree_changed_during_run",
+          "worktree_status_sha256_before",
+          "worktree_status_sha256_after",
+          "worktree_diff_sha256_before",
+          "worktree_diff_sha256_after"
+        ],
+        "values": {
+          "status": "pass",
+          "evidence_source": "runner_direct",
+          "run_artifact": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/unit.json",
+          "run_log": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/unit.log",
+          "exit_code": "0",
+          "duration_ms": "752",
+          "started_at": "2026-10-24T10:42:54.921Z",
+          "finished_at": "2026-10-24T10:42:55.662Z",
+          "head_sha_before": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+          "head_sha_after": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+          "head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+          "worktree_sampled": "true",
+          "worktree_sampling_complete": "true",
+          "worktree_sha256_before": "10791a2897c42fe9f64787ec22f1de5dd9155c90ea6dde65a781dac3b6ce7865",
+          "worktree_sha256_after": "10791a2897c42fe9f64787ec22f1de5dd9155c90ea6dde65a781dac3b6ce7865",
+          "stdout_sha256": "9d5cd2e0dedf51bef69e2e69fffafcd1c0b8ff28eef77eaa97bd0aefbb4ef0a9",
+          "output_sha256": "9d5cd2e0dedf51bef69e2e69fffafcd1c0b8ff28eef77eaa97bd0aefbb4ef0a9",
+          "output_bytes": "206",
+          "log_truncated": "false",
+          "output_metrics": "none",
+          "timed_out": "false",
+          "output_limit_exceeded": "false",
+          "external_kill_signal": "none",
+          "timeout_ms": "900000",
+          "max_output_bytes": "67108864",
+          "harness_env_removed": "none",
+          "runner_node_version": "v22.23.4",
+          "tree_mutated_during_run": "false",
+          "head_moved_during_run": "false",
+          "worktree_changed_during_run": "false",
+          "worktree_status_sha256_before": "e2a86cce26d44219936dfa3ed2b6e4ebcb49a78efe3b4418a0f9167eebb46e1d",
+          "worktree_status_sha256_after": "e2a86cce26d44219936dfa3ed2b6e4ebcb49a78efe3b4418a0f9167eebb46e1d",
+          "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "artifact_derived_keys": [
+          "status",
+          "exit_code",
+          "evidence_source",
+          "run_artifact",
+          "run_log",
+          "duration_ms",
+          "started_at",
+          "finished_at",
+          "head_sha_before",
+          "head_sha_after",
+          "head_sha",
+          "worktree_sampled",
+          "worktree_sampling_complete",
+          "worktree_sha256_before",
+          "worktree_sha256_after",
+          "stdout_sha256",
+          "output_sha256",
+          "output_bytes",
+          "log_truncated",
+          "output_metrics",
+          "timed_out",
+          "output_limit_exceeded",
+          "external_kill_signal",
+          "timeout_ms",
+          "max_output_bytes",
+          "harness_env_removed",
+          "runner_node_version",
+          "tree_mutated_during_run",
+          "head_moved_during_run",
+          "worktree_changed_during_run",
+          "worktree_status_sha256_before",
+          "worktree_status_sha256_after",
+          "worktree_diff_sha256_before",
+          "worktree_diff_sha256_after"
+        ],
+        "run_artifact": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/unit.json",
+        "run_log": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/unit.log",
+        "tree_mutated_during_run": false,
+        "head_moved_during_run": false,
+        "worktree_changed_during_run": false,
+        "worktree_sampled": true,
+        "worktree_sampling_complete": true,
+        "output_metrics": "none"
+      },
+      "executed_at": "2026-10-24T10:42:55.662Z",
+      "git_context": {
+        "head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+        "current_branch": "cursor/ledger-kernel-record-kind",
+        "dirty": false,
+        "raw_dirty": true,
+        "status_fingerprint_hash": "c188d85676211bb8f59664b754890e9fb6744c4fcda721712f822e0cf54772ef",
+        "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+        "fingerprint_scope": {
+          "user_excludes": [
+            ".vibepro/",
+            ".worktrees/vibepro/"
+          ]
+        },
+        "recorded_at": "2026-10-24T10:42:55.707Z"
+      },
+      "content_binding": {
+        "schema_version": "0.1.0",
+        "model": "vibepro-content-scoped-evidence-freshness-v1",
+        "mode": "content_surface",
+        "status": "recorded",
+        "reason": "content surface recorded for 4 file(s)",
+        "recorded_head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+        "surface_files": [
+          {
+            "path": "src/canonical-task-postgres.ts",
+            "sha256": "6f7317a3377773d65dad901b3c8dd528a65974aafcd626e9a43dbd46a60ad6f3",
+            "size": 31277
+          },
+          {
+            "path": "src/canonical-task-service.ts",
+            "sha256": "ff87cd76a5b47817e1c40404ad2220d0da1b329576283192d87d4ede1b3b5390",
+            "size": 73699
+          },
+          {
+            "path": "tests/canonical-task-postgres.test.ts",
+            "sha256": "eba45ed3f578e5d53d41fe0f42e0f7feb3af2f147fbc53a1470557b21f2ff035",
+            "size": 15335
+          },
+          {
+            "path": "tests/canonical-task-service.test.ts",
+            "sha256": "e1db1577b4f74151e0e27891542a49d6c39ad6a408bdf3bc19c5c33873873ae4",
+            "size": 41666
+          }
+        ],
+        "missing_files": [],
+        "surface_hash": "d1ec79e96163d2edf30053831bb9a8243b5a09020a53788c924f1589ebaae4d4"
+      },
+      "runtime_identity": {
+        "schema_version": "0.2.0",
+        "collected_at": "2026-10-24T10:42:55.685Z",
+        "mode": "normal",
+        "source_kind": "npm_package",
+        "test_context": null,
+        "package": {
+          "name": "vibepro",
+          "version": "0.2.0-beta.34",
+          "exact_version": "0.2.0-beta.34",
+          "root": "/home/box/.local/lib/node_modules/vibepro"
+        },
+        "cli": {
+          "entrypoint": "/home/box/.local/lib/node_modules/vibepro/bin/vibepro.js",
+          "invoked_as": "/home/box/.local/bin/vibepro",
+          "runtime_module": "/home/box/.local/lib/node_modules/vibepro/src/runtime-info.js"
+        },
+        "release_manifest": {
+          "status": "valid",
+          "manifest": {
+            "schema_version": "0.1.0",
+            "package": {
+              "name": "vibepro",
+              "version": "0.2.0-beta.34",
+              "package_json_sha256": "63f42ef6e7ed01f31ad569eb59a7a25dc30a4c84d2713b8f3e279ebf40a7d8ff",
+              "entrypoint": "bin/vibepro.js"
+            },
+            "source_git": {
+              "commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+              "origin_url": "https://github.com/Unson-LLC/vibepro",
+              "origin_main_commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+              "origin_main_relation": "same",
+              "dirty": false
+            }
+          },
+          "errors": []
+        },
+        "source_git": {
+          "is_git_repo": false,
+          "commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+          "branch": null,
+          "origin_url": "https://github.com/Unson-LLC/vibepro",
+          "origin_main_commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+          "origin_main_relation": "published",
+          "dirty": false,
+          "dirty_summary": []
+        },
+        "identity_digest": "b44cefd5f8c3cc7e5283c6aeb1499732b647653b36c3bf98664a2c0f2926a484",
+        "integrity": {
+          "status": "trusted",
+          "code": null,
+          "purpose": "evidence_generation",
+          "reasons": [
+            "manifested immutable npm runtime"
+          ]
+        }
+      },
+      "managed_worktree_context": null,
+      "warnings": [
+        {
+          "id": "verification_run_counts_not_parsed",
+          "command_name": "verify run",
+          "reason": "the command exited 0 but no test counts could be parsed from its output; the record proves the command did not fail, not how much it checked"
+        }
+      ]
+    },
+    {
+      "kind": "build",
+      "status": "pass",
+      "command": "npm run build",
+      "summary": "vibepro verify run executed the build command: exit_code=0, duration_ms=6794, status=pass computed from the exit code | agent summary: npm run build (tsc) for the kernel package",
+      "artifact": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/build.json",
+      "artifact_check": {
+        "status": "verified",
+        "format": "generic_status",
+        "artifact_outcome": "pass",
+        "reason": "generic_status artifact outcome matches the claimed status (status=pass)"
+      },
+      "artifact_observed_values": {
+        "status": "pass",
+        "exit_code": "0",
+        "evidence_source": "runner_direct",
+        "run_artifact": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/build.json",
+        "run_log": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/build.log",
+        "duration_ms": "6794",
+        "started_at": "2026-10-24T10:42:47.955Z",
+        "finished_at": "2026-10-24T10:42:54.737Z",
+        "head_sha_before": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+        "head_sha_after": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+        "head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+        "worktree_sampled": "true",
+        "worktree_sampling_complete": "true",
+        "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+        "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+        "stdout_sha256": "5ceb4a7ac534dfd5c550fd07ce15b49b5b70f1d03cba8aaa5527f218ce176011",
+        "output_sha256": "5ceb4a7ac534dfd5c550fd07ce15b49b5b70f1d03cba8aaa5527f218ce176011",
+        "output_bytes": "251",
+        "log_truncated": "false",
+        "output_metrics": "none",
+        "timed_out": "false",
+        "output_limit_exceeded": "false",
+        "external_kill_signal": "none",
+        "timeout_ms": "900000",
+        "max_output_bytes": "67108864",
+        "harness_env_removed": "none",
+        "runner_node_version": "v22.23.4",
+        "tree_mutated_during_run": "false",
+        "head_moved_during_run": "false",
+        "worktree_changed_during_run": "false",
+        "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "observation": {
+        "targets": [
+          "src/canonical-task-service.ts",
+          "src/canonical-task-postgres.ts"
+        ],
+        "scenarios": [
+          "kernel compiles with record_kind types"
+        ],
+        "values": {
+          "status": "pass",
+          "exit_code": "0",
+          "evidence_source": "runner_direct",
+          "run_artifact": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/build.json",
+          "run_log": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/build.log",
+          "duration_ms": "6794",
+          "started_at": "2026-10-24T10:42:47.955Z",
+          "finished_at": "2026-10-24T10:42:54.737Z",
+          "head_sha_before": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+          "head_sha_after": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+          "head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+          "worktree_sampled": "true",
+          "worktree_sampling_complete": "true",
+          "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+          "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+          "stdout_sha256": "5ceb4a7ac534dfd5c550fd07ce15b49b5b70f1d03cba8aaa5527f218ce176011",
+          "output_sha256": "5ceb4a7ac534dfd5c550fd07ce15b49b5b70f1d03cba8aaa5527f218ce176011",
+          "output_bytes": "251",
+          "log_truncated": "false",
+          "output_metrics": "none",
+          "timed_out": "false",
+          "output_limit_exceeded": "false",
+          "external_kill_signal": "none",
+          "timeout_ms": "900000",
+          "max_output_bytes": "67108864",
+          "harness_env_removed": "none",
+          "runner_node_version": "v22.23.4",
+          "tree_mutated_during_run": "false",
+          "head_moved_during_run": "false",
+          "worktree_changed_during_run": "false",
+          "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      },
+      "observation_check": {
+        "status": "recorded",
+        "reason": "observation states the inspected targets and what was observed"
+      },
+      "evidence_source": "runner_direct",
+      "computed_observation": {
+        "producer": "vibepro verify run",
+        "computed_keys": [
+          "status",
+          "evidence_source",
+          "run_artifact",
+          "run_log",
+          "exit_code",
+          "duration_ms",
+          "started_at",
+          "finished_at",
+          "head_sha_before",
+          "head_sha_after",
+          "head_sha",
+          "worktree_sampled",
+          "worktree_sampling_complete",
+          "worktree_sha256_before",
+          "worktree_sha256_after",
+          "stdout_sha256",
+          "output_sha256",
+          "output_bytes",
+          "log_truncated",
+          "output_metrics",
+          "timed_out",
+          "output_limit_exceeded",
+          "external_kill_signal",
+          "timeout_ms",
+          "max_output_bytes",
+          "harness_env_removed",
+          "runner_node_version",
+          "tree_mutated_during_run",
+          "head_moved_during_run",
+          "worktree_changed_during_run",
+          "worktree_status_sha256_before",
+          "worktree_status_sha256_after",
+          "worktree_diff_sha256_before",
+          "worktree_diff_sha256_after"
+        ],
+        "values": {
+          "status": "pass",
+          "evidence_source": "runner_direct",
+          "run_artifact": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/build.json",
+          "run_log": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/build.log",
+          "exit_code": "0",
+          "duration_ms": "6794",
+          "started_at": "2026-10-24T10:42:47.955Z",
+          "finished_at": "2026-10-24T10:42:54.737Z",
+          "head_sha_before": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+          "head_sha_after": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+          "head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+          "worktree_sampled": "true",
+          "worktree_sampling_complete": "true",
+          "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+          "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+          "stdout_sha256": "5ceb4a7ac534dfd5c550fd07ce15b49b5b70f1d03cba8aaa5527f218ce176011",
+          "output_sha256": "5ceb4a7ac534dfd5c550fd07ce15b49b5b70f1d03cba8aaa5527f218ce176011",
+          "output_bytes": "251",
+          "log_truncated": "false",
+          "output_metrics": "none",
+          "timed_out": "false",
+          "output_limit_exceeded": "false",
+          "external_kill_signal": "none",
+          "timeout_ms": "900000",
+          "max_output_bytes": "67108864",
+          "harness_env_removed": "none",
+          "runner_node_version": "v22.23.4",
+          "tree_mutated_during_run": "false",
+          "head_moved_during_run": "false",
+          "worktree_changed_during_run": "false",
+          "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        "artifact_derived_keys": [
+          "status",
+          "exit_code",
+          "evidence_source",
+          "run_artifact",
+          "run_log",
+          "duration_ms",
+          "started_at",
+          "finished_at",
+          "head_sha_before",
+          "head_sha_after",
+          "head_sha",
+          "worktree_sampled",
+          "worktree_sampling_complete",
+          "worktree_sha256_before",
+          "worktree_sha256_after",
+          "stdout_sha256",
+          "output_sha256",
+          "output_bytes",
+          "log_truncated",
+          "output_metrics",
+          "timed_out",
+          "output_limit_exceeded",
+          "external_kill_signal",
+          "timeout_ms",
+          "max_output_bytes",
+          "harness_env_removed",
+          "runner_node_version",
+          "tree_mutated_during_run",
+          "head_moved_during_run",
+          "worktree_changed_during_run",
+          "worktree_status_sha256_before",
+          "worktree_status_sha256_after",
+          "worktree_diff_sha256_before",
+          "worktree_diff_sha256_after"
+        ],
+        "run_artifact": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/build.json",
+        "run_log": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/build.log",
+        "tree_mutated_during_run": false,
+        "head_moved_during_run": false,
+        "worktree_changed_during_run": false,
+        "worktree_sampled": true,
+        "worktree_sampling_complete": true,
+        "output_metrics": "none"
+      },
+      "executed_at": "2026-10-24T10:42:54.737Z",
+      "git_context": {
+        "head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+        "current_branch": "cursor/ledger-kernel-record-kind",
+        "dirty": false,
+        "raw_dirty": true,
+        "status_fingerprint_hash": "35e415a62d929aeef9dd94c0e3554cdf15b80e4d4f4061fb786341a8eff03f5b",
+        "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+        "fingerprint_scope": {
+          "user_excludes": [
+            ".vibepro/",
+            ".worktrees/vibepro/"
+          ]
+        },
+        "recorded_at": "2026-10-24T10:42:54.782Z"
+      },
+      "content_binding": {
+        "schema_version": "0.1.0",
+        "model": "vibepro-content-scoped-evidence-freshness-v1",
+        "mode": "content_surface",
+        "status": "recorded",
+        "reason": "content surface recorded for 2 file(s)",
+        "recorded_head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+        "surface_files": [
+          {
+            "path": "src/canonical-task-postgres.ts",
+            "sha256": "6f7317a3377773d65dad901b3c8dd528a65974aafcd626e9a43dbd46a60ad6f3",
+            "size": 31277
+          },
+          {
+            "path": "src/canonical-task-service.ts",
+            "sha256": "ff87cd76a5b47817e1c40404ad2220d0da1b329576283192d87d4ede1b3b5390",
+            "size": 73699
+          }
+        ],
+        "missing_files": [],
+        "surface_hash": "1b157f4701b6a3a1a9da11e035327274df86b2642846b33e3502b1e8e598be7a"
+      },
+      "runtime_identity": {
+        "schema_version": "0.2.0",
+        "collected_at": "2026-10-24T10:42:54.758Z",
+        "mode": "normal",
+        "source_kind": "npm_package",
+        "test_context": null,
+        "package": {
+          "name": "vibepro",
+          "version": "0.2.0-beta.34",
+          "exact_version": "0.2.0-beta.34",
+          "root": "/home/box/.local/lib/node_modules/vibepro"
+        },
+        "cli": {
+          "entrypoint": "/home/box/.local/lib/node_modules/vibepro/bin/vibepro.js",
+          "invoked_as": "/home/box/.local/bin/vibepro",
+          "runtime_module": "/home/box/.local/lib/node_modules/vibepro/src/runtime-info.js"
+        },
+        "release_manifest": {
+          "status": "valid",
+          "manifest": {
+            "schema_version": "0.1.0",
+            "package": {
+              "name": "vibepro",
+              "version": "0.2.0-beta.34",
+              "package_json_sha256": "63f42ef6e7ed01f31ad569eb59a7a25dc30a4c84d2713b8f3e279ebf40a7d8ff",
+              "entrypoint": "bin/vibepro.js"
+            },
+            "source_git": {
+              "commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+              "origin_url": "https://github.com/Unson-LLC/vibepro",
+              "origin_main_commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+              "origin_main_relation": "same",
+              "dirty": false
+            }
+          },
+          "errors": []
+        },
+        "source_git": {
+          "is_git_repo": false,
+          "commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+          "branch": null,
+          "origin_url": "https://github.com/Unson-LLC/vibepro",
+          "origin_main_commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+          "origin_main_relation": "published",
+          "dirty": false,
+          "dirty_summary": []
+        },
+        "identity_digest": "b44cefd5f8c3cc7e5283c6aeb1499732b647653b36c3bf98664a2c0f2926a484",
+        "integrity": {
+          "status": "trusted",
+          "code": null,
+          "purpose": "evidence_generation",
+          "reasons": [
+            "manifested immutable npm runtime"
+          ]
+        }
+      },
+      "managed_worktree_context": null,
+      "warnings": [
+        {
+          "id": "verification_run_counts_not_parsed",
+          "command_name": "verify run",
+          "reason": "the command exited 0 but no test counts could be parsed from its output; the record proves the command did not fail, not how much it checked"
+        }
+      ]
+    }
+  ]
+}

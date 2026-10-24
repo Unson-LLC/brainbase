@@ -1,0 +1,9 @@
+
+ RUN  v4.1.8 /workspace/ledger/oss
+
+
+ Test Files  1 passed (1)
+      Tests  11 passed (11)
+   Start at  19:42:56
+   Duration  607ms (transform 123ms, setup 0ms, import 156ms, tests 352ms, environment 0ms)
+
