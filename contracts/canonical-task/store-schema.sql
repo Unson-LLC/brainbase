@@ -62,6 +62,16 @@ ALTER TABLE canonical_tasks
 ALTER TABLE canonical_tasks
     ADD COLUMN IF NOT EXISTS status_detail TEXT;
 
+-- 記録の種別。work（仕事）/ request（要求）/ requirement（要件）。既存行は work で埋める。
+ALTER TABLE canonical_tasks
+    ADD COLUMN IF NOT EXISTS record_kind TEXT NOT NULL DEFAULT 'work';
+
+ALTER TABLE canonical_tasks
+    DROP CONSTRAINT IF EXISTS canonical_tasks_record_kind_check;
+ALTER TABLE canonical_tasks
+    ADD CONSTRAINT canonical_tasks_record_kind_check
+    CHECK (record_kind IN ('work', 'request', 'requirement'));
+
 ALTER TABLE canonical_tasks
     DROP CONSTRAINT IF EXISTS canonical_tasks_status_detail_check;
 ALTER TABLE canonical_tasks
