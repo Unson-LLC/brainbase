@@ -393,7 +393,8 @@ export function workspaceLoadingCard(doc, { title = 'ロード中' } = {}) {
 export function workspaceLoadingStage(doc, { title = '準備しています', detail, slow = false } = {}) {
   const stage = el(doc, 'div', {
     className: `bb-ws-loading-stage${slow ? ' is-slow' : ''}`,
-    attrs: { role: 'status', 'aria-live': 'polite', 'aria-busy': 'true' },
+    // No aria-busy here: on a live region it would hold back the announcement (Codex r2).
+    attrs: { role: 'status', 'aria-live': 'polite' },
   });
   const mark = el(doc, 'span', { className: 'bb-ws-loading-stage-mark', attrs: { 'aria-hidden': 'true' } });
   // The dots sit inside the aria-hidden mark, so they need no aria-hidden of their own.

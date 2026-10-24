@@ -148,7 +148,7 @@ describe('centered loading stage', () => {
     expect(stage.className).toBe('bb-ws-loading-stage');
     expect(stage.attributes.role).toBe('status');
     expect(stage.attributes['aria-live']).toBe('polite');
-    expect(stage.attributes['aria-busy']).toBe('true');
+    expect(stage.attributes['aria-busy']).toBeUndefined();
     const mark = byClass(stage, 'bb-ws-loading-stage-mark')[0];
     expect(mark.attributes['aria-hidden']).toBe('true');
     const dots = byClass(stage, 'bb-ws-loading-stage-dot');
