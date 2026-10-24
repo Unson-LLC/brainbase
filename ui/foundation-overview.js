@@ -922,8 +922,8 @@ export function renderFoundationOverview(root, state, {
   if (state.status === 'loading') {
     surface.append(workspaceLoadingStage(doc, { title: '目的と現状を準備しています' }));
     root.append(surface);
-    if (onLoading) onLoading(true);
-    else renderLoadingState(doc, root, viewState, false);
+    // The stage says it in the page; close any old floating loading card.
+    renderLoadingState(doc, root, viewState, false, onLoading);
     return surface;
   }
   if (state.status !== 'ready') {
@@ -1008,8 +1008,8 @@ export function renderFoundationCollectionOverview(root, sources, {
   }
   const loading = sources.some(source => source.state.status === 'loading');
   if (loading && ready === 0) {
-    if (onLoading) onLoading(true);
-    else renderLoadingState(doc, root, viewState, false);
+    // The stage says it in the page; close any old floating loading card.
+    renderLoadingState(doc, root, viewState, false, onLoading);
     root.append(workspaceLoadingStage(doc, { title: '目的と現状を準備しています' }));
   } else {
     renderLoadingState(doc, root, viewState, loading, onLoading);

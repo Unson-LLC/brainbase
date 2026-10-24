@@ -8,6 +8,7 @@ import {
   renderFoundationOverview,
   normalizeFoundationCatalog,
 } from '../../ui/foundation-overview.js';
+import { workspaceLoadingCard } from '../../ui/workspace-kit.js';
 
 class FakeElement {
   constructor(tagName) {
@@ -452,7 +453,7 @@ test('collection reports one pending state without per-project loading bands or 
   const loading = [];
   const sources = ['Alpha', 'Beta'].map(label => ({ label, scopeId: label, state: { status: 'loading' } }));
   renderFoundationCollectionOverview(root, sources, { document: doc, onLoading: value => loading.push(value) });
-  assert.deepEqual(loading, [true]);
+  assert.deepEqual(loading, [false], 'the centered stage replaces the host loading card');
   assert.equal(byClass(root, 'bb-ws-loading-stage').length, 1, 'pending catalogs share one centered stage');
   assert.equal(byClass(root, 'bb-ws-loading-card').length, 0);
   assert.doesNotMatch(textOf(root), /登録された目的がありません|取得済みの範囲/);
@@ -466,6 +467,32 @@ test('collection reports one pending state without per-project loading bands or 
   assert.equal(byClass(root, 'bb-ws-loading-stage').length, 0);
   assert.match(textOf(root), /catalog unavailable/);
   assert.doesNotMatch(textOf(root), /取得済みの範囲|読み込んでいます/);
+});
+
+test('a host that manages the floating loading card never shows it beside the stage', () => {
+  // The host pattern: onLoading(true) shows a floating card, onLoading(false) closes it.
+  const host = new FakeElement('aside');
+  const onLoading = value => {
+    const shown = byClass(host, 'bb-ws-loading-card').length > 0;
+    if (value && !shown) host.append(workspaceLoadingCard(doc));
+    if (!value) host.replaceChildren();
+  };
+  onLoading(true); // a card left over from an earlier screen
+  const standalone = new FakeElement('main');
+  renderFoundationOverview(standalone, { status: 'loading' }, { document: doc, scopeId: 'project-alpha', onLoading });
+  assert.equal(byClass(standalone, 'bb-ws-loading-stage').length, 1);
+  assert.equal(byClass(host, 'bb-ws-loading-card').length, 0, 'standalone stage closes the host card');
+
+  const root = new FakeElement('main');
+  const sources = ['Alpha', 'Beta'].map(label => ({ label, scopeId: label, state: { status: 'loading' } }));
+  renderFoundationCollectionOverview(root, sources, { document: doc, onLoading });
+  assert.equal(byClass(root, 'bb-ws-loading-stage').length, 1);
+  assert.equal(byClass(host, 'bb-ws-loading-card').length, 0, 'collection stage closes the host card');
+
+  sources[0].state = { status: 'ready', catalog: catalog({ scopeId: 'Alpha' }) };
+  renderFoundationCollectionOverview(root, sources, { document: doc, onLoading });
+  assert.equal(byClass(root, 'bb-ws-loading-stage').length, 0);
+  assert.equal(byClass(host, 'bb-ws-loading-card').length, 1, 'partial content keeps the aggregate loading card');
 });
 
 function unscopedPhilosophy(id, overrides = {}) {
