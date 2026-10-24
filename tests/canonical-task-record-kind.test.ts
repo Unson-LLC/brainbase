@@ -8,6 +8,12 @@ const sql = readFileSync(
   'utf8',
 );
 
+// The same schema as before record_kind existed: drop the statements that add the column and its check.
+const sqlBeforeRecordKind = sql
+  .split(/;\s*\n/)
+  .filter((statement) => !/record_kind/.test(statement.replace(/--[^\n]*/g, '')))
+  .join(';\n');
+
 describe('canonical_tasks record_kind', () => {
   it('adds record_kind as NOT NULL with default work', () => {
     expect(sql).toMatch(/ADD COLUMN IF NOT EXISTS record_kind TEXT NOT NULL DEFAULT 'work'\s*;/);
@@ -22,7 +28,12 @@ describe('canonical_tasks record_kind', () => {
   });
 
   const url = process.env.CANONICAL_TASK_TEST_DATABASE_URL;
-  it.skipIf(!url)('applies twice, fills existing rows with work and rejects other values', async () => {
+  it('the pre-record_kind schema used by the backfill test has no record_kind', () => {
+    expect(sqlBeforeRecordKind.replace(/--[^\n]*/g, '')).not.toMatch(/record_kind/);
+    expect(sqlBeforeRecordKind).toMatch(/CREATE TABLE IF NOT EXISTS canonical_tasks/);
+  });
+
+  it.skipIf(!url)('backfills rows created before the column with work, applies twice and rejects other values', async () => {
     const client = new pg.Client({ connectionString: url });
     const schemaName = `record_kind_${Date.now()}`;
     try {
@@ -30,11 +41,17 @@ describe('canonical_tasks record_kind', () => {
       await client.query(`CREATE SCHEMA ${schemaName}`);
       await client.query(`SET search_path TO ${schemaName}`);
 
-      await client.query(sql);
+      await client.query(sqlBeforeRecordKind);
+      const before = await client.query(
+        "SELECT 1 FROM information_schema.columns WHERE table_schema = $1 AND table_name = 'canonical_tasks' AND column_name = 'record_kind'",
+        [schemaName],
+      );
+      expect(before.rowCount).toBe(0);
       await client.query(
         `INSERT INTO canonical_tasks (id, title, status, priority, idempotency_key)
          VALUES (gen_random_uuid(), 'existing', 'pending', 'low', 'k1')`,
       );
+      await client.query(sql);
       await client.query(sql);
 
       const existing = await client.query(
