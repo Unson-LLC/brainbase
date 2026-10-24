@@ -1,9 +1,9 @@
 {
   "schema_version": "0.2.0",
-  "created_at": "2026-10-24T10:43:10.108Z",
+  "created_at": "2026-10-24T10:58:09.820Z",
   "runtime_identity": {
     "schema_version": "0.2.0",
-    "collected_at": "2026-10-24T10:43:10.034Z",
+    "collected_at": "2026-10-24T10:58:09.751Z",
     "mode": "normal",
     "source_kind": "npm_package",
     "test_context": null,
@@ -107,7 +107,7 @@
   },
   "git": {
     "current_branch": "cursor/ledger-kernel-record-kind",
-    "head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+    "head_sha": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
     "base_ref": "origin/develop",
     "head_ref": "HEAD",
     "changed_files": [
@@ -117,7 +117,43 @@
       },
       {
         "status": "A",
+        "path": ".vibepro/pr/story-ledger-record-kind-screen-v1/pr-body.md"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/pr/story-ledger-record-kind-screen-v1/pr-prepare.json"
+      },
+      {
+        "status": "A",
         "path": ".vibepro/pr/story-ledger-record-kind-screen-v1/traceability.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-evidence.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/build.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/build.log"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/integration.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/integration.log"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/unit.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/unit.log"
       },
       {
         "status": "M",
@@ -150,15 +186,31 @@
     ],
     "dirty_files": [
       {
-        "status": "??",
-        "path": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-evidence.json"
+        "status": "M",
+        "path": "vibepro/pr/story-ledger-record-kind-screen-v1/verification-evidence.json"
       },
       {
-        "status": "??",
-        "path": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/"
+        "status": "M",
+        "path": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/build.json"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/integration.json"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/integration.log"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/unit.json"
+      },
+      {
+        "status": "M",
+        "path": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/unit.log"
       }
     ],
-    "commit_count": 4
+    "commit_count": 6
   },
   "spec": {
     "present": false,
@@ -167,14 +219,14 @@
   "spec_drift": null,
   "verification": {
     "recorded": true,
-    "updated_at": "2026-10-24T10:42:56.928Z",
+    "updated_at": "2026-10-24T10:58:09.639Z",
     "artifact": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-evidence.json",
     "commands": [
       {
         "kind": "integration",
         "status": "pass",
         "command": "npx vitest run tests/canonical-task-postgres-service.integration.test.ts",
-        "summary": "vibepro verify run executed the integration command: exit_code=0, duration_ms=1044, status=pass computed from the exit code | agent summary: box-local disposable PostgreSQL 17: schema upgrade, CHECKs, atomic ledger guards",
+        "summary": "vibepro verify run executed the integration command: exit_code=0, duration_ms=1082, status=pass computed from the exit code | agent summary: box-local disposable PostgreSQL 17: schema upgrade, CHECKs, atomic ledger guards",
         "summary_authority": "agent_provided_non_authoritative",
         "evidence_source": "runner_direct",
         "observation": {
@@ -192,18 +244,18 @@
             "evidence_source": "runner_direct",
             "run_artifact": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/integration.json",
             "run_log": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/integration.log",
-            "duration_ms": "1044",
-            "started_at": "2026-10-24T10:42:55.841Z",
-            "finished_at": "2026-10-24T10:42:56.873Z",
-            "head_sha_before": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
-            "head_sha_after": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
-            "head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+            "duration_ms": "1082",
+            "started_at": "2026-10-24T10:58:08.509Z",
+            "finished_at": "2026-10-24T10:58:09.577Z",
+            "head_sha_before": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
+            "head_sha_after": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
+            "head_sha": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
             "worktree_sampled": "true",
             "worktree_sampling_complete": "true",
-            "worktree_sha256_before": "3f789ec2cf6cd6ba7934ce534208c5a2b5b02370006c025ca88cd2b0a78f78fd",
-            "worktree_sha256_after": "3f789ec2cf6cd6ba7934ce534208c5a2b5b02370006c025ca88cd2b0a78f78fd",
-            "stdout_sha256": "0c4e0dc1fa49f245675767fb62e0120e3dbd908d2fdca8c2056494738999f1a6",
-            "output_sha256": "0c4e0dc1fa49f245675767fb62e0120e3dbd908d2fdca8c2056494738999f1a6",
+            "worktree_sha256_before": "dfbed3a19eba0bd6b8e3f2ef7b14c8aa56e0d0f4d75940cb1e4e70b8a510039a",
+            "worktree_sha256_after": "dfbed3a19eba0bd6b8e3f2ef7b14c8aa56e0d0f4d75940cb1e4e70b8a510039a",
+            "stdout_sha256": "ce15dd92e9109523d8046b0bd8c46e675f492f39dcc09a323455bf4df3569c3c",
+            "output_sha256": "ce15dd92e9109523d8046b0bd8c46e675f492f39dcc09a323455bf4df3569c3c",
             "output_bytes": "207",
             "log_truncated": "false",
             "output_metrics": "none",
@@ -217,10 +269,10 @@
             "tree_mutated_during_run": "false",
             "head_moved_during_run": "false",
             "worktree_changed_during_run": "false",
-            "worktree_status_sha256_before": "90304b7b6a419f8e3b5079303e9f6db006c39f7f0fa99f4fb32c7c2d1814e7f6",
-            "worktree_status_sha256_after": "90304b7b6a419f8e3b5079303e9f6db006c39f7f0fa99f4fb32c7c2d1814e7f6",
-            "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            "worktree_status_sha256_before": "10748e846e1baeb6aaa114160f18e716625ce3fe08fe1286388f4833b4d8dcdc",
+            "worktree_status_sha256_after": "10748e846e1baeb6aaa114160f18e716625ce3fe08fe1286388f4833b4d8dcdc",
+            "worktree_diff_sha256_before": "2ded98b270d627da8c6d192d7d2c93a1d40d2c9291887f09f2125b606a5f02d7",
+            "worktree_diff_sha256_after": "2ded98b270d627da8c6d192d7d2c93a1d40d2c9291887f09f2125b606a5f02d7"
           }
         },
         "computed_observation": {
@@ -267,18 +319,18 @@
             "run_artifact": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/integration.json",
             "run_log": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/integration.log",
             "exit_code": "0",
-            "duration_ms": "1044",
-            "started_at": "2026-10-24T10:42:55.841Z",
-            "finished_at": "2026-10-24T10:42:56.873Z",
-            "head_sha_before": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
-            "head_sha_after": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
-            "head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+            "duration_ms": "1082",
+            "started_at": "2026-10-24T10:58:08.509Z",
+            "finished_at": "2026-10-24T10:58:09.577Z",
+            "head_sha_before": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
+            "head_sha_after": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
+            "head_sha": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
             "worktree_sampled": "true",
             "worktree_sampling_complete": "true",
-            "worktree_sha256_before": "3f789ec2cf6cd6ba7934ce534208c5a2b5b02370006c025ca88cd2b0a78f78fd",
-            "worktree_sha256_after": "3f789ec2cf6cd6ba7934ce534208c5a2b5b02370006c025ca88cd2b0a78f78fd",
-            "stdout_sha256": "0c4e0dc1fa49f245675767fb62e0120e3dbd908d2fdca8c2056494738999f1a6",
-            "output_sha256": "0c4e0dc1fa49f245675767fb62e0120e3dbd908d2fdca8c2056494738999f1a6",
+            "worktree_sha256_before": "dfbed3a19eba0bd6b8e3f2ef7b14c8aa56e0d0f4d75940cb1e4e70b8a510039a",
+            "worktree_sha256_after": "dfbed3a19eba0bd6b8e3f2ef7b14c8aa56e0d0f4d75940cb1e4e70b8a510039a",
+            "stdout_sha256": "ce15dd92e9109523d8046b0bd8c46e675f492f39dcc09a323455bf4df3569c3c",
+            "output_sha256": "ce15dd92e9109523d8046b0bd8c46e675f492f39dcc09a323455bf4df3569c3c",
             "output_bytes": "207",
             "log_truncated": "false",
             "output_metrics": "none",
@@ -292,10 +344,10 @@
             "tree_mutated_during_run": "false",
             "head_moved_during_run": "false",
             "worktree_changed_during_run": "false",
-            "worktree_status_sha256_before": "90304b7b6a419f8e3b5079303e9f6db006c39f7f0fa99f4fb32c7c2d1814e7f6",
-            "worktree_status_sha256_after": "90304b7b6a419f8e3b5079303e9f6db006c39f7f0fa99f4fb32c7c2d1814e7f6",
-            "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            "worktree_status_sha256_before": "10748e846e1baeb6aaa114160f18e716625ce3fe08fe1286388f4833b4d8dcdc",
+            "worktree_status_sha256_after": "10748e846e1baeb6aaa114160f18e716625ce3fe08fe1286388f4833b4d8dcdc",
+            "worktree_diff_sha256_before": "2ded98b270d627da8c6d192d7d2c93a1d40d2c9291887f09f2125b606a5f02d7",
+            "worktree_diff_sha256_after": "2ded98b270d627da8c6d192d7d2c93a1d40d2c9291887f09f2125b606a5f02d7"
           },
           "artifact_derived_keys": [
             "status",
@@ -354,11 +406,11 @@
           "reason": "observation states the inspected targets and what was observed"
         },
         "git_context": {
-          "head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+          "head_sha": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
           "current_branch": "cursor/ledger-kernel-record-kind",
           "dirty": false,
           "raw_dirty": true,
-          "status_fingerprint_hash": "05b5c7222577a0865b348ed7949dcbb8345975d7107e09b5a711d95448b85848",
+          "status_fingerprint_hash": "274673e984c6dfa124cd93936d06059f969fede6a1578f3ce49eb954ab93a404",
           "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
           "fingerprint_scope": {
             "user_excludes": [
@@ -366,7 +418,7 @@
               ".worktrees/vibepro/"
             ]
           },
-          "recorded_at": "2026-10-24T10:42:56.919Z"
+          "recorded_at": "2026-10-24T10:58:09.628Z"
         },
         "content_binding": {
           "schema_version": "0.1.0",
@@ -374,7 +426,7 @@
           "mode": "content_surface",
           "status": "recorded",
           "reason": "content surface recorded for 2 file(s)",
-          "recorded_head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+          "recorded_head_sha": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
           "surface_files": [
             {
               "path": "contracts/canonical-task/store-schema.sql",
@@ -399,7 +451,7 @@
         ],
         "runtime_identity": {
           "schema_version": "0.2.0",
-          "collected_at": "2026-10-24T10:42:56.895Z",
+          "collected_at": "2026-10-24T10:58:09.602Z",
           "mode": "normal",
           "source_kind": "npm_package",
           "test_context": null,
@@ -454,14 +506,14 @@
             ]
           }
         },
-        "executed_at": "2026-10-24T10:42:56.873Z",
+        "executed_at": "2026-10-24T10:58:09.577Z",
         "trust_status": "trusted"
       },
       {
         "kind": "unit",
         "status": "pass",
         "command": "npx vitest run tests/canonical-task-service.test.ts tests/canonical-task-postgres.test.ts",
-        "summary": "vibepro verify run executed the unit command: exit_code=0, duration_ms=752, status=pass computed from the exit code | agent summary: kernel record_kind: vitest Service and PostgreSQL adapter unit suites",
+        "summary": "vibepro verify run executed the unit command: exit_code=0, duration_ms=883, status=pass computed from the exit code | agent summary: kernel record_kind: vitest Service and PostgreSQL adapter unit suites",
         "summary_authority": "agent_provided_non_authoritative",
         "evidence_source": "runner_direct",
         "observation": {
@@ -482,18 +534,18 @@
             "evidence_source": "runner_direct",
             "run_artifact": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/unit.json",
             "run_log": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/unit.log",
-            "duration_ms": "752",
-            "started_at": "2026-10-24T10:42:54.921Z",
-            "finished_at": "2026-10-24T10:42:55.662Z",
-            "head_sha_before": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
-            "head_sha_after": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
-            "head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+            "duration_ms": "883",
+            "started_at": "2026-10-24T10:58:07.456Z",
+            "finished_at": "2026-10-24T10:58:08.324Z",
+            "head_sha_before": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
+            "head_sha_after": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
+            "head_sha": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
             "worktree_sampled": "true",
             "worktree_sampling_complete": "true",
-            "worktree_sha256_before": "10791a2897c42fe9f64787ec22f1de5dd9155c90ea6dde65a781dac3b6ce7865",
-            "worktree_sha256_after": "10791a2897c42fe9f64787ec22f1de5dd9155c90ea6dde65a781dac3b6ce7865",
-            "stdout_sha256": "9d5cd2e0dedf51bef69e2e69fffafcd1c0b8ff28eef77eaa97bd0aefbb4ef0a9",
-            "output_sha256": "9d5cd2e0dedf51bef69e2e69fffafcd1c0b8ff28eef77eaa97bd0aefbb4ef0a9",
+            "worktree_sha256_before": "71e3573973f1d37d866d4ec487cc4987812e9bae0d1fa5d271045d1c040d5a07",
+            "worktree_sha256_after": "71e3573973f1d37d866d4ec487cc4987812e9bae0d1fa5d271045d1c040d5a07",
+            "stdout_sha256": "1896f173641bc8a8d4c43674f1283aab8fb55226bad48f6a1f33261211b04ea7",
+            "output_sha256": "1896f173641bc8a8d4c43674f1283aab8fb55226bad48f6a1f33261211b04ea7",
             "output_bytes": "206",
             "log_truncated": "false",
             "output_metrics": "none",
@@ -507,10 +559,10 @@
             "tree_mutated_during_run": "false",
             "head_moved_during_run": "false",
             "worktree_changed_during_run": "false",
-            "worktree_status_sha256_before": "e2a86cce26d44219936dfa3ed2b6e4ebcb49a78efe3b4418a0f9167eebb46e1d",
-            "worktree_status_sha256_after": "e2a86cce26d44219936dfa3ed2b6e4ebcb49a78efe3b4418a0f9167eebb46e1d",
-            "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            "worktree_status_sha256_before": "89ee69cb5d639bde533ff9a1cf325e6e51d60a0335758e0ddce644f5fb406808",
+            "worktree_status_sha256_after": "89ee69cb5d639bde533ff9a1cf325e6e51d60a0335758e0ddce644f5fb406808",
+            "worktree_diff_sha256_before": "f8fd823caec4798aee2356cf6beae9abf6b81620a233d2ce62bc62dac9382fba",
+            "worktree_diff_sha256_after": "f8fd823caec4798aee2356cf6beae9abf6b81620a233d2ce62bc62dac9382fba"
           }
         },
         "computed_observation": {
@@ -557,18 +609,18 @@
             "run_artifact": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/unit.json",
             "run_log": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/unit.log",
             "exit_code": "0",
-            "duration_ms": "752",
-            "started_at": "2026-10-24T10:42:54.921Z",
-            "finished_at": "2026-10-24T10:42:55.662Z",
-            "head_sha_before": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
-            "head_sha_after": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
-            "head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+            "duration_ms": "883",
+            "started_at": "2026-10-24T10:58:07.456Z",
+            "finished_at": "2026-10-24T10:58:08.324Z",
+            "head_sha_before": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
+            "head_sha_after": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
+            "head_sha": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
             "worktree_sampled": "true",
             "worktree_sampling_complete": "true",
-            "worktree_sha256_before": "10791a2897c42fe9f64787ec22f1de5dd9155c90ea6dde65a781dac3b6ce7865",
-            "worktree_sha256_after": "10791a2897c42fe9f64787ec22f1de5dd9155c90ea6dde65a781dac3b6ce7865",
-            "stdout_sha256": "9d5cd2e0dedf51bef69e2e69fffafcd1c0b8ff28eef77eaa97bd0aefbb4ef0a9",
-            "output_sha256": "9d5cd2e0dedf51bef69e2e69fffafcd1c0b8ff28eef77eaa97bd0aefbb4ef0a9",
+            "worktree_sha256_before": "71e3573973f1d37d866d4ec487cc4987812e9bae0d1fa5d271045d1c040d5a07",
+            "worktree_sha256_after": "71e3573973f1d37d866d4ec487cc4987812e9bae0d1fa5d271045d1c040d5a07",
+            "stdout_sha256": "1896f173641bc8a8d4c43674f1283aab8fb55226bad48f6a1f33261211b04ea7",
+            "output_sha256": "1896f173641bc8a8d4c43674f1283aab8fb55226bad48f6a1f33261211b04ea7",
             "output_bytes": "206",
             "log_truncated": "false",
             "output_metrics": "none",
@@ -582,10 +634,10 @@
             "tree_mutated_during_run": "false",
             "head_moved_during_run": "false",
             "worktree_changed_during_run": "false",
-            "worktree_status_sha256_before": "e2a86cce26d44219936dfa3ed2b6e4ebcb49a78efe3b4418a0f9167eebb46e1d",
-            "worktree_status_sha256_after": "e2a86cce26d44219936dfa3ed2b6e4ebcb49a78efe3b4418a0f9167eebb46e1d",
-            "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-            "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            "worktree_status_sha256_before": "89ee69cb5d639bde533ff9a1cf325e6e51d60a0335758e0ddce644f5fb406808",
+            "worktree_status_sha256_after": "89ee69cb5d639bde533ff9a1cf325e6e51d60a0335758e0ddce644f5fb406808",
+            "worktree_diff_sha256_before": "f8fd823caec4798aee2356cf6beae9abf6b81620a233d2ce62bc62dac9382fba",
+            "worktree_diff_sha256_after": "f8fd823caec4798aee2356cf6beae9abf6b81620a233d2ce62bc62dac9382fba"
           },
           "artifact_derived_keys": [
             "status",
@@ -644,11 +696,11 @@
           "reason": "observation states the inspected targets and what was observed"
         },
         "git_context": {
-          "head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+          "head_sha": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
           "current_branch": "cursor/ledger-kernel-record-kind",
           "dirty": false,
           "raw_dirty": true,
-          "status_fingerprint_hash": "c188d85676211bb8f59664b754890e9fb6744c4fcda721712f822e0cf54772ef",
+          "status_fingerprint_hash": "7c2254ec140ee626273312a47bb8f6ccb779e403b359f19af56e83281d496c93",
           "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
           "fingerprint_scope": {
             "user_excludes": [
@@ -656,7 +708,7 @@
               ".worktrees/vibepro/"
             ]
           },
-          "recorded_at": "2026-10-24T10:42:55.707Z"
+          "recorded_at": "2026-10-24T10:58:08.374Z"
         },
         "content_binding": {
           "schema_version": "0.1.0",
@@ -664,7 +716,7 @@
           "mode": "content_surface",
           "status": "recorded",
           "reason": "content surface recorded for 4 file(s)",
-          "recorded_head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+          "recorded_head_sha": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
           "surface_files": [
             {
               "path": "src/canonical-task-postgres.ts",
@@ -699,7 +751,7 @@
         ],
         "runtime_identity": {
           "schema_version": "0.2.0",
-          "collected_at": "2026-10-24T10:42:55.685Z",
+          "collected_at": "2026-10-24T10:58:08.350Z",
           "mode": "normal",
           "source_kind": "npm_package",
           "test_context": null,
@@ -754,14 +806,14 @@
             ]
           }
         },
-        "executed_at": "2026-10-24T10:42:55.662Z",
+        "executed_at": "2026-10-24T10:58:08.324Z",
         "trust_status": "trusted"
       },
       {
         "kind": "build",
         "status": "pass",
         "command": "npm run build",
-        "summary": "vibepro verify run executed the build command: exit_code=0, duration_ms=6794, status=pass computed from the exit code | agent summary: npm run build (tsc) for the kernel package",
+        "summary": "vibepro verify run executed the build command: exit_code=0, duration_ms=6767, status=pass computed from the exit code | agent summary: npm run build (tsc) for the kernel package",
         "summary_authority": "agent_provided_non_authoritative",
         "evidence_source": "runner_direct",
         "observation": {
@@ -778,12 +830,12 @@
             "evidence_source": "runner_direct",
             "run_artifact": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/build.json",
             "run_log": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/build.log",
-            "duration_ms": "6794",
-            "started_at": "2026-10-24T10:42:47.955Z",
-            "finished_at": "2026-10-24T10:42:54.737Z",
-            "head_sha_before": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
-            "head_sha_after": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
-            "head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+            "duration_ms": "6767",
+            "started_at": "2026-10-24T10:58:00.492Z",
+            "finished_at": "2026-10-24T10:58:07.246Z",
+            "head_sha_before": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
+            "head_sha_after": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
+            "head_sha": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
             "worktree_sampled": "true",
             "worktree_sampling_complete": "true",
             "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
@@ -853,12 +905,12 @@
             "run_artifact": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/build.json",
             "run_log": ".vibepro/pr/story-ledger-record-kind-screen-v1/verification-runs/build.log",
             "exit_code": "0",
-            "duration_ms": "6794",
-            "started_at": "2026-10-24T10:42:47.955Z",
-            "finished_at": "2026-10-24T10:42:54.737Z",
-            "head_sha_before": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
-            "head_sha_after": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
-            "head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+            "duration_ms": "6767",
+            "started_at": "2026-10-24T10:58:00.492Z",
+            "finished_at": "2026-10-24T10:58:07.246Z",
+            "head_sha_before": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
+            "head_sha_after": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
+            "head_sha": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
             "worktree_sampled": "true",
             "worktree_sampling_complete": "true",
             "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
@@ -940,11 +992,11 @@
           "reason": "observation states the inspected targets and what was observed"
         },
         "git_context": {
-          "head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+          "head_sha": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
           "current_branch": "cursor/ledger-kernel-record-kind",
           "dirty": false,
           "raw_dirty": true,
-          "status_fingerprint_hash": "35e415a62d929aeef9dd94c0e3554cdf15b80e4d4f4061fb786341a8eff03f5b",
+          "status_fingerprint_hash": "d97370edab574b164cd042c30ec0be48b8466ce3ab694cd33561b1b81c68c060",
           "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
           "fingerprint_scope": {
             "user_excludes": [
@@ -952,7 +1004,7 @@
               ".worktrees/vibepro/"
             ]
           },
-          "recorded_at": "2026-10-24T10:42:54.782Z"
+          "recorded_at": "2026-10-24T10:58:07.298Z"
         },
         "content_binding": {
           "schema_version": "0.1.0",
@@ -960,7 +1012,7 @@
           "mode": "content_surface",
           "status": "recorded",
           "reason": "content surface recorded for 2 file(s)",
-          "recorded_head_sha": "a780b6c6a35c2968609104103ffd75e615d0cdc9",
+          "recorded_head_sha": "167ab496c68b41cf3fc8b6cf0f476a99b16212ca",
           "surface_files": [
             {
               "path": "src/canonical-task-postgres.ts",
@@ -985,7 +1037,7 @@
         ],
         "runtime_identity": {
           "schema_version": "0.2.0",
-          "collected_at": "2026-10-24T10:42:54.758Z",
+          "collected_at": "2026-10-24T10:58:07.270Z",
           "mode": "normal",
           "source_kind": "npm_package",
           "test_context": null,
@@ -1040,7 +1092,7 @@
             ]
           }
         },
-        "executed_at": "2026-10-24T10:42:54.737Z",
+        "executed_at": "2026-10-24T10:58:07.246Z",
         "trust_status": "trusted"
       }
     ]
