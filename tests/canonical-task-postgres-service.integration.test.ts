@@ -21,13 +21,21 @@ import { CanonicalTaskPostgresRepository } from '../src/canonical-task-postgres.
  * With CANONICAL_TASK_PG_TEST_ADMIN_URL, creates and drops a disposable local
  * database. The older CANONICAL_TASK_PG_TEST_URL instead isolates a schema in
  * an already disposable test database. Without either URL the suite is skipped
- * (the package CI does not provision PostgreSQL yet).
+ * (the package CI does not provision PostgreSQL yet), unless
+ * CANONICAL_TASK_PG_TEST_REQUIRED=1 requires a URL and fails without one.
  *
  *   CANONICAL_TASK_PG_TEST_URL=postgres://... npm run test:canonical-task-postgres
  */
 const adminConnectionString = process.env.CANONICAL_TASK_PG_TEST_ADMIN_URL;
 const connectionString = adminConnectionString || process.env.CANONICAL_TASK_PG_TEST_URL;
 const postgresIntegrationEnabled = Boolean(connectionString);
+if (process.env.CANONICAL_TASK_PG_TEST_REQUIRED === '1' && !connectionString) {
+  describe('Required PostgreSQL test configuration', () => {
+    it('requires a PostgreSQL test URL', () => {
+      throw new Error('CANONICAL_TASK_PG_TEST_REQUIRED=1 but no PostgreSQL test URL');
+    });
+  });
+}
 if (connectionString) {
   const parsedConnectionString = new URL(connectionString);
   const localHosts = new Set(['localhost', '127.0.0.1', '::1']);
@@ -109,7 +117,7 @@ const policy: CanonicalTaskPolicy = {
   },
 };
 
-let adminPool: Pool;
+let adminPool: Pool | undefined;
 let pool: Pool;
 let repository: CanonicalTaskPostgresRepository;
 let operations: CanonicalTaskOperationRepository;
@@ -143,9 +151,9 @@ function createServiceContext(id: string, org = 'org-techknight', key = `key-${i
 
 describe.skipIf(!postgresIntegrationEnabled)('Canonical Task PostgreSQL adapter and Service integration', () => {
   beforeAll(async () => {
-    adminPool = new Pool({ connectionString });
     let testConnectionString = connectionString;
     if (adminConnectionString) {
+      adminPool = new Pool({ connectionString: adminConnectionString });
       await adminPool.query(`CREATE DATABASE ${quotedSchemaName}`);
       const databaseUrl = new URL(adminConnectionString);
       databaseUrl.pathname = `/${schemaName}`;

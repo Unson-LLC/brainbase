@@ -106,6 +106,41 @@ describe('CanonicalTaskService', () => {
     expect(fixture.auditEntries).toHaveLength(2);
   });
 
+  it('keeps general mutations for older repositories that omit record_kind and refuses null or future kinds', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const created = await fixture.service.createTask({ title: 'Older repository' }, fixture.context('older-create'));
+    const { record_kind: _recordKind, ...olderRow } = fixture.tasks.get(created.id)!;
+    fixture.tasks.set(created.id, olderRow);
+    expect(fixture.tasks.get(created.id)).not.toHaveProperty('record_kind');
+    await expect(fixture.service.updateTask(created.id, { title: 'Updated' }, 1, fixture.context('older-update')))
+      .resolves.toMatchObject({ title: 'Updated', version: 2 });
+    expect(fixture.tasks.get(created.id)).toMatchObject({ title: 'Updated', version: 2 });
+    expect(fixture.tasks.get(created.id)).not.toHaveProperty('record_kind');
+    await expect(fixture.service.transitionTask(created.id, 'in_progress', 2, fixture.context('older-transition')))
+      .resolves.toMatchObject({ status: 'in_progress', version: 3 });
+    expect(fixture.tasks.get(created.id)).toMatchObject({ status: 'in_progress', version: 3 });
+    expect(fixture.tasks.get(created.id)).not.toHaveProperty('record_kind');
+    await expect(fixture.service.deleteTask(created.id, 3, fixture.context('older-delete')))
+      .resolves.toMatchObject({ deleted: true });
+    expect(fixture.tasks.has(created.id)).toBe(false);
+
+    for (const kind of [null, 'future-kind']) {
+      const task = await fixture.service.createTask({ title: 'Invalid stored kind' }, fixture.context(`invalid-create-${kind}`));
+      Object.assign(fixture.tasks.get(task.id)!, { record_kind: kind });
+      const before = structuredClone(fixture.tasks.get(task.id));
+      const expected = { status: 409, code: 'ledger_record_use_ledger_api' };
+      await expect(fixture.service.updateTask(task.id, { title: 'Blocked' }, 1, fixture.context(`invalid-update-${kind}`)))
+        .rejects.toMatchObject(expected);
+      expect(fixture.tasks.get(task.id)).toEqual(before);
+      await expect(fixture.service.transitionTask(task.id, 'in_progress', 1, fixture.context(`invalid-transition-${kind}`)))
+        .rejects.toMatchObject(expected);
+      expect(fixture.tasks.get(task.id)).toEqual(before);
+      await expect(fixture.service.deleteTask(task.id, 1, fixture.context(`invalid-delete-${kind}`)))
+        .rejects.toMatchObject(expected);
+      expect(fixture.tasks.get(task.id)).toEqual(before);
+    }
+  });
+
   it.each([undefined, null, 'future-kind'])('reports unknown persisted record_kind %s without silently using work', async (recordKind) => {
     const fixture = createCanonicalTaskServiceFixture();
     const task = await fixture.service.createTask({ title: 'Unknown kind' }, fixture.context('unknown-kind'));
@@ -166,7 +201,7 @@ describe('CanonicalTaskService', () => {
     expect(fixture.auditEntries).toEqual([]);
   });
 
-  it('caps ledger_attributes at 64 KiB of UTF-8 JSON and 128 object levels', async () => {
+  it('caps ledger_attributes at 64 KiB of UTF-8 JSON and 128 object/array levels', async () => {
     const fixture = createCanonicalTaskServiceFixture();
     const atSizeLimit = { text: 'x'.repeat(64 * 1024 - Buffer.byteLength(JSON.stringify({ text: '' }))) };
     const atDepthLimit: Record<string, unknown> = {};
@@ -176,17 +211,26 @@ describe('CanonicalTaskService', () => {
       cursor.nested = next;
       cursor = next;
     }
-    for (const [index, attributes] of [atSizeLimit, atDepthLimit].entries()) {
+    const atArrayDepthLimit: Record<string, unknown> = { nested: [] };
+    let arrayCursor = atArrayDepthLimit.nested as unknown[];
+    // The root object plus 127 arrays makes 128 container levels.
+    for (let depth = 2; depth < 128; depth += 1) {
+      const next: unknown[] = [];
+      arrayCursor.push(next);
+      arrayCursor = next;
+    }
+    for (const [index, attributes] of [atSizeLimit, atDepthLimit, atArrayDepthLimit].entries()) {
       await expect(fixture.service.createTask({ title: 'Bounded', record_kind: 'request', ledger_attributes: attributes },
         fixture.context(`bounded-${index}`))).resolves.toMatchObject({ ledger_attributes: attributes });
     }
     cursor.nested = {};
-    for (const attributes of [atDepthLimit, { text: `${atSizeLimit.text}x` }, { text: 'あ'.repeat(22000) }]) {
+    arrayCursor.push([]);
+    for (const attributes of [atDepthLimit, atArrayDepthLimit, { text: `${atSizeLimit.text}x` }, { text: 'あ'.repeat(22000) }]) {
       await expect(fixture.service.createTask({ title: 'Excessive', record_kind: 'request', ledger_attributes: attributes },
         fixture.context('excessive-metadata'))).rejects.toMatchObject({ code: 'validation_error', status: 400 });
     }
-    expect(fixture.tasks.size).toBe(2);
-    expect(fixture.auditEntries).toHaveLength(2);
+    expect(fixture.tasks.size).toBe(3);
+    expect(fixture.auditEntries).toHaveLength(3);
   });
 
   it('rejects non-JSON and cyclic ledger_attributes before persistence', async () => {

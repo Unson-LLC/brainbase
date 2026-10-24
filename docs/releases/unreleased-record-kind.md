@@ -54,9 +54,16 @@ suites. `npm run test:canonical-task-postgres` accepts
 `CANONICAL_TASK_PG_TEST_ADMIN_URL` to create/drop a disposable local database,
 or the existing `CANONICAL_TASK_PG_TEST_URL` for an isolated schema in a
 disposable local database. Missing configuration skips the suite (unchanged
-behaviour). The package CI does not provision PostgreSQL yet; adding a
+behaviour); `CANONICAL_TASK_PG_TEST_REQUIRED=1` fails when neither URL is set.
+The package CI does not provision PostgreSQL yet; adding a
 PostgreSQL service to `.github/workflows/test.yml` is a separate workflow change
 (this PR does not change workflows). The PostgreSQL suite was run on a
 disposable box-local PostgreSQL.
+
+Rollback: before any ledger rows exist, the kernel can be reverted to 0.47.0
+and the host migration operator may drop the two constraints and partial index.
+Once request/requirement rows exist, do not drop `record_kind`, `ledger_attributes`
+or `ledger_agreed` (data loss). Older kernels ignore these columns, and the DB
+default keeps new rows as work.
 
 No npm publication, version bump, production DDL or deployment is included.
