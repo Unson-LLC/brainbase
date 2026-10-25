@@ -255,6 +255,13 @@ async function requestEmbeddings(
   }
 
   if (!Number.isInteger(response.status) || response.status < 200 || response.status >= 300) {
+    // Surface an exhausted embedding balance distinctly so Graph search can tell
+    // the owner that semantic retrieval is temporarily down for a billing reason,
+    // not a malformed request. The quota signal is either HTTP 402 or an explicit
+    // `embedding_provider_quota_exhausted` body code. Never echo the body itself.
+    if (response.status === 402 || await errorBodyCode(response, deadline) === 'embedding_provider_quota_exhausted') {
+      throw new EmbeddingProviderError('embedding_provider_quota_exhausted', 'the embedding provider prepaid balance is exhausted; semantic Graph search will work again once the balance is restored. Use resolve_entity or get_entity for known identifiers meanwhile');
+    }
     throw new EmbeddingProviderError('embedding_request_failed', `embedding service returned HTTP ${Number.isInteger(response.status) ? response.status : 'an invalid status'}`);
   }
   let raw: string;
@@ -271,6 +278,26 @@ async function requestEmbeddings(
     throw new EmbeddingProviderError('embedding_response_invalid', 'embedding service returned invalid JSON');
   }
   return validateEmbeddingResponse(parsed, texts.length);
+}
+
+/**
+ * Best-effort read of a failed response's `code` field. The error body may be
+ * absent, oversized, or non-JSON; any failure is swallowed because the HTTP
+ * status is still actionable on its own. The body text is never surfaced.
+ */
+async function errorBodyCode(response: EmbeddingFetchResponse, deadline: EmbeddingDeadline): Promise<string | undefined> {
+  let raw: string;
+  try {
+    raw = await withDeadline(readResponseText(response), deadline);
+  } catch {
+    return undefined;
+  }
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return isRecord(parsed) && typeof parsed.code === 'string' ? parsed.code : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 interface EmbeddingDeadline {
