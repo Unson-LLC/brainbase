@@ -653,3 +653,57 @@ export function workspaceCombobox(doc, {
     destroy() { close(false); removeListeners(); },
   };
 }
+
+/** Small shared icons for list actions. No icon font or host sprite is required. */
+export function workspaceActionIcon(doc, name) {
+  const svg = typeof doc.createElementNS === 'function' ? doc.createElementNS('http://www.w3.org/2000/svg', 'svg') : doc.createElement('svg');
+  for (const [key, value] of Object.entries({ class: 'bb-ws-action-icon', viewBox: '0 0 24 24', 'aria-hidden': 'true' })) svg.setAttribute(key, value);
+  const path = typeof doc.createElementNS === 'function' ? doc.createElementNS('http://www.w3.org/2000/svg', 'path') : doc.createElement('path');
+  const paths = { plus: 'M12 5v14M5 12h14', search: 'M21 21l-4.35-4.35M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0', filter: 'M4 7h16M7 12h10M10 17h4', sort: 'M8 4v16m-3-3 3 3 3-3M16 20V4m-3 3 3-3 3 3' };
+  path.setAttribute('d', paths[name] || paths.filter); svg.append(path); return svg;
+}
+
+/** One-row list actions. Reuses the caller's query, reset and combobox state/handlers. */
+export function workspaceCompactToolbar(doc, { root, query, filters, sort, reset, filterLabel = 'フィルター', sortLabel = '並べ替え' } = {}) {
+  root ||= el(doc, 'div');
+  root.classList.add('bb-ws-compact-toolbar');
+  const primary = el(doc, 'div', { className: 'bb-ws-toolbar-primary' });
+  const controls = el(doc, 'div', { className: 'bb-ws-toolbar-controls' });
+  const search = el(doc, 'span', { className: 'bb-ws-toolbar-query' });
+  search.append(workspaceActionIcon(doc, 'search'), query);
+  const filterButton = workspaceButton(doc, { variant: 'quiet', attrs: { 'aria-label': filterLabel } });
+  filterButton.classList.add('bb-ws-toolbar-filter');
+  const caret = el(doc, 'span', { className: 'bb-ws-toolbar-caret', text: '⌄', attrs: { 'aria-hidden': 'true' } });
+  filterButton.append(workspaceActionIcon(doc, 'filter'), el(doc, 'span', { className: 'bb-ws-toolbar-button-label', text: filterLabel }), caret);
+  const filter = workspaceFilterPopover(doc, {
+    content: filters, trigger: filterButton,
+    onToggle: open => { if (open && sort?.trigger.getAttribute('aria-expanded') === 'true') sort.trigger.click(); },
+  });
+  filter.panel.setAttribute('aria-label', filterLabel);
+  filter.panel.classList.add('bb-ws-toolbar-filter-panel');
+  const clearSlot = el(doc, 'span', { className: 'bb-ws-toolbar-clear-slot' });
+  if (reset) {
+    reset.textContent = '×'; reset.classList.add('bb-ws-toolbar-clear');
+    reset.setAttribute('aria-label', `${filterLabel}を解除`); reset.setAttribute('title', `${filterLabel}を解除`);
+    clearSlot.append(reset);
+  }
+  filter.root.append(clearSlot);
+  const group = el(doc, 'span', { className: 'bb-ws-toolbar-filter-group' }); group.append(filter.root);
+  if (sort) {
+    sort.root.classList.add('bb-ws-toolbar-sort');
+    sort.trigger.classList.add('bb-ws-toolbar-sort-trigger');
+    sort.trigger.append(workspaceActionIcon(doc, 'sort'), el(doc, 'span', { className: 'bb-ws-toolbar-button-label', text: sortLabel }));
+  }
+  controls.append(search, group); if (sort) controls.append(sort.root);
+  root.replaceChildren(primary, controls);
+  const closeFilter = () => { if (!filter.panel.hidden) filterButton.click(); };
+  const clear = () => { closeFilter(); filterButton.focus({ preventScroll: true }); };
+  const sortClick = () => { if (sort?.trigger.getAttribute('aria-expanded') === 'true') closeFilter(); };
+  reset?.addEventListener('click', clear); sort?.trigger.addEventListener('click', sortClick); sort?.trigger.addEventListener('keydown', sortClick);
+  return { root, primary, filter, setFiltered(active) {
+    if (active) group.classList.add('is-filtered'); else group.classList.remove('is-filtered');
+    filterButton.setAttribute('aria-label', active ? `${filterLabel}（適用中）` : filterLabel);
+  }, destroy() {
+    filter.destroy(); reset?.removeEventListener('click', clear); sort?.trigger.removeEventListener('click', sortClick); sort?.trigger.removeEventListener('keydown', sortClick);
+  } };
+}

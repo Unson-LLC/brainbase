@@ -44,6 +44,34 @@ class FakeDocument {
   createElement(tagName) { return new FakeElement(tagName); }
 }
 
+// Native-like parenting/listener behavior for the opt-in composed controls.
+class CompactElement extends FakeElement {
+  constructor(tag, doc) {
+    super(tag); this.ownerDocument = doc;
+    this.classList = {
+      add: name => { if (!this.className.split(' ').includes(name)) this.className += ` ${name}`; },
+      remove: name => { this.className = this.className.split(' ').filter(value => value !== name).join(' '); },
+      contains: name => this.className.split(' ').includes(name),
+    };
+  }
+  append(...children) {
+    for (const child of children) if (child?.parentNode) child.parentNode.children = child.parentNode.children.filter(value => value !== child);
+    super.append(...children);
+  }
+  setAttribute(name, value) { super.setAttribute(name, value); if (name === 'class') this.className = String(value); }
+  addEventListener(name, callback) {
+    const old = this.listeners.get(name);
+    this.listeners.set(name, old ? event => { old(event); callback(event); } : callback);
+  }
+  click() { this.listeners.get('click')?.({ target: this }); }
+  querySelector(selector) {
+    return findAll(this, node => selector === 'button' ? node.tagName === 'BUTTON' : selector.startsWith('.') ? node.className.split(' ').includes(selector.slice(1)) : ['INPUT', 'SELECT', 'BUTTON'].includes(node.tagName))[0] ?? null;
+  }
+}
+class CompactDocument extends FakeDocument {
+  createElement(tag) { return new CompactElement(tag, this); }
+}
+
 function collectText(node) {
   return `${node?.textContent ?? ''}${(node?.children ?? []).map(collectText).join('')}`;
 }
@@ -571,11 +599,12 @@ function entry({ id, title, scheduledAt, createdAt, minutes = 1, versionIds = 1,
 describe('meeting minutes page review', () => {
   const today = new Date('2026-10-14T12:00:00+09:00');
 
-  function mount(meetings, { detailFor, canEditMinutes = true, now = () => today, canCreateMeeting, createUnavailableReason, hostFilters } = {}) {
+  function mount(meetings, { detailFor, canEditMinutes = true, now = () => today, canCreateMeeting, createUnavailableReason, hostFilters, toolbarPresentation = 'expanded' } = {}) {
     const root = new FakeElement('div');
     const view = createMeetingMinutesUI({
       root,
-      document: new FakeDocument(),
+      document: toolbarPresentation === 'compact' ? new CompactDocument() : new FakeDocument(),
+      toolbarPresentation,
       now,
       canEditMinutes,
       ...(canCreateMeeting === undefined ? {} : { canCreateMeeting }),
@@ -589,6 +618,46 @@ describe('meeting minutes page review', () => {
     });
     return { root, view };
   }
+
+  it('compact controls keep the original query/reset behavior and one trigger containing its caret', async () => {
+    const { root } = mount(filterMeetings(), { toolbarPresentation: 'compact' }); await flush();
+    const query = findAll(root, node => node.className.includes('bb-minutes-filter-keyword'))[0];
+    const group = findAll(root, node => node.className.includes('bb-ws-toolbar-filter-group'))[0];
+    const trigger = findAll(group, node => node.className.includes('bb-ws-toolbar-filter') && node.tagName === 'BUTTON')[0];
+    const caret = findAll(trigger, node => node.className === 'bb-ws-toolbar-caret')[0];
+    expect(caret.tagName).toBe('SPAN'); expect(caret.parentNode).toBe(trigger);
+    query.value = '配備'; query.listeners.get('input')();
+    expect(listTitles(root)).toEqual(['配備方針の相談']);
+    expect(group.classList.contains('is-filtered')).toBe(true);
+    const reset = findAll(group, node => node.className.includes('bb-ws-toolbar-clear') && node.tagName === 'BUTTON')[0];
+    expect(reset.hidden).toBe(false); reset.click();
+    expect(query.value).toBe(''); expect(listTitles(root)).toHaveLength(3);
+    expect(group.classList.contains('is-filtered')).toBe(false); expect(reset.hidden).toBe(true);
+    expect(trigger.focusCalls).toHaveLength(1);
+  });
+
+  it('compact updated sorting preserves each card and date heading while changing only order', async () => {
+    const { root } = mount(filterMeetings(), { toolbarPresentation: 'compact' }); await flush();
+    const cards = () => Object.fromEntries(findAll(root, node => node.className.includes('bb-minutes-meeting-item')).map(node => [node.children[0].textContent, collectText(node)]));
+    const before = cards();
+    const sort = findAll(root, node => node.className.includes('bb-ws-toolbar-sort') && node.className.includes('bb-ws-combobox'))[0];
+    const trigger = findAll(sort, node => node.className.includes('bb-ws-combobox-trigger'))[0];
+    trigger.click();
+    findAll(sort, node => node.getAttribute?.('data-value') === 'updated-desc')[0].click();
+    expect(listTitles(root)).toEqual(['配備方針の相談', '週次定例', '月次レビュー']);
+    expect(cards()).toEqual(before);
+    expect(findAll(root, node => node.className === 'bb-minutes-date-heading')).toHaveLength(3);
+    expect(findAll(root, node => node.className.includes('bb-minutes-status'))[0].hidden).toBe(true);
+  });
+
+  it('compact updated sorting keeps an undated meeting in its true update position', async () => {
+    const { root } = mount([...filterMeetings(), entry({ id: 'undated-update', title: '日時のない新しい更新', updatedAt: at(2026, 10, 15, 13, 0) })], { toolbarPresentation: 'compact' });
+    await flush();
+    const sort = findAll(root, node => node.className.includes('bb-ws-toolbar-sort') && node.className.includes('bb-ws-combobox'))[0];
+    findAll(sort, node => node.className.includes('bb-ws-combobox-trigger'))[0].click();
+    findAll(sort, node => node.getAttribute?.('data-value') === 'updated-desc')[0].click();
+    expect(listTitles(root)[0]).toBe('日時のない新しい更新');
+  });
 
   it('orders dated meetings newest first, keeps today first, and does not count a single minutes document', async () => {
     const meetings = [

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { workspaceDetailDrawer, workspaceTopbar, workspaceApplyDrawer, workspaceCloseDrawer, workspaceDialog, workspaceFilterPopover, workspaceLoadingCard, workspaceDismissNotification } from '../../ui/workspace-kit.js';
+import { workspaceCompactToolbar, workspaceCombobox, workspaceDetailDrawer, workspaceTopbar, workspaceApplyDrawer, workspaceCloseDrawer, workspaceDialog, workspaceFilterPopover, workspaceLoadingCard, workspaceDismissNotification } from '../../ui/workspace-kit.js';
 
 // A native-dialog lifecycle model: focus remains inside until close dispatches.
 class Events {
@@ -27,9 +27,11 @@ class Element extends Events {
       contains: name => this.className.split(' ').includes(name),
     };
   }
+  click() { this.dispatch('click'); }
   get isConnected() { return this === this.ownerDocument.body || Boolean(this.parentNode?.isConnected); }
   setAttribute(name, value) { this.attributes[name] = String(value); }
   getAttribute(name) { return this.attributes[name] ?? null; }
+  removeAttribute(name) { delete this.attributes[name]; }
   append(...children) { for (const child of children) { child.remove(); child.parentNode = this; this.children.push(child); } }
   remove() { if (this.parentNode) this.parentNode.children = this.parentNode.children.filter(child => child !== this); this.parentNode = null; }
   replaceChildren(...children) { for (const child of [...this.children]) child.remove(); this.append(...children); }
@@ -155,5 +157,25 @@ describe('shared page chrome and persistent inspectors', () => {
     vi.useFakeTimers(); const doc = new Document(); const inspector = workspaceDetailDrawer(doc);
     inspector.open(); inspector.close(); inspector.open(); vi.runAllTimers();
     expect(inspector.dialog.open).toBe(true); inspector.dispose();
+  });
+});
+
+describe('compact list controls', () => {
+  it('uses one caret trigger, clears with focus restoration, and excludes filter on keyboard sort opening', () => {
+    const doc = new Document(); const root = doc.createElement('div'); doc.body.append(root);
+    const query = doc.createElement('input'); const filters = doc.createElement('div'); filters.append(doc.createElement('input'));
+    const reset = doc.createElement('button'); const clear = vi.fn(); reset.addEventListener('click', clear);
+    const sort = workspaceCombobox(doc, { label: '並べ替え', options: [{ value: 'new', label: '新しい順' }, { value: 'old', label: '古い順' }], value: 'new' });
+    const toolbar = workspaceCompactToolbar(doc, { root, query, filters, sort, reset });
+    expect(toolbar.filter.control.children.at(-1).tagName).toBe('SPAN');
+    toolbar.filter.control.click(); expect(toolbar.filter.panel.hidden).toBe(false);
+    sort.trigger.dispatch('keydown', { key: 'ArrowDown' });
+    expect(sort.popup.hidden).toBe(false); expect(toolbar.filter.panel.hidden).toBe(true);
+    toolbar.filter.control.click();
+    expect(sort.popup.hidden).toBe(true); expect(toolbar.filter.panel.hidden).toBe(false);
+    toolbar.setFiltered(true); reset.click();
+    expect(clear).toHaveBeenCalledTimes(1); expect(toolbar.filter.panel.hidden).toBe(true); expect(doc.activeElement).toBe(toolbar.filter.control);
+    toolbar.destroy(); sort.destroy();
+    expect(doc.count('pointerdown')).toBe(0); expect(doc.count('keydown')).toBe(0);
   });
 });
