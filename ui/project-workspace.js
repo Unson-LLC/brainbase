@@ -1,3 +1,4 @@
+import { workspaceTabList } from './workspace-kit.js';
 /*
  * Shared project knowledge workspace.
  *
@@ -1253,6 +1254,7 @@ export function createProjectKnowledgeWorkspace({
   });
   const body = makeElement(doc, 'div', { className: 'bb-pkw-body' });
   const tabs = makeElement(doc, 'div', { className: 'bb-pkw-tabs', attrs: { role: 'tablist', 'aria-label': 'プロジェクト情報の表示' } });
+  workspaceTabList(tabs);
   const panels = makeElement(doc, 'div', { className: 'bb-pkw-panels' });
   root.append(makeElement(doc, 'div', { className: 'bb-pkw-kicker', text: 'プロジェクトの記録' }));
   const header = makeElement(doc, 'header', { className: 'bb-pkw-header' });

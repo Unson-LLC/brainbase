@@ -97,4 +97,12 @@
   --bb-toolbar-caret-y: -3px;
   --bb-radius-menu: 4px;
   --bb-color-filter-selected: color-mix(in srgb, var(--bb-color-brand-indigo) 10%, var(--bb-color-paper));
+  /* Explicitly opted-in tab strips. */
+  --bb-tab-height: 44px;
+  --bb-tab-font-size: 13px;
+  --bb-tab-line-height: 20px;
+  --bb-tab-font-weight: 500;
+  --bb-tab-indicator-size: 2px;
+  --bb-tab-count-size: 20px;
+  --bb-tab-count-font-size: 12px;
 }

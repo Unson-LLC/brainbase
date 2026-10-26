@@ -725,3 +725,14 @@ export function workspaceCompactToolbar(doc, { root, query, filters, sort, reset
     filter.destroy(); reset?.removeEventListener('click', clear); sort?.trigger.removeEventListener('click', sortClick); sort?.trigger.removeEventListener('keydown', sortClick);
   } };
 }
+
+/** Apply the common tab appearance without changing semantics, state or handlers.
+ * Hosts may also use the documented bb-ws-tabs CSS class directly.
+ */
+export function workspaceTabList(root) {
+  if (!root || typeof root.className !== 'string') throw new TypeError('tab_root_required');
+  const classes = root.className.split(/\s+/u).filter(Boolean);
+  if (!classes.includes('bb-ws-tabs')) classes.push('bb-ws-tabs');
+  root.className = classes.join(' ');
+  return root;
+}

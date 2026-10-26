@@ -6,33 +6,6 @@
  * warning tone, never left out.  Uses only the shared tokens in
  * brainbase-tokens.css.
  */
-.bb-inbox-tabs {
-  display: flex;
-  gap: var(--bb-space-1);
-  margin: 0 0 var(--bb-space-4);
-  border-bottom: 1px solid var(--bb-color-border);
-}
-
-.bb-inbox-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: -1px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  padding: 8px 12px;
-  background: transparent;
-  color: var(--bb-color-muted);
-  font: inherit;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.bb-inbox-tab.is-selected {
-  border-bottom-color: var(--bb-color-accent);
-  color: var(--bb-color-ink);
-  font-weight: 600;
-}
 
 .bb-inbox-count {
   min-width: 20px;
@@ -221,3 +194,5 @@ a.bb-inbox-title:focus-visible {
     width: 100%;
   }
 }
+
+.bb-inbox-tabs { margin: 0 0 var(--bb-space-4); }

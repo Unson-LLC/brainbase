@@ -250,7 +250,7 @@ describe('local Web shell', () => {
     expect(links.find((link) => link.attributes.href === '#value-proofs').attributes['aria-current']).toBe('page');
     expect(shell.state.active).toBe('value-proofs');
     // Every destination is one screen, so no tabs.
-    const tabs = findAll(root, (node) => node.className === 'bb-area-tabs')[0];
+    const tabs = findAll(root, (node) => node.className.split(/\s+/u).includes('bb-area-tabs'))[0];
     expect(tabs.hidden).toBe(true);
     // One icon per destination (a heading has none).
     const destinations = links.filter((link) => link.attributes['data-area']);
@@ -316,7 +316,7 @@ describe('local Web shell', () => {
     const { fetcher } = hostFetcher(V2);
     const { root, shell } = mount(fetcher, 'minutes');
     await flush();
-    const tabs = findAll(root, (node) => node.className === 'bb-area-tabs')[0];
+    const tabs = findAll(root, (node) => node.className.split(/\s+/u).includes('bb-area-tabs'))[0];
     expect(tabs.hidden).toBe(true);
     const line = (id) => findAll(root, (node) => node.attributes?.['data-area'] === id)[0];
     expect(line('minutes').attributes['aria-current']).toBe('page');
