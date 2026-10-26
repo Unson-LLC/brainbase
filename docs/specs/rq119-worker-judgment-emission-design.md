@@ -194,7 +194,7 @@ Worker → episode/final/events を Codex と同形で生成 → `relayFinalized
 
 - 一意キー: `judgment_receipts` の `UNIQUE (organization_id, project_code, owner_person_id, resolution_id)`（schema `:12`）をそのまま使う。
 - 受領契約（重複時の意味を固定する）: 実リポジトリ `judgment-receipt-postgres-repository.js` は一意キー衝突を黙って握りつぶさず、既存行の不変性を確認して **409 `judgment_receipt_immutable_conflict`** を返す（`:129`）。これを踏まえ、RQ-119 の受領口は次を契約とする:
-  - **同一キー＋既存内容と一致**（receipt の content_digest が既存行と一致）: `already_saved`（**成功扱い**）。再送は何も壊さず冪等。※本リポジトリにも同形の成功語彙がある（`src/judgment-history.ts:44` `status:'saved'|'already_saved'`、feedback 書き込みの `created:false → already_saved` `:1870,1916`）。
+  - **同一キー＋既存内容と一致**（**receipt_digest**＝保存・投影する receipt 全体〈public_frame・判断時刻 resolved_at・entrypoint/tool・session_ref/turn_ref・project_code・参照情報・schema 版〉の canonical JSON ハッシュが既存行と一致）: `already_saved`（**成功扱い**）。再送は何も壊さず冪等。※本リポジトリにも同形の成功語彙がある（`src/judgment-history.ts:44` `status:'saved'|'already_saved'`、feedback 書き込みの `created:false → already_saved` `:1870,1916`）。
   - **同一キー＋内容が異なる**: **競合**＝409 `judgment_receipt_immutable_conflict` を返し、黙って上書き・追記しない（CLAUDE.md「正本が malformed / 競合なら loudly に失敗」。本リポジトリでも digest 不一致で `judgment_receipt_*_mismatch` を投げる作法と整合 `src/judgment-host.ts:944-960`）。送り手は §7 のとおり理由コードを残し、`resolution_id` の導出ミス等（内容の取り違え）として扱う。
 - `resolution_id` の決定的導出: 指示の「道具・セッション・ターン・内容ハッシュ」から決定的に作る。案:
   `resolution_id = f(entrypoint/tool, session_id, turn_id, content_digest)`（例: これらの canonical JSON の sha256 を安全なコード形 `SAFE_CODE`〈`judgment-public-relay.mjs:32`〉に収める）。
@@ -202,6 +202,7 @@ Worker → episode/final/events を Codex と同形で生成 → `relayFinalized
   - 同じ turn で内容が変わった場合（判断の訂正）は別 `resolution_id` にして別 record にするか、feedback イベント（`src/judgment-history.ts:34-39` の `JudgmentHistoryFeedbackEvent`、kind=correction）に寄せるかを検討（§9）。同一 `resolution_id` のまま内容だけ変えると上の「競合」（409）に落ちる。
 - 順序: 追記のみ・immutable（schema のトリガで UPDATE/DELETE 禁止、repository の immutable 衝突 `:129`）。表示順は `recorded_at`（receipt の `resolved_at` ＝判断時刻、§4.3）で決める。到着順には依存しない。
 - content_digest: 判断本文（§3.3 の明示 `public_frame`）の canonical JSON ハッシュ。秘密は含めない（記録前に拒否 §3.3）。
+- receipt_digest（冪等成功の一致判定に使う）: content_digest は resolution_id の導出にだけ使い、`already_saved` の判定は保存・履歴投影される receipt 全体の receipt_digest で行う。同一 tool/session/turn・同一本文でも判断時刻や参照情報が違えば receipt_digest が異なり、409 競合として扱う（黙って同一扱いしない）。受け手は既存行から同じ規則で receipt_digest を再計算して比較する（行に保存するか再計算かは実装 Story で決める）。
 
 ---
 
