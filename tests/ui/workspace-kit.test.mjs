@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   workspaceButton,
@@ -9,6 +10,7 @@ import {
   workspaceNotificationCard,
   workspaceErrorCard,
   workspaceLoadingCard,
+  workspaceLoadingStage,
   workspacePageHeader,
   workspaceRailBlock,
   workspaceRailHead,
@@ -135,5 +137,61 @@ describe('reusable notification surfaces', () => {
     expect(error.className).toContain('bb-ws-notification-card is-danger');
     expect(text(error)).toContain('0件とは未確認');
     expect(byClass(error, 'bb-ws-button')[0].listeners.get('click')).toBe(retry);
+  });
+});
+
+
+describe('centered loading stage', () => {
+  it('renders a friendly status with three dots inside a hidden mark, a title and an optional detail', () => {
+    const stage = workspaceLoadingStage(doc, { title: '目的と現状を準備しています', detail: '正本を読み込んでいます' });
+    expect(stage.tagName).toBe('DIV');
+    expect(stage.className).toBe('bb-ws-loading-stage');
+    expect(stage.attributes.role).toBe('status');
+    expect(stage.attributes['aria-live']).toBe('polite');
+    expect(stage.attributes['aria-busy']).toBeUndefined();
+    const mark = byClass(stage, 'bb-ws-loading-stage-mark')[0];
+    expect(mark.attributes['aria-hidden']).toBe('true');
+    const dots = byClass(stage, 'bb-ws-loading-stage-dot');
+    expect(dots).toHaveLength(3);
+    // The dots inherit hidden semantics from the mark; they carry no redundant aria-hidden.
+    expect(dots.every(dot => dot.attributes['aria-hidden'] === undefined)).toBe(true);
+    expect(byClass(stage, 'bb-ws-loading-stage-title')[0].textContent).toBe('目的と現状を準備しています');
+    expect(byClass(stage, 'bb-ws-loading-stage-detail')[0].textContent).toBe('正本を読み込んでいます');
+  });
+
+  it('uses the default title and adds the slow detail only when no detail was given', () => {
+    const plain = workspaceLoadingStage(doc);
+    expect(byClass(plain, 'bb-ws-loading-stage-title')[0].textContent).toBe('準備しています');
+    expect(byClass(plain, 'bb-ws-loading-stage-detail')).toHaveLength(0);
+    expect(plain.className).not.toContain('is-slow');
+
+    const slow = workspaceLoadingStage(doc, { slow: true });
+    expect(slow.className).toContain('is-slow');
+    expect(byClass(slow, 'bb-ws-loading-stage-detail')[0].textContent).toBe('時間がかかっています。このままお待ちください。');
+
+    const given = workspaceLoadingStage(doc, { slow: true, detail: 'もうすぐ表示できます' });
+    expect(byClass(given, 'bb-ws-loading-stage-detail')[0].textContent).toBe('もうすぐ表示できます');
+  });
+
+  it('covers the loading dots in the reduced-motion rule', () => {
+    const css = readFileSync(new URL('../../ui/workspace-kit.css', import.meta.url), 'utf8');
+    const blockAt = (start) => {
+      const open = css.indexOf('{', start);
+      let depth = 0;
+      for (let index = open; index < css.length; index += 1) {
+        if (css[index] === '{') depth += 1;
+        else if (css[index] === '}') {
+          depth -= 1;
+          if (depth === 0) return css.slice(start, index + 1);
+        }
+      }
+      return '';
+    };
+    const reducedMotion = [...css.matchAll(/@media\s*\(prefers-reduced-motion\s*:\s*reduce\)/g)]
+      .map(match => blockAt(match.index))
+      .join('\n');
+    expect(reducedMotion).toMatch(/\.bb-ws-loading-stage-dot[^{}]*\{[^{}]*animation:\s*none/);
+    expect(reducedMotion).toMatch(/\.bb-ws-loading-stage-dot[^{}]*\{[^{}]*opacity:\s*\.7/);
+    expect(reducedMotion).toMatch(/\.bb-ws-loading-stage-dot[^{}]*\{[^{}]*transform:\s*none/);
   });
 });
