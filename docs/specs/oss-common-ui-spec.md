@@ -51,3 +51,11 @@ Mana委任UI（`ui/outcome-mana`、そのCSSと`ui/icons/mana`）は、0.8.0の�
 ### 検証
 
 desktop/mobile、長いタイトル、スクロール時の固定、詳細の開閉とfocus復帰、画面遷移、読み込み・未確認・失敗・再試行・保存結果を確認する。API/認証/権限/readbackの契約は見た目と別に維持する。合成fixtureでテストし、本番データを公開テストへ入れない。
+
+### 一覧の操作帯
+
+- `workspaceCompactToolbar(document, { root, query, filters, sort, reset })` は、左の `primary` slotと右の文字検索・フィルター・並べ替えを1列に組み立てる。渡したinput、reset、`workspaceCombobox`の状態とhandlerは所有元で維持する。
+- フィルターは文字と右の `⌄` を1つのtriggerに含める。条件適用中は淡いブランド面と識別可能な名前を使い、同じ位置を独立した解除 `×` へ切り替える。幅が変わって隣の操作を動かさない。解除後はtriggerへfocusを戻す。
+- 並べ替えは既存comboboxのtriggerを使い、1回で候補を表示する。filter/sortはマウスとキーボードの両方で排他的に開き、破棄時にlistenerを外す。
+- `.bb-ws-neutral-controls` は画面単位の明示適用。入力は通常の枠とcaretを使い、ボタンのキーボードfocusは中立色で示す。hover・expandedの枠やメニューの状態も共通規則に揃え、画面別の競合する色を増やさない。他画面へ自動適用しない。
+- 議事録は `toolbarPresentation: 'compact'` を明示する。未指定は既存のexpanded表示を維持。通常の読込完了文は隠し、空状態は一覧内、失敗/再試行/保存結果は操作帯の下、詳細ロードはdrawer内に表示する。更新順でもカードの構造と日付見出しを保ち、日時未登録の会議も実際の更新順から動かさない。

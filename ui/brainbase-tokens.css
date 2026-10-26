@@ -85,4 +85,16 @@
   --bb-space-4: 16px;
   --bb-space-5: 24px;
   --bb-space-6: 32px;
+  /* Additive tokens for opt-in compact list controls. */
+  --bb-control-compact-height: 32px;
+  --bb-toolbar-height: 44px;
+  --bb-toolbar-clear-width: 28px;
+  --bb-toolbar-query-width: 220px;
+  --bb-toolbar-popover-width: 360px;
+  --bb-toolbar-icon-size: 16px;
+  --bb-toolbar-font-size: 13px;
+  --bb-toolbar-caret-x: -6px;
+  --bb-toolbar-caret-y: -3px;
+  --bb-radius-menu: 4px;
+  --bb-color-filter-selected: color-mix(in srgb, var(--bb-color-brand-indigo) 10%, var(--bb-color-paper));
 }
