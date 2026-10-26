@@ -63,8 +63,19 @@ export interface CanonicalTaskCompletionContract {
   criteria: Array<{ id: string; condition: string }>;
 }
 
+export type CanonicalTaskRecordKind = 'work' | 'request' | 'requirement';
+
+export function isCanonicalTaskRecordKind(value: unknown): value is CanonicalTaskRecordKind {
+  return value === 'work' || value === 'request' || value === 'requirement';
+}
+
 export interface CanonicalTaskRecord extends JsonRecord {
   id: string;
+  /** Optional for older repository implementations; public responses always include it. */
+  record_kind?: CanonicalTaskRecordKind | 'unknown';
+  ledger_attributes?: JsonRecord | null;
+  /** NULL is unrecorded and must not be interpreted as false. */
+  ledger_agreed?: boolean | null;
   version: number;
   title: string;
   description?: string | null;
@@ -89,6 +100,10 @@ export interface CanonicalTaskRecord extends JsonRecord {
 }
 
 export interface CanonicalTaskCreateInput extends JsonRecord {
+  record_kind?: CanonicalTaskRecordKind;
+  /** Host policy validates kind-specific keys and authority to set agreement. */
+  ledger_attributes?: JsonRecord | null;
+  ledger_agreed?: boolean | null;
   completion_contract?: unknown;
   title: string;
   description?: string | null;
@@ -329,9 +344,13 @@ const MAX_TITLE_LENGTH = 200;
 const MAX_SEARCH_LENGTH = 200;
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
-const MAX_SOURCE_REFS_APPEND_JSON_DEPTH = 128;
+const MAX_JSON_DEPTH = 128;
+const MAX_LEDGER_ATTRIBUTES_JSON_BYTES = 64 * 1024;
 const RESERVED_IDEMPOTENCY_PREFIXES = ['api:', 'workflow:'];
 const CREATE_FIELDS = new Set([
+  'record_kind',
+  'ledger_attributes',
+  'ledger_agreed',
   'completion_contract',
   'title',
   'description',
@@ -510,7 +529,7 @@ function assertJsonValue(value: unknown, field: string, ancestors = new Set<obje
   if (typeof value !== 'object') {
     fail('validation_error', `${field} must contain JSON-serializable values`, 400, { field });
   }
-  if (depth >= MAX_SOURCE_REFS_APPEND_JSON_DEPTH) {
+  if (depth >= MAX_JSON_DEPTH) {
     fail('validation_error', `${field} exceeds the maximum JSON nesting depth`, 400, { field });
   }
   if (ancestors.has(value)) {
@@ -783,7 +802,11 @@ export class CanonicalTaskService {
     await this.assertMutationReady();
     await this.authorize('create', normalizedContext, undefined, payload);
     const operation = operationKey(normalizedContext, clientKey, 'api:');
-    const inputFingerprint = fingerprint(payload);
+    // Preserve pre-record-kind create fingerprints, including persisted replays.
+    // Explicit work and omitted work describe the same command.
+    const fingerprintPayload = { ...payload };
+    if (fingerprintPayload.record_kind === 'work') delete fingerprintPayload.record_kind;
+    const inputFingerprint = fingerprint(fingerprintPayload);
     const recover = async (): Promise<CanonicalTaskOperationRecovery<CanonicalTaskRecord>> => {
       await this.assertMutationReady();
       const existing = await this.read(() => this.repository.findByIdempotencyKey(operation, ...this.scopeArgs(normalizedContext)));
@@ -950,12 +973,14 @@ export class CanonicalTaskService {
       task = await this.read(() => this.repository.get(normalizedId, ...this.scopeArgs(normalizedContext)));
       if (task) {
         await this.authorize('delete', normalizedContext, task);
+        this.assertGeneralMutationAllowed(task);
         this.assertVersion(task, version);
       }
     } else {
       task = await this.read(() => this.repository.get(normalizedId, ...this.scopeArgs(normalizedContext)));
       if (!task) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: normalizedId });
       await this.authorize('delete', normalizedContext, task);
+      this.assertGeneralMutationAllowed(task);
       this.assertVersion(task, version);
     }
     // The client key identifies the delete command. The task/version claim is
@@ -992,6 +1017,7 @@ export class CanonicalTaskService {
       const current = await this.read(() => this.repository.get(normalizedId, ...this.scopeArgs(normalizedContext)));
       if (!current) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: normalizedId });
       await this.authorize('delete', normalizedContext, current);
+      this.assertGeneralMutationAllowed(current);
       this.assertVersion(current, version);
       task = current;
       return {
@@ -1025,6 +1051,7 @@ export class CanonicalTaskService {
       // Recheck the current policy at the destructive boundary so a revoked
       // actor cannot delete a task using a previously prepared authorization.
       await this.authorize('delete', normalizedContext, taskToRemove);
+      this.assertGeneralMutationAllowed(taskToRemove);
       this.assertVersion(taskToRemove, version);
       await this.read(() => this.repository.delete(normalizedId, version, ...this.scopeArgs(normalizedContext)));
     };
@@ -1055,6 +1082,7 @@ export class CanonicalTaskService {
         throw new CanonicalTaskError('task_not_found', 'Task was not found', 404);
       }
       await this.authorize('delete', normalizedContext, taskSnapshot);
+      this.assertGeneralMutationAllowed(taskSnapshot);
     };
     let deleted: CanonicalTaskDeleteOperationResult;
     if (this.operationRepository?.executePreparedDelete) {
@@ -1137,6 +1165,9 @@ export class CanonicalTaskService {
     const current = await this.read(() => this.repository.get(taskId, ...this.scopeArgs(input.context)));
     if (!current) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: taskId });
     await this.authorize(input.action, input.context, current, input.patch);
+    // Reject known ledger records before claiming a coordinated operation.
+    // PostgreSQL also checks the kind in the UPDATE to close concurrent changes.
+    this.assertGeneralMutationAllowed(current);
     const operation = operationKey(input.context, `${taskId}:${expectedVersion}`, `${input.action}:`);
     const mutationTimestamp = this.clock().toISOString();
     const patch = {
@@ -1181,6 +1212,7 @@ export class CanonicalTaskService {
       const latest = await this.read(() => this.repository.get(taskId, ...this.scopeArgs(input.context)));
       if (!latest) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: taskId });
       await this.authorize(input.action, input.context, latest, input.patch);
+      this.assertGeneralMutationAllowed(latest);
       if (wasApplied(latest)) return { recovered: true, result: this.normalizeResponse(latest) };
       this.assertVersion(latest, expectedVersion);
       if (input.transitionStatus && !canTransitionCanonicalTaskStatus(latest.status, input.transitionStatus)) {
@@ -1195,6 +1227,7 @@ export class CanonicalTaskService {
       await this.assertMutationReady();
       const latest = await this.read(() => this.repository.get(taskId, ...this.scopeArgs(input.context)));
       if (!latest) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: taskId });
+      this.assertGeneralMutationAllowed(latest);
       if (wasApplied(latest)) return this.normalizeResponse(latest);
       this.assertVersion(latest, expectedVersion);
       if (input.transitionStatus && !canTransitionCanonicalTaskStatus(latest.status, input.transitionStatus)) {
@@ -1256,6 +1289,25 @@ export class CanonicalTaskService {
     if (!input || typeof input !== 'object') fail('validation_error', 'Task input is required');
     const unknownFields = Object.keys(input).filter((field) => !CREATE_FIELDS.has(field));
     if (unknownFields.length > 0) fail('validation_error', 'Task input contains unsupported fields', 400, { fields: unknownFields });
+    const recordKind = input.record_kind === undefined ? 'work' : input.record_kind;
+    if (!isCanonicalTaskRecordKind(recordKind)) fail('validation_error', 'record_kind is invalid', 400, { field: 'record_kind' });
+    for (const field of ['ledger_attributes', 'ledger_agreed']) {
+      if (recordKind === 'work' && Object.prototype.hasOwnProperty.call(input, field)) {
+        fail('validation_error', `${field} requires a ledger record`, 400, { field });
+      }
+    }
+    if (input.ledger_attributes != null && !isPlainJsonObject(input.ledger_attributes)) {
+      fail('validation_error', 'ledger_attributes must be an object', 400, { field: 'ledger_attributes' });
+    }
+    if (input.ledger_attributes != null) {
+      assertJsonValue(input.ledger_attributes, 'ledger_attributes');
+      if (Buffer.byteLength(JSON.stringify(input.ledger_attributes), 'utf8') > MAX_LEDGER_ATTRIBUTES_JSON_BYTES) {
+        fail('validation_error', 'ledger_attributes exceeds the maximum JSON size', 400, { field: 'ledger_attributes' });
+      }
+    }
+    if (input.ledger_agreed != null && (typeof input.ledger_agreed !== 'boolean' || recordKind !== 'requirement')) {
+      fail('validation_error', 'ledger_agreed requires a requirement and a boolean or null', 400, { field: 'ledger_agreed' });
+    }
     const title = normalizeString(input.title, 'title', { required: true, max: MAX_TITLE_LENGTH }) as string;
     const priority = input.priority == null || input.priority === '' ? 'medium' : String(input.priority);
     if (!isCanonicalTaskPriority(priority)) fail('validation_error', 'priority is invalid', 400, { field: 'priority' });
@@ -1263,6 +1315,9 @@ export class CanonicalTaskService {
     const waitingOnPersonId = normalizeWaitingOnPersonId(input.waiting_on_person_id);
     const completionContract = normalizeCompletionContract(input.completion_contract);
     return {
+      record_kind: recordKind,
+      ...(input.ledger_attributes != null ? { ledger_attributes: input.ledger_attributes } : {}),
+      ...(input.ledger_agreed != null ? { ledger_agreed: input.ledger_agreed } : {}),
       ...(completionContract ? { completion_contract: completionContract } : {}),
       title,
       description: normalizeString(input.description, 'description', { max: 10000, multiline: true }),
@@ -1278,6 +1333,14 @@ export class CanonicalTaskService {
       // Likewise only a person that is there is written.
       ...(waitingOnPersonId ? { waiting_on_person_id: waitingOnPersonId } : {}),
     };
+  }
+
+  private assertGeneralMutationAllowed(task: CanonicalTaskRecord): void {
+    // Older host repositories may omit the field. They keep their historical
+    // mutation behavior; the PostgreSQL adapter rejects every persisted non-work value.
+    if (task.record_kind !== undefined && task.record_kind !== 'work') {
+      fail('ledger_record_use_ledger_api', 'Use the ledger API to mutate this record', 409);
+    }
   }
 
   private normalizeUpdateInput(input: CanonicalTaskUpdateInput): JsonRecord {
@@ -1494,6 +1557,10 @@ export class CanonicalTaskService {
       return await operation();
     } catch (error) {
       if (error instanceof CanonicalTaskError) throw error;
+      if (error && typeof error === 'object'
+        && (error as { code?: unknown }).code === 'ledger_record_use_ledger_api') {
+        throw new CanonicalTaskError('ledger_record_use_ledger_api', 'Use the ledger API to mutate this record', 409);
+      }
       // Keep the fail-closed backend selection contract observable to the
       // host boundary while still hiding arbitrary storage details.
       if (error && typeof error === 'object'
@@ -1510,6 +1577,14 @@ export class CanonicalTaskService {
 
   private normalizeResponse(task: CanonicalTaskRecord): CanonicalTaskRecord {
     const response = { ...task } as CanonicalTaskRecord & JsonRecord;
+    if (!isCanonicalTaskRecordKind(response.record_kind)) {
+      response.record_kind = 'unknown';
+      const warnings = Array.isArray(response.normalization_warnings) ? [...response.normalization_warnings] : [];
+      if (!warnings.some((warning) => warningCode(warning) === 'unknown_record_kind')) {
+        warnings.push({ code: 'unknown_record_kind', message: 'Unknown Task record kind' });
+      }
+      response.normalization_warnings = warnings;
+    }
     delete response._payload_fingerprint;
     delete response._last_operation_key;
     delete response._last_operation_fingerprint;
