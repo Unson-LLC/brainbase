@@ -27,6 +27,37 @@ CREATE TABLE IF NOT EXISTS canonical_tasks (
 ALTER TABLE canonical_tasks
     ADD COLUMN IF NOT EXISTS project_codes TEXT[] NOT NULL DEFAULT '{}'::text[];
 
+-- Shared record kind; existing rows and callers that omit it remain work.
+ALTER TABLE canonical_tasks
+    ADD COLUMN IF NOT EXISTS record_kind TEXT NOT NULL DEFAULT 'work';
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'canonical_tasks'::regclass
+          AND conname = 'canonical_tasks_record_kind_check'
+    ) THEN
+        ALTER TABLE canonical_tasks
+            ADD CONSTRAINT canonical_tasks_record_kind_check
+            CHECK (record_kind IN ('work', 'request', 'requirement'));
+    END IF;
+END $$;
+
+ALTER TABLE canonical_tasks ADD COLUMN IF NOT EXISTS ledger_attributes JSONB;
+ALTER TABLE canonical_tasks ADD COLUMN IF NOT EXISTS ledger_agreed BOOLEAN;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'canonical_tasks'::regclass
+          AND conname = 'canonical_tasks_ledger_agreed_check'
+    ) THEN
+        ALTER TABLE canonical_tasks ADD CONSTRAINT canonical_tasks_ledger_agreed_check
+            CHECK (record_kind = 'requirement' OR ledger_agreed IS NULL) NOT VALID;
+    END IF;
+END $$;
+
 -- 何のための仕事か（例: 口コミ）。1 Taskに1つ、未分類はNULL。
 ALTER TABLE canonical_tasks
     ADD COLUMN IF NOT EXISTS purpose_label TEXT;
@@ -98,6 +129,8 @@ ALTER TABLE canonical_tasks
 
 CREATE INDEX IF NOT EXISTS canonical_tasks_status_priority_idx
     ON canonical_tasks (status, priority);
+CREATE INDEX IF NOT EXISTS canonical_tasks_ledger_record_kind_idx
+    ON canonical_tasks (record_kind, created_at, id) WHERE record_kind <> 'work';
 CREATE INDEX IF NOT EXISTS canonical_tasks_assignee_due_idx
     ON canonical_tasks (assignee_person_id, due_at);
 CREATE INDEX IF NOT EXISTS canonical_tasks_project_codes_idx
