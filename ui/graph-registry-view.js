@@ -1,3 +1,4 @@
+import { workspaceTabList } from './workspace-kit.js';
 /*
  * 「情報と関係」: what the local Graph holds, how records are connected, and
  * where to correct a mistake so the next MCP use sees the fix.
@@ -468,6 +469,7 @@ export function createGraphRegistryView({
       .map(({ id }) => id)
       .filter((id) => id === selected || counts.get(id)?.count !== 0);
     const tabs = makeElement(doc, 'div', { className: 'bb-gr-tabs', attrs: { role: 'tablist', 'aria-label': '種類' } });
+    workspaceTabList(tabs);
     for (const id of ['', ...ids]) {
       const item = counts.get(id);
       const count = Number.isInteger(item?.count) ? String(item.count)
@@ -477,7 +479,7 @@ export function createGraphRegistryView({
         attrs: { type: 'button', role: 'tab', 'aria-selected': id === selected ? 'true' : 'false', 'data-type': id, 'data-focus-key': `type:${id}` },
       });
       tab.append(makeElement(doc, 'span', { text: id ? kindLabel(id) : 'すべて' }));
-      if (count) tab.append(makeElement(doc, 'span', { className: 'bb-gr-tab-count', text: count }));
+      if (count) tab.append(makeElement(doc, 'span', { className: 'bb-gr-tab-count bb-ws-tab-count', text: count }));
       tab.addEventListener('click', () => {
         if (state.query.type === id) return;
         state.query.type = id;

@@ -67,32 +67,6 @@
   gap: var(--bb-space-1);
 }
 
-.bb-pkw-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--bb-space-1);
-  border-bottom: 1px solid var(--bb-color-border-strong);
-}
-
-.bb-pkw-tab {
-  border: 0;
-  border-bottom: 2px solid transparent;
-  padding: 10px 14px;
-  color: var(--bb-color-muted);
-  background: transparent;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 720;
-  cursor: pointer;
-}
-
-.bb-pkw-tab:hover,
-.bb-pkw-tab.is-active {
-  border-bottom-color: var(--bb-color-accent);
-  color: var(--bb-color-accent-strong);
-}
-
-.bb-pkw-tab:focus-visible,
 .bb-pkw-graph-item:focus-visible,
 .bb-pkw-record-link:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--bb-color-focus) 45%, var(--bb-color-panel));

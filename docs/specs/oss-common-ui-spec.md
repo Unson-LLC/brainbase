@@ -59,3 +59,12 @@ desktop/mobile、長いタイトル、スクロール時の固定、詳細の開
 - 並べ替えは既存comboboxのtriggerを使い、1回で候補を表示する。filter/sortはマウスとキーボードの両方で排他的に開き、破棄時にlistenerを外す。
 - `.bb-ws-neutral-controls` は画面単位の明示適用。入力は通常の枠とcaretを使い、ボタンのキーボードfocusは中立色で示す。hover・expandedの枠やメニューの状態も共通規則に揃え、画面別の競合する色を増やさない。他画面へ自動適用しない。
 - 議事録は `toolbarPresentation: 'compact'` を明示する。未指定は既存のexpanded表示を維持。通常の読込完了文は隠し、空状態は一覧内、失敗/再試行/保存結果は操作帯の下、詳細ロードはdrawer内に表示する。更新順でもカードの構造と日付見出しを保ち、日時未登録の会議も実際の更新順から動かさない。
+
+
+### Tab strips
+
+`workspaceTabList(root)` adds the opt-in `bb-ws-tabs` class to an existing strip and returns the same node. It is idempotent and adds no listeners, roles, IDs, selection state or lifecycle. Hosts can use the class directly; load `workspace-kit.css` and the shared tokens. Tab buttons retain `aria-selected`, destination links retain `href`/`aria-current`, and exclusive view buttons retain `aria-pressed`. Their owner keeps existing click, keyboard, focus and asynchronous behavior.
+
+The shared appearance is 44px high, 13px text at weight500, no gap and 12px internal horizontal padding. Hover does not change foreground or background. The 1px baseline and 2px selected indicator share the same bottom edge. Strips scroll horizontally within their own bounds, preserve hidden nodes and show keyboard focus. Layout gutters and vertical margins remain the host's responsibility. Use `bb-ws-tab-count` only for existing counts, and `bb-ws-tabs--summary` when a tab already has a secondary line.
+
+Application must be explicit: do not style every `role=tablist` globally. Task list/kanban/Gantt view modes remain unmarked and retain their existing segmented appearance. Search toolbar placement and intake-page styling are independent changes. Organization hosts consume the published exact-pinned package; source-backed previews do not replace that release gate.

@@ -737,3 +737,84 @@
   .bb-ws-compact-toolbar .bb-ws-toolbar-filter-group.is-filtered .bb-ws-toolbar-filter, .bb-ws-compact-toolbar .bb-ws-toolbar-sort-trigger { width: calc(var(--bb-control-compact-height) + var(--bb-space-1)); padding: var(--bb-space-1); }
   .bb-ws-compact-toolbar .bb-ws-toolbar-filter-panel { position: fixed; top: calc(var(--bb-toolbar-height) * 2 + var(--bb-space-5)); right: var(--bb-space-4); width: calc(100vw - var(--bb-space-6)); max-width: none; max-height: calc(100dvh - var(--bb-toolbar-height) * 2 - var(--bb-space-6) - var(--bb-space-4)); overflow-y: auto; }
 }
+
+/* Opt-in tab appearance. The caller owns selection, keyboard input and navigation. */
+.bb-ws-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0;
+  min-width: 0;
+  max-width: 100%;
+  min-height: var(--bb-tab-height);
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: inset 0 -1px 0 var(--bb-color-border);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.bb-ws-tabs > :is([role="tab"], a, button) {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  width: auto;
+  height: var(--bb-tab-height);
+  min-height: var(--bb-tab-height);
+  margin: 0;
+  padding: 0 var(--bb-space-3);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--bb-color-muted);
+  font-family: var(--bb-font-sans);
+  font-size: var(--bb-tab-font-size);
+  line-height: var(--bb-tab-line-height);
+  font-weight: var(--bb-tab-font-weight);
+  white-space: nowrap;
+  text-decoration: none;
+}
+.bb-ws-tabs > :is([role="tab"], a, button):hover {
+  color: var(--bb-color-muted);
+  background: transparent;
+  box-shadow: none;
+}
+.bb-ws-tabs > :is([role="tab"], a, button):is([aria-selected="true"], [aria-current="page"], [aria-pressed="true"]),
+.bb-ws-tabs > :is([role="tab"], a, button):is([aria-selected="true"], [aria-current="page"], [aria-pressed="true"]):hover {
+  color: var(--bb-color-ink);
+  background: transparent;
+  box-shadow: inset 0 calc(-1 * var(--bb-tab-indicator-size)) 0 var(--bb-color-ink);
+}
+.bb-ws-tabs > :is([role="tab"], a, button):focus-visible {
+  outline: var(--bb-tab-indicator-size) solid var(--bb-color-ink);
+  outline-offset: -4px;
+}
+.bb-ws-tabs .bb-ws-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: var(--bb-tab-count-size);
+  height: var(--bb-tab-count-size);
+  padding: 0 6px;
+  border-radius: var(--bb-tab-count-size);
+  color: var(--bb-color-ink);
+  background: var(--bb-color-canvas);
+  font-size: var(--bb-tab-count-font-size);
+  line-height: var(--bb-tab-count-size);
+  font-weight: var(--bb-tab-font-weight);
+}
+.bb-ws-tabs::-webkit-scrollbar { display: none; }
+.bb-ws-tabs[hidden],
+.bb-ws-tabs > [hidden] { display: none; }
+.bb-ws-tabs--summary > [role="tab"] { flex-direction: column; align-items: flex-start; gap: 0; }
+.bb-ws-tabs--summary > [role="tab"] strong { font: inherit; }
+.bb-ws-tabs--summary > [role="tab"] small { margin: 0; }
