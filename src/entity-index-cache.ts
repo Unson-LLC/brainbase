@@ -53,49 +53,68 @@ export function createEntityIndexCache<T>(options: EntityIndexCacheOptions<T>): 
   const now = options.now ?? Date.now;
   const revisionFn = options.revision;
 
+  const MAX_STABLE_BUILD_ATTEMPTS = 3;
+
   let entry: EntityIndexCacheEntry<T> | null = null;
-  let inflight: Promise<EntityIndexCacheEntry<T>> | null = null;
-  let inflightGeneration = -1;
+  let inflightGet: Promise<T> | null = null;
   let generation = 0;
   let builds = 0;
   let hits = 0;
   let invalidations = 0;
 
-  async function runBuild(): Promise<{ entry: EntityIndexCacheEntry<T>; generation: number }> {
-    if (!inflight) {
-      const startedGeneration = generation;
-      const promise = (async () => {
-        builds++;
-        try {
-          const value = await options.build();
-          let revision: string | null | undefined;
-          if (revisionFn) {
-            try {
-              revision = await revisionFn();
-            } catch {
-              revision = undefined;
-            }
-          }
-          return { value, revision } as EntityIndexCacheEntry<T>;
-        } catch (error) {
-          entry = null;
-          throw error;
-        }
-      })();
-      inflight = promise.finally(() => {
-        inflight = null;
-        inflightGeneration = -1;
-      });
-      inflightGeneration = startedGeneration;
-    }
-    const startedGeneration = inflightGeneration;
-    const built = await inflight;
-    return { entry: built, generation: startedGeneration };
+  interface RevisionRead {
+    ok: boolean;
+    value: string | null | undefined;
   }
 
-  async function get(): Promise<T> {
+  async function readRevision(): Promise<RevisionRead> {
+    if (!revisionFn) {
+      return { ok: true, value: undefined };
+    }
+    try {
+      return { ok: true, value: await revisionFn() };
+    } catch {
+      return { ok: false, value: undefined };
+    }
+  }
+
+  interface StableBuild<T> {
+    value: T;
+    revision: string | null | undefined;
+    commit: boolean;
+  }
+
+  async function buildStable(): Promise<StableBuild<T>> {
+    for (let attempt = 1; ; attempt++) {
+      let before: RevisionRead = { ok: true, value: undefined };
+      if (revisionFn) {
+        before = await readRevision();
+      }
+
+      builds++;
+      const value = await options.build();
+
+      let after: RevisionRead = { ok: true, value: undefined };
+      if (revisionFn) {
+        after = await readRevision();
+      }
+
+      if (!before.ok || !after.ok) {
+        return { value, revision: undefined, commit: true };
+      }
+      if (before.value === after.value) {
+        return { value, revision: after.value, commit: true };
+      }
+      if (attempt >= MAX_STABLE_BUILD_ATTEMPTS) {
+        return { value, revision: after.value, commit: false };
+      }
+    }
+  }
+
+  async function resolve(): Promise<T> {
     while (true) {
       const startedGeneration = generation;
+
       if (entry && now() - entry.builtAt < options.ttlMs) {
         let serve = true;
         if (revisionFn) {
@@ -114,13 +133,34 @@ export function createEntityIndexCache<T>(options: EntityIndexCacheOptions<T>): 
         }
       }
 
-      const { entry: built, generation: builtGeneration } = await runBuild();
-      if (builtGeneration !== generation) {
+      let built: StableBuild<T>;
+      try {
+        built = await buildStable();
+      } catch (error) {
+        entry = null;
+        throw error;
+      }
+
+      if (startedGeneration !== generation) {
         continue;
       }
-      entry = { ...built, builtAt: now() };
-      return entry.value;
+
+      if (built.commit) {
+        entry = { value: built.value, builtAt: now(), revision: built.revision };
+      }
+      return built.value;
     }
+  }
+
+  function get(): Promise<T> {
+    if (inflightGet) {
+      return inflightGet;
+    }
+    const promise = resolve().finally(() => {
+      inflightGet = null;
+    });
+    inflightGet = promise;
+    return promise;
   }
 
   function invalidate(_reason?: string): void {

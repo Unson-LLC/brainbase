@@ -30,6 +30,8 @@ describe('entity index cache', () => {
         const first = cache.get();
         const second = cache.get();
         const third = cache.get();
+        expect(first).toBe(second);
+        expect(second).toBe(third);
         expect(build).toHaveBeenCalledTimes(1);
 
         resolveBuild({ index: 7 });
@@ -39,6 +41,56 @@ describe('entity index cache', () => {
             { index: 7 }
         ]);
         expect(build).toHaveBeenCalledTimes(1);
+    });
+
+    it('rebuilds when revision changes during build', async () => {
+        let revision = 'v1';
+        const resolvers: Array<(value: { index: number }) => void> = [];
+        const build = vi.fn(
+            () => new Promise<{ index: number }>((resolve) => { resolvers.push(resolve); })
+        );
+        const cache = createEntityIndexCache({
+            build,
+            ttlMs: 60_000,
+            revision: async () => revision
+        });
+
+        const pending = cache.get();
+        await flush();
+        expect(build).toHaveBeenCalledTimes(1);
+
+        revision = 'v2';
+        resolvers[0]({ index: 1 });
+        await flush();
+        expect(build).toHaveBeenCalledTimes(2);
+
+        resolvers[1]({ index: 2 });
+        await expect(pending).resolves.toEqual({ index: 2 });
+        expect(build).toHaveBeenCalledTimes(2);
+
+        await expect(cache.get()).resolves.toEqual({ index: 2 });
+        expect(build).toHaveBeenCalledTimes(2);
+    });
+
+    it('stops retrying and returns the latest build without caching when revision keeps changing', async () => {
+        let revision = 'v0';
+        const build = vi.fn(async () => {
+            revision = `v${Number(revision.slice(1)) + 1}`;
+            return { revision };
+        });
+        const cache = createEntityIndexCache({
+            build,
+            ttlMs: 60_000,
+            revision: async () => revision
+        });
+
+        await expect(cache.get()).resolves.toEqual({ revision: 'v3' });
+        expect(build).toHaveBeenCalledTimes(3);
+        expect(cache.peek()).toBeNull();
+
+        await cache.get();
+        expect(build).toHaveBeenCalledTimes(6);
+        expect(cache.peek()).toBeNull();
     });
 
     it('rebuilds after TTL using the injected clock', async () => {
