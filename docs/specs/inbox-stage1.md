@@ -118,3 +118,23 @@ interface InboxPort {
 - 行のボタン: `runAction` が呼ばれ、成功で読み直す。
 - `countInboxWaiting`: `units` の合計、隠したものを除く、読めない種類を返す、全体が読めないときは null。
 - アドレスに題名とIDが載らない。
+
+## 今日決めること（layout: 'today'）と元に戻す（undoWindowMs）
+
+組織版 RQ-121 の受信箱は、この共通UIをそのまま配信したうえで、ホストから次のオプションを渡す。Personal Web などが渡さないときの見た目と振る舞いは、これまでと変えない。
+
+- `layout: 'today'` のときは、タブを出さず1列に並べる。見出しは「受信箱」のまま、その下に `今日決めること <units合計>件` を出す。決めることが0件なら「今日決めることはありません」と出す。
+- 段は `decide`（決めること。group `answer` と `approve`）、`batch`（まとめて片付くもの。group `triage`）、`look`（見るだけ。group `task`）の3つ。段の中の並びは `sortInboxItems` のまま。行の無い段は出さず、読めない種類の説明はその group が属する段に出す。
+- 行の待ち日数は `receivedAt` から閲覧者の `now` までを日単位で切り捨て、`待ち <days>日`（0日なら「今日」）と出す。3日を超えるものは `bb-inbox-wait is-long`。`layout: 'today'` の行は相対時刻の代わりにこれを出す。
+- 主ボタン（`tone: 'primary'` の action）がある行には「片付けた」を出さない。「あとで」は出す。
+- 「あとで」の選択肢は `style: 'today'` のとき、今夜 21:00（21:00 より前のときだけ）・明日の朝 9:00・来週の月曜 9:00。`style` を渡さないときは従来の「今日の夕方（18:00）・明日の朝・来週の月曜の朝」のまま。
+- `port.readNotices` があるときだけ、「見るだけ」の段の下に `renderNotices` の中身を出す。無ければ未収集の説明も出さない。
+- 件数（`countInboxWaiting` と `onCount`）は従来どおり `units` の合計。ホストは `units: 0` の行を使って、決めることだけを数えさせてよい。
+- 「あとで N件」「片付けた N件」と `route.view` は従来どおり。`layout: 'today'` では `route.tab` を無視し、常に対応待ち側を描く。
+
+`undoWindowMs > 0` のときは、行の action を押した瞬間にその行を一覧と件数から外し、`「<action.label>」を実行します。` と「元に戻す」の帯を出す。
+
+- 「元に戻す」はタイマーを止めて行を戻し、`runAction` を呼ばない。
+- 時間が過ぎたら `runAction(itemId, actionId)` を1回呼ぶ。成功なら `load()`、失敗なら行を戻して理由を出す。
+- `destroy()` のとき残っている操作は、タイマーを止めてすぐ送る（結果は描かない）。
+- `undoWindowMs` が0のときは、従来どおり結果を待って読み直す。

@@ -66,6 +66,40 @@
   font-weight: 600;
 }
 
+.bb-inbox.is-today .bb-inbox-today-count {
+  margin: 0 0 var(--bb-space-4);
+  color: var(--bb-color-ink);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.bb-inbox.is-today .bb-inbox-today-section .bb-inbox-group-title {
+  color: var(--bb-color-ink);
+  font-size: 13px;
+}
+
+.bb-inbox-wait {
+  color: var(--bb-color-muted);
+}
+
+.bb-inbox-wait.is-long {
+  color: var(--bb-color-warning);
+  font-weight: 600;
+}
+
+.bb-inbox-undo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--bb-space-2);
+  margin: 0 0 var(--bb-space-3);
+  border-radius: var(--bb-radius-md);
+  padding: var(--bb-space-2) var(--bb-space-3);
+  background: var(--bb-color-accent-soft);
+  color: var(--bb-color-ink);
+  font-size: 13px;
+}
+
 .bb-inbox-list {
   border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-md);

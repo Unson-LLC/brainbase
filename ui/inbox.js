@@ -34,6 +34,13 @@ const GROUPS = Object.keys(INBOX_GROUP_LABELS);
 const TABS = ['waiting', 'notices'];
 const VIEWS = ['waiting', 'later', 'cleared'];
 
+/** The three sections of the 今日決めること layout, in order. */
+export const INBOX_TODAY_SECTIONS = Object.freeze([
+  Object.freeze({ id: 'decide', label: '決めること', groups: Object.freeze(['answer', 'approve']) }),
+  Object.freeze({ id: 'batch', label: 'まとめて片付くもの', groups: Object.freeze(['triage']) }),
+  Object.freeze({ id: 'look', label: '見るだけ', groups: Object.freeze(['task']) }),
+]);
+
 const el = makeWorkspaceElement;
 
 // Why a read failed, in the viewer's words; the code stays beside it for support.
@@ -148,13 +155,16 @@ function at(base, dayOffset, hour) {
 }
 
 /** あとで: this evening (only before 18:00), tomorrow morning, next Monday morning — by the viewer's clock. */
-export function inboxLaterChoices(now = new Date()) {
+export function inboxLaterChoices(now = new Date(), { style } = {}) {
+  const today = style === 'today';
   const choices = [];
-  const evening = at(now, 0, 18);
-  if (evening.getTime() > now.getTime()) choices.push({ id: 'evening', label: '今日の夕方', until: evening });
-  choices.push({ id: 'tomorrow', label: '明日の朝', until: at(now, 1, 9) });
+  const evening = at(now, 0, today ? 21 : 18);
+  if (evening.getTime() > now.getTime()) {
+    choices.push({ id: 'evening', label: today ? '今夜 21:00' : '今日の夕方', until: evening });
+  }
+  choices.push({ id: 'tomorrow', label: today ? '明日の朝 9:00' : '明日の朝', until: at(now, 1, 9) });
   const toMonday = ((8 - now.getDay()) % 7) || 7;
-  choices.push({ id: 'monday', label: '来週の月曜の朝', until: at(now, toMonday, 9) });
+  choices.push({ id: 'monday', label: today ? '来週の月曜 9:00' : '来週の月曜の朝', until: at(now, toMonday, 9) });
   return choices;
 }
 
@@ -239,6 +249,12 @@ function relativeTime(value, now) {
   return days < 30 ? `${days}日前` : formatShort(value);
 }
 
+function waitingDays(value, now) {
+  const time = timeOf(value);
+  if (time === null) return null;
+  return Math.max(0, Math.floor((now.getTime() - time) / 86_400_000));
+}
+
 export function createInboxUI({
   root,
   page,
@@ -249,6 +265,9 @@ export function createInboxUI({
   onNavigate,
   onCount,
   now = () => new Date(),
+  layout: layoutOption = 'tabs',
+  undoWindowMs: undoWindowMsOption = 0,
+  timers: timersOption,
 } = {}) {
   if (!root) throw new TypeError('root is required');
   if (!port || typeof port.readInbox !== 'function' || typeof port.setDisposition !== 'function') {
@@ -258,6 +277,12 @@ export function createInboxUI({
   if (!doc || typeof doc.createElement !== 'function') throw new Error('document_unavailable');
   const crumbs = Array.isArray(page?.crumbs) ? page.crumbs : ['受信箱'];
   const readNow = () => (typeof now === 'function' ? now() : now);
+  const layout = layoutOption === 'today' ? 'today' : 'tabs';
+  const undoWindowMs = Number.isFinite(undoWindowMsOption) && undoWindowMsOption > 0 ? undoWindowMsOption : 0;
+  const timers = {
+    set: typeof timersOption?.set === 'function' ? timersOption.set : (fn, ms) => globalThis.setTimeout(fn, ms),
+    clear: typeof timersOption?.clear === 'function' ? timersOption.clear : (id) => globalThis.clearTimeout(id),
+  };
 
   const state = {
     route: normalizeRoute(initialRoute),
@@ -268,6 +293,7 @@ export function createInboxUI({
     laterOpen: null,
     notice: null,
     notices: null,
+    pending: new Map(),
     destroyed: false,
   };
   let generation = 0;
@@ -280,7 +306,22 @@ export function createInboxUI({
 
   function reportCount() {
     if (typeof onCount !== 'function') return;
-    onCount(state.result ? countInboxWaiting({ ...state.result, dispositions: [...state.dispositions.values()] }, readNow()) : { count: null, unreadable: [] });
+    if (!state.result) {
+      onCount({ count: null, unreadable: [] });
+      return;
+    }
+    const current = readNow();
+    const base = countInboxWaiting({ ...state.result, dispositions: [...state.dispositions.values()] }, current);
+    if (base.count === null) {
+      onCount(base);
+      return;
+    }
+    const shown = partition(current);
+    onCount({ count: shown.waiting.reduce((sum, item) => sum + unitsOf(item), 0), unreadable: base.unreadable });
+  }
+
+  function noticesWanted() {
+    return layout === 'today' ? typeof port.readNotices === 'function' : state.route.tab === 'notices';
   }
 
   async function loadNotices() {
@@ -311,7 +352,7 @@ export function createInboxUI({
     } catch (error) {
       result = { status: 'unavailable', reason: error instanceof Error ? error.message : 'request_failed' };
     }
-    if (state.route.tab === 'notices' && state.notices === null) await loadNotices();
+    if (noticesWanted() && state.notices === null) await loadNotices();
     if (current !== generation || state.destroyed) return;
     if (result?.status === 'ok' && Array.isArray(result.sources) && Array.isArray(result.items)) {
       state.result = result;
@@ -330,7 +371,7 @@ export function createInboxUI({
   function applyRoute(route) {
     state.route = normalizeRoute(route);
     state.laterOpen = null;
-    if (state.route.tab === 'notices' && state.notices === null) {
+    if (noticesWanted() && state.notices === null) {
       void loadNotices().then(() => render());
     }
     render();
@@ -375,6 +416,52 @@ export function createInboxUI({
     render();
   }
 
+  function clearPendingTimer(entry) {
+    if (entry.timerId !== null && entry.timerId !== undefined) timers.clear(entry.timerId);
+  }
+
+  async function commitPending(entry) {
+    if (state.pending.get(entry.item.id) !== entry || state.destroyed) return;
+    clearPendingTimer(entry);
+    entry.sent = true;
+    let result;
+    try {
+      result = await port.runAction(entry.item.id, entry.action.id);
+    } catch (error) {
+      result = { status: 'unavailable', reason: error instanceof Error ? error.message : 'request_failed' };
+    }
+    if (state.pending.get(entry.item.id) === entry) state.pending.delete(entry.item.id);
+    if (state.destroyed) return;
+    if (result?.status === 'ok') {
+      state.notice = null;
+      await load();
+      return;
+    }
+    state.notice = `「${entry.action.label}」を実行できませんでした。理由: ${reasonText(result?.reason ?? 'response_invalid')}。`;
+    render();
+    reportCount();
+  }
+
+  function pressAction(item, action) {
+    if (undoWindowMs <= 0) {
+      void runAction(item, action);
+      return;
+    }
+    const entry = { item, action, timerId: null };
+    state.pending.set(item.id, entry);
+    state.notice = null;
+    entry.timerId = timers.set(() => { void commitPending(entry); }, undoWindowMs);
+    render();
+    reportCount();
+  }
+
+  function undoPending(entry) {
+    clearPendingTimer(entry);
+    state.pending.delete(entry.item.id);
+    render();
+    reportCount();
+  }
+
   function openItem(item, event) {
     if (item.clearOnOpen === true) void dispose(item, { state: 'cleared', revision: item.revision ?? null }, '開いた行を片付けられませんでした');
     const href = textOf(item.href);
@@ -404,7 +491,7 @@ export function createInboxUI({
 
   function renderLaterMenu(item) {
     const menu = el(doc, 'div', { className: 'bb-inbox-later-menu', attrs: { role: 'group', 'aria-label': 'あとでの時刻' } });
-    for (const choice of inboxLaterChoices(readNow())) {
+    for (const choice of inboxLaterChoices(readNow(), layout === 'today' ? { style: 'today' } : {})) {
       menu.append(workspaceButton(doc, {
         text: choice.label,
         variant: 'quiet',
@@ -425,8 +512,19 @@ export function createInboxUI({
     if (item.blocking === true) meta.append(el(doc, 'span', { className: 'bb-inbox-blocking', text: '止めています' }));
     const due = formatShort(item.dueAt);
     if (due) meta.append(el(doc, 'span', { className: 'bb-inbox-due', text: `期限 ${due}` }));
-    const received = relativeTime(item.receivedAt, readNow());
-    if (received) meta.append(el(doc, 'span', { text: received, attrs: { title: formatShort(item.receivedAt) ?? undefined } }));
+    if (layout === 'today') {
+      const days = waitingDays(item.receivedAt, readNow());
+      if (days !== null) {
+        meta.append(el(doc, 'span', {
+          className: `bb-inbox-wait${days > 3 ? ' is-long' : ''}`,
+          text: days === 0 ? '今日' : `待ち ${days}日`,
+          attrs: { title: formatShort(item.receivedAt) ?? undefined },
+        }));
+      }
+    } else {
+      const received = relativeTime(item.receivedAt, readNow());
+      if (received) meta.append(el(doc, 'span', { text: received, attrs: { title: formatShort(item.receivedAt) ?? undefined } }));
+    }
     const disposition = state.dispositions.get(item.id);
     if (view === 'later' && disposition?.until) meta.append(el(doc, 'span', { className: 'bb-inbox-until', text: `${formatShort(disposition.until)}に戻ります` }));
     if (textOf(item.detail)) main.append(el(doc, 'p', { className: 'bb-inbox-detail', text: item.detail }));
@@ -435,11 +533,16 @@ export function createInboxUI({
 
     const controls = el(doc, 'div', { className: 'bb-inbox-row-actions' });
     if (view === 'waiting') {
-      if (typeof port.runAction === 'function') {
-        for (const action of Array.isArray(item.actions) ? item.actions : []) {
-          if (!textOf(action?.id) || !textOf(action?.label)) continue;
-          controls.append(workspaceButton(doc, { text: action.label, variant: action.tone === 'primary' ? 'primary' : action.tone === 'danger' ? 'danger' : 'default', onClick: () => void runAction(item, action) }));
-        }
+      const actions = typeof port.runAction === 'function'
+        ? (Array.isArray(item.actions) ? item.actions : []).filter((action) => textOf(action?.id) && textOf(action?.label))
+        : [];
+      const hasPrimary = actions.some((action) => action.tone === 'primary');
+      for (const action of actions) {
+        controls.append(workspaceButton(doc, {
+          text: action.label,
+          variant: action.tone === 'primary' ? 'primary' : action.tone === 'danger' ? 'danger' : 'default',
+          onClick: () => pressAction(item, action),
+        }));
       }
       controls.append(
         workspaceButton(doc, {
@@ -451,8 +554,10 @@ export function createInboxUI({
             render();
           },
         }),
-        workspaceButton(doc, { text: '片付けた', variant: 'quiet', onClick: () => void dispose(item, { state: 'cleared', revision: item.revision ?? null }, '片付けられませんでした') }),
       );
+      if (!(layout === 'today' && hasPrimary)) {
+        controls.append(workspaceButton(doc, { text: '片付けた', variant: 'quiet', onClick: () => void dispose(item, { state: 'cleared', revision: item.revision ?? null }, '片付けられませんでした') }));
+      }
     } else {
       controls.append(workspaceButton(doc, { text: '対応待ちに戻す', variant: 'quiet', onClick: () => void dispose(item, { state: 'open' }, '対応待ちに戻せませんでした') }));
     }
@@ -471,6 +576,7 @@ export function createInboxUI({
   function partition(now) {
     const shown = { waiting: [], later: [], cleared: [] };
     for (const item of readableItems(state.result)) {
+      if (state.pending.has(item.id)) continue;
       const disposition = activeDisposition(item, state.dispositions, now);
       shown[disposition ? disposition.state : 'waiting'].push(item);
     }
@@ -509,6 +615,51 @@ export function createInboxUI({
     return view;
   }
 
+  function renderTodayWaiting(shown) {
+    const view = el(doc, 'div', { className: 'bb-inbox-waiting is-today' });
+    const sources = state.result.sources;
+    for (const definition of INBOX_TODAY_SECTIONS) {
+      const rows = sortInboxItems(shown.waiting.filter((item) => definition.groups.includes(item.group)));
+      const problems = sources.filter((source) => definition.groups.includes(source.group) && source.status !== 'ok');
+      if (rows.length > 0 || problems.length > 0) {
+        const section = el(doc, 'section', {
+          className: 'bb-inbox-group bb-inbox-today-section',
+          attrs: { 'data-section': definition.id, 'data-group': definition.id, 'aria-label': definition.label },
+        });
+        section.append(el(doc, 'h2', { className: 'bb-inbox-group-title', text: definition.label }));
+        if (rows.length > 0) {
+          const list = el(doc, 'div', { className: 'bb-inbox-list', attrs: { role: 'list' } });
+          for (const item of rows) list.append(renderRow(item, 'waiting'));
+          section.append(list);
+        }
+        for (const source of problems) section.append(sourceLine(source));
+        view.append(section);
+      }
+      if (definition.id === 'look' && typeof port.readNotices === 'function' && state.notices !== null) {
+        view.append(renderNotices());
+      }
+    }
+    const uncollected = (Array.isArray(state.result.uncollected) ? state.result.uncollected : []).filter(textOf);
+    if (uncollected.length > 0) {
+      view.append(el(doc, 'p', { className: 'bb-inbox-uncollected', text: `まだ集めていない種類があります（${uncollected.join('・')}）。件数には入っていません。` }));
+    }
+    const links = el(doc, 'div', { className: 'bb-inbox-elsewhere' });
+    if (shown.later.length > 0) links.append(workspaceButton(doc, { text: `あとで ${shown.later.length}件`, variant: 'quiet', onClick: () => go({ view: 'later' }) }));
+    if (shown.cleared.length > 0) links.append(workspaceButton(doc, { text: `片付けた ${shown.cleared.length}件`, variant: 'quiet', onClick: () => go({ view: 'cleared' }) }));
+    if (links.children.length > 0) view.append(links);
+    return view;
+  }
+
+  function renderUndoBand() {
+    const entries = [...state.pending.values()];
+    if (entries.length === 0) return null;
+    const latest = entries[entries.length - 1];
+    const band = el(doc, 'div', { className: 'bb-inbox-undo', attrs: { role: 'status' } });
+    band.append(el(doc, 'span', { text: `「${latest.action.label}」を実行します。` }));
+    band.append(workspaceButton(doc, { text: '元に戻す', variant: 'quiet', onClick: () => undoPending(latest) }));
+    return band;
+  }
+
   function renderSet(shown, which) {
     const view = el(doc, 'div', { className: 'bb-inbox-set' });
     view.append(workspaceButton(doc, { text: '対応待ちへ', variant: 'quiet', onClick: () => go({ view: 'waiting' }) }));
@@ -544,17 +695,33 @@ export function createInboxUI({
     const current = readNow();
     const shown = state.result ? partition(current) : null;
     const waitingCount = shown ? shown.waiting.reduce((sum, item) => sum + unitsOf(item), 0) : null;
-    const view = el(doc, 'div', { className: 'bb-inbox', attrs: { 'data-contract-version': INBOX_UI_CONTRACT_VERSION } });
+    const isToday = layout === 'today';
+    const view = el(doc, 'div', {
+      className: `bb-inbox${isToday ? ' is-today' : ''}`,
+      attrs: { 'data-contract-version': INBOX_UI_CONTRACT_VERSION },
+    });
     view.append(workspacePageHeader(doc, { crumbs, title: '受信箱', source: page?.source ?? undefined }));
-    view.append(renderTabs(waitingCount));
+    if (!isToday) view.append(renderTabs(waitingCount));
+    if (isToday && shown) {
+      const decideCount = shown.waiting
+        .filter((item) => INBOX_TODAY_SECTIONS[0].groups.includes(item.group))
+        .reduce((sum, item) => sum + unitsOf(item), 0);
+      view.append(el(doc, 'p', {
+        className: 'bb-inbox-today-count',
+        text: decideCount > 0 ? `今日決めること ${decideCount}件` : '今日決めることはありません',
+      }));
+    }
     if (state.phase === 'loading') view.append(el(doc, 'div', { className: 'bb-inbox-loading', text: '読み込んでいます', attrs: { role: 'status' } }));
+    const undoBand = renderUndoBand();
+    if (undoBand) view.append(undoBand);
     if (state.notice) view.append(workspaceNotice(doc, { label: 'できませんでした', text: state.notice, tone: 'warning', role: 'alert' }));
-    if (state.route.tab === 'notices') {
+    if (!isToday && state.route.tab === 'notices') {
       view.append(renderNotices());
     } else if (state.phase === 'error' && !shown) {
       view.append(workspaceErrorCard(doc, { title: '受信箱を読めませんでした', message: `理由: ${reasonText(state.reason)}。0件ではありません。`, onRetry: () => void load() }));
     } else if (shown) {
-      view.append(state.route.view === 'waiting' ? renderWaiting(shown) : renderSet(shown, state.route.view));
+      if (isToday) view.append(state.route.view === 'waiting' ? renderTodayWaiting(shown) : renderSet(shown, state.route.view));
+      else view.append(state.route.view === 'waiting' ? renderWaiting(shown) : renderSet(shown, state.route.view));
     }
     root.replaceChildren(view);
   }
@@ -568,6 +735,18 @@ export function createInboxUI({
     destroy() {
       state.destroyed = true;
       generation += 1;
+      const remaining = [...state.pending.values()];
+      state.pending.clear();
+      for (const entry of remaining) {
+        clearPendingTimer(entry);
+        if (entry.sent === true || typeof port.runAction !== 'function') continue;
+        try {
+          const result = port.runAction(entry.item.id, entry.action.id);
+          if (result && typeof result.catch === 'function') result.catch(() => {});
+        } catch {
+          // The press still happened; there is no screen left to show the result on.
+        }
+      }
       root.replaceChildren();
     },
   };
