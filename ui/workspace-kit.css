@@ -682,3 +682,77 @@
 @media (max-width: 760px) { .bb-ws-detail-content { padding: 16px 16px 32px; } }
 
 .bb-ws-detail-closebar .bb-ws-button { min-height: 32px; padding: 4px 10px; }
+
+/* Shared interaction rules. Opt in one screen at a time; no per-control purple focus overrides.
+   For now only the meeting-minutes main area and its detail drawer opt in. */
+.bb-ws-neutral-controls {
+  --bb-control-edge: var(--bb-color-muted);
+  --bb-color-focus: var(--bb-control-edge);
+}
+.bb-ws-neutral-controls
+:is(input:not([type='checkbox']):not([type='radio']), textarea, select, .bb-ws-combobox-trigger, .bb-ws-button, .bb-minutes-button):where(:hover, :focus, :focus-visible, [aria-expanded='true']):where(:not(:disabled)) {
+  border-color: var(--bb-control-edge);
+  box-shadow: none;
+}
+.bb-ws-neutral-controls
+:is(button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--bb-control-edge);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+/* Menus remain searchable/keyboard operable, with a plain border and neutral row states. */
+.bb-ws-neutral-controls
+:is(.bb-ws-combobox-popup, .bb-ws-filter-popover) {
+  border-color: var(--bb-color-border-strong);
+  border-radius: 4px;
+  box-shadow: none;
+}
+.bb-ws-neutral-controls
+.bb-ws-combobox-option:is(:hover, .is-active) {
+  background: var(--bb-color-surface);
+  box-shadow: none;
+}
+.bb-ws-neutral-controls
+.bb-ws-combobox-option[aria-selected='true']::before { color: var(--bb-color-ink); }
+
+/* Text entry uses its normal border and caret, without an extra active/focus frame. */
+.bb-ws-neutral-controls
+:is(input:not([type='checkbox']):not([type='radio']), textarea):is(:focus, :focus-visible) {
+  border-color: var(--bb-color-border-strong);
+  outline: none;
+  box-shadow: none;
+}
+/* One reusable list action row; consumers pass their existing stateful controls. */
+.bb-ws-action-icon { width: var(--bb-toolbar-icon-size); height: var(--bb-toolbar-icon-size); fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.bb-ws-compact-toolbar { display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between; gap: var(--bb-space-3); min-height: var(--bb-toolbar-height); border: 0; padding: 0; margin: 0 0 var(--bb-space-2); background: transparent; overflow: visible; }
+.bb-ws-toolbar-primary, .bb-ws-toolbar-controls { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--bb-space-2); min-width: 0; }
+.bb-ws-toolbar-primary { flex: none; }
+.bb-ws-toolbar-controls { margin-left: auto; }
+.bb-ws-toolbar-query { position: relative; width: var(--bb-toolbar-query-width); min-width: 0; }
+.bb-ws-toolbar-query > .bb-ws-action-icon { position: absolute; left: var(--bb-space-2); top: 50%; transform: translateY(-50%); color: var(--bb-color-muted); pointer-events: none; }
+.bb-ws-compact-toolbar .bb-ws-toolbar-query input { width: 100%; min-width: 0; height: var(--bb-control-compact-height); min-height: var(--bb-control-compact-height); box-sizing: border-box; padding: var(--bb-space-1) var(--bb-space-2) var(--bb-space-1) calc(var(--bb-space-2) * 2 + var(--bb-toolbar-icon-size)); font-size: var(--bb-toolbar-font-size); }
+.bb-ws-toolbar-filter-group { display: inline-flex; align-items: center; flex: none; border-radius: var(--bb-radius-sm); }
+.bb-ws-toolbar-filter-group.is-filtered { background: var(--bb-color-filter-selected); }
+.bb-ws-compact-toolbar :is(.bb-ws-toolbar-filter, .bb-ws-toolbar-sort-trigger, .bb-ws-toolbar-clear) { display: inline-flex; align-items: center; justify-content: center; gap: var(--bb-space-1); white-space: nowrap; height: var(--bb-control-compact-height); min-height: var(--bb-control-compact-height); box-sizing: border-box; padding: var(--bb-space-1) var(--bb-space-2); border: 0; border-radius: var(--bb-radius-sm); background: transparent; color: var(--bb-color-muted); font-size: var(--bb-toolbar-font-size); font-weight: 400; box-shadow: none; }
+.bb-ws-compact-toolbar .bb-ws-toolbar-filter { position: relative; padding-right: calc(var(--bb-space-2) + var(--bb-toolbar-clear-width)); }
+.bb-ws-toolbar-filter-group.is-filtered .bb-ws-toolbar-filter { padding-right: var(--bb-space-2); }
+.bb-ws-toolbar-filter-group.is-filtered :is(.bb-ws-toolbar-filter, .bb-ws-toolbar-clear) { color: var(--bb-color-brand-indigo); }
+.bb-ws-compact-toolbar .bb-ws-toolbar-filter::after { display: none; }
+.bb-ws-compact-toolbar .bb-ws-toolbar-filter-group:not(.is-filtered) .bb-ws-toolbar-filter:hover, .bb-ws-compact-toolbar .bb-ws-toolbar-sort-trigger:hover { background: var(--bb-color-surface); color: var(--bb-color-ink); }
+.bb-ws-toolbar-caret { position: absolute; right: 0; top: 0; display: inline-flex; align-items: center; justify-content: center; width: var(--bb-toolbar-clear-width); height: var(--bb-control-compact-height); font-size: 18px; line-height: 1; transform: translate(var(--bb-toolbar-caret-x), var(--bb-toolbar-caret-y)); pointer-events: none; }
+.bb-ws-toolbar-clear-slot { display: inline-flex; width: var(--bb-toolbar-clear-width); height: var(--bb-control-compact-height); flex: none; }
+.bb-ws-compact-toolbar .bb-ws-toolbar-clear { width: var(--bb-toolbar-clear-width); padding: 0; font-size: 20px; }
+.bb-ws-toolbar-filter-group:not(.is-filtered) .bb-ws-toolbar-clear-slot, .bb-ws-toolbar-filter-group.is-filtered .bb-ws-toolbar-caret, .bb-ws-toolbar-clear[hidden] { display: none; }
+.bb-ws-compact-toolbar .bb-ws-toolbar-filter-panel { width: var(--bb-toolbar-popover-width); overflow: visible; max-height: none; }
+.bb-ws-toolbar-sort .bb-ws-combobox-value, .bb-ws-toolbar-sort .bb-ws-combobox-chevron { display: none; }
+.bb-ws-toolbar-sort .bb-ws-combobox-popup { right: 0; left: auto; }
+.bb-ws-toolbar-sort-trigger { width: auto; }
+@media (max-width:760px) {
+  .bb-ws-compact-toolbar { gap: var(--bb-space-2); }
+  .bb-ws-toolbar-controls { flex: 1; gap: var(--bb-space-1); }
+  .bb-ws-toolbar-query { flex: 1; width: auto; }
+  .bb-ws-toolbar-button-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .bb-ws-compact-toolbar .bb-ws-toolbar-filter { width: calc(var(--bb-control-compact-height) + var(--bb-space-1) + var(--bb-toolbar-clear-width)); padding: var(--bb-space-1) var(--bb-space-6) var(--bb-space-1) var(--bb-space-1); }
+  .bb-ws-compact-toolbar .bb-ws-toolbar-filter-group.is-filtered .bb-ws-toolbar-filter, .bb-ws-compact-toolbar .bb-ws-toolbar-sort-trigger { width: calc(var(--bb-control-compact-height) + var(--bb-space-1)); padding: var(--bb-space-1); }
+  .bb-ws-compact-toolbar .bb-ws-toolbar-filter-panel { position: fixed; top: calc(var(--bb-toolbar-height) * 2 + var(--bb-space-5)); right: var(--bb-space-4); width: calc(100vw - var(--bb-space-6)); max-width: none; max-height: calc(100dvh - var(--bb-toolbar-height) * 2 - var(--bb-space-6) - var(--bb-space-4)); overflow-y: auto; }
+}

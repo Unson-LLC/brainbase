@@ -825,3 +825,22 @@
 .bb-minutes-drawer-content .bb-minutes-detail-pane { position: static; width: 100%; max-height: none; padding: 0; border: 0; border-radius: 0; overflow: visible; }
 
 .bb-minutes-screen.bb-minutes-drawer-content { display: block; height: auto; overflow: visible; }
+/* Explicit compact mode keeps other hosts' expanded presentation compatible. */
+.bb-minutes-screen.bb-minutes-compact { display: flex; flex-direction: column; gap: var(--bb-space-1); overflow: visible; }
+.bb-minutes-compact > .bb-minutes-heading, .bb-minutes-compact > .bb-minutes-status[hidden] { display: none; }
+.bb-minutes-compact > .bb-minutes-toolbar { flex: none; align-items: center; }
+.bb-minutes-compact > .bb-minutes-columns { flex: 1; min-height: 0; }
+.bb-minutes-compact .bb-minutes-list-pane { display: block; }
+.bb-minutes-compact .bb-ws-toolbar-primary > .bb-minutes-pane-head { flex-wrap: nowrap; padding: 0; gap: var(--bb-space-2); }
+.bb-minutes-compact .bb-ws-toolbar-primary .bb-minutes-button { display: inline-flex; align-items: center; gap: var(--bb-space-1); white-space: nowrap; min-height: var(--bb-control-compact-height); height: var(--bb-control-compact-height); box-sizing: border-box; padding: var(--bb-space-1) var(--bb-space-2); font-size: var(--bb-toolbar-font-size); }
+.bb-minutes-compact .bb-ws-toolbar-primary .bb-ws-action-icon { order: -1; }
+.bb-minutes-compact .bb-minutes-sort-note { white-space: nowrap; }
+.bb-minutes-compact .bb-minutes-create-reason { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.bb-minutes-compact-filters, .bb-minutes-compact-filters .bb-minutes-filter-host { display: grid; gap: var(--bb-space-3); }
+.bb-minutes-compact-filters .bb-minutes-filter-field { min-width: 0; }
+.bb-minutes-compact-filters .bb-minutes-filter-field[hidden], .bb-minutes-compact-filters .bb-minutes-filter-host[hidden] { display: none; }
+.bb-minutes-compact .bb-ws-toolbar-sort.bb-minutes-filter-combobox { min-width: 0; width: auto; }
+
+.bb-minutes-compact .bb-ws-toolbar-primary > .bb-minutes-pane-head { position: relative; }
+.bb-minutes-compact .bb-ws-toolbar-primary > .bb-minutes-pane-head:is(:hover, :focus) .bb-minutes-create-reason { position: absolute; z-index: 48; left: 0; top: calc(100% + var(--bb-space-2)); width: max-content; max-width: var(--bb-toolbar-popover-width); height: auto; overflow: visible; clip-path: none; padding: var(--bb-space-2) var(--bb-space-3); background: var(--bb-color-panel); border: 1px solid var(--bb-color-border); border-radius: var(--bb-radius-sm); }
+.bb-minutes-compact > .bb-minutes-toolbar { display: flex; flex-wrap: nowrap; justify-content: space-between; gap: var(--bb-space-3); min-height: var(--bb-toolbar-height); padding: 0; margin: 0 0 var(--bb-space-2); border: 0; border-radius: 0; background: transparent; overflow: visible; }
