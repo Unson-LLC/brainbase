@@ -388,6 +388,26 @@ describe('今日決めること（layout: today）', () => {
     expect(text(without.root)).not.toContain('お知らせはありません');
   });
 
+  it('お知らせが返らなくても受信箱の行と件数を出し、後から届いたお知らせを足す', async () => {
+    let releaseNotices;
+    const readNotices = vi.fn(() => new Promise((resolve) => { releaseNotices = resolve; }));
+    const { root, counts } = await mount({
+      layout: 'today',
+      port: fakePort({ readInbox: vi.fn(async () => todayResult()), readNotices }),
+    });
+    expect(readNotices).toHaveBeenCalledTimes(1);
+    expect(todaySections(root)).toHaveLength(3);
+    expect(rowsOf(root).map((row) => row.attributes['data-inbox-item'])).toContain('answer-a');
+    expect(text(root)).toContain('今日決めること 3件');
+    expect(counts.at(-1)).toEqual({ count: 8, unreadable: [] });
+    expect(text(root)).not.toContain('お知らせはありません');
+    releaseNotices({ status: 'ok', items: [] });
+    await waitFor(() => text(root).includes('お知らせはありません'));
+    expect(findAll(root, (node) => node.className === 'bb-inbox-notices')).toHaveLength(1);
+    expect(text(root).indexOf('見るだけ')).toBeLessThan(text(root).indexOf('お知らせはありません'));
+    expect(counts.at(-1)).toEqual({ count: 8, unreadable: [] });
+  });
+
   it('route.tab が notices でも、あとでへ移るときは tab を waiting に戻して view を残す', async () => {
     const { root, routes } = await mount({
       layout: 'today',

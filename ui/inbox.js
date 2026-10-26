@@ -340,6 +340,7 @@ export function createInboxUI({
   async function loadNotices() {
     if (typeof port.readNotices !== 'function') {
       state.notices = { phase: 'not_collected' };
+      if (!state.destroyed) render();
       return;
     }
     let result;
@@ -348,9 +349,11 @@ export function createInboxUI({
     } catch (error) {
       result = { status: 'unavailable', reason: error instanceof Error ? error.message : 'request_failed' };
     }
+    if (state.destroyed) return;
     state.notices = result?.status === 'ok' && Array.isArray(result.items)
       ? { phase: 'ok', items: result.items }
       : { phase: 'unavailable', reason: result?.reason ?? 'response_invalid' };
+    render();
   }
 
   async function load() {
@@ -365,7 +368,6 @@ export function createInboxUI({
     } catch (error) {
       result = { status: 'unavailable', reason: error instanceof Error ? error.message : 'request_failed' };
     }
-    if (noticesWanted() && state.notices === null) await loadNotices();
     if (current !== generation || state.destroyed) return;
     if (result?.status === 'ok' && Array.isArray(result.sources) && Array.isArray(result.items)) {
       state.result = result;
@@ -378,15 +380,18 @@ export function createInboxUI({
       state.phase = 'error';
       state.reason = result?.reason ?? 'response_invalid';
     }
+    // The inbox is shown as soon as it arrives; notices are read beside it and
+    // never hold back the rows or the count when they are slow or failing.
     render();
     reportCount();
+    if (noticesWanted() && state.notices === null) void loadNotices();
   }
 
   function applyRoute(route) {
     state.route = normalizedRoute(route);
     state.laterOpen = null;
     if (noticesWanted() && state.notices === null) {
-      void loadNotices().then(() => render());
+      void loadNotices();
     }
     render();
   }
