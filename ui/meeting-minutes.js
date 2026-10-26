@@ -11,7 +11,7 @@
  * changes what it asks the server for (story-meeting-minutes-list-filters-v1).
  */
 
-import { workspaceCombobox } from './workspace-kit.js';
+import { workspaceCombobox, workspaceDetailDrawer } from './workspace-kit.js';
 
 export const MEETING_MINUTES_UI_CONTRACT_VERSION = 'brainbase.meeting-minutes-ui.v1';
 
@@ -674,6 +674,7 @@ function appendVersionActionExtensions(doc, section, {
 export function createMeetingMinutesUI({
   root,
   rail = null,
+  detailPresentation = 'inline',
   page = null,
   document: explicitDocument,
   fetcher,
@@ -716,6 +717,7 @@ export function createMeetingMinutesUI({
     // { meetingId, value, openName } for the 参加者 row (story-meeting-participants-row-v1).
     participants: null,
   };
+  let disposed = false;
   let listRequestGeneration = 0;
   let detailRequestGeneration = 0;
   let createReasonSequence = 0;
@@ -742,7 +744,15 @@ export function createMeetingMinutesUI({
     attrs: { 'aria-label': '議事録', tabindex: '-1' },
   });
   const detailPane = makeElement(doc, 'section', { className: 'bb-minutes-detail-pane', attrs: { 'aria-label': '議事録詳細' } });
-  columns.append(listPane, detailPane);
+  const detailDrawer = detailPresentation === 'drawer' ? workspaceDetailDrawer(doc, {
+    title: '議事録の詳細', opener: () => listPane.querySelector('.bb-minutes-meeting-item.is-selected') ?? listPane,
+  }) : null;
+  if (detailDrawer) {
+    columns.classList.add('bb-minutes-details-in-drawer');
+    columns.append(listPane);
+    const scope = makeElement(doc, 'div', { className: 'bb-minutes-screen bb-minutes-drawer-content' });
+    scope.append(detailPane); detailDrawer.setContent(scope);
+  } else columns.append(listPane, detailPane);
   screen.append(heading, status, toolbar, columns);
   root.replaceChildren(screen);
 
@@ -1827,6 +1837,7 @@ export function createMeetingMinutesUI({
   }
 
   function renderCreateForm() {
+    detailDrawer?.open();
     clear(detailPane);
     if (!canCreate()) {
       renderCreateUnavailable();
@@ -1875,7 +1886,7 @@ export function createMeetingMinutesUI({
 
   async function loadMeetings({ restoreFocus = false } = {}) {
     const requestGeneration = ++listRequestGeneration;
-    const isCurrentRequest = () => requestGeneration === listRequestGeneration;
+    const isCurrentRequest = () => !disposed && requestGeneration === listRequestGeneration;
     state.loading = true;
     setStatus('会議一覧を読み込んでいます。');
     try {
@@ -1928,8 +1939,10 @@ export function createMeetingMinutesUI({
   }
 
   async function loadDetail(meetingId) {
+    if (disposed) return null;
+    detailDrawer?.open();
     const requestGeneration = ++detailRequestGeneration;
-    const isCurrentRequest = () => requestGeneration === detailRequestGeneration
+    const isCurrentRequest = () => !disposed && requestGeneration === detailRequestGeneration
       && state.meetingId === meetingId;
     state.meetingId = meetingId;
     state.minutesId = null;
@@ -1938,6 +1951,7 @@ export function createMeetingMinutesUI({
     state.withdrawingMinutesId = null;
     renderList();
     setStatus('会議詳細を読み込んでいます。');
+    if (detailDrawer) detailPane.replaceChildren(makeElement(doc, 'p', { attrs: { role: 'status' }, textContent: '会議詳細を読み込んでいます。' }));
     try {
       const detail = await call(`/${encodeURIComponent(meetingId)}`);
       if (!isCurrentRequest()) return state.detail;
@@ -1970,6 +1984,12 @@ export function createMeetingMinutesUI({
     contractVersion: MEETING_MINUTES_UI_CONTRACT_VERSION,
     refresh: loadMeetings,
     openMeeting: loadDetail,
+    destroy() {
+      disposed = true; listRequestGeneration += 1; detailRequestGeneration += 1;
+      detailDrawer?.dispose();
+      participantBox.destroy(); statusBox.destroy(); sortBox.destroy();
+      for (const entry of hostBoxes.values()) entry.box.destroy();
+    },
     state,
   };
 }

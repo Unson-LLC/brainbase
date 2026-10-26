@@ -1,3 +1,5 @@
+import { workspaceDetailDrawer } from './workspace-kit.js';
+
 /*
  * Brainbase knowledge outcome surface.
  *
@@ -889,7 +891,7 @@ export function renderKnowledgeList(root, model = {}, callbacks = {}) {
           text: '選択した知識の詳細へ',
           attrs: { href: '#knowledge-selected-detail', 'aria-controls': 'knowledge-selected-detail' },
         });
-        jump.addEventListener('click', () => focusKnowledgeDetail());
+        jump.addEventListener('click', event => { event.preventDefault(); if (callbacks.onOpenDetail) callbacks.onOpenDetail(item); else focusKnowledgeDetail(); });
         rows.append(jump);
       }
     }
@@ -1479,6 +1481,29 @@ export function renderKnowledgeProjectFilter(root, model = {}, callbacks = {}) {
  * @param {Array|Function} [options.projects] Projects offered in the filter.
  * @param {(code: string|null, context?: object) => void} [options.onSelectProject]
  */
+function knowledgeInspector(root, options) {
+  let drawer;
+  let opened = false;
+  return {
+    request() { opened = true; },
+    close() { opened = false; drawer?.close({ restoreFocus: false, immediate: true }); },
+    render(pane, body) {
+      if (options.detailPresentation !== 'drawer') { body.append(pane); return; }
+      body.classList.add('knowledge-details-in-drawer');
+      drawer ??= workspaceDetailDrawer(root.ownerDocument, {
+        title: '知識の詳細',
+        opener: () => root.querySelector('.knowledge-list-row[aria-pressed="true"]') ?? root.querySelector('[data-knowledge-save-result]'),
+        onClose: () => { opened = false; },
+      });
+      const scope = root.ownerDocument.createElement('div');
+      scope.className = 'knowledge-outcome knowledge-inspector-drawer';
+      scope.append(pane); drawer.setContent(scope);
+      if (opened) drawer.open();
+    },
+    destroy() { opened = false; drawer?.dispose(); },
+  };
+}
+
 export function createKnowledgeOverviewController(options = {}) {
   const { root, api, onSelectProject } = options;
   if (!root || typeof root.replaceChildren !== 'function') throw new Error('knowledge_root_unavailable');
@@ -1492,6 +1517,9 @@ export function createKnowledgeOverviewController(options = {}) {
     detail: { state: 'idle' },
   };
   let selectionGeneration = 0;
+  let destroyed = false;
+  const inspector = knowledgeInspector(root, options);
+  const destroy = () => { destroyed = true; selectionGeneration += 1; inspector.destroy(); };
   const projectName = (code) => projectOptions(options.projects).find((option) => option.code === code)?.name ?? null;
 
   function itemsPath() {
@@ -1523,6 +1551,7 @@ export function createKnowledgeOverviewController(options = {}) {
   }
 
   function render() {
+    if (destroyed) return null;
     clear(root);
     const shell = makeElement('div', { className: 'knowledge-outcome knowledge-overview' });
     const header = makeElement('header', { className: 'knowledge-outcome-head' });
@@ -1558,6 +1587,7 @@ export function createKnowledgeOverviewController(options = {}) {
       emptyText: emptyText(),
       selectedId: state.selected?.id,
       onSelect: (item) => { void selectItem(item); },
+      onOpenDetail: options.detailPresentation === 'drawer' ? (item) => { void selectItem(item); } : null,
       onRetry: () => loadItems(),
     });
     discovery.append(list);
@@ -1588,12 +1618,13 @@ export function createKnowledgeOverviewController(options = {}) {
       }
       detail.append(owner);
     }
-    body.append(detail); shell.append(body); root.append(shell);
+    inspector.render(detail, body); shell.append(body); root.append(shell);
     options.onStateChange?.(state);
     return shell;
   }
 
   async function loadItems() {
+    inspector.close();
     selectionGeneration += 1;
     state.selected = null;
     state.detail = { state: 'idle' };
@@ -1604,6 +1635,8 @@ export function createKnowledgeOverviewController(options = {}) {
   }
 
   async function selectItem(item) {
+    if (destroyed) return null;
+    inspector.request();
     const requestGeneration = ++selectionGeneration;
     state.selected = item ?? null;
     const code = optionalText(item?.project_code).trim();
@@ -1630,7 +1663,7 @@ export function createKnowledgeOverviewController(options = {}) {
     }
   }
 
-  const controller = { state, render, loadItems, selectItem, paths: { items: itemsPath } };
+  const controller = { state, render, destroy, loadItems, selectItem, paths: { items: itemsPath } };
   render();
   if (options.autoLoad !== false) void loadItems();
   return controller;
@@ -1680,6 +1713,9 @@ export function createKnowledgeOutcomeController(options = {}) {
     destination: { state: 'unknown', registration: null, draft: {}, message: '保存先APIの契約を確認できていません。' },
   };
   let selectionGeneration = 0;
+  let destroyed = false;
+  const inspector = knowledgeInspector(root, options);
+  const destroy = () => { destroyed = true; selectionGeneration += 1; inspector.destroy(); };
 
   function resumeUrl(draftId) {
     const location = options.location ?? globalThis.location;
@@ -1695,6 +1731,7 @@ export function createKnowledgeOutcomeController(options = {}) {
   }
 
   function render() {
+    if (destroyed) return null;
     clear(root);
     const shell = makeElement('div', { className: 'knowledge-outcome' });
     const header = makeElement('header', { className: 'knowledge-outcome-head' });
@@ -1737,7 +1774,7 @@ export function createKnowledgeOutcomeController(options = {}) {
     renderDiscoveryFilters(filters, state.filters, { onChange: (next) => { state.filters = next; void loadItems(); }, });
     discovery.append(filters);
     const list = makeElement('div', { className: 'knowledge-discovery-list' });
-    renderKnowledgeList(list, state.list, { labels, selectedId: state.selected?.id, onSelect: (item) => { void selectItem(item); }, onRetry: () => loadItems() });
+    renderKnowledgeList(list, state.list, { labels, selectedId: state.selected?.id, onSelect: (item) => { void selectItem(item); }, onOpenDetail: options.detailPresentation === 'drawer' ? (item) => { void selectItem(item); } : null, onRetry: () => loadItems() });
     discovery.append(list);
     primary.append(discovery);
     const captureWorkspace = makeElement('section', { className: 'knowledge-focused-view knowledge-capture-view', hidden: state.view !== 'capture', attrs: { 'aria-labelledby': 'knowledge-capture-workspace-title' } });
@@ -1807,6 +1844,11 @@ export function createKnowledgeOutcomeController(options = {}) {
     });
     destination.append(destinationContent);
     primary.append(destination);
+    if (options.detailPresentation === 'drawer' && state.commit.state !== 'idle') {
+      const result = makeElement('button', { className: 'knowledge-button secondary', text: '保存結果を開く', attrs: { type: 'button', 'data-knowledge-save-result': 'true' } });
+      result.addEventListener('click', () => { inspector.request(); render(); });
+      primary.append(result);
+    }
     body.append(primary);
     const detail = makeElement('aside', {
       className: 'knowledge-outcome-detail knowledge-inspector',
@@ -1826,7 +1868,7 @@ export function createKnowledgeOutcomeController(options = {}) {
       detailState: state.detail,
       showSelectionGuide: Boolean(state.selected) || hasSelectableKnowledge,
       onRetry: state.selected ? () => void selectItem(state.selected.id) : null,
-      onPreview: (item) => { state.preview = { state: 'idle', question: '', context: '', item_id: item.id, candidate_version: item.version, item_version: item.version }; state.view = 'preview'; render(); },
+      onPreview: (item) => { inspector.close(); state.preview = { state: 'idle', question: '', context: '', item_id: item.id, candidate_version: item.version, item_version: item.version }; state.view = 'preview'; render(); },
     });
     detail.append(detailContent);
     const lifecycle = makeElement('div', { className: 'knowledge-inspector-lifecycle' });
@@ -1847,11 +1889,12 @@ export function createKnowledgeOutcomeController(options = {}) {
       renderCommitState(commit, state.commit, { onReadback, onReapply });
       detail.append(commit);
     }
-    body.append(detail); shell.append(body); root.append(shell); notify();
+    inspector.render(detail, body); shell.append(body); root.append(shell); notify();
     return shell;
   }
 
   async function loadItems() {
+    inspector.close();
     selectionGeneration += 1;
     state.selected = null;
     state.detail = { state: 'idle' };
@@ -1917,6 +1960,8 @@ export function createKnowledgeOutcomeController(options = {}) {
   }
 
   async function selectItem(itemOrId) {
+    if (destroyed) return null;
+    inspector.request();
     const requestGeneration = ++selectionGeneration;
     const id = typeof itemOrId === 'object' ? itemOrId?.id : itemOrId;
     const listItem = typeof itemOrId === 'object' ? itemOrId : state.list.records?.find((item) => item.id === id);
@@ -2132,6 +2177,7 @@ export function createKnowledgeOutcomeController(options = {}) {
   }
 
   async function commitCandidate(values) {
+    inspector.request();
     if (state.commit.state === 'saving' || state.commit.pending_save || ['verified', 'saved_unverified'].includes(state.commit.state)) return state.commit;
     if (state.candidate.state === 'saving' || state.candidate.candidate_readback_pending === true) return state.commit;
     const previousDraftConflict = state.commit.pending_draft_update;
@@ -2279,6 +2325,7 @@ export function createKnowledgeOutcomeController(options = {}) {
   }
 
   async function reapplyPendingDraftUpdate() {
+    inspector.request();
     const pending = state.commit.pending_draft_update;
     if (!pendingDraftUpdateReadyForReapply(pending)) return state.commit;
     // commitCandidate marks the commit as saving before its first await. This
@@ -2295,6 +2342,7 @@ export function createKnowledgeOutcomeController(options = {}) {
   }
 
   async function retryPendingSave() {
+    inspector.request();
     const pendingDraftUpdate = state.commit.pending_draft_update;
     if (pendingDraftUpdate) {
       if (pendingDraftUpdate.latest_revision === undefined || pendingDraftUpdate.latest_revision === null) return retryDraftConflictReadback();
@@ -2347,6 +2395,7 @@ export function createKnowledgeOutcomeController(options = {}) {
   }
 
   async function readbackCommit() {
+    inspector.request();
     if (!state.commit.item_id) { state.commit = { ...state.commit, state: 'unknown', message: 'readback対象IDを確認できません。' }; render(); return null; }
     try { const payload = await callKnowledgeApi(api, knowledgePath(code, `${KNOWLEDGE_ROUTES.items}/${encodeURIComponent(state.commit.item_id)}`)); const item = normalizeKnowledgeItem(payload?.item ?? payload?.record ?? payload?.data ?? payload); const actualHash = payload?.canonical_content_hash ?? payload?.readback?.content_hash ?? payload?.content_hash ?? item?.raw?.canonical_content_hash ?? item?.raw?.content_hash ?? null; const relationsMatch = expectedRelationsMatch(item?.relations, state.commit.expected_relations); const matches = state.commit.receipt_verified === true && item?.id === state.commit.item_id && state.commit.expected_version !== null && item?.version === state.commit.expected_version && state.commit.expected_hash !== null && actualHash === state.commit.expected_hash && item?.source?.state === 'fetched' && relationsMatch; state.commit = { ...state.commit, state: matches ? 'verified' : 'saved_unverified', relations_match: relationsMatch, item, version: item?.version ?? state.commit.version }; if (item) state.selected = item; }
     catch (error) { state.commit = { ...state.commit, state: 'saved_unverified', message: apiErrorText(error) }; }
@@ -2470,7 +2519,7 @@ export function createKnowledgeOutcomeController(options = {}) {
     render(); return state.preview;
   }
 
-  const controller = { state, render, loadItems, loadAuthorityDomains, loadDestination, saveDestination, selectItem, createDraft, resumeDraft, discardDraft, applyProposal, saveCandidate, commitCandidate, retryPendingSave, reapplyPendingDraftUpdate, readbackCommit, reviseItem, supersedeItem, retireItem, runPreview, paths: { items: () => buildKnowledgeItemsPath(code, state.filters), drafts: () => knowledgePath(code, KNOWLEDGE_ROUTES.drafts), destination: destinationPath } };
+  const controller = { state, render, destroy, loadItems, loadAuthorityDomains, loadDestination, saveDestination, selectItem, createDraft, resumeDraft, discardDraft, applyProposal, saveCandidate, commitCandidate, retryPendingSave, reapplyPendingDraftUpdate, readbackCommit, reviseItem, supersedeItem, retireItem, runPreview, paths: { items: () => buildKnowledgeItemsPath(code, state.filters), drafts: () => knowledgePath(code, KNOWLEDGE_ROUTES.drafts), destination: destinationPath } };
   render();
   const initialLocation = options.location ?? globalThis.location;
   if (initialLocation?.href) {

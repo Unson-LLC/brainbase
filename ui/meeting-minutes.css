@@ -820,3 +820,8 @@
   align-items: flex-end;
   gap: 6px 8px;
 }
+
+.bb-minutes-columns.bb-minutes-details-in-drawer { grid-template-columns: minmax(0, 1fr); }
+.bb-minutes-drawer-content .bb-minutes-detail-pane { position: static; width: 100%; max-height: none; padding: 0; border: 0; border-radius: 0; overflow: visible; }
+
+.bb-minutes-screen.bb-minutes-drawer-content { display: block; height: auto; overflow: visible; }
