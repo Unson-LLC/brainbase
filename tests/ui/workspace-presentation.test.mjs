@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { workspaceApplyDrawer, workspaceCloseDrawer, workspaceDialog, workspaceFilterPopover, workspaceLoadingCard, workspaceDismissNotification } from '../../ui/workspace-kit.js';
+import { workspaceDetailDrawer, workspaceTopbar, workspaceApplyDrawer, workspaceCloseDrawer, workspaceDialog, workspaceFilterPopover, workspaceLoadingCard, workspaceDismissNotification } from '../../ui/workspace-kit.js';
 
 // A native-dialog lifecycle model: focus remains inside until close dispatches.
 class Events {
@@ -32,6 +32,7 @@ class Element extends Events {
   getAttribute(name) { return this.attributes[name] ?? null; }
   append(...children) { for (const child of children) { child.remove(); child.parentNode = this; this.children.push(child); } }
   remove() { if (this.parentNode) this.parentNode.children = this.parentNode.children.filter(child => child !== this); this.parentNode = null; }
+  replaceChildren(...children) { for (const child of [...this.children]) child.remove(); this.append(...children); }
   contains(node) { return this === node || this.children.some(child => child.contains(node)); }
   querySelector() { return this.children.find(child => ['BUTTON', 'INPUT', 'SELECT'].includes(child.tagName)) || this.children.map(child => child.querySelector()).find(Boolean); }
   focus() { this.ownerDocument.activeElement = this; }
@@ -127,5 +128,32 @@ describe('loading notification lifecycle', () => {
     workspaceDismissNotification(card); vi.advanceTimersByTime(500); expect(card.isConnected).toBe(false); expect(card.count('animationend')).toBe(0);
     const reduced = new Document(true); const second = workspaceLoadingCard(reduced); reduced.body.append(second); workspaceDismissNotification(second);
     expect(second.isConnected).toBe(false); expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+
+describe('shared page chrome and persistent inspectors', () => {
+  it('renders only a title in the common top bar', () => {
+    const doc = new Document(); const header = workspaceTopbar(doc, { title: '一覧' });
+    expect(header.children).toHaveLength(1);
+    expect(header.children[0].tagName).toBe('H1');
+    expect(header.children[0].textContent).toBe('一覧');
+  });
+  it('updates content without reopening a dismissed drawer and restores a replaced row', () => {
+    vi.useFakeTimers(); const doc = new Document(); let opener = doc.createElement('button'); doc.body.append(opener);
+    const closed = vi.fn(); const inspector = workspaceDetailDrawer(doc, { opener: () => opener, onClose: closed });
+    inspector.setContent(doc.createElement('section')); expect(inspector.dialog.open).toBe(false);
+    inspector.open(); inspector.close(); inspector.close();
+    expect(closed).toHaveBeenCalledTimes(1); expect(inspector.dialog.open).toBe(true);
+    opener.remove(); opener = doc.createElement('button'); doc.body.append(opener);
+    vi.runAllTimers(); expect(inspector.dialog.open).toBe(false); expect(doc.activeElement).toBe(opener);
+    inspector.setContent(doc.createElement('section')); expect(inspector.dialog.open).toBe(false);
+    inspector.open(); inspector.dispose(); vi.runAllTimers();
+    expect(inspector.dialog.isConnected).toBe(false); expect(vi.getTimerCount()).toBe(0);
+  });
+  it('can reopen during exit without an old timer closing the new request', () => {
+    vi.useFakeTimers(); const doc = new Document(); const inspector = workspaceDetailDrawer(doc);
+    inspector.open(); inspector.close(); inspector.open(); vi.runAllTimers();
+    expect(inspector.dialog.open).toBe(true); inspector.dispose();
   });
 });

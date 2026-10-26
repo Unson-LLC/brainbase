@@ -4,6 +4,10 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
+## Candidate — v0.47.1（npm公開前）
+
+共通UIのタイトルだけの44px固定ヘッダーと必要時だけ開く右詳細drawerを公開候補に追加します。知識・議事録のdrawer表示は明示オプションで、既存のinline表示やデータ契約は維持します。npm公開・利用ホストへの取り込み・本番反映の完了は、この候補記録だけでは確認できません。
+
 ## Candidate — v0.47.0（npm公開前）
 
 - `canonical_tasks` に bot task queue 用の nullable 列 `claimed_by`・`claimed_until`・`status_detail` を追加しました（`ADD COLUMN IF NOT EXISTS`）。`status_detail` の CHECK（started / waiting_for_review / blocked / NULL）、claim の組の CHECK、部分索引 `canonical_tasks_claimed_by_until_idx` を含みます。状態の5値 CHECK と GRANT は変えていません（#861）。

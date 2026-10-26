@@ -2,6 +2,13 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
+## 0.47.1 candidate — npm公開前
+
+- 共通UIへタイトルだけの44px固定ヘッダーと継続更新できる右詳細drawerを追加する。世界などの没入型画面はヘッダーを出さない。
+- 知識・議事録で `detailPresentation: 'drawer'` を指定できる。未指定時のinline表示、認証・権限・保存後readbackは維持する。閉じた後の非同期応答で再openせず、保存結果の再表示とfocus復帰を保持する。
+- 共通UI Specへパーツ利用の規約をまとめ、AGENTS.md/CLAUDE.mdから参照する。
+- 公開候補の記録であり、npm公開・registry readback・組織ホストへの取り込み・本番反映は別途確認する。
+
 ## 0.47.0 candidate — npm公開前
 
 - `canonical_tasks` に bot task queue 用の nullable 列 `claimed_by`・`claimed_until`・`status_detail` を追加する（`ADD COLUMN IF NOT EXISTS`）。`status_detail` の CHECK（started / waiting_for_review / blocked / NULL）、claim の組の CHECK、部分索引 `canonical_tasks_claimed_by_until_idx` を含む。状態の5値 CHECK と GRANT は変えない（#861）。

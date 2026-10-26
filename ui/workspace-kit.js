@@ -66,6 +66,61 @@ export function workspacePageHeader(doc, { crumbs = [], title, lead, source, act
   return wrap;
 }
 
+/** A shared, title-only top bar. The host owns scrolling and immersive-page visibility. */
+export function workspaceTopbar(doc, { title = '' } = {}) {
+  const header = el(doc, 'header', { className: 'bb-ws-topbar' });
+  header.append(el(doc, 'h1', { text: title }));
+  return header;
+}
+
+/** A reusable right inspector whose content can refresh without replacing the modal. */
+export function workspaceDetailDrawer(doc, { title = '詳細', opener, onClose } = {}) {
+  const dialog = workspaceApplyDrawer(el(doc, 'dialog', { className: 'bb-ws-dialog bb-ws-detail-drawer' }));
+  const titleId = `bb-ws-inspector-${++workspaceSequence}`;
+  dialog.setAttribute('aria-labelledby', titleId);
+  const head = el(doc, 'header', { className: 'bb-ws-detail-closebar' });
+  const label = el(doc, 'h2', { className: 'bb-ws-visually-hidden', text: title, attrs: { id: titleId } });
+  const body = el(doc, 'div', { className: 'bb-ws-detail-content' });
+  let disposed = false;
+  let cancelClosing;
+  let fallbackOpener;
+  const finish = (restoreFocus) => {
+    cancelClosing?.(); cancelClosing = null;
+    if (dialog.open) dialog.close();
+    const target = (typeof opener === 'function' ? opener() : opener) ?? fallbackOpener;
+    if (restoreFocus && target?.isConnected) target.focus({ preventScroll: true });
+  };
+  const close = ({ restoreFocus = true, immediate = false } = {}) => {
+    if (!dialog.open) return;
+    // Clear the caller's open state before an asynchronous content update arrives.
+    if (cancelClosing && !immediate) return;
+    if (!cancelClosing) onClose?.();
+    if (immediate) finish(restoreFocus);
+    else cancelClosing = workspaceCloseDrawer(dialog, () => finish(restoreFocus));
+  };
+  const button = workspaceButton(doc, { text: '閉じる', onClick: () => close() });
+  head.append(label, button); dialog.append(head, body); doc.body.append(dialog);
+  dialog.addEventListener('cancel', event => { event.preventDefault(); close(); });
+  dialog.addEventListener('click', event => {
+    if (event.target !== dialog) return;
+    const rect = dialog.getBoundingClientRect();
+    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) close();
+  });
+  return {
+    dialog,
+    setContent(...content) { if (!disposed) body.replaceChildren(...content); },
+    open(target) {
+      if (disposed) return;
+      cancelClosing?.(); cancelClosing = null;
+      if (dialog.open) return;
+      fallbackOpener = target ?? doc.activeElement;
+      dialog.showModal(); button.focus();
+    },
+    close,
+    dispose() { if (disposed) return; close({ restoreFocus: false, immediate: true }); disposed = true; dialog.remove(); },
+  };
+}
+
 /** A notice with a short label, like 接続範囲 on the organization screens. */
 export function workspaceNotice(doc, { label, text, tone = 'info', role } = {}) {
   const notice = el(doc, 'div', { className: `bb-ws-notice is-${tone}`, attrs: { role: role ?? (tone === 'info' ? undefined : 'alert') } });

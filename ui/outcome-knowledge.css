@@ -469,3 +469,6 @@
   padding-top: .75rem;
 }
 .knowledge-outcome .knowledge-overview-project { color: var(--knowledge-muted); font-size: .78rem; }
+
+.knowledge-outcome-body.knowledge-details-in-drawer { grid-template-columns: minmax(0, 1fr); }
+.knowledge-inspector-drawer .knowledge-inspector { position: static; width: 100%; max-width: none; max-height: none; padding: 0; border: 0; border-radius: 0; overflow: visible; }
