@@ -299,6 +299,7 @@ export function createInboxUI({
     notice: null,
     notices: null,
     pending: new Map(),
+    sent: new Set(),
     destroyed: false,
   };
   let generation = 0;
@@ -317,14 +318,14 @@ export function createInboxUI({
     }
     const current = readNow();
     const base = countInboxWaiting({ ...state.result, dispositions: [...state.dispositions.values()] }, current);
-    if (state.pending.size === 0 || base.count === null) {
+    if ((state.pending.size === 0 && state.sent.size === 0) || base.count === null) {
       onCount(base);
       return;
     }
     const rows = new Map(readableItems(state.result).map((item) => [item.id, item]));
     let count = base.count;
-    for (const entry of state.pending.values()) {
-      const row = rows.get(entry.item.id);
+    for (const id of new Set([...state.pending.keys(), ...state.sent])) {
+      const row = rows.get(id);
       if (!row) continue;
       if (activeDisposition(row, state.dispositions, current)) continue;
       count -= unitsOf(row);
@@ -371,6 +372,7 @@ export function createInboxUI({
       state.dispositions = dispositionMap(result.dispositions);
       state.phase = 'ready';
       state.reason = null;
+      state.sent.clear();
     } else {
       state.result = null;
       state.phase = 'error';
@@ -446,6 +448,7 @@ export function createInboxUI({
     if (state.pending.get(entry.item.id) === entry) state.pending.delete(entry.item.id);
     if (state.destroyed) return;
     if (result?.status === 'ok') {
+      state.sent.add(entry.item.id);
       state.notice = null;
       await load();
       return;
@@ -590,7 +593,7 @@ export function createInboxUI({
   function partition(now) {
     const shown = { waiting: [], later: [], cleared: [] };
     for (const item of readableItems(state.result)) {
-      if (state.pending.has(item.id)) continue;
+      if (state.pending.has(item.id) || state.sent.has(item.id)) continue;
       const disposition = activeDisposition(item, state.dispositions, now);
       shown[disposition ? disposition.state : 'waiting'].push(item);
     }

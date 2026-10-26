@@ -587,6 +587,28 @@ describe('元に戻す（undoWindowMs）', () => {
     expect(text(root)).not.toContain('「承認」を実行します。');
   });
 
+  it('送信が成功してから再取得が終わるまでは行もボタンも出さず、再クリックで二重送信しない', async () => {
+    const timers = fakeTimers();
+    let releaseRead;
+    const readInbox = vi.fn()
+      .mockResolvedValueOnce(okResult({ sources: ACTION_SOURCES, items: ACTION_ITEMS, uncollected: [] }))
+      .mockImplementationOnce(() => new Promise((resolve) => { releaseRead = resolve; }));
+    const port = actionPort({ readInbox });
+    const { root } = await mount({ port, undoWindowMs: 5000, timers });
+    buttonIn(rowsOf(root)[0], '承認').dispatch('click');
+    const [id] = [...timers.scheduled.keys()];
+    timers.run(id);
+    await waitFor(() => readInbox.mock.calls.length === 2);
+    expect(port.runAction).toHaveBeenCalledTimes(1);
+    expect(rowsOf(root)).toEqual([]);
+    expect(buttonIn(root, '承認')).toBeUndefined();
+    expect(buttonIn(root, '元に戻す')).toBeUndefined();
+    releaseRead(okResult({ sources: ACTION_SOURCES, items: [], uncollected: [] }));
+    await waitFor(() => !text(root).includes('読み込んでいます'));
+    expect(rowsOf(root)).toEqual([]);
+    expect(port.runAction).toHaveBeenCalledTimes(1);
+  });
+
   it('失敗したら行を戻して今と同じ文で知らせる', async () => {
     const timers = fakeTimers();
     const port = actionPort({ runAction: vi.fn(async () => ({ status: 'unavailable', reason: 'upstream_unavailable' })) });
