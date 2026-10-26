@@ -11,9 +11,9 @@
 
 本節は Director の判断で確定した事項をまとめる。根拠は、Director から Worker への連絡（2026-10-26 22:40 JST 受信）で、`/workspace/logs/rq119-decisions.md` のおすすめ (1)(2)(3) で進めると判断されたこと。これは Director の判断であり、佐藤さん（project owner）の承認ではない。`/workspace/logs/rq119-decisions.md` は各選択肢とおすすめの理由を書いた資料（承認記録ではない）として参照する。以降の節で「未決」と書かれていた関連箇所は、本節を正本として「決定済み」に更新した（§3.1 / §3.2 / §5 / §9）。
 
-1. **判断の持ち主は人（project owner）**。1 つの判断が「誰の判断力の延長か」を表す主体は人（project owner。例: 佐藤さん）であり、receipt の `owner_person_id` には owner person を入れる。実行した agent（Claude Code / opencode の主体＝`agentMemberId`、実モデル名）は **メタ情報** として receipt に残すだけで、`owner_person_id` にはしない。これにより `judgment_receipts` の一意キー（`judgment-receipt-schema.sql:12`）と RLS が成立する（§5 の推奨案を採用＝確定。§9 未決事項2 を解決）。
+1. **判断の持ち主は人（project owner）**。1 つの判断が「誰の判断力の延長か」を表す主体は人（project owner。例: 佐藤さん）であり、receipt の `owner_person_id` には owner person を入れる。実行した agent（Claude Code / opencode の主体＝`agentMemberId`、実モデル名）は **メタ情報** として receipt に残すだけで、`owner_person_id` にはしない。ただし既存 repository は書き込み時の `actor.personId` を DB 列・RLS コンテキストに使い、agent 認証の `personId` は agent 本人を指すため、receipt に `owner_person_id` を載せるだけでは既存 RLS は成立しない。受領口が「agent 資格で照合済みの `ownerPersonId`」を保存用 actor（`owner_person_id` 列・RLS コンテキスト）へ **写像する契約** を持ち、agent 本人の `personId` は別列に記録し、照合されていない owner 指定は拒否する必要がある（§5 の写像契約）。この写像を満たして初めて `judgment_receipts` の一意キー（`judgment-receipt-schema.sql:12`）と RLS が成立する（§9 未決事項2 を解決）。
 
-2. **agent の資格は組織版の既存サービスを使う**。Worker 用の非 person 資格は新規に作らず、組織版（brainbase-organization）の既存 **agent-credential-service** と **agent-mcp-authorization**（`/workspace/repos/brainbase-organization/packages/organization-auth/agent-mcp-authorization.js`）を使う。agent member から owner person を解決し、org・tenant・project・scope・失効を資格行で照合する既存経路に通してから `judgment_receipts.record()` を呼ぶ（§5。§9 未決事項3 を解決）。ただし実フィールド名・発行 / 検証 API の細部は本セッションの sandbox 外で直接再読できておらず、実装前に原本で再確認する（＝一部推測）。
+2. **agent の資格は組織版の既存サービスを使う**。Worker 用の非 person 資格は新規に作らず、組織版（brainbase-organization）の既存 **agent-credential-service** と **agent-mcp-authorization**（`/workspace/repos/brainbase-organization/packages/organization-auth/agent-mcp-authorization.js`）を使う。agent member から owner person を解決し、org・tenant・project・scope・失効を資格行で照合する既存経路に通してから `judgment_receipts.record()` を呼ぶ（§5。§9 未決事項3 を解決）。ただし次の 2 点は既存実装のままでは成立しないため本決定の前提に含める: (a) **資格の再発行（issue）は人（owner/CEO）の操作**である。既存 agent-credential-service の `issue()` は `authority()` で有効な人間の owner/CEO を要求し、agent 自身からの発行を拒否する。したがって Worker は期限切れを自動再発行できず、期限切れを検知したら outbox を保持して停止し、再発行が必要なことを人に知らせる（§5・§7。人を介さない再発行経路は §9 未決事項8）。(b) **判断記録用の認可は未整備**である。`agent-mcp-authorization.js` の操作別認可は既存のタスク／進捗ツール限定で、判断記録は対象外のため、判断記録用の `toolName` / `resourceId` / write 権限を新たに定義する必要がある（§5 に案）。これらが定義されるまでは本人（資格）確認だけで書き込みを許さない。実フィールド名・発行 / 検証 API の細部は本セッションの sandbox 外で直接再読できておらず、実装前に原本で再確認する（＝一部推測）。
 
 3. **opencode は `session.idle` をプラグインで拾う**。opencode の turn 完了検知はプラグインの `session.idle` イベントで行い、**その turn で明示的に記録された `public_frame` だけ**を送る（本文の生成・推定補完はしない。§3.3）。entrypoint は共有契約の enum に **`opencode` を新設**する（`contract.js:7` / `src/judgment-history.ts:11-17`）。実モデル名（例 DeepSeek / deepseek-flash）は entrypoint では表さず、receipt のメタ情報に残す（§9 未決事項1・7 を解決。発火タイミングの実測は §3.4）。
 
@@ -117,7 +117,8 @@ Worker が「履歴に出す判断本文」を得る道筋は、Codex が使う�
 - 生成・記録（明示のみ）: Codex は `brainbase_judgment_frame_record`（MCP tool。本リポジトリ正本 `src/judgment-frame.ts:607-654`、Codex host 側のラッパは `/workspace/repos/brainbase-unson/scripts/codex-hooks/judgment-resolver-host.mjs:8021` 付近＝findings）で、選択した catalog 参照と option 評価を記録する。公開本文 `public_frame`（summary / reason）は **呼び手が「このまま owner-only 投影に出す」と明示したときだけ** 渡す optional 値であり、Core は回答・tool 応答・内部推論から導出しない（tool 説明 `:608`、型 `:55-58`／schema `:591-599`、キー `PUBLIC_FRAME_KEYS=['summary','reason']` `:209`、各非空・最大 2000 字 `MAX_PUBLIC_FRAME_TEXT` `:49`）。
 - Worker も同契約: Claude Code / opencode アダプタは、Worker が同じ `brainbase_judgment_frame_record` 相当を明示的に呼んで記録した `public_frame` **だけ** を拾う。アダプタが本文を生成・推定して補完してはならない（§3.2 の「詰め替えのみ」原則）。
 - 記録の digest: 記録時に `public_frame` の digest を付す（`judgmentFramePublicFrameDigest` `:241`、`sha256:` 形）。これが §6 の content_digest と、§4.3 の履歴 record への投影の正本になる。
-- 取得場所（Stop 時）: 判断確定（Claude Code は `Stop`、opencode は turn 完了）で、アダプタはその turn に対して **明示記録された** `public_frame`（と digest）を turn 単位の journal/記録から読む。読み出しは記録済みの値に限り、無ければ合成しない。
+- 永続化の担当（Worker 側）: 既存の `brainbase_judgment_frame_record` は **検証結果と `public_frame` を返すだけで、turn 別の journal には永続化しない**。したがって記録された `public_frame`（と digest）を **session/turn と紐付けてローカル journal に書く担当は Worker 側のアダプタ**（opencode はプラグイン側、Claude Code は hook スクリプト側）が持つ。保存先は Worker 用 journal root 下に turn 単位で置く（Codex の `journalPaths()` の `<sessionRef>/<sha256(turnId)>.*.json` に倣う。§2.1）。キーは `sessionRef=sha256(session_id)` / `turnRef=sha256(turn_id)` と `public_frame` の digest。書き込みは記録段階（`brainbase_judgment_frame_record` の呼び出し直後）で行う。
+- 取得場所（Stop/idle 時）: 判断確定（Claude Code は `Stop`、opencode は `session.idle`）で、アダプタは上記のローカル journal から、その turn に対して **明示記録された** `public_frame`（と digest）を読む。読み出しは記録済みの値に限り、無ければ合成しない。
 - 欠落時の扱い（送らず理由コードを残す）: 当該 turn に明示 `public_frame` が無い／空なら、**その turn は履歴に送らない**。outbox・ログに理由コード（例 `worker_public_frame_absent`）だけ残す（§7 の可視化。判断本文の中身は残さない）。
 - 不正時の扱い（拒否のみ）: 秘密混入・制御文字・不明キー・長さ超過などの不正 `public_frame` は記録段階で **拒否** する（`frame_public_invalid`、`containsJudgmentFrameCredential` `:220-221`、検証 `:416-435`）。除去・書き換えで通すことはしない（§5 のログ規則・§8 付記）。
 
@@ -140,7 +141,7 @@ Worker が「履歴に出す判断本文」を得る道筋は、Codex が使う�
 ### 前提（RQ-116 の表と一意キー）
 - 表: `judgment_receipts`（`/workspace/repos/brainbase-organization/packages/server-parts/judgment-receipt-store/judgment-receipt-schema.sql:4-16`）。列: `organization_id, project_code, owner_person_id, resolution_id, turn_id, receipt(JSONB), created_at`。
 - 一意キー: `UNIQUE (organization_id, project_code, owner_person_id, resolution_id)`（同 `:12`）。
-- 書き込み: `judgment-receipt-postgres-repository.js` の `record(receipt, actor)`。一意キー衝突を黙って握りつぶす（ブラインドな `ON CONFLICT DO NOTHING`）のではなく、既存行の不変性を確認して **409 `judgment_receipt_immutable_conflict`** を返す（`:129`）。したがって冪等性は「DO NOTHING で二重挿入を防ぐ」ではなく、§6 の受領契約（同一キー＋既存内容と一致なら `already_saved`＝成功扱い／内容が異なれば競合）で定義する。RLS で owner/project/org にスコープ（schema `:33-58`、`withOwnerContext` `:89-111`）。
+- 書き込み: `judgment-receipt-postgres-repository.js` の `record(receipt, actor)`。実装は `ON CONFLICT DO NOTHING` で挿入を試み、**挿入できなかった（既存行があった）場合は内容比較なしで常に 409 `judgment_receipt_immutable_conflict` を返す**（`:129`）。既存行の内容が同一かどうかは確認しない。したがって同一内容の再送も現状はそのままでは 409 になり、冪等成功にはならない。§6 の受領契約（同一キー＋既存内容と一致なら `already_saved`＝成功扱い／内容が異なれば競合）を成立させるには、受領口側に **409 時に既存行を読み戻して内容ハッシュを比較する処理を追加実装** する必要がある（§6。実装変更が必要な項目）。RLS で owner/project/org にスコープ（schema `:33-58`、`withOwnerContext` `:89-111`）。
 - 既存の書き込み経路: `/api/judgment/resolve` が `receiptWriter.record(receipt, receiptAccess)` を呼ぶ（`judgment-resolution-host-mount/judgment-resolution.js:125-163`, 呼び出し `:147`）。※行番号はサブ調査に基づく。
 - RQ-119 では **この同じ表・同じ一意キー** を使う（指示どおり）。
 
@@ -149,7 +150,7 @@ Worker → 共通送り口 → 組織版 transport → サービス資格付き�
 
 - 長所:
   - owner JWT（人）に依存しない。Worker 用のサービス/AI メンバー資格で済む（§5）。RQ-120 の失効問題から切り離せる。
-  - `judgment_receipts` の一意キーがそのまま冪等キー（§6）。同一キー＋同一内容の再送は `already_saved`（成功扱い）で二重にならず、内容が異なる再送は 409 `judgment_receipt_immutable_conflict`（`judgment-receipt-postgres-repository.js:129`）で拒否される（受領契約は §6）。
+  - `judgment_receipts` の一意キーがそのまま冪等キー（§6）。ただし既存 repository は `ON CONFLICT DO NOTHING` 後に内容比較なしで常に 409 を返すため（`judgment-receipt-postgres-repository.js:129`）、同一内容の再送を `already_saved`（成功扱い）にするには受領口側の 409 読み戻し・内容ハッシュ比較（実装変更）が前提になる（§6）。内容が異なる再送は 409 `judgment_receipt_immutable_conflict` のまま拒否される。
   - entrypoint が `codex` 固定の public-projection 契約（`public-projection.js:17,353`）を迂回できる。Worker の entrypoint を表の receipt/投影に素直に載せられる。
   - box で完結（Mac 固有経路を使わない）。
 - 短所/前提:
@@ -193,7 +194,7 @@ Worker → episode/final/events を Codex と同形で生成 → `relayFinalized
   - `turn_ref` ← `sha256(session)/sha256(turn)`。
   - `judgment` ← `public_frame` を `JudgmentHistoryJudgment`（summary / reason / selected_references / alternatives、`:63-69`）へ写す。Worker が selected_references / alternatives を明示記録していなければ `null`、`missing_fields` に明記。
   - `execution` は Worker 経路では `unknown` 既定（結果追跡は別イベント）。
-- 訂正・結果は追記イベント（`JudgmentHistoryFeedbackEvent` `:34-39`、kind=correction / result）で表す（§6・§9）。本 record は immutable。
+- 訂正・結果の表し方は **未決（§9 未決事項6）**。候補として追記イベント（`JudgmentHistoryFeedbackEvent` `:34-39`、kind=correction / result）で表す案がある（§6）。本 record は immutable。
 
 ---
 
@@ -203,25 +204,29 @@ Worker → episode/final/events を Codex と同形で生成 → `relayFinalized
 - 使うもの: 組織版の **AI メンバー/サービス資格（agent credential）**。
   - scope 限定: 1 組織・1 テナント・特定 project に限定（Worker ごと、または Worker 群で1つ）。`judgment_receipts` の RLS（org/project/owner、schema `:33-58`）と整合する scope を持たせる。
   - 帰属の写像（`actor.personId` ↔ `owner_person_id`、推奨案）: 組織版の agent 認可は、エージェント主体 `agentMemberId` と、その判断を「誰の判断力の延長か」を表す人 `ownerPersonId` を **区別** する（`/workspace/repos/brainbase-organization/packages/organization-auth/agent-mcp-authorization.js`。資格行〈membership / grant〉を org・tenant・project・scope で照合し、agent member から owner person を解決する＝findings）。受領契約の推奨:
-    - receipt の `owner_person_id` には、照合済み資格行が示す **owner person（委任元）** を入れる。Worker 自身の `agentMemberId` は `owner_person_id` にしない（必要なら別メタとして receipt に残す）。これで `judgment_receipts` の一意キー（`:12`）と RLS が成立する。
+    - receipt の `owner_person_id` には、照合済み資格行が示す **owner person（委任元）** を入れる。Worker 自身の `agentMemberId`（agent 本人の `personId`）は `owner_person_id` にしない。
+    - **保存用 actor への写像（契約）**: 既存 repository は書き込み時の `actor.personId` を DB 列・RLS コンテキストに使い、agent 認証の `personId` は agent 本人を指す。このため受領口は、**agent 資格で照合済みの `ownerPersonId` を保存用 actor（`owner_person_id` 列・RLS コンテキスト）へ写像** し、agent 本人の `personId` は別列（メタ）に記録する。資格行で照合されていない owner 指定（呼び手が任意に付けた owner）は **拒否** する。この写像を満たして初めて `judgment_receipts` の一意キー（`:12`）と RLS が成立する。
     - 委任: 対象 project の owner（例: 佐藤さん）→ Worker（agent member）への委任を資格行で表し、受領側は「この agent member がこの owner の判断を記録してよいか」を資格行で確認してから `record()` する。
     - scope: 1 組織・1 テナント・対象 project に限定し、`judgment_receipts` の RLS（schema `:33-58`）と整合する scope だけを受理。
     - 失効確認: 書き込み前に資格行の有効性（失効・期限・status）を照合し、失効なら 403（§7 で outbox 保持）。これは Codex relay の owner JWT 失効（`:376,295`／RQ-120）とは別系統で、RQ-119 の経路に持ち込まない。
     - 決定済み（決定事項の節 (1)(2)）: owner person（project owner）に束ね、`owner_person_id` に owner person を入れる。実行した agent 主体（`agentMemberId`・実モデル名）はメタ情報として receipt に残すだけとする。資格は組織版の既存 agent-credential-service / `agent-mcp-authorization.js` を使う。委任・scope・失効を表す実フィールド名と発行 / 検証 API の細部は `agent-mcp-authorization.js` を sandbox 外で直接再読できておらず＝推測を含むため、実装前に原本で再確認する（§9 推測の明示）。
-  - 期限と更新（決定事項の節 (2)＝案A）: Worker は組織版の既存 agent 資格（agent-credential-service、表 `auth_agent_credentials`）を使う。期限は最長 86400 秒で、失効・作り直し（再発行）の仕組みは既に実装済み。Worker の送り口は **送る前に必ず資格の有効性を確かめ、期限が近ければ agent 資格を作り直してから送る**。考え方は「送る前に必ず有効性を確かめ、期限が近ければ作り直す」で ensureCurrentToken と同じだが、**人の token の更新部品（organization-client の `ensureCurrentToken`）そのものは使わない**（それは不採用の案B）。更新（作り直し）もできないときは §7 の outbox 保持＋理由コード（例 `agent_credential_renewal_failed`）で可視化する。失効時は §7 のとおり黙って捨てず保持・再送、状態を可視化。
-    - 教訓（2026-10-26 判明）: 今の Codex relay が止まった根本原因は、organization-client の access token が 1 時間で切れ（`expires_in` 既定 3600）、relay は `tokenIsCurrent` で確かめるだけで更新しないこと（unson `judgment-public-relay.mjs:362-377`、org `organization-client/src/index.mjs:292-297`。更新は CLI `refresh` `:1387-1455` のみ）。これは人の token の経路（案B）の問題であり、Worker は上記のとおり agent 資格の失効・作り直しで更新するため、同じ失敗の形（確かめるだけで更新しない）を踏まない。
+  - 期限と再発行（決定事項の節 (2)＝案A）: Worker は組織版の既存 agent 資格（agent-credential-service、表 `auth_agent_credentials`）を使う。期限は最長 86400 秒。**資格の再発行（issue）は人（owner/CEO）の操作**である: 既存 agent-credential-service の `issue()` は `authority()` で有効な人間の owner/CEO を要求し、agent 自身からの発行を拒否する。したがって **Worker は自分で資格を作り直せない**。Worker の送り口は **送る前に必ず資格の有効性を確かめ**、有効なら送る。期限切れ／失効を検知したら **自動再発行はせず、outbox を保持して停止（送信しない）し、再発行が必要なことを人に知らせる**（理由コード 例 `agent_credential_expired` / `agent_credential_revoked`。§7 の「停止（資格待ち）」状態 `blocked_credential`）。人が再発行した後に、停止していた分を pending に戻して再開する（§7）。人を介さない再発行経路は未決（§9 未決事項8）。なお **人の token の更新部品（organization-client の `ensureCurrentToken`）は使わない**（それは不採用の案B）。
+    - 教訓（2026-10-26 判明）: 今の Codex relay が止まった根本原因は、organization-client の access token が 1 時間で切れ（`expires_in` 既定 3600）、relay は `tokenIsCurrent` で確かめるだけで更新しないこと（unson `judgment-public-relay.mjs:362-377`、org `organization-client/src/index.mjs:292-297`。更新は CLI `refresh` `:1387-1455` のみ）。これは人の token の経路（案B）の問題である。Worker は確かめるだけで黙って捨てる（＝止まったまま誰も気づかない）ことはせず、期限切れ／失効を検知したら outbox を保持して停止し、人に再発行を知らせる（上記）ため、同じ「確かめるだけで放置して履歴が静かに止まる」形は踏まない。
   - 置き場: box 上の秘密置き場（Infisical 等の正規経路。Skill `brainbase-infisical-env-management`）。ファイルで置く場合は owner 限定・0600・symlink 拒否（Codex 側 config の作法 `judgment-public-relay-config.mjs:225-254` に倣う）。
   - ログ規則: トークン/bearer/person の実値、プロンプト全文、ツール応答をログ・outbox に出さない（既存 outbox も envelope と digest のみ `judgment-public-relay.mjs:698-701`）。失敗は理由コード（`judgment_*` 形）だけ出す。
-- 受け手側（組織版）: 非 person（agent）認証を受理する判断受領エンドポイントが必要。現 person 専用 route（`public-projection-route.js:19,391`）とは別口にする。agent 資格の検証は `organization-auth/agent-mcp-authorization.js` の資格行照合（`agentMemberId` / `ownerPersonId` の区別・scope・失効確認）に通し、`owner_person_id` を解決してから `judgment_receipts.record()` を呼ぶ想定。**agent credential の発行・検証の実フィールドと実装は本調査で直接確認できず＝推測。§9 で確認。**
+- 受け手側（組織版）: 非 person（agent）認証を受理する判断受領エンドポイントが必要。現 person 専用 route（`public-projection-route.js:19,391`）とは別口にする。agent 資格の検証は `organization-auth/agent-mcp-authorization.js` の資格行照合（`agentMemberId` / `ownerPersonId` の区別・scope・失効確認）に通し、照合済みの `ownerPersonId` を保存用 actor（上の写像契約）へ写してから `judgment_receipts.record()` を呼ぶ想定。
+  - **判断記録用の認可定義が必要**: `agent-mcp-authorization.js` の操作別認可は既存のタスク／進捗ツール限定で、判断記録（judgment の record）は **対象外**。そのため判断記録用の `toolName`・`resourceId`・write 権限を新たに定義する必要がある（名前の案: `toolName='judgment.record'`、`resourceId` は `project_code`（＋ owner person）スコープ、必要権限 `judgment:write`）。**この認可が定義されるまでは、本人（資格）確認だけで書き込みを許さない**（認可未定義のまま record を通さない）。
+  - **agent credential の発行・検証の実フィールドと実装は本調査で直接確認できず＝推測。§9 で確認。**
 
 ---
 
 ## 6. 冪等性（受領契約）
 
 - 一意キー: `judgment_receipts` の `UNIQUE (organization_id, project_code, owner_person_id, resolution_id)`（schema `:12`）をそのまま使う。
-- 受領契約（重複時の意味を固定する）: 実リポジトリ `judgment-receipt-postgres-repository.js` は一意キー衝突を黙って握りつぶさず、既存行の不変性を確認して **409 `judgment_receipt_immutable_conflict`** を返す（`:129`）。これを踏まえ、RQ-119 の受領口は次を契約とする:
+- 受領契約（重複時の意味を固定する）: 実リポジトリ `judgment-receipt-postgres-repository.js` は `ON CONFLICT DO NOTHING` で挿入を試み、既存行があれば **内容比較なしで常に 409 `judgment_receipt_immutable_conflict`** を返す（`:129`。既存内容が同一かは見ない）。このままでは同一内容の再送も 409 になり冪等成功にならないため、RQ-119 の受領口は次の処理を **追加実装**（実装変更が必要）して契約を成立させる。409 を受けたら既存行を読み戻し、receipt_digest（下記）を比較する:
   - **同一キー＋既存内容と一致**（**receipt_digest**＝保存・投影する receipt 全体〈public_frame・判断時刻 resolved_at・entrypoint/tool・session_ref/turn_ref・project_code・参照情報・schema 版〉の canonical JSON ハッシュが既存行と一致）: `already_saved`（**成功扱い**）。再送は何も壊さず冪等。※本リポジトリにも同形の成功語彙がある（`src/judgment-history.ts:44` `status:'saved'|'already_saved'`、feedback 書き込みの `created:false → already_saved` `:1870,1916`）。
   - **同一キー＋内容が異なる**: **競合**＝409 `judgment_receipt_immutable_conflict` を返し、黙って上書き・追記しない（CLAUDE.md「正本が malformed / 競合なら loudly に失敗」。本リポジトリでも digest 不一致で `judgment_receipt_*_mismatch` を投げる作法と整合 `src/judgment-host.ts:944-960`）。送り手は §7 のとおり理由コードを残し、`resolution_id` の導出ミス等（内容の取り違え）として扱う。
+  - **同時再送（並行書き込み）**: 2 つの `record` が同一キーで競合した場合、DB 側は片方だけ挿入成功・他方は `ON CONFLICT DO NOTHING` で挿入されず 409 になる。409 を受けた側は上の読み戻し・receipt_digest 比較に進み、同一なら `already_saved`、異なれば 409 のまま。読み戻しは挿入成功のコミット後に同一行を見る（自トランザクション内で読めない場合は短い再読を許す）。この挙動も受領口の追加実装に含める。
 - `resolution_id` の決定的導出: 指示の「道具・セッション・ターン・内容ハッシュ」から決定的に作る。案:
   `resolution_id = f(entrypoint/tool, session_id, turn_id, content_digest)`（例: これらの canonical JSON の sha256 を安全なコード形 `SAFE_CODE`〈`judgment-public-relay.mjs:32`〉に収める）。
   - 同じ turn・同じ内容なら同じ `resolution_id` → 同一キーで `already_saved`（冪等）。
@@ -237,7 +242,8 @@ Worker → episode/final/events を Codex と同形で生成 → `relayFinalized
 RQ-120 と同じ扱い＝保持して再送、状態を見えるように。
 
 - ローカル outbox: 共通送り口は送信前にローカル outbox（Worker 用、Codex の `…public-relay.json` 相当）へ `pending/attempts/status/envelope-digest` を書く。Codex の outbox 設計（`judgment-public-relay.mjs:703-876`、原子的書き込み `persistOutbox:420-438`、envelope と digest のみ）を踏襲。
-- 再試行: 次の Worker 実行（次 turn の hook/プラグイン発火）で outbox を読み、`pending` を再送。有限回で上限（Codex は最大3 `:25,748`）。transport/5xx/429 は再試行、401/403・契約拒否は即停止（Codex の分岐 `:826-849` に準拠）。
+- 状態遷移: outbox の各件は `pending`（送信待ち）→ 送信 → `saved`（成功、`already_saved` 含む）／ `failed`（上限到達）を基本とし、資格の期限切れ／失効を検知したら **`blocked_credential`（停止＝資格待ち）** に移す（§5。Worker は自分で再発行できない）。`blocked_credential` の間は再送対象にしない（送っても 403 になるため）。**人が資格を再発行した後**、送り口が送信前の資格有効性確認で回復を検知し、`blocked_credential` の件を `pending` に戻して再開する（attempts は据え置き）。
+- 再試行: 次の Worker 実行（次 turn の hook/プラグイン発火）で outbox を読み、`pending` を再送。有限回で上限（Codex は最大3 `:25,748`）。transport/5xx/429 は再試行、401/403・契約拒否は即停止（Codex の分岐 `:826-849` に準拠）。ただし 401/403 が資格の期限切れ／失効による場合は破棄せず `blocked_credential` に移す（上の状態遷移。pending のまま無駄に再送せず、資格再発行後に pending へ戻す）。
 - 可視化: 失敗は理由コード（`judgment_*`）を残し、Director が状態を確認できる場所に出す（outbox の件数・最終状態）。本番 staging は Cloud Run `/tmp` が残らない点に注意（`judgment-history-stall-20261026.md` 背景の RQ-116 と同根）。outbox もローカルファイル依存なら揮発する → DB 側に「未送信/失敗」を持てないか RQ-116 とあわせ検討（§9）。
 - 秘密: outbox・ログにトークン/プロンプト/応答を残さない（§5）。
 
@@ -286,17 +292,18 @@ RQ-120 と同じ扱い＝保持して再送、状態を見えるように。
 ### Director が確かめるべき未決事項
 1. **entrypoint 値** ＝ **決定済み（決定事項の節 (3)）**: opencode 用に enum（`contract.js:7`、`src/judgment-history.ts:11-17`）へ `opencode` を新設する。実モデル名（DeepSeek）は entrypoint では表さず record のメタ情報に残す。共有契約の変更＝影響範囲の合意は実装 Story で取る。
 2. **帰属の写像（`actor.personId` ↔ `owner_person_id`、委任・scope・失効）** ＝ **決定済み（決定事項の節 (1)）**: Worker 判断は project owner（佐藤さん）に束ね、`owner_person_id` に owner person を入れる。agent 主体（`agentMemberId`・実モデル名）はメタ情報。資格行の照合フィールド・委任の表現・scope・失効確認の実フィールド名（`agent-mcp-authorization.js`）は実装前に原本で再確認する（推測）。`judgment_receipts` の一意キー・RLS が成立する前提は満たす（§5）。
-3. **agent credential の仕組み** ＝ **決定済み（決定事項の節 (2)）**: 組織版の既存 agent-credential-service / `agent-mcp-authorization.js` を使う（新規に作らない）。scope / 期限 / 更新 / 失効の具体フィールドは本調査で未確認＝推測のため、実装前に原本で再確認する。
+3. **agent credential の仕組み** ＝ **決定済み（決定事項の節 (2)）、ただし 2 つの前提あり**: 組織版の既存 agent-credential-service / `agent-mcp-authorization.js` を使う（新規に作らない）。(a) 資格の再発行（`issue()`）は人（owner/CEO）の操作で agent 自身を拒否するため、Worker は自動再発行できない（停止→人が再発行。§5・未決事項8）。(b) 判断記録用の認可（`toolName` / `resourceId` / write 権限）は既存の操作別認可（タスク／進捗ツール限定）に無く、新たに定義が必要（§5）。scope / 期限 / 失効の具体フィールドは本調査で未確認＝推測のため、実装前に原本で再確認する。
 4. **保存先の確定**: 案A（DB 直書き、推奨）で合意するか。履歴表示は RQ-116 の DB 投影が前提である点の了解。
 5. **outbox の置き場**: staging の Cloud Run `/tmp` 揮発を踏まえ、未送信/失敗状態を DB に持てるか（RQ-116 と統合するか）。
 6. **判断の訂正表現**: 同一 turn の再判断を別 `resolution_id` にするか、feedback イベント（kind=correction、`src/judgment-history.ts:28-45`）に寄せるか。
 7. **opencode の確認課題** ＝ **決定済み（決定事項の節 (3)・実測 §3.4）**: プラグインの `session.idle` を使う。発火タイミングは 1 回実測済み（§3.4）。ただし対話モード・複数 turn は未検証＝推測で、実装前に再確認する。
+8. **人を介さない資格再発行経路**: 既存 agent-credential-service の `issue()` は有効な人間の owner/CEO を要求し agent 自身を拒否するため、Worker は資格を自動再発行できない（§5）。期限切れ時に「Worker が停止 → 人が再発行 → 再開」以外の経路（例: 専用の自動再発行サービス、短期資格の自動更新など）を設けるかは **未決**。
 
 ### 推測の明示
 - Claude Code の具体的なフックイベント名・発火タイミングは本調査で未確認（§3.2）＝推測。opencode は `session.idle` を 1 回実測（§3.4）したが、対話モード・複数 turn は未検証＝推測。
 - 組織版の agent credential 発行・検証の正確な仕組み（`agent-mcp-authorization.js` の資格行・委任・scope・失効フィールド）は未確認（§5）＝推測。
 - `/api/judgment/resolve` の receiptWriter 周りの行番号はサブ調査に基づく（§4）。
-- 本改訂（Codex レビュー反映）は、本リポジトリの共有契約（`src/judgment-frame.ts`・`src/judgment-history.ts`）を直接確認して行った。一方 `/workspace/repos/brainbase-organization` と `/workspace/repos/brainbase-unson` の各ファイル（受領リポジトリ `:129` の 409 `judgment_receipt_immutable_conflict` 挙動、`agent-mcp-authorization.js`、`judgment-resolver-host.mjs:8021` 付近の `brainbase_judgment_frame_record` ラッパ）は本セッションの sandbox 外で直接再読できず、Codex レビュー findings と本書の既存引用に依拠している＝一部推測を含む。Director は実装前にこれらの行番号・挙動を原本で再確認すること。
+- 本改訂（Codex レビュー反映）は、本リポジトリの共有契約（`src/judgment-frame.ts`・`src/judgment-history.ts`）を直接確認して行った。一方 `/workspace/repos/brainbase-organization` と `/workspace/repos/brainbase-unson` の各ファイルは本セッションの sandbox 外で直接再読できず、Codex の通しレビュー（2026-10-26 23:22 JST、組織版の既存実装を読んだ結果）の findings と本書の既存引用に依拠している。今回のレビューで示された組織版の既存挙動（**事実として反映**）は次のとおりで、Director は実装前に原本で再確認すること: (1) 受領 repository は `ON CONFLICT DO NOTHING` 後、内容比較なしで常に 409 `judgment_receipt_immutable_conflict` を返す（`:129`）。(2) agent-credential-service の `issue()` は `authority()` で有効な人間の owner/CEO を要求し agent 自身を拒否する。(3) 既存 repository は `actor.personId` を DB 列・RLS コンテキストに使い、agent 認証の `personId` は agent 本人を指す。(4) `agent-mcp-authorization.js` の操作別認可は既存タスク／進捗ツール限定で判断記録は対象外。(5) `brainbase_judgment_frame_record` は検証結果と `public_frame` を返すだけで turn 別 journal へ永続化しない（`judgment-resolver-host.mjs:8021` 付近のラッパ含む）。
 
 ---
 
@@ -307,3 +314,4 @@ RQ-120 と同じ扱い＝保持して再送、状態を見えるように。
 
 - 2026-10-26 更新: 「決定事項（2026-10-26 Director 判断）」の節を追加し、`session.idle` の実測結果（§3.4）を追加。あわせて §3.1 / §3.2 / §5 / §9 の未決記述を決定済みに反映。いずれも本書内のみで、他ファイルは変更していない。
 - 2026-10-26 更新（Codex レビュー反映）: (1) 決定事項の根拠を「Director から Worker への連絡で rq119-decisions.md のおすすめ (1)(2)(3) で進めると判断されたこと」に直し、Director の判断であって佐藤さんの承認ではない旨を明記（§決定事項）。(2) §5 の資格更新を案A（agent 資格の失効・作り直し）と整合させ、人の token 部品 `ensureCurrentToken` は使わない区別と理由コード例を修正。(3) entrypoint 決定の反映漏れ（§4.3 の「新 entrypoint 追加は未決」・Story S3 の「S0 決定値」）を `opencode`（決定事項の節 (3)）に修正。いずれも本書内のみ。
+- 2026-10-26 更新（Codex 通しレビュー 23:22 JST 反映、組織版の既存実装に基づく事実指摘）: (P1-a) §5・決定事項(2)・§9 — Worker による資格の自動再発行をやめ、「再発行は人（owner/CEO）の操作。Worker は期限切れを検知したら outbox 保持・停止し人に知らせる」に改め、人を介さない再発行経路を §9 未決事項8 に追加。(P1-b) 決定事項(1)・§5 — 照合済み `ownerPersonId` を保存用 actor（DB 列・RLS コンテキスト）へ写像し、agent 本人の `personId` は別列、未照合の owner 指定は拒否、という契約を明記。(P1-c) §3.3 — `brainbase_judgment_frame_record` は turn 別 journal へ永続化しない事実に基づき、Worker 側アダプタが frame を session/turn と紐付けローカル journal に書く担当・保存先・キーを明記し、Stop/idle でそれを読むとした。(P1-d) §4 前提・案A・§6 — 受領 repository は `ON CONFLICT DO NOTHING` 後に内容比較なしで常に 409 を返す事実に直し、受領口側で 409 時に既存行を読み戻し内容ハッシュ比較（同一なら成功／異なれば 409）する処理と同時再送時の扱いを追加実装項目として明記。(P1-e) 決定事項(2)・§5 — 判断記録用の `toolName` / `resourceId` / write 権限を新規定義する必要があると明記（名前の案を併記）、定義まで本人確認だけで書き込みを許さないとした。(P2-f) §4.3 — 訂正・結果の表し方を未決（§9 未決事項6）に統一し、feedback イベントは候補扱いに。(P2-g) §5・§7 — outbox 状態遷移に `blocked_credential`（停止＝資格待ち）を追加し、資格再発行後に pending へ戻して再開する遷移を明記。いずれも本書内のみ。
