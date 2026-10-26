@@ -240,6 +240,7 @@ export function createPeopleAndCompaniesView({
   tokenHeader,
   autoLoad = true,
   initialEntityId,
+  onDetailOpen,
   now = () => new Date(),
   canCorrect = false,
   correctionScope,
@@ -871,6 +872,7 @@ export function createPeopleAndCompaniesView({
       if (state.detail?.id !== id) pendingScroll = { head: true };
       state.detail = { id, state: 'loading' };
       controller.render();
+      onDetailOpen?.({ id });
       const result = await client.read(`/entities/${encodeURIComponent(id)}`);
       if (state.detail?.id !== id) return;
       state.detail = { id, ...normalizeEntityDetail(result) };
