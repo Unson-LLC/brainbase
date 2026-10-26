@@ -532,6 +532,28 @@ describe('元に戻す（undoWindowMs）', () => {
     expect(timers.size()).toBe(0);
   });
 
+  it('元に戻す待ちの間に再読み込みが走り、同じ id の units が 2→5 に変わっても、一覧は0行・onCount は 0（他の行が無いとき）になる', async () => {
+    const timers = fakeTimers();
+    const approval = (units) => item('approval', {
+      kind: 'automation_step',
+      group: 'approve',
+      title: '自動化の人の手順',
+      units,
+      actions: [{ id: 'approve', label: '承認', tone: 'primary' }],
+    });
+    const readInbox = vi.fn()
+      .mockResolvedValueOnce(okResult({ sources: ACTION_SOURCES, items: [approval(2)], uncollected: [] }))
+      .mockResolvedValueOnce(okResult({ sources: ACTION_SOURCES, items: [approval(5)], uncollected: [] }));
+    const port = actionPort({ readInbox });
+    const { root, view, counts } = await mount({ port, undoWindowMs: 5000, timers });
+    expect(counts.at(-1)).toEqual({ count: 2, unreadable: [] });
+    buttonIn(rowsOf(root)[0], '承認').dispatch('click');
+    expect(counts.at(-1)).toEqual({ count: 0, unreadable: [] });
+    await view.load();
+    expect(rowsOf(root)).toEqual([]);
+    expect(counts.at(-1)).toEqual({ count: 0, unreadable: [] });
+  });
+
   it('送信が始まったら元に戻すを出さず、二重に送らない', async () => {
     const timers = fakeTimers();
     let release;

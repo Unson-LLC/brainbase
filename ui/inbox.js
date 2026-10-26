@@ -321,12 +321,13 @@ export function createInboxUI({
       onCount(base);
       return;
     }
-    const readableIds = new Set(readableItems(state.result).map((item) => item.id));
+    const rows = new Map(readableItems(state.result).map((item) => [item.id, item]));
     let count = base.count;
     for (const entry of state.pending.values()) {
-      if (!readableIds.has(entry.item.id)) continue;
-      if (activeDisposition(entry.item, state.dispositions, current)) continue;
-      count -= unitsOf(entry.item);
+      const row = rows.get(entry.item.id);
+      if (!row) continue;
+      if (activeDisposition(row, state.dispositions, current)) continue;
+      count -= unitsOf(row);
     }
     onCount({ count: Math.max(0, count), unreadable: base.unreadable });
   }
