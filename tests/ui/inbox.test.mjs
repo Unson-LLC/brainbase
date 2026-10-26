@@ -388,6 +388,22 @@ describe('今日決めること（layout: today）', () => {
     expect(text(without.root)).not.toContain('お知らせはありません');
   });
 
+  it('route.tab が notices でも、あとでへ移るときは tab を waiting に戻して view を残す', async () => {
+    const { root, routes } = await mount({
+      layout: 'today',
+      route: { tab: 'notices' },
+      now: new Date(2026, 9, 18, 10, 0),
+      port: fakePort({
+        readInbox: vi.fn(async () => todayResult({
+          dispositions: [{ itemId: 'task-a', revision: 'r1', state: 'later', until: '2026-10-19T00:00:00.000Z', at: '2026-10-18T00:00:00.000Z' }],
+        })),
+      }),
+    });
+    buttonIn(root, 'あとで 1件').dispatch('click');
+    expect(routes.at(-1)).toEqual({ tab: 'waiting', view: 'later' });
+    expect(inboxRouteTarget(routes.at(-1))).toBe('inbox?view=later');
+  });
+
   it('route.tab を無視して常に対応待ち側を描く', async () => {
     const { root } = await mount({
       layout: 'today',
@@ -516,6 +532,25 @@ describe('元に戻す（undoWindowMs）', () => {
     expect(timers.size()).toBe(0);
   });
 
+  it('送信が始まったら元に戻すを出さず、二重に送らない', async () => {
+    const timers = fakeTimers();
+    let release;
+    const runAction = vi.fn(() => new Promise((resolve) => { release = resolve; }));
+    const port = actionPort({ runAction });
+    const { root } = await mount({ port, undoWindowMs: 5000, timers });
+    buttonIn(rowsOf(root)[0], '承認').dispatch('click');
+    const [id] = [...timers.scheduled.keys()];
+    timers.run(id);
+    expect(runAction).toHaveBeenCalledTimes(1);
+    expect(text(root)).toContain('「承認」を実行しています。');
+    expect(buttonIn(root, '元に戻す')).toBeUndefined();
+    expect(rowsOf(root)).toEqual([]);
+    timers.run(id);
+    expect(runAction).toHaveBeenCalledTimes(1);
+    release({ status: 'ok' });
+    await waitFor(() => text(root).includes('自動化の人の手順'));
+  });
+
   it('時間が過ぎたら1回だけ runAction を呼び、成功で読み直す', async () => {
     const timers = fakeTimers();
     const port = actionPort();
@@ -553,6 +588,11 @@ describe('元に戻す（undoWindowMs）', () => {
     expect(port.runAction).toHaveBeenCalledWith('approval', 'approve');
     expect(timers.size()).toBe(0);
     expect(root.children).toEqual([]);
+  });
+
+  it('pending が無いときの件数は countInboxWaiting の結果のまま', async () => {
+    const { counts } = await mount({ port: fakePort() });
+    expect(counts.at(-1)).toEqual(countInboxWaiting(okResult(), NOW));
   });
 
   it('undoWindowMs が0なら従来どおり結果を待って読み直し、帯を出さない', async () => {

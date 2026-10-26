@@ -284,8 +284,13 @@ export function createInboxUI({
     clear: typeof timersOption?.clear === 'function' ? timersOption.clear : (id) => globalThis.clearTimeout(id),
   };
 
+  function normalizedRoute(route) {
+    const next = normalizeRoute(route);
+    return layout === 'today' ? { ...next, tab: 'waiting' } : next;
+  }
+
   const state = {
-    route: normalizeRoute(initialRoute),
+    route: normalizedRoute(initialRoute),
     phase: 'idle',
     result: null,
     reason: null,
@@ -299,7 +304,7 @@ export function createInboxUI({
   let generation = 0;
 
   function go(route) {
-    const next = normalizeRoute({ ...state.route, ...route });
+    const next = normalizedRoute({ ...state.route, ...route });
     if (typeof onRouteChange === 'function') onRouteChange(next);
     else applyRoute(next);
   }
@@ -312,12 +317,18 @@ export function createInboxUI({
     }
     const current = readNow();
     const base = countInboxWaiting({ ...state.result, dispositions: [...state.dispositions.values()] }, current);
-    if (base.count === null) {
+    if (state.pending.size === 0 || base.count === null) {
       onCount(base);
       return;
     }
-    const shown = partition(current);
-    onCount({ count: shown.waiting.reduce((sum, item) => sum + unitsOf(item), 0), unreadable: base.unreadable });
+    const readableIds = new Set(readableItems(state.result).map((item) => item.id));
+    let count = base.count;
+    for (const entry of state.pending.values()) {
+      if (!readableIds.has(entry.item.id)) continue;
+      if (activeDisposition(entry.item, state.dispositions, current)) continue;
+      count -= unitsOf(entry.item);
+    }
+    onCount({ count: Math.max(0, count), unreadable: base.unreadable });
   }
 
   function noticesWanted() {
@@ -369,7 +380,7 @@ export function createInboxUI({
   }
 
   function applyRoute(route) {
-    state.route = normalizeRoute(route);
+    state.route = normalizedRoute(route);
     state.laterOpen = null;
     if (noticesWanted() && state.notices === null) {
       void loadNotices().then(() => render());
@@ -424,6 +435,7 @@ export function createInboxUI({
     if (state.pending.get(entry.item.id) !== entry || state.destroyed) return;
     clearPendingTimer(entry);
     entry.sent = true;
+    render();
     let result;
     try {
       result = await port.runAction(entry.item.id, entry.action.id);
@@ -456,6 +468,7 @@ export function createInboxUI({
   }
 
   function undoPending(entry) {
+    if (entry.sent === true) return;
     clearPendingTimer(entry);
     state.pending.delete(entry.item.id);
     render();
@@ -653,10 +666,12 @@ export function createInboxUI({
   function renderUndoBand() {
     const entries = [...state.pending.values()];
     if (entries.length === 0) return null;
-    const latest = entries[entries.length - 1];
+    const undoable = entries.filter((entry) => entry.sent !== true);
+    const target = undoable.length > 0 ? undoable[undoable.length - 1] : null;
+    const shown = target ?? entries[entries.length - 1];
     const band = el(doc, 'div', { className: 'bb-inbox-undo', attrs: { role: 'status' } });
-    band.append(el(doc, 'span', { text: `「${latest.action.label}」を実行します。` }));
-    band.append(workspaceButton(doc, { text: '元に戻す', variant: 'quiet', onClick: () => undoPending(latest) }));
+    band.append(el(doc, 'span', { text: target ? `「${shown.action.label}」を実行します。` : `「${shown.action.label}」を実行しています。` }));
+    if (target) band.append(workspaceButton(doc, { text: '元に戻す', variant: 'quiet', onClick: () => undoPending(target) }));
     return band;
   }
 
