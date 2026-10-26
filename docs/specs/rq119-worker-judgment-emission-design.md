@@ -7,6 +7,20 @@
 
 ---
 
+## 決定事項（2026-10-26 Director 判断）
+
+本節は Director の判断で確定した事項をまとめる。根拠は、Director から Worker への連絡（2026-10-26 22:40 JST 受信）で、`/workspace/logs/rq119-decisions.md` のおすすめ (1)(2)(3) で進めると判断されたこと。これは Director の判断であり、佐藤さん（project owner）の承認ではない。`/workspace/logs/rq119-decisions.md` は各選択肢とおすすめの理由を書いた資料（承認記録ではない）として参照する。以降の節で「未決」と書かれていた関連箇所は、本節を正本として「決定済み」に更新した（§3.1 / §3.2 / §5 / §9）。
+
+1. **判断の持ち主は人（project owner）**。1 つの判断が「誰の判断力の延長か」を表す主体は人（project owner。例: 佐藤さん）であり、receipt の `owner_person_id` には owner person を入れる。実行した agent（Claude Code / opencode の主体＝`agentMemberId`、実モデル名）は **メタ情報** として receipt に残すだけで、`owner_person_id` にはしない。これにより `judgment_receipts` の一意キー（`judgment-receipt-schema.sql:12`）と RLS が成立する（§5 の推奨案を採用＝確定。§9 未決事項2 を解決）。
+
+2. **agent の資格は組織版の既存サービスを使う**。Worker 用の非 person 資格は新規に作らず、組織版（brainbase-organization）の既存 **agent-credential-service** と **agent-mcp-authorization**（`/workspace/repos/brainbase-organization/packages/organization-auth/agent-mcp-authorization.js`）を使う。agent member から owner person を解決し、org・tenant・project・scope・失効を資格行で照合する既存経路に通してから `judgment_receipts.record()` を呼ぶ（§5。§9 未決事項3 を解決）。ただし実フィールド名・発行 / 検証 API の細部は本セッションの sandbox 外で直接再読できておらず、実装前に原本で再確認する（＝一部推測）。
+
+3. **opencode は `session.idle` をプラグインで拾う**。opencode の turn 完了検知はプラグインの `session.idle` イベントで行い、**その turn で明示的に記録された `public_frame` だけ**を送る（本文の生成・推定補完はしない。§3.3）。entrypoint は共有契約の enum に **`opencode` を新設**する（`contract.js:7` / `src/judgment-history.ts:11-17`）。実モデル名（例 DeepSeek / deepseek-flash）は entrypoint では表さず、receipt のメタ情報に残す（§9 未決事項1・7 を解決。発火タイミングの実測は §3.4）。
+
+（案A〈DB 直書き〉の最終確定、outbox の置き場、判断の訂正表現は本判断の対象外で、§9 の未決事項 4・5・6 として残る。）
+
+---
+
 ## 1. 目的と範囲
 
 ### 目的
@@ -76,7 +90,7 @@ Worker はこの経路のどこにも接続していない。履歴表示の正�
   1. ローカルの outbox/journal に先に書き（失敗時保持。§7）、
   2. 送信ポート（transport）に渡す。送信ポート自体は注入（OSS 既定はローカルのみ。組織版が「DB へ送る」実装を注入。§4・CLAUDE.md の OSS 境界）。
 - 出力契約（Codex と同形にする要点）:
-  - `entrypoint`: 道具を表す値（`claude_code` は既存。opencode/DeepSeek 用は新規。§9 の未決事項）。
+  - `entrypoint`: 道具を表す値（`claude_code` は既存。opencode 用に `opencode` を新設＝決定済み、決定事項の節 (3) を参照。実モデル名はメタ情報）。
   - `resolution_id`: §6 の冪等キーから決定的に導出。
   - `turn_ref`: `sha256(session) / sha256(turn)`（既存 `TURN_REF = /^[a-f0-9]{64}\/[a-f0-9]{64}$/`、`contract.js:15`）。
   - `public_frame`: 秘密を含めない（`public-projection.js` の `CREDENTIAL_PATTERN`/制御文字拒否 `:85-86`、長さ上限 `:18` と同じ受理境界に合わせる）。
@@ -91,8 +105,8 @@ Worker はこの経路のどこにも接続していない。履歴表示の正�
   - 注意（既知の罠）: Claude hooks が `npx tsx` を呼ぶと runner/worktree で失敗する（Skill `brainbase-claude-hooks-that-call-npx-tsx-fail-…`）。共通送り口はビルド済み node スクリプト/CLI として呼ぶ。
 
 - DeepSeek（opencode 経由）
-  - 使う仕組み（推測）: opencode のプラグイン/イベント機能で turn 完了フックを取り、共通送り口を呼ぶ。opencode のイベント名・プラグイン API は未確認（§9 で確認課題）。
-  - entrypoint = 新規値（例 `opencode`。実モデルが DeepSeek であることは record 本文/メタで表す案と、entrypoint を分ける案の2択。§9）。
+  - 使う仕組み（決定済み、決定事項の節 (3)）: opencode のプラグインで `session.idle` イベントを拾い、その turn 完了時に共通送り口を呼ぶ。発火タイミングは 1 回実測済み（§3.4）。ただしハンドラ内の送信が run 終了前に完了する保証は無いため、共通送り口はローカル outbox へ書き込み、別経路で送る（§3.4・§7）。
+  - entrypoint = `opencode`（新設＝決定済み、決定事項の節 (3)）。実モデル名（DeepSeek / deepseek-flash など）は entrypoint では表さず、record のメタ情報に残す。
 
 - 原則: アダプタはイベント取得と詰め替えのみ。認証・冪等・送信・失敗保持のロジックは共通送り口に1本化する。
 
@@ -106,6 +120,18 @@ Worker が「履歴に出す判断本文」を得る道筋は、Codex が使う�
 - 取得場所（Stop 時）: 判断確定（Claude Code は `Stop`、opencode は turn 完了）で、アダプタはその turn に対して **明示記録された** `public_frame`（と digest）を turn 単位の journal/記録から読む。読み出しは記録済みの値に限り、無ければ合成しない。
 - 欠落時の扱い（送らず理由コードを残す）: 当該 turn に明示 `public_frame` が無い／空なら、**その turn は履歴に送らない**。outbox・ログに理由コード（例 `worker_public_frame_absent`）だけ残す（§7 の可視化。判断本文の中身は残さない）。
 - 不正時の扱い（拒否のみ）: 秘密混入・制御文字・不明キー・長さ超過などの不正 `public_frame` は記録段階で **拒否** する（`frame_public_invalid`、`containsJudgmentFrameCredential` `:220-221`、検証 `:416-435`）。除去・書き換えで通すことはしない（§5 のログ規則・§8 付記）。
+
+### 3.4 session.idle の実測結果（2026-10-26）
+
+決定事項 (3) の前提確認として、opencode の `session.idle` を 1 回だけ実測した。出典は `/workspace/logs/rq119-idle-trial/RESULT.md` と生ログ `/workspace/logs/rq119-idle-trial/events.log`。
+
+- 条件: 2026-10-26 22:41 JST、opencode 1.19.4、モデル `deepseek/deepseek-flash`、`opencode run`（非対話の1回実行）を1回。
+- 観測: `session.idle` の発火は **1回**。並びは「assistant メッセージ完了（`finish=stop`）→ `session.status` が `idle` に遷移 → `session.idle`」。発火は `opencode run` の終了より **前** で、発火から run 終了までは **1 秒未満**。
+- 代わりに使えるイベント: `session.status` の `idle` 遷移、`message.updated`（assistant メッセージの完了）。turn 完了の検知にはこれらも候補になる。
+- 未検証（推測の明示）:
+  - ハンドラ（プラグインの `session.idle` 受信処理）内で送信（ネットワーク POST）まで終える処理が、run 終了前に完了する保証は **未検証**。発火から run 終了まで 1 秒未満しかないため、ハンドラ内で同期送信すると取りこぼす恐れがある。
+  - そのため送信はハンドラ内で直接行わず、**ローカル spool（outbox）へ書き込み、別経路（別プロセス／次回起動時の再送）で送る方式を推奨**する（§7 の outbox と同じ扱い）。
+  - 検証は **1回だけ**。対話モード（`opencode` の対話セッション）や、1 run 内で複数 turn が走る場合の発火回数・タイミングは **未検証**＝推測。実装前に対話・複数 turn でも再確認する。
 
 ---
 
@@ -161,7 +187,7 @@ Worker → episode/final/events を Codex と同形で生成 → `relayFinalized
   - 出所（provenance）: tool・session_ref・turn_ref・content_digest・契約 schema 版（`JUDGMENT_HISTORY_RECORD_SCHEMA` `src/judgment-history.ts:7`）。生のプロンプト・応答・秘密は載せない（§5）。
 - 履歴 record への投影（具体形、`JudgmentHistoryRecord`）:
   - `record_id` ← receipt の一意キー（`resolution_id` 由来）から決定的に。
-  - `entrypoint` ← receipt の entrypoint（enum `src/judgment-history.ts:11-17`。新 entrypoint 追加は §9 未決）。
+  - `entrypoint` ← receipt の entrypoint（enum `src/judgment-history.ts:11-17`。opencode 用の新 entrypoint は `opencode`＝決定事項の節 (3) で決定済み。共有契約の変更＝影響範囲の合意は実装 Story で取る）。
   - `recorded_at` ← receipt の `resolved_at`（表示順の正本。§6「到着順に依存しない」）。
   - `project_code` ← receipt の `project_code`。
   - `turn_ref` ← `sha256(session)/sha256(turn)`。
@@ -181,9 +207,9 @@ Worker → episode/final/events を Codex と同形で生成 → `relayFinalized
     - 委任: 対象 project の owner（例: 佐藤さん）→ Worker（agent member）への委任を資格行で表し、受領側は「この agent member がこの owner の判断を記録してよいか」を資格行で確認してから `record()` する。
     - scope: 1 組織・1 テナント・対象 project に限定し、`judgment_receipts` の RLS（schema `:33-58`）と整合する scope だけを受理。
     - 失効確認: 書き込み前に資格行の有効性（失効・期限・status）を照合し、失効なら 403（§7 で outbox 保持）。これは Codex relay の owner JWT 失効（`:376,295`／RQ-120）とは別系統で、RQ-119 の経路に持ち込まない。
-    - 未決（§9）: owner person に束ねるか Worker 専用 agent 主体に束ねるか、委任・scope・失効を表す実フィールド名と発行 / 検証の実装は Director 確認事項。`agent-mcp-authorization.js` は本セッションの sandbox 外で直接再読できず、上記は findings と既存引用に基づく＝推測を含む。
-  - 期限と更新: サービス資格は短期トークン＋更新（rotation）。失効時は §7 のとおり黙って捨てず保持・再送、状態を可視化。
-    - 教訓（2026-10-26 判明）: 今の Codex relay が止まった根本原因は、organization-client の access token が 1 時間で切れ（`expires_in` 既定 3600）、relay は `tokenIsCurrent` で確かめるだけで更新しないこと（unson `judgment-public-relay.mjs:362-377`、org `organization-client/src/index.mjs:292-297`。更新は CLI `refresh` `:1387-1455` のみ）。Worker の送り口は **送る前に必ず更新を試す**（RQ-120 で組織版 organization-client に足す `ensureCurrentToken` 相当を使う）。更新もできないときは §7 の outbox 保持＋理由コード（例 `organization_client_token_refresh_failed`）で可視化する。
+    - 決定済み（決定事項の節 (1)(2)）: owner person（project owner）に束ね、`owner_person_id` に owner person を入れる。実行した agent 主体（`agentMemberId`・実モデル名）はメタ情報として receipt に残すだけとする。資格は組織版の既存 agent-credential-service / `agent-mcp-authorization.js` を使う。委任・scope・失効を表す実フィールド名と発行 / 検証 API の細部は `agent-mcp-authorization.js` を sandbox 外で直接再読できておらず＝推測を含むため、実装前に原本で再確認する（§9 推測の明示）。
+  - 期限と更新（決定事項の節 (2)＝案A）: Worker は組織版の既存 agent 資格（agent-credential-service、表 `auth_agent_credentials`）を使う。期限は最長 86400 秒で、失効・作り直し（再発行）の仕組みは既に実装済み。Worker の送り口は **送る前に必ず資格の有効性を確かめ、期限が近ければ agent 資格を作り直してから送る**。考え方は「送る前に必ず有効性を確かめ、期限が近ければ作り直す」で ensureCurrentToken と同じだが、**人の token の更新部品（organization-client の `ensureCurrentToken`）そのものは使わない**（それは不採用の案B）。更新（作り直し）もできないときは §7 の outbox 保持＋理由コード（例 `agent_credential_renewal_failed`）で可視化する。失効時は §7 のとおり黙って捨てず保持・再送、状態を可視化。
+    - 教訓（2026-10-26 判明）: 今の Codex relay が止まった根本原因は、organization-client の access token が 1 時間で切れ（`expires_in` 既定 3600）、relay は `tokenIsCurrent` で確かめるだけで更新しないこと（unson `judgment-public-relay.mjs:362-377`、org `organization-client/src/index.mjs:292-297`。更新は CLI `refresh` `:1387-1455` のみ）。これは人の token の経路（案B）の問題であり、Worker は上記のとおり agent 資格の失効・作り直しで更新するため、同じ失敗の形（確かめるだけで更新しない）を踏まない。
   - 置き場: box 上の秘密置き場（Infisical 等の正規経路。Skill `brainbase-infisical-env-management`）。ファイルで置く場合は owner 限定・0600・symlink 拒否（Codex 側 config の作法 `judgment-public-relay-config.mjs:225-254` に倣う）。
   - ログ規則: トークン/bearer/person の実値、プロンプト全文、ツール応答をログ・outbox に出さない（既存 outbox も envelope と digest のみ `judgment-public-relay.mjs:698-701`）。失敗は理由コード（`judgment_*` 形）だけ出す。
 - 受け手側（組織版）: 非 person（agent）認証を受理する判断受領エンドポイントが必要。現 person 専用 route（`public-projection-route.js:19,391`）とは別口にする。agent 資格の検証は `organization-auth/agent-mcp-authorization.js` の資格行照合（`agentMemberId` / `ownerPersonId` の区別・scope・失効確認）に通し、`owner_person_id` を解決してから `judgment_receipts.record()` を呼ぶ想定。**agent credential の発行・検証の実フィールドと実装は本調査で直接確認できず＝推測。§9 で確認。**
@@ -241,7 +267,7 @@ RQ-120 と同じ扱い＝保持して再送、状態を見えるように。
   - テスト: hook payload 固定入力→ outbox 内容の検証（送信はモック）。
 
 - **S3: opencode(DeepSeek) アダプタ（薄い）**
-  - 内容: opencode プラグイン/イベント → 共通送り口。entrypoint は S0 決定値。
+  - 内容: opencode プラグイン/イベント → 共通送り口。entrypoint は `opencode`（決定事項の節 (3) で決定済み）。
   - 受入: 1 turn で outbox に1件。
   - テスト: イベント固定入力→ outbox 検証。前提: opencode イベント API の確認（下記 Q）。
 
@@ -258,16 +284,16 @@ RQ-120 と同じ扱い＝保持して再送、状態を見えるように。
 - **S6（RQ-116 連携・読み出し）**: `judgment_receipts` から履歴を投影して Codex と Worker を同一表示。RQ-116 の Story として進め、同一表・同一一意キーで突き合わせる。RQ-119 単独では表示まで到達しないことを明記。
 
 ### Director が確かめるべき未決事項
-1. **entrypoint 値**: DeepSeek(opencode) の entrypoint を新設するか（例 `opencode`）、`claude_code` と同様に enum（`contract.js:7`、`src/judgment-history.ts:11-17`）へ追加するか。追加は共有契約の変更＝影響範囲の合意が必要。実モデル名（DeepSeek）を entrypoint で表すか record 本文で表すか。
-2. **帰属の写像（`actor.personId` ↔ `owner_person_id`、委任・scope・失効）**: Worker 判断を project owner（佐藤さん）に束ねるか、Worker 専用の agent 主体に束ねるか。`agentMemberId` と `ownerPersonId` の区別、資格行の照合フィールド、委任の表現、scope、失効確認の実フィールド名（`agent-mcp-authorization.js`）。`judgment_receipts` の一意キー・RLS が成立する前提で選ぶ（推奨案は §5）。
-3. **agent credential の仕組み**: 組織版 auth service が agent（非 person）資格を発行・検証できるか、scope/期限/更新/失効の具体。本調査では未確認（推測）。
+1. **entrypoint 値** ＝ **決定済み（決定事項の節 (3)）**: opencode 用に enum（`contract.js:7`、`src/judgment-history.ts:11-17`）へ `opencode` を新設する。実モデル名（DeepSeek）は entrypoint では表さず record のメタ情報に残す。共有契約の変更＝影響範囲の合意は実装 Story で取る。
+2. **帰属の写像（`actor.personId` ↔ `owner_person_id`、委任・scope・失効）** ＝ **決定済み（決定事項の節 (1)）**: Worker 判断は project owner（佐藤さん）に束ね、`owner_person_id` に owner person を入れる。agent 主体（`agentMemberId`・実モデル名）はメタ情報。資格行の照合フィールド・委任の表現・scope・失効確認の実フィールド名（`agent-mcp-authorization.js`）は実装前に原本で再確認する（推測）。`judgment_receipts` の一意キー・RLS が成立する前提は満たす（§5）。
+3. **agent credential の仕組み** ＝ **決定済み（決定事項の節 (2)）**: 組織版の既存 agent-credential-service / `agent-mcp-authorization.js` を使う（新規に作らない）。scope / 期限 / 更新 / 失効の具体フィールドは本調査で未確認＝推測のため、実装前に原本で再確認する。
 4. **保存先の確定**: 案A（DB 直書き、推奨）で合意するか。履歴表示は RQ-116 の DB 投影が前提である点の了解。
 5. **outbox の置き場**: staging の Cloud Run `/tmp` 揮発を踏まえ、未送信/失敗状態を DB に持てるか（RQ-116 と統合するか）。
 6. **判断の訂正表現**: 同一 turn の再判断を別 `resolution_id` にするか、feedback イベント（kind=correction、`src/judgment-history.ts:28-45`）に寄せるか。
-7. **opencode の確認課題**: opencode のプラグイン/イベント API 名と発火タイミング（本調査では未確認＝推測）。
+7. **opencode の確認課題** ＝ **決定済み（決定事項の節 (3)・実測 §3.4）**: プラグインの `session.idle` を使う。発火タイミングは 1 回実測済み（§3.4）。ただし対話モード・複数 turn は未検証＝推測で、実装前に再確認する。
 
 ### 推測の明示
-- Claude Code / opencode の具体的なフックイベント名・発火タイミングは本調査で未確認（§3.2）＝推測。
+- Claude Code の具体的なフックイベント名・発火タイミングは本調査で未確認（§3.2）＝推測。opencode は `session.idle` を 1 回実測（§3.4）したが、対話モード・複数 turn は未検証＝推測。
 - 組織版の agent credential 発行・検証の正確な仕組み（`agent-mcp-authorization.js` の資格行・委任・scope・失効フィールド）は未確認（§5）＝推測。
 - `/api/judgment/resolve` の receiptWriter 周りの行番号はサブ調査に基づく（§4）。
 - 本改訂（Codex レビュー反映）は、本リポジトリの共有契約（`src/judgment-frame.ts`・`src/judgment-history.ts`）を直接確認して行った。一方 `/workspace/repos/brainbase-organization` と `/workspace/repos/brainbase-unson` の各ファイル（受領リポジトリ `:129` の 409 `judgment_receipt_immutable_conflict` 挙動、`agent-mcp-authorization.js`、`judgment-resolver-host.mjs:8021` 付近の `brainbase_judgment_frame_record` ラッパ）は本セッションの sandbox 外で直接再読できず、Codex レビュー findings と本書の既存引用に依拠している＝一部推測を含む。Director は実装前にこれらの行番号・挙動を原本で再確認すること。
@@ -278,3 +304,6 @@ RQ-120 と同じ扱い＝保持して再送、状態を見えるように。
 本作業で変更したファイルは本書 1 ファイルのみ:
 `docs/specs/rq119-worker-judgment-emission-design.md`。
 コード・テスト・他ドキュメントは変更していない。
+
+- 2026-10-26 更新: 「決定事項（2026-10-26 Director 判断）」の節を追加し、`session.idle` の実測結果（§3.4）を追加。あわせて §3.1 / §3.2 / §5 / §9 の未決記述を決定済みに反映。いずれも本書内のみで、他ファイルは変更していない。
+- 2026-10-26 更新（Codex レビュー反映）: (1) 決定事項の根拠を「Director から Worker への連絡で rq119-decisions.md のおすすめ (1)(2)(3) で進めると判断されたこと」に直し、Director の判断であって佐藤さんの承認ではない旨を明記（§決定事項）。(2) §5 の資格更新を案A（agent 資格の失効・作り直し）と整合させ、人の token 部品 `ensureCurrentToken` は使わない区別と理由コード例を修正。(3) entrypoint 決定の反映漏れ（§4.3 の「新 entrypoint 追加は未決」・Story S3 の「S0 決定値」）を `opencode`（決定事項の節 (3)）に修正。いずれも本書内のみ。
