@@ -297,12 +297,29 @@ export function createInboxUI({
     dispositions: new Map(),
     laterOpen: null,
     notice: null,
+    noticeOwner: null,
     notices: null,
     pending: new Map(),
     sent: new Set(),
     destroyed: false,
   };
   let generation = 0;
+
+  function setNotice(message, owner = null) {
+    state.notice = message;
+    state.noticeOwner = owner;
+  }
+
+  function clearNotice() {
+    state.notice = null;
+    state.noticeOwner = null;
+  }
+
+  function clearNoticeFor(owner) {
+    if (!state.notice || !state.noticeOwner) return;
+    if (state.noticeOwner.itemId !== owner.itemId || state.noticeOwner.actionId !== owner.actionId) return;
+    clearNotice();
+  }
 
   function go(route) {
     const next = normalizedRoute({ ...state.route, ...route });
@@ -401,7 +418,7 @@ export function createInboxUI({
     if (change.state === 'open') state.dispositions.delete(item.id);
     else state.dispositions.set(item.id, { itemId: item.id, revision: change.revision, state: change.state, until: change.until ?? null, at: readNow().toISOString() });
     state.laterOpen = null;
-    state.notice = null;
+    clearNotice();
     render();
     reportCount();
     let result;
@@ -413,12 +430,13 @@ export function createInboxUI({
     if (state.destroyed || result?.status === 'ok') return;
     if (previous) state.dispositions.set(item.id, previous);
     else state.dispositions.delete(item.id);
-    state.notice = `${failureTitle}。理由: ${reasonText(result?.reason ?? 'response_invalid')}。`;
+    setNotice(`${failureTitle}。理由: ${reasonText(result?.reason ?? 'response_invalid')}。`);
     render();
     reportCount();
   }
 
   async function runAction(item, action) {
+    const owner = { itemId: item.id, actionId: action.id };
     let result;
     try {
       result = await port.runAction(item.id, action.id);
@@ -427,11 +445,11 @@ export function createInboxUI({
     }
     if (state.destroyed) return;
     if (result?.status === 'ok') {
-      state.notice = null;
+      clearNoticeFor(owner);
       await load();
       return;
     }
-    state.notice = `「${action.label}」を実行できませんでした。理由: ${reasonText(result?.reason ?? 'response_invalid')}。`;
+    setNotice(`「${action.label}」を実行できませんでした。理由: ${reasonText(result?.reason ?? 'response_invalid')}。`, owner);
     render();
   }
 
@@ -454,11 +472,11 @@ export function createInboxUI({
     if (state.destroyed) return;
     if (result?.status === 'ok') {
       state.sent.add(entry.item.id);
-      state.notice = null;
+      clearNoticeFor({ itemId: entry.item.id, actionId: entry.action.id });
       await load();
       return;
     }
-    state.notice = `「${entry.action.label}」を実行できませんでした。理由: ${reasonText(result?.reason ?? 'response_invalid')}。`;
+    setNotice(`「${entry.action.label}」を実行できませんでした。理由: ${reasonText(result?.reason ?? 'response_invalid')}。`, { itemId: entry.item.id, actionId: entry.action.id });
     render();
     reportCount();
   }
@@ -470,7 +488,7 @@ export function createInboxUI({
     }
     const entry = { item, action, timerId: null };
     state.pending.set(item.id, entry);
-    state.notice = null;
+    clearNotice();
     entry.timerId = timers.set(() => { void commitPending(entry); }, undoWindowMs);
     render();
     reportCount();

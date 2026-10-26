@@ -643,6 +643,39 @@ describe('元に戻す（undoWindowMs）', () => {
     expect(port.readInbox).toHaveBeenCalledTimes(1);
   });
 
+  it('Aが失敗したあとBが成功しても、Aの失敗通知を消さない', async () => {
+    const timers = fakeTimers();
+    const items = [
+      item('a', {
+        kind: 'automation_step',
+        group: 'approve',
+        title: 'Aの手順',
+        actions: [{ id: 'go', label: '実行A', tone: 'primary' }],
+      }),
+      item('b', {
+        kind: 'automation_step',
+        group: 'approve',
+        title: 'Bの手順',
+        actions: [{ id: 'go', label: '実行B', tone: 'primary' }],
+      }),
+    ];
+    const readInbox = vi.fn(async () => okResult({ sources: ACTION_SOURCES, items, uncollected: [] }));
+    const runAction = vi.fn(async (itemId) => (itemId === 'a'
+      ? { status: 'unavailable', reason: 'upstream_unavailable' }
+      : { status: 'ok' }));
+    const port = actionPort({ readInbox, runAction });
+    const { root } = await mount({ port, undoWindowMs: 5000, timers });
+    buttonIn(rowsOf(root).find((node) => node.attributes['data-inbox-item'] === 'a'), '実行A').dispatch('click');
+    buttonIn(rowsOf(root).find((node) => node.attributes['data-inbox-item'] === 'b'), '実行B').dispatch('click');
+    const [first, second] = [...timers.scheduled.keys()];
+    timers.run(first);
+    await waitFor(() => text(root).includes('「実行A」を実行できませんでした'));
+    timers.run(second);
+    await waitFor(() => port.readInbox.mock.calls.length === 2);
+    expect(text(root)).toContain('「実行A」を実行できませんでした');
+    expect(text(root)).not.toContain('「実行B」を実行できませんでした');
+  });
+
   it('destroy で残っている操作はタイマーを止めてすぐ送る', async () => {
     const timers = fakeTimers();
     const port = actionPort();
