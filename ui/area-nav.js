@@ -1,3 +1,4 @@
+import { workspaceTabList } from './workspace-kit.js';
 /*
  * Area navigation shared by OSS Personal and the organization edition
  * (brainbase-project ledger D10).
@@ -148,14 +149,15 @@ export function createAreaNav({
   const screenHref = (screen) => screen.href ?? hrefFor(screen.id);
   const areaLabel = (area) => area.label ?? area.screens[0].label;
 
-  const countBadge = (count, ariaLabel) => makeElement(doc, 'span', {
-    className: 'bb-area-count',
+  const countBadge = (count, ariaLabel, tab = false) => makeElement(doc, 'span', {
+    className: tab ? 'bb-area-count bb-ws-tab-count' : 'bb-area-count',
     text: count,
     attrs: { 'aria-label': ariaLabel },
   });
 
   const nav = makeElement(doc, 'nav', { className: 'bb-area-nav', attrs: { 'aria-label': label, 'data-contract-version': AREA_NAV_CONTRACT_VERSION } });
   const tabs = makeElement(doc, 'nav', { className: 'bb-area-tabs' });
+  workspaceTabList(tabs);
   tabs.hidden = true;
   const areaLinks = new Map();
   const linkClass = ['bb-area-link', linkClassName].filter(Boolean).join(' ');
@@ -295,7 +297,7 @@ export function createAreaNav({
       });
       tab.append(makeElement(doc, 'span', { text: screen.label }));
       if (Number.isInteger(screen.count)) {
-        tab.append(countBadge(screen.count, screen.waiting ? `待っているもの${screen.count}件` : `${screen.count}件`));
+        tab.append(countBadge(screen.count, screen.waiting ? `待っているもの${screen.count}件` : `${screen.count}件`, true));
       }
       if (!screen.external) tab.addEventListener('click', (event) => onSelect?.(screen.id, event));
       return tab;

@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
   workspaceButton,
+  workspaceTabList,
   workspaceDefinition,
   workspaceDetailEmpty,
   workspaceLedger,
@@ -193,5 +194,41 @@ describe('centered loading stage', () => {
     expect(reducedMotion).toMatch(/\.bb-ws-loading-stage-dot[^{}]*\{[^{}]*animation:\s*none/);
     expect(reducedMotion).toMatch(/\.bb-ws-loading-stage-dot[^{}]*\{[^{}]*opacity:\s*\.7/);
     expect(reducedMotion).toMatch(/\.bb-ws-loading-stage-dot[^{}]*\{[^{}]*transform:\s*none/);
+  });
+});
+
+
+describe('workspaceTabList', () => {
+  it('opts in idempotently while preserving navigation semantics, children and handlers', () => {
+    const root = doc.createElement('nav');
+    root.className = 'existing-strip';
+    root.hidden = true;
+    root.setAttribute('aria-label', 'Screens');
+    const link = doc.createElement('a');
+    link.setAttribute('href', '#details');
+    link.setAttribute('aria-current', 'page');
+    let calls = 0;
+    const handler = () => { calls += 1; };
+    link.addEventListener('click', handler);
+    root.append(link);
+    expect(workspaceTabList(root)).toBe(root);
+    expect(workspaceTabList(root)).toBe(root);
+    expect(root.className.split(/\s+/u)).toEqual(['existing-strip', 'bb-ws-tabs']);
+    expect(root.hidden).toBe(true);
+    expect(root.attributes).toEqual({ 'aria-label': 'Screens' });
+    expect(root.children).toEqual([link]);
+    expect(link.attributes).toEqual({ href: '#details', 'aria-current': 'page' });
+    expect(link.listeners.get('click')).toBe(handler);
+    link.listeners.get('click')();
+    expect(calls).toBe(1);
+  });
+
+  it('does not opt unrelated controls in and rejects a missing root', () => {
+    const viewMode = doc.createElement('div');
+    viewMode.className = 'view-mode';
+    const tabs = doc.createElement('div');
+    workspaceTabList(tabs);
+    expect(viewMode.className).toBe('view-mode');
+    expect(() => workspaceTabList(null)).toThrow('tab_root_required');
   });
 });

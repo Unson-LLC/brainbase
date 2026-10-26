@@ -1,3 +1,4 @@
+import { workspaceTabList } from './workspace-kit.js';
 /*
  * 受信箱 (story-inbox-stage1-v1, docs/specs/inbox-stage1.md).
  *
@@ -514,6 +515,7 @@ export function createInboxUI({
 
   function renderTabs(waitingCount) {
     const bar = el(doc, 'div', { className: 'bb-inbox-tabs', attrs: { role: 'tablist', 'aria-label': '受信箱' } });
+    workspaceTabList(bar);
     for (const [id, label] of [['waiting', '対応待ち'], ['notices', 'お知らせ']]) {
       const selected = state.route.tab === id;
       const tab = el(doc, 'button', {
@@ -522,7 +524,7 @@ export function createInboxUI({
         attrs: { type: 'button', role: 'tab', 'aria-selected': selected ? 'true' : 'false' },
       });
       if (id === 'waiting' && Number.isInteger(waitingCount) && waitingCount > 0) {
-        tab.append(el(doc, 'span', { className: 'bb-inbox-count', text: waitingCount, attrs: { 'aria-label': `${waitingCount}件` } }));
+        tab.append(el(doc, 'span', { className: 'bb-inbox-count bb-ws-tab-count', text: waitingCount, attrs: { 'aria-label': `${waitingCount}件` } }));
       }
       tab.addEventListener('click', () => go({ tab: id, view: 'waiting' }));
       bar.append(tab);
