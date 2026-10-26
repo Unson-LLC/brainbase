@@ -445,7 +445,8 @@ export function createInboxUI({
     }
     if (state.destroyed) return;
     if (result?.status === 'ok') {
-      clearNoticeFor(owner);
+      if (undoWindowMs > 0) clearNoticeFor(owner);
+      else clearNotice();
       await load();
       return;
     }

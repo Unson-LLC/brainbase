@@ -676,6 +676,31 @@ describe('元に戻す（undoWindowMs）', () => {
     expect(text(root)).not.toContain('「実行B」を実行できませんでした');
   });
 
+  it('既定（undoWindowMs 未指定）では、片付けたの失敗通知の後に別の行の action が成功すると通知が消える', async () => {
+    const items = [
+      item('task-a', { title: '片付ける行' }),
+      ...ACTION_ITEMS,
+    ];
+    const port = fakePort({
+      readInbox: vi.fn(async () => okResult({
+        sources: [...ACTION_SOURCES, { kind: 'assigned_task', label: '新しく割り当てられたタスク', group: 'task', status: 'ok' }],
+        items,
+        uncollected: [],
+      })),
+      setDisposition: vi.fn(async (itemId) => (itemId === 'task-a'
+        ? { status: 'unavailable', reason: 'store_unavailable' }
+        : { status: 'ok' })),
+      runAction: vi.fn(async () => ({ status: 'ok' })),
+    });
+    const { root, counts } = await mount({ port });
+    buttonIn(rowsOf(root).find((node) => node.attributes['data-inbox-item'] === 'task-a'), '片付けた').dispatch('click');
+    await waitFor(() => text(root).includes('片付けられませんでした'));
+    buttonIn(rowsOf(root).find((node) => node.attributes['data-inbox-item'] === 'approval'), '承認').dispatch('click');
+    await waitFor(() => port.readInbox.mock.calls.length === 2);
+    expect(text(root)).not.toContain('片付けられませんでした');
+    expect(counts.at(-1)).toEqual({ count: 2, unreadable: [] });
+  });
+
   it('destroy で残っている操作はタイマーを止めてすぐ送る', async () => {
     const timers = fakeTimers();
     const port = actionPort();
