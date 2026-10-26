@@ -42,6 +42,15 @@ interface EntityIndexCacheEntry<T> {
   revision: string | null | undefined;
 }
 
+export class EntityIndexUnstableError extends Error {
+  readonly code = 'entity_index_unstable';
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'EntityIndexUnstableError';
+  }
+}
+
 export function createEntityIndexCache<T>(options: EntityIndexCacheOptions<T>): EntityIndexCache<T> {
   if (typeof options?.build !== 'function') {
     throw new TypeError('entity index cache requires a build function');
@@ -54,6 +63,7 @@ export function createEntityIndexCache<T>(options: EntityIndexCacheOptions<T>): 
   const revisionFn = options.revision;
 
   const MAX_STABLE_BUILD_ATTEMPTS = 3;
+  const MAX_RESOLVE_ATTEMPTS = 3;
 
   let entry: EntityIndexCacheEntry<T> | null = null;
   let inflightGet: Promise<T> | null = null;
@@ -100,19 +110,27 @@ export function createEntityIndexCache<T>(options: EntityIndexCacheOptions<T>): 
       }
 
       if (!before.ok || !after.ok) {
-        return { value, revision: undefined, commit: true };
+        // Fail-closed: when the revision cannot be read before or after the
+        // build we cannot prove the index is current, so it is never cached.
+        // The freshly built value is still returned to this caller (matching
+        // the serve path, which rebuilds rather than rejects on a revision
+        // read failure), but the next get() rebuilds instead of serving an
+        // unverified index within the TTL.
+        return { value, revision: undefined, commit: false };
       }
       if (before.value === after.value) {
         return { value, revision: after.value, commit: true };
       }
       if (attempt >= MAX_STABLE_BUILD_ATTEMPTS) {
-        return { value, revision: after.value, commit: false };
+        throw new EntityIndexUnstableError(
+          `entity index did not stabilize after ${MAX_STABLE_BUILD_ATTEMPTS} builds: revision kept changing`
+        );
       }
     }
   }
 
   async function resolve(): Promise<T> {
-    while (true) {
+    for (let attempt = 1; ; attempt++) {
       const startedGeneration = generation;
 
       if (entry && now() - entry.builtAt < options.ttlMs) {
@@ -142,6 +160,11 @@ export function createEntityIndexCache<T>(options: EntityIndexCacheOptions<T>): 
       }
 
       if (startedGeneration !== generation) {
+        if (attempt >= MAX_RESOLVE_ATTEMPTS) {
+          throw new EntityIndexUnstableError(
+            `entity index was invalidated ${MAX_RESOLVE_ATTEMPTS} times while resolving; giving up`
+          );
+        }
         continue;
       }
 

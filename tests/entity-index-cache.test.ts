@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createEntityIndexCache } from '../src/entity-index-cache.js';
+import { createEntityIndexCache, EntityIndexUnstableError } from '../src/entity-index-cache.js';
 
 function flush(): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, 0));
@@ -72,7 +72,7 @@ describe('entity index cache', () => {
         expect(build).toHaveBeenCalledTimes(2);
     });
 
-    it('stops retrying and returns the latest build without caching when revision keeps changing', async () => {
+    it('rejects when the revision keeps changing across the stable-build attempts', async () => {
         let revision = 'v0';
         const build = vi.fn(async () => {
             revision = `v${Number(revision.slice(1)) + 1}`;
@@ -84,13 +84,55 @@ describe('entity index cache', () => {
             revision: async () => revision
         });
 
-        await expect(cache.get()).resolves.toEqual({ revision: 'v3' });
+        await expect(cache.get()).rejects.toBeInstanceOf(EntityIndexUnstableError);
         expect(build).toHaveBeenCalledTimes(3);
         expect(cache.peek()).toBeNull();
+    });
+
+    it('does not cache a build whose revision could not be read and rebuilds after it recovers to undefined', async () => {
+        let revision = 'v1';
+        let fail = false;
+        const build = vi.fn(async () => ({ revision }));
+        const cache = createEntityIndexCache({
+            build,
+            ttlMs: 60_000,
+            revision: async () => {
+                if (fail) throw new Error('revision unavailable');
+                return revision;
+            }
+        });
 
         await cache.get();
-        expect(build).toHaveBeenCalledTimes(6);
-        expect(cache.peek()).toBeNull();
+        expect(build).toHaveBeenCalledTimes(1);
+
+        fail = true;
+        await cache.get();
+        expect(build).toHaveBeenCalledTimes(2);
+        expect(cache.peek()).toEqual({ value: { revision: 'v1' }, builtAt: expect.any(Number), revision: 'v1' });
+
+        fail = false;
+        revision = undefined;
+        await cache.get();
+        expect(build).toHaveBeenCalledTimes(3);
+    });
+
+    it('rejects when invalidate keeps interrupting resolution', async () => {
+        const resolvers: Array<(value: string) => void> = [];
+        const build = vi.fn(() => new Promise<string>((resolve) => { resolvers.push(resolve); }));
+        const cache = createEntityIndexCache({ build, ttlMs: 60_000 });
+
+        const pending = cache.get();
+        const rejection = expect(pending).rejects.toBeInstanceOf(EntityIndexUnstableError);
+        expect(build).toHaveBeenCalledTimes(1);
+
+        for (let i = 0; i < 3; i++) {
+            cache.invalidate();
+            resolvers[i]('value');
+            await flush();
+        }
+
+        await rejection;
+        expect(build).toHaveBeenCalledTimes(3);
     });
 
     it('rebuilds after TTL using the injected clock', async () => {
