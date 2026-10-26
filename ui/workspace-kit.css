@@ -666,3 +666,19 @@
 .bb-ws-combobox-option-hint { color: var(--bb-color-muted); font-size: 12px; white-space: nowrap; }
 .bb-ws-combobox-status { margin: 0; padding: 2px 4px 0; color: var(--bb-color-muted); font-size: 12px; }
 @media (prefers-reduced-motion:reduce) { .bb-ws-combobox-popup { animation: none; } }
+
+/* Shared page chrome and on-demand inspectors. Page actions remain in the body. */
+.bb-ws-topbar { position: sticky; top: 0; z-index: 18; display: flex; align-items: center; height: 44px; min-height: 44px; flex: 0 0 44px; box-sizing: border-box; padding: 0 16px; background: var(--bb-color-panel); border-bottom: 1px solid var(--bb-color-border); }
+.bb-ws-topbar[hidden] { display: none; }
+.bb-ws-topbar h1 { margin: 0; font: 500 14px/20px var(--bb-font-sans); color: var(--bb-color-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bb-ws-visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.bb-ws-detail-drawer { padding: 0; }
+.bb-ws-detail-drawer:not([open]) { display: none; }
+.bb-ws-detail-closebar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: flex-end; min-height: 44px; padding: 4px 16px; box-sizing: border-box; background: var(--bb-color-panel); border-bottom: 1px solid var(--bb-color-border); }
+.bb-ws-detail-content { padding: 20px 24px 32px; }
+.bb-ws-has-topbar .bb-ws-page-head h1,
+.bb-ws-has-topbar .knowledge-outcome-head h2,
+.bb-ws-has-topbar .bb-minutes-heading h1 { display: none; }
+@media (max-width: 760px) { .bb-ws-detail-content { padding: 16px 16px 32px; } }
+
+.bb-ws-detail-closebar .bb-ws-button { min-height: 32px; padding: 4px 10px; }

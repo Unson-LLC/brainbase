@@ -43,3 +43,7 @@ When a user asks to onboard Brainbase from Codex, Claude Code, or CodeCode, trea
 - Keep operationalization safe by default: generated skills, generated routines, and `onboard:install --dry-run` are previews until the user approves file writes, scheduler registration, and live configuration changes.
 - Treat `brainbase onboard:install --target <agent> --dry-run` as configuration preview only. It is not onboarding completion, but real MCP installation is required before actual-agent value verification.
 - Do not modify `package-lock.json`, `tsconfig.json`, or dependency metadata just to onboard a user unless build or install actually fails and the fix is scoped.
+
+## 共通UIを変更する前に
+
+[共通パーツの規約](docs/specs/oss-common-ui-spec.md)を読む。ヘッダー・右詳細パネル・トークン・所有境界・検証の正本をここへ集約する。共通部品をコピーせず、所有するリポジトリで変更する。
