@@ -24,6 +24,9 @@ const MAX_REQUEST_TIMEOUT_MS = 15_000;
 const MAX_QUEUE_SIZE = 16;
 const MAX_CACHE_ENTRIES = 256;
 const DEFAULT_CACHE_TTL_MS = 60_000;
+const MAX_ERROR_BODY_READ_MS = 2_000;
+const MAX_ERROR_DETAIL_LENGTH = 500;
+const REDACTED = '[REDACTED]';
 
 export type GraphEmbeddingKind = 'query' | 'passage';
 
@@ -31,6 +34,7 @@ export type GraphEmbeddingFetchResponse = {
   readonly ok?: boolean;
   readonly status?: number;
   json(): Promise<unknown>;
+  text?(): Promise<string>;
 };
 
 export type GraphEmbeddingFetch = (
@@ -58,20 +62,166 @@ export interface GraphEmbeddingProvider {
   embed(texts: string[], kind: GraphEmbeddingKind): Promise<number[][]>;
 }
 
+export type GraphEmbeddingProviderErrorSummary = {
+  readonly upstreamStatus?: string;
+  readonly upstreamMessage?: string;
+  readonly detail?: string;
+};
+
+type GraphEmbeddingProviderErrorDetails = {
+  readonly upstreamStatus?: string;
+  readonly upstreamMessage?: string;
+  readonly detail?: string;
+};
+
 export class GraphEmbeddingProviderError extends Error {
   readonly code: string;
   status?: number;
+  readonly upstreamStatus?: string;
+  readonly upstreamMessage?: string;
+  readonly detail?: string;
 
-  constructor(code: string, message: string, status?: number) {
+  constructor(
+    code: string,
+    message: string,
+    status?: number,
+    details: GraphEmbeddingProviderErrorDetails = {},
+  ) {
     super(message);
     this.name = 'GraphEmbeddingProviderError';
     this.code = code;
     if (Number.isInteger(status)) this.status = status;
+    if (details.upstreamStatus) this.upstreamStatus = details.upstreamStatus;
+    if (details.upstreamMessage) this.upstreamMessage = details.upstreamMessage;
+    if (details.detail) this.detail = details.detail;
   }
 }
 
-function providerError(code: string, message: string, status?: number): GraphEmbeddingProviderError {
-  return new GraphEmbeddingProviderError(code, message, status);
+function providerError(
+  code: string,
+  message: string,
+  status?: number,
+  details?: GraphEmbeddingProviderErrorDetails,
+): GraphEmbeddingProviderError {
+  return new GraphEmbeddingProviderError(code, message, status, details);
+}
+
+function collapseErrorWhitespace(text: string): string {
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+function truncateErrorText(text: string): string {
+  return text.length > MAX_ERROR_DETAIL_LENGTH
+    ? `${text.slice(0, MAX_ERROR_DETAIL_LENGTH)}…`
+    : text;
+}
+
+function redactErrorText(text: string, secrets: readonly string[]): string {
+  let result = text.replace(/AIza[0-9A-Za-z_-]{30,}/g, REDACTED);
+  result = result.replace(
+    /(x-goog-api-key)(\s*["']?\s*[:=]?\s*["']?)([^\s"',;]+)/gi,
+    (_match, name: string) => `${name}: ${REDACTED}`,
+  );
+  result = result.replace(
+    /(authorization)(\s*["']?\s*[:=]?\s*["']?\s*)((?:bearer|basic)\s+)?[^\s"',;]+/gi,
+    (_match, name: string) => `${name}: ${REDACTED}`,
+  );
+  result = result.replace(
+    /([?&]key=)[^&\s"'#]+/gi,
+    (_match, prefix: string) => `${prefix}${REDACTED}`,
+  );
+  for (const secret of secrets) {
+    if (secret) result = result.split(secret).join(REDACTED);
+  }
+  return result;
+}
+
+export function sanitizeEmbeddingProviderErrorText(text: string, secrets: string[] = []): string {
+  const normalizedSecrets = secrets.filter(secret => secret.length > 0);
+  const redacted = redactErrorText(text, normalizedSecrets);
+  const truncated = truncateErrorText(redacted);
+  const boundarySafe = redactErrorText(truncated, normalizedSecrets)
+    .replace(/AIza[0-9A-Za-z_-]+/g, fragment => fragment.length >= 8 ? REDACTED : fragment);
+  return truncateErrorText(boundarySafe);
+}
+
+type ExtractedUpstreamError = {
+  status?: string;
+  message?: string;
+};
+
+function extractUpstreamError(body: unknown): ExtractedUpstreamError {
+  if (typeof body === 'string') {
+    const trimmed = body.trim();
+    if (trimmed) {
+      try {
+        const parsed: unknown = JSON.parse(trimmed);
+        const extracted = extractUpstreamError(parsed);
+        if (extracted.status || extracted.message) return extracted;
+      } catch {
+        // Not JSON; use the raw text below.
+      }
+    }
+    return { message: collapseErrorWhitespace(body) };
+  }
+  if (body && typeof body === 'object') {
+    const error = (body as { error?: unknown }).error;
+    if (error && typeof error === 'object') {
+      const { status, message } = error as { status?: unknown; message?: unknown };
+      return {
+        status: typeof status === 'string' && status.trim() ? status : undefined,
+        message: typeof message === 'string' && message.trim() ? message : undefined,
+      };
+    }
+    if (typeof error === 'string' && error.trim()) return { message: error };
+  }
+  return {};
+}
+
+export function summarizeEmbeddingProviderErrorBody(
+  httpStatus: number | undefined,
+  body: string | unknown,
+  secrets: string[] = [],
+): GraphEmbeddingProviderErrorSummary {
+  const extracted = extractUpstreamError(body);
+  const upstreamStatus = extracted.status
+    ? sanitizeEmbeddingProviderErrorText(collapseErrorWhitespace(extracted.status), secrets)
+    : undefined;
+  const upstreamMessage = extracted.message
+    ? sanitizeEmbeddingProviderErrorText(collapseErrorWhitespace(extracted.message), secrets)
+    : undefined;
+  const httpPart = Number.isInteger(httpStatus) ? `HTTP ${httpStatus}` : '';
+  const prefix = [httpPart, upstreamStatus].filter((part): part is string => Boolean(part)).join(' ');
+  const summary = [prefix, upstreamMessage].filter((part): part is string => Boolean(part)).join(': ');
+  return {
+    upstreamStatus,
+    upstreamMessage,
+    detail: summary ? sanitizeEmbeddingProviderErrorText(summary, secrets) : undefined,
+  };
+}
+
+const UNREAD_ERROR_BODY = Symbol('unread-error-body');
+
+async function readEmbeddingProviderErrorBody(
+  response: GraphEmbeddingFetchResponse,
+): Promise<{ value: unknown } | undefined> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const readText = response.text;
+  const bodyPromise = typeof readText === 'function'
+    ? Promise.resolve().then(() => readText.call(response))
+    : Promise.resolve().then(() => response.json());
+  const timeoutPromise = new Promise<typeof UNREAD_ERROR_BODY>(resolve => {
+    timer = setTimeout(() => resolve(UNREAD_ERROR_BODY), MAX_ERROR_BODY_READ_MS);
+    timer.unref?.();
+  });
+  try {
+    const value = await Promise.race([bodyPromise, timeoutPromise]);
+    return value === UNREAD_ERROR_BODY ? undefined : { value };
+  } catch {
+    return undefined;
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }
 
 function boundedInteger(value: unknown, fallback: number, minimum: number, maximum: number, code: string): number {
@@ -363,10 +513,20 @@ export function createGraphEmbeddingProvider({
     }
 
     if (!response || response.ok !== true) {
+      const httpStatus = Number.isInteger(response?.status) ? response?.status : undefined;
+      const message = `Embedding provider request failed (HTTP ${httpStatus ?? 0})`;
+      const body = response ? await readEmbeddingProviderErrorBody(response) : undefined;
+      // Hide identifiable echoed caller text and the configured key without
+      // over-redacting short common words in the upstream message.
+      const secrets = [normalizedApiKey, ...texts.filter(text => text.length >= 20)];
+      const summary = body
+        ? summarizeEmbeddingProviderErrorBody(httpStatus, body.value, secrets)
+        : undefined;
       throw providerError(
         'embedding_provider_http_error',
-        `Embedding provider request failed (HTTP ${Number.isInteger(response?.status) ? response?.status : 0})`,
-        Number.isInteger(response?.status) ? response?.status : undefined,
+        summary?.detail ? `${message}: ${summary.detail}` : message,
+        httpStatus,
+        summary,
       );
     }
 
