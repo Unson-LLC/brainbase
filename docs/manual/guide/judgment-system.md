@@ -23,7 +23,7 @@ Graph SSOT       会社の確定した対象と関係
 Judgment DAG     今回の判断・権限・実行・評価の経路
 ```
 
-全体の位置関係は[仕組みとシステム構成](/guide/architecture)、具体的な関係の例は[オントロジーとは](/guide/ontology)を参照してください。
+全体の位置関係は[しくみとシステム構成](/guide/architecture)、具体的な関係の例は[オントロジーとは](/guide/ontology)を参照してください。
 
 ## DAGとは何か
 

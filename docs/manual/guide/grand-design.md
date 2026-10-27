@@ -13,9 +13,9 @@ AIは、それらを参照して探索・反証し、許可された範囲の仕
 
 ![Brainbaseのシステム構成。情報源からGraph SSOTとオントロジーを通り、Judgment DAG、AIと人間、実行結果へつながる](/assets/brainbase-grand-design.svg)
 
-メールや議事録などの材料を、そのままAIへ丸投げする仕組みではありません。人間が承認した事実と関係をGraph SSOTへ置き、オントロジーで意味を揃え、Judgment DAGで判断・権限・実行・評価のつながりを扱います。
+メールや議事録などの材料を、そのままAIへ丸投げするしくみではありません。人間が承認した事実と関係をGraph SSOTへ置き、オントロジーで意味を揃え、Judgment DAGで判断・権限・実行・評価のつながりを扱います。
 
-各部品の責任とデータの流れは[仕組みとシステム構成](/guide/architecture)、オントロジーの役割は[オントロジーとは](/guide/ontology)で説明します。
+各部品の責任とデータの流れは[しくみとシステム構成](/guide/architecture)、オントロジーの役割は[オントロジーとは](/guide/ontology)で説明します。
 
 ## Brainbaseが増幅する二つの能力
 
