@@ -11,7 +11,7 @@
  * changes what it asks the server for (story-meeting-minutes-list-filters-v1).
  */
 
-import { workspaceActionIcon, workspaceCompactToolbar, workspaceCombobox, workspaceDetailDrawer } from './workspace-kit.js';
+import { workspaceActionIcon, workspaceSearchBand, workspaceCompactToolbar, workspaceCombobox, workspaceDetailDrawer } from './workspace-kit.js';
 
 export const MEETING_MINUTES_UI_CONTRACT_VERSION = 'brainbase.meeting-minutes-ui.v1';
 
@@ -686,6 +686,10 @@ export function createMeetingMinutesUI({
   meetingConnections,
   meetingParticipants,
   canCreateMeeting,
+  createProjectOptions,
+  createProjectValue,
+  createMeeting,
+  shouldOpenCreatedMeeting,
   createUnavailableReason,
   canEditMinutes,
   hostFilters = [],
@@ -727,8 +731,10 @@ export function createMeetingMinutesUI({
   let railProjectSlot = null;
   let railProjectMeeting = null;
 
-  const compact = toolbarPresentation === 'compact';
+  const searchBand = toolbarPresentation === 'search-band';
+  const compact = searchBand || toolbarPresentation === 'compact';
   const screen = makeElement(doc, 'div', { className: `bb-minutes-screen${compact ? ' bb-minutes-compact bb-ws-neutral-controls' : ''}`, attrs: { 'data-contract-version': MEETING_MINUTES_UI_CONTRACT_VERSION } });
+  if (searchBand) screen.classList.add('bb-minutes-search-band');
   const heading = makeElement(doc, 'header', { className: 'bb-minutes-heading' });
   heading.append(
     makeElement(doc, 'div', { className: 'bb-minutes-eyebrow', textContent: page?.source ?? '正本の議事録' }),
@@ -746,10 +752,13 @@ export function createMeetingMinutesUI({
     attrs: { 'aria-label': '議事録', tabindex: '-1' },
   });
   const detailPane = makeElement(doc, 'section', { className: 'bb-minutes-detail-pane', attrs: { 'aria-label': '議事録詳細' } });
+  let createProjectBox = null;
+  const cleanupCreateProject = () => { createProjectBox?.destroy(); createProjectBox = null; };
   const detailDrawer = detailPresentation === 'drawer' ? workspaceDetailDrawer(doc, {
-    title: '議事録の詳細', opener: () => listPane.querySelector('.bb-minutes-meeting-item.is-selected') ?? listPane,
+    title: '議事録の詳細', onClose: cleanupCreateProject, opener: () => detailPane.querySelector('.bb-minutes-create-form') ? toolbar.querySelector('.bb-minutes-button.is-primary') : listPane.querySelector('.bb-minutes-meeting-item.is-selected') ?? listPane,
   }) : null;
   if (detailDrawer) {
+    if (searchBand) detailDrawer.dialog.classList.add('bb-ws-search-band-drawer');
     columns.classList.add('bb-minutes-details-in-drawer');
     columns.append(listPane);
     const scope = makeElement(doc, 'div', { className: 'bb-minutes-screen bb-minutes-drawer-content' });
@@ -767,7 +776,7 @@ export function createMeetingMinutesUI({
   }
 
   function filterCombobox(label, options, value, onChange) {
-    return workspaceCombobox(doc, { label, options, value, className: 'bb-minutes-filter-combobox', onChange });
+    return workspaceCombobox(doc, { label, options, value, showCount: !searchBand, className: 'bb-minutes-filter-combobox', onChange });
   }
 
   const keyword = makeElement(doc, 'input', {
@@ -795,7 +804,7 @@ export function createMeetingMinutesUI({
   if (compact) {
     const filters = makeElement(doc, 'div', { className: 'bb-minutes-compact-filters' });
     filters.append(hostSlot, filterField('期間', period, 'is-period'), participantField, statusField);
-    compactToolbar = workspaceCompactToolbar(doc, { root: toolbar, query: keyword, filters, sort: sortBox, reset });
+    compactToolbar = searchBand ? workspaceSearchBand(doc, { root: toolbar, query: keyword, filters, sort: sortBox, reset, onResetSort: () => { state.sort = SORTS[0].value; renderList(); } }) : workspaceCompactToolbar(doc, { root: toolbar, query: keyword, filters, sort: sortBox, reset });
   } else toolbar.append(keywordField, hostSlot, filterField('期間', period, 'is-period'), participantField, statusField, sortField, reset);
   const hostBoxes = new Map();
 
@@ -812,16 +821,18 @@ export function createMeetingMinutesUI({
   }
 
   function filtersActive() {
-    return clientFiltersActive() || currentHostFilters().some((filter) => text(filter.value));
+    const local = searchBand ? Object.keys(EMPTY_FILTERS).some(key => key !== 'query' && Boolean(state.filters[key])) : clientFiltersActive();
+    return local || currentHostFilters().some(filter => filter.placement !== 'scope' && (filter.multiple ? filter.values?.length : text(filter.value)));
   }
 
   function clearFilters() {
-    state.filters = { ...EMPTY_FILTERS };
-    keyword.value = '';
+    state.filters = { ...EMPTY_FILTERS, ...(searchBand ? { query: state.filters.query } : {}) };
+    keyword.value = state.filters.query;
     fromInput.value = '';
     toInput.value = '';
     for (const filter of currentHostFilters()) {
-      if (text(filter.value) && typeof filter.onChange === 'function') filter.onChange('');
+      if (searchBand && filter.placement === 'scope') continue;
+      if (typeof filter.onChange === 'function' && (filter.multiple ? filter.values?.length : text(filter.value))) filter.onChange(filter.multiple ? [] : '');
     }
     renderList();
   }
@@ -839,7 +850,11 @@ export function createMeetingMinutesUI({
         const box = workspaceCombobox(doc, {
           label: text(filter.label, id),
           options,
-          value,
+          value, multiple: filter.multiple === true, values: filter.values,
+          renderIcon: filter.renderIcon, showHints: filter.showHints !== false,
+          showCount: searchBand ? false : filter.showCount !== false,
+          align: filter.placement === 'scope' ? 'end' : 'start',
+          searchable: filter.placement === 'scope' ? false : 'auto',
           placeholder: text(filter.placeholder, '選択してください'),
           className: 'bb-minutes-filter-combobox',
           onChange: (next) => {
@@ -850,15 +865,22 @@ export function createMeetingMinutesUI({
         entry = { box, field: filterField(text(filter.label, id), box.root) };
         hostBoxes.set(id, entry);
       }
-      entry.box.update({ options, value, disabled: filter.disabled === true });
+      entry.box.update({ options, value, values: filter.values, disabled: filter.disabled === true });
     }
     for (const [id, entry] of hostBoxes) {
       if (seen.has(id)) continue;
       entry.box.destroy();
       hostBoxes.delete(id);
     }
-    hostSlot.replaceChildren(...hosts.map((filter) => hostBoxes.get(text(filter.id)).field));
-    hostSlot.hidden = hosts.length === 0;
+    const inlineHosts = hosts.filter(filter => !searchBand || filter.placement !== 'scope');
+    const scopeHosts = searchBand ? hosts.filter(filter => filter.placement === 'scope') : [];
+    const reconcile = (parent, children) => {
+      if (!parent) return;
+      if (children.length !== parent.children.length || children.some((child, index) => parent.children[index] !== child)) parent.replaceChildren(...children);
+    };
+    reconcile(hostSlot, inlineHosts.map(filter => hostBoxes.get(text(filter.id)).field));
+    reconcile(compactToolbar?.scopeSlot, scopeHosts.map(filter => hostBoxes.get(text(filter.id)).box.root));
+    hostSlot.hidden = inlineHosts.length === 0;
 
     // Offer only the conditions the loaded records can answer (P9).
     const participants = [...new Set(meetings.flatMap(participantsOf))]
@@ -876,6 +898,7 @@ export function createMeetingMinutesUI({
     sortBox.update({ value: state.sort });
     reset.hidden = !filtersActive();
     compactToolbar?.setFiltered(filtersActive());
+    compactToolbar?.setSorted?.(state.sort !== SORTS[0].value);
   }
 
   function clock() {
@@ -919,7 +942,7 @@ export function createMeetingMinutesUI({
     });
   }
 
-  function clear(node) { node.replaceChildren(); return node; }
+  function clear(node) { if (node === detailPane) cleanupCreateProject(); node.replaceChildren(); return node; }
 
   function canCreate() {
     if (typeof canCreateMeeting === 'function') {
@@ -1426,7 +1449,7 @@ export function createMeetingMinutesUI({
     const head = makeElement(doc, 'div', { className: 'bb-minutes-pane-head' });
     const meetings = state.meetings.filter((entry) => isRecord(entry?.meeting) && typeof entry.meeting.meeting_id === 'string');
     renderToolbar(meetings);
-    const visible = sortMeetings(meetings.filter((entry) => matchesFilters(entry, state.filters)), state.sort);
+    const visible = sortMeetings(meetings.filter(entry => matchesFilters(entry, state.filters) && currentHostFilters().every(filter => typeof filter.matches !== 'function' || filter.matches(entry, filter.multiple ? filter.values ?? [] : filter.value))), state.sort);
     if (canCreate()) {
       head.append(button(doc, '会議を作成', () => renderCreateForm(), { className: 'bb-minutes-button is-primary' }));
     } else {
@@ -1777,6 +1800,7 @@ export function createMeetingMinutesUI({
   }
 
   function renderDetail(detail, documentRecord = null, selectedVersion = null) {
+    detailDrawer?.setTitle('議事録の詳細');
     clear(detailPane);
     connectionsSlot = null;
     participantsSlot = null;
@@ -1854,6 +1878,8 @@ export function createMeetingMinutesUI({
   }
 
   function renderCreateForm() {
+    detailDrawer?.setTitle('会議を作成');
+    detailRequestGeneration += 1;
     detailDrawer?.open();
     clear(detailPane);
     if (!canCreate()) {
@@ -1861,7 +1887,16 @@ export function createMeetingMinutesUI({
       return;
     }
     const form = makeElement(doc, 'form', { className: 'bb-minutes-create-form' });
-    form.append(makeElement(doc, 'h2', { textContent: '会議を作成' }), makeElement(doc, 'p', { className: 'bb-minutes-item-meta', textContent: '外部サービスを接続しなくても、会議と議事録を保存できます。' }));
+    form.append(makeElement(doc, 'h2', { textContent: '会議を作成' }));
+    const projectOptions = typeof createProjectOptions === 'function' ? createProjectOptions() : null;
+    const initialProject = typeof createProjectValue === 'function' ? createProjectValue() : '';
+    let projectCode = Array.isArray(projectOptions) && projectOptions.some(option => option.value === initialProject) ? initialProject : '';
+    const projectError = makeElement(doc, 'p', { className: 'bb-minutes-warning', attrs: { role: 'alert' } }); projectError.hidden = true;
+    if (Array.isArray(projectOptions)) {
+      createProjectBox = workspaceCombobox(doc, { label: 'プロジェクト', options: [{ value: '', label: 'プロジェクトを選択' }, ...projectOptions], value: projectCode,
+        showCount: false, searchable: true, onChange: value => { projectCode = value; projectError.hidden = true; } });
+      form.append(filterField('プロジェクト', createProjectBox.root), projectError);
+    }
     const title = labelInput(doc, '会議名', { name: 'title', placeholder: '例: 週次定例' });
     const date = labelInput(doc, '日時（任意）', { type: 'datetime-local', name: 'scheduled_at' });
     const participants = labelInput(doc, '参加者（任意・カンマ区切り）', { name: 'participant_ids' });
@@ -1869,6 +1904,7 @@ export function createMeetingMinutesUI({
     const body = labelInput(doc, '本文（任意）', { type: 'textarea', name: 'initial_body', placeholder: '会議の本文を入力' });
     body.input.rows = 8;
     const save = makeElement(doc, 'button', { className: 'bb-minutes-button is-primary', textContent: '会議を保存', type: 'submit' });
+    title.input.required = true;
     form.append(title.wrapper, date.wrapper, participants.wrapper, minutesTitle.wrapper, body.wrapper, save);
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -1877,6 +1913,10 @@ export function createMeetingMinutesUI({
         renderList();
         renderCreateUnavailable();
         return;
+      }
+      if (Array.isArray(projectOptions) && !projectOptions.some(option => option.value === projectCode)) {
+        projectError.textContent = 'プロジェクトを選択してください。'; projectError.hidden = false;
+        createProjectBox?.trigger.focus({ preventScroll: true }); return;
       }
       save.disabled = true;
       try {
@@ -1888,11 +1928,14 @@ export function createMeetingMinutesUI({
           minutes_title: minutesTitle.input.value,
           initial_body: body.input.value,
         };
-        const created = await mutate('', payload);
+        const created = typeof createMeeting === 'function' && Array.isArray(projectOptions) ? await createMeeting(payload, projectCode) : await mutate('', payload);
         const id = created?.meeting?.meeting_id;
         setStatus('会議を保存しました。', 'success');
         await loadMeetings();
-        if (typeof id === 'string') await loadDetail(id);
+        if (typeof id === 'string') {
+          if (typeof shouldOpenCreatedMeeting !== 'function' || shouldOpenCreatedMeeting(created, projectCode) !== false) await loadDetail(id);
+          else { detailDrawer?.close(); renderDetail(null); if (!state.listError) setStatus('会議を保存しました。', 'success'); }
+        }
       } catch (error) {
         save.disabled = false;
         setStatus(error instanceof Error ? error.message : '会議を保存できませんでした。', 'error');
@@ -1901,11 +1944,11 @@ export function createMeetingMinutesUI({
     detailPane.append(form);
   }
 
-  async function loadMeetings({ restoreFocus = false } = {}) {
+  async function loadMeetings({ restoreFocus = false, quiet = false } = {}) {
     const requestGeneration = ++listRequestGeneration;
     const isCurrentRequest = () => !disposed && requestGeneration === listRequestGeneration;
     state.loading = true;
-    setStatus('会議一覧を読み込んでいます。');
+    if (!quiet) setStatus('会議一覧を読み込んでいます。');
     try {
       const payload = await call('');
       if (!isCurrentRequest()) return state.meetings;
@@ -1957,6 +2000,7 @@ export function createMeetingMinutesUI({
 
   async function loadDetail(meetingId) {
     if (disposed) return null;
+    cleanupCreateProject();
     detailDrawer?.open();
     const requestGeneration = ++detailRequestGeneration;
     const isCurrentRequest = () => !disposed && requestGeneration === detailRequestGeneration
@@ -2003,6 +2047,7 @@ export function createMeetingMinutesUI({
     openMeeting: loadDetail,
     destroy() {
       disposed = true; listRequestGeneration += 1; detailRequestGeneration += 1;
+      cleanupCreateProject();
       detailDrawer?.dispose();
       compactToolbar?.destroy();
       participantBox.destroy(); statusBox.destroy(); sortBox.destroy();

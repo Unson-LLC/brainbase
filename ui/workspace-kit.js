@@ -25,6 +25,13 @@ export function makeWorkspaceElement(doc, tag, { className, text, attrs = {} } =
 
 const el = makeWorkspaceElement;
 
+function toggleWorkspaceClass(node, name, active) {
+  if (!node) return;
+  const names = new Set(String(node.className || '').split(/\s+/u).filter(Boolean));
+  if (active) names.add(name); else names.delete(name);
+  node.className = [...names].join(' ');
+}
+
 function appendContent(parent, doc, content) {
   if (content === undefined || content === null || content === false) return;
   if (Array.isArray(content)) {
@@ -109,6 +116,7 @@ export function workspaceDetailDrawer(doc, { title = '詳細', opener, onClose }
   return {
     dialog,
     setContent(...content) { if (!disposed) body.replaceChildren(...content); },
+    setTitle(title) { if (!disposed) label.textContent = String(title); },
     open(target) {
       if (disposed) return;
       cancelClosing?.(); cancelClosing = null;
@@ -523,13 +531,16 @@ function comboboxText(value) {
 export function workspaceCombobox(doc, {
   label, options = [], value = '', placeholder = '選択してください', searchLabel, searchPlaceholder = '絞り込む',
   emptyText = '一致する候補はありません', limit = 100, searchable = 'auto', className, onChange,
+  multiple = false, values = [], renderIcon, showCount = true, showHints = true, align = 'start',
 } = {}) {
   const sequence = ++workspaceSequence;
   const listId = `bb-ws-combobox-${sequence}-list`;
   const root = el(doc, 'span', { className: ['bb-ws-combobox', className].filter(Boolean).join(' ') });
+  if (multiple) root.classList?.add('bb-ws-combobox-multiple');
+  if (align === 'end') root.classList?.add('bb-ws-combobox-align-end');
   const trigger = el(doc, 'button', { className: 'bb-ws-combobox-trigger', attrs: { type: 'button', 'aria-haspopup': 'listbox', 'aria-expanded': 'false', 'aria-controls': listId } });
   const triggerText = el(doc, 'span', { className: 'bb-ws-combobox-value' });
-  trigger.append(triggerText, el(doc, 'span', { className: 'bb-ws-combobox-chevron', attrs: { 'aria-hidden': 'true' } }));
+  trigger.append(triggerText, workspaceDropdownChevron(doc));
   const popup = el(doc, 'div', { className: 'bb-ws-combobox-popup' });
   popup.hidden = true;
   const search = el(doc, 'input', { className: 'bb-ws-combobox-search', attrs: {
@@ -537,29 +548,35 @@ export function workspaceCombobox(doc, {
     'aria-label': searchLabel || `${label || '候補'}を絞り込む`, placeholder: searchPlaceholder, autocomplete: 'off', spellcheck: 'false',
   } });
   const list = el(doc, 'ul', { className: 'bb-ws-combobox-list', attrs: { id: listId, role: 'listbox', 'aria-label': label || '候補', tabindex: '-1' } });
+  if (multiple) list.setAttribute('aria-multiselectable', 'true');
   const status = el(doc, 'p', { className: 'bb-ws-combobox-status', attrs: { role: 'status', 'aria-live': 'polite' } });
   popup.append(search, list, status);
   root.append(trigger, popup);
 
-  const state = { options: [], value: String(value ?? ''), query: '', active: -1, shown: [], open: false, disabled: false };
+  const state = { options: [], values: [...new Set((Array.isArray(values) ? values : []).map(String))].filter(Boolean), value: String(value ?? ''), query: '', active: -1, shown: [], open: false, disabled: false };
   const usesSearch = () => searchable === true || (searchable === 'auto' && state.options.length > 8);
   const focusTarget = () => (usesSearch() ? search : list);
   const chosen = () => state.options.find(option => option.value === state.value);
 
   function setOptions(next) {
     state.options = (Array.isArray(next) ? next : []).map(option => ({
-      value: String(option?.value ?? ''), label: String(option?.label ?? option?.value ?? ''),
+      ...option, value: String(option?.value ?? ''), label: String(option?.label ?? option?.value ?? ''),
       hint: option?.hint ? String(option.hint) : '', keywords: option?.keywords ? String(option.keywords) : '',
     }));
   }
 
   function renderTrigger() {
-    const option = chosen();
-    // A value the list does not offer stays visible instead of looking unset.
-    const text = option ? option.label : state.value || placeholder;
+    const option = multiple ? (state.values.length === 1 ? state.options.find(option => option.value === state.values[0]) : state.options.find(option => !option.value)) : chosen();
+    const summary = multiple && state.values.length > 1 ? `${state.values.length}件選択中` : null;
+    const text = summary || (option ? option.label : multiple ? state.values.join('、') || placeholder : state.value || placeholder);
     triggerText.textContent = text;
+    if (!summary && option && typeof renderIcon === 'function') {
+      const icon = renderIcon(option);
+      if (icon) { triggerText.textContent = ''; triggerText.append(icon, el(doc, 'span', { className: 'bb-ws-combobox-text', text })); }
+    }
+    toggleWorkspaceClass(root, 'is-multi-selected', Boolean(summary));
     trigger.setAttribute('aria-label', `${label ? `${label}: ` : ''}${text}`);
-    trigger.setAttribute('data-empty', String(!option && !state.value));
+    trigger.setAttribute('data-empty', String(multiple ? !state.values.length : !option && !state.value));
     if (state.disabled) trigger.setAttribute('disabled', ''); else trigger.removeAttribute('disabled');
   }
 
@@ -570,7 +587,8 @@ export function workspaceCombobox(doc, {
     }
   }
 
-  function renderList() {
+  function renderList({ reveal = false } = {}) {
+    const scrollTop = list.scrollTop;
     const terms = comboboxText(state.query).split(/\s+/u).filter(Boolean);
     const matches = terms.length
       ? state.options.filter(option => { const text = comboboxText(`${option.label}\n${option.hint}\n${option.keywords}`); return terms.every(term => text.includes(term)); })
@@ -580,25 +598,37 @@ export function workspaceCombobox(doc, {
     if (state.active >= state.shown.length) state.active = state.shown.length - 1;
     list.replaceChildren();
     state.shown.forEach((option, index) => {
-      const selected = option.value === state.value;
+      const selected = multiple ? option.value ? state.values.includes(option.value) : state.values.length === 0 : option.value === state.value;
       const item = el(doc, 'li', { className: `bb-ws-combobox-option${index === state.active ? ' is-active' : ''}`, attrs: { id: `bb-ws-combobox-${sequence}-option-${index}`, role: 'option', 'aria-selected': String(selected), 'data-value': option.value } });
-      item.append(el(doc, 'span', { className: 'bb-ws-combobox-option-label', text: option.label }));
-      if (option.hint) item.append(el(doc, 'span', { className: 'bb-ws-combobox-option-hint', text: option.hint }));
+      const optionLabel = el(doc, 'span', { className: 'bb-ws-combobox-option-label', text: option.label });
+      if (typeof renderIcon === 'function') { const icon = renderIcon(option); if (icon) { optionLabel.textContent = ''; optionLabel.append(icon, el(doc, 'span', { className: 'bb-ws-combobox-text', text: option.label })); } }
+      item.append(optionLabel);
+      if (showHints && option.hint) item.append(el(doc, 'span', { className: 'bb-ws-combobox-option-hint', text: option.hint }));
       item.addEventListener('pointerdown', event => event.preventDefault?.());
       item.addEventListener('click', () => choose(option));
       list.append(item);
     });
     const active = list.children?.[state.active];
     activeDescendant(active);
-    active?.scrollIntoView?.({ block: 'nearest' });
+    if (scrollTop !== undefined) list.scrollTop = scrollTop;
+    if (reveal) {
+      const activeRect = active?.getBoundingClientRect?.(), listRect = list.getBoundingClientRect?.();
+      const top = activeRect && listRect ? activeRect.top - listRect.top + list.scrollTop : active?.offsetTop;
+      const height = activeRect?.height ?? active?.offsetHeight;
+      if (Number.isFinite(top) && Number.isFinite(height)) {
+        if (top < list.scrollTop) list.scrollTop = top;
+        else if (top + height > list.scrollTop + list.clientHeight) list.scrollTop = top + height - list.clientHeight;
+      }
+    }
     const rest = matches.length - state.shown.length;
+    status.hidden = !showCount && matches.length > 0 && rest === 0;
     status.textContent = !matches.length ? emptyText : rest > 0 ? `${matches.length}件中${state.shown.length}件を表示。ほか${rest}件は絞り込むと出ます` : `${matches.length}件`;
   }
 
   function move(index) {
     if (!state.shown.length) return;
     state.active = Math.min(state.shown.length - 1, Math.max(0, index));
-    renderList();
+    renderList({ reveal: true });
   }
 
   function removeListeners() { doc.removeEventListener?.('pointerdown', outside); }
@@ -608,11 +638,11 @@ export function workspaceCombobox(doc, {
     if (state.disabled) return;
     if (!state.open) { state.open = true; doc.addEventListener?.('pointerdown', outside); }
     state.query = query; search.value = query; search.hidden = !usesSearch();
-    const selectedIndex = state.options.findIndex(option => option.value === state.value);
+    const selectedIndex = state.options.findIndex(option => multiple ? state.values.includes(option.value) : option.value === state.value);
     state.active = query ? 0 : Math.max(0, selectedIndex);
     popup.hidden = false; trigger.setAttribute('aria-expanded', 'true');
-    renderList();
-    focusTarget().focus?.();
+    renderList({ reveal: true });
+    focusTarget().focus?.({ preventScroll: true });
   }
 
   function close(returnFocus = true) {
@@ -623,6 +653,11 @@ export function workspaceCombobox(doc, {
   }
 
   function choose(option) {
+    if (multiple) {
+      state.active = state.shown.findIndex(candidate => candidate.value === option.value);
+      state.values = !option.value ? [] : state.values.includes(option.value) ? state.values.filter(value => value !== option.value) : [...state.values, option.value];
+      renderTrigger(); renderList(); onChange?.([...state.values], option); return;
+    }
     const changed = option.value !== state.value;
     state.value = option.value; renderTrigger(); close(true);
     if (changed) onChange?.(option.value, option);
@@ -639,6 +674,7 @@ export function workspaceCombobox(doc, {
     // Home and End move the caret while a search box is shown.
     if (!usesSearch()) Object.assign(keys, { Home: () => move(0), End: () => move(state.shown.length - 1) });
     if (event.key === 'Tab') { close(false); return; }
+    if (multiple && event.key === ' ' && !usesSearch()) keys[' '] = keys.Enter;
     const action = keys[event.key];
     if (!action) return;
     event.preventDefault?.(); event.stopPropagation?.();
@@ -659,12 +695,16 @@ export function workspaceCombobox(doc, {
   return {
     root, trigger, popup, search, list,
     get value() { return state.value; },
+    get values() { return [...state.values]; },
     get isOpen() { return state.open; },
     open, close,
-    update({ options: nextOptions, value: nextValue, disabled } = {}) {
+    update({ options: nextOptions, value: nextValue, values: nextValues, disabled } = {}) {
+      const previous = JSON.stringify([state.options, state.value, state.values, state.disabled]);
       if (nextOptions !== undefined) setOptions(nextOptions);
       if (nextValue !== undefined) state.value = String(nextValue ?? '');
+      if (nextValues !== undefined) state.values = [...new Set((Array.isArray(nextValues) ? nextValues : []).map(String))].filter(Boolean);
       if (disabled !== undefined) { state.disabled = Boolean(disabled); if (state.disabled) close(false); }
+      if (previous === JSON.stringify([state.options, state.value, state.values, state.disabled])) return;
       renderTrigger();
       if (state.open) { search.hidden = !usesSearch(); renderList(); }
     },
@@ -735,4 +775,49 @@ export function workspaceTabList(root) {
   if (!classes.includes('bb-ws-tabs')) classes.push('bb-ws-tabs');
   root.className = classes.join(' ');
   return root;
+}
+
+/** The shared shallow dropdown chevron, sized and colored through shared CSS. */
+export function workspaceDropdownChevron(doc) {
+  const wrap = el(doc, 'span', { className: 'bb-ws-combobox-chevron', attrs: { 'aria-hidden': 'true' } });
+  const create = tag => typeof doc.createElementNS === 'function' ? doc.createElementNS('http://www.w3.org/2000/svg', tag) : doc.createElement(tag);
+  const svg = create('svg'); svg.setAttribute('viewBox', '0 0 12 8'); svg.setAttribute('class', 'bb-ws-dropdown-chevron');
+  const path = create('path'); path.setAttribute('d', 'M1 2.5l5 3 5-3'); svg.append(path); wrap.append(svg); return wrap;
+}
+
+/** Opt-in shared search band. The host retains scope options and query handlers. */
+export function workspaceSearchBand(doc, { root, query, filters, sort, reset, onResetSort } = {}) {
+  root ||= el(doc, 'div'); root.classList.add('bb-ws-search-band');
+  const primary = el(doc, 'div', { className: 'bb-ws-toolbar-primary' });
+  const controls = el(doc, 'div', { className: 'bb-ws-toolbar-controls' });
+  const search = el(doc, 'span', { className: 'bb-ws-toolbar-query' }); search.append(workspaceActionIcon(doc, 'search'), query);
+  const scopeSlot = el(doc, 'span', { className: 'bb-ws-toolbar-scope' });
+  const trigger = workspaceButton(doc, { variant: 'quiet', attrs: { 'aria-label': 'フィルター', title: 'フィルター' } });
+  trigger.classList.add('bb-ws-toolbar-filter'); trigger.append(workspaceActionIcon(doc, 'filter'));
+  const filter = workspaceFilterPopover(doc, { content: filters, trigger,
+    onToggle: open => { if (open) sort?.close(false); },
+  });
+  filter.root.classList.add('bb-ws-toolbar-filter-group'); filter.panel.classList.add('bb-ws-toolbar-filter-panel');
+  if (reset) {
+    reset.textContent = 'フィルターを解除'; reset.setAttribute('aria-label', 'フィルターを解除');
+    const footer = el(doc, 'div', { className: 'bb-ws-menu-reset' }); footer.append(reset); filters.append(footer);
+  }
+  const closeFilter = () => { if (!filter.panel.hidden) trigger.click(); };
+  const clear = () => { closeFilter(); trigger.focus({ preventScroll: true }); };
+  const sortClick = () => closeFilter();
+  const sortReset = workspaceButton(doc, { text: '初期順に戻す', attrs: { 'aria-label': '並べ替えを初期順に戻す' } });
+  const resetSort = () => { sort?.close(false); onResetSort?.(); sort?.trigger.focus({ preventScroll: true }); };
+  if (sort) {
+    sort.root.classList.add('bb-ws-toolbar-sort'); sort.trigger.classList.add('bb-ws-toolbar-sort-trigger');
+    sort.trigger.replaceChildren(workspaceActionIcon(doc, 'sort')); sort.trigger.setAttribute('title', '並べ替え');
+    sort.popup.append(sortReset); sortReset.addEventListener('click', resetSort);
+    sort.trigger.addEventListener('click', sortClick); sort.trigger.addEventListener('keydown', sortClick);
+  }
+  controls.append(search, scopeSlot, filter.root); if (sort) controls.append(sort.root); root.replaceChildren(primary, controls);
+  reset?.addEventListener('click', clear);
+  return { root, primary, scopeSlot, filter,
+    setFiltered(active) { toggleWorkspaceClass(filter.root, 'is-filtered', Boolean(active)); trigger.setAttribute('aria-label', active ? 'フィルター（適用中）' : 'フィルター'); },
+    setSorted(active) { toggleWorkspaceClass(sort?.root, 'is-sorted', Boolean(active)); sortReset.hidden = !active; },
+    destroy() { filter.destroy(); reset?.removeEventListener('click', clear); sortReset.removeEventListener('click', resetSort); sort?.trigger.removeEventListener('click', sortClick); sort?.trigger.removeEventListener('keydown', sortClick); },
+  };
 }
