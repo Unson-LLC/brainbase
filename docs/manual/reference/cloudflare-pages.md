@@ -88,6 +88,21 @@ Build <12文字のSHA> · <branch>
 
 「GitHubは新しいが公開siteは古い」という状態を、画面だけで検出できます。
 
+## Google Tag Manager
+
+公開siteのGA4計測はGoogle Tag Manager経由で行います。container IDはbuild時の環境変数`VITEPRESS_GTM_ID`（または`GTM_CONTAINER_ID`）で渡します。
+
+```text
+VITEPRESS_GTM_ID=GTM-XXXXXXX
+```
+
+環境変数が空の場合、GTM scriptは生成HTMLへ出力されません（no-op）。IDはsecretではないためリポジトリへ直書きせず、Cloudflare Pagesのbuild environment variablesで設定します。
+
+計測するイベントは次の2つです。
+
+- GA4の自動`page_view`
+- 外部リンククリック時の`outbound_click`（`link_url`、`link_domain`）
+
 ## Brainbase Graphから公開説明を昇格する
 
 Graphを直接Webへ表示しません。
