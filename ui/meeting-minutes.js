@@ -11,7 +11,10 @@
  * changes what it asks the server for (story-meeting-minutes-list-filters-v1).
  */
 
-import { workspaceActionIcon, workspaceSearchBand, workspaceCompactToolbar, workspaceCombobox, workspaceDetailDrawer } from './workspace-kit.js';
+// A new lazy screen must not reuse the pre-search-band kit cached by an open tab.
+// The capability query gives this compatible kit its own browser module identity.
+import * as workspaceKit from './workspace-kit.js?capability=search-band-v1';
+const { workspaceActionIcon, workspaceSearchBand, workspaceCompactToolbar, workspaceCombobox, workspaceDetailDrawer } = workspaceKit;
 
 export const MEETING_MINUTES_UI_CONTRACT_VERSION = 'brainbase.meeting-minutes-ui.v1';
 
@@ -732,6 +735,9 @@ export function createMeetingMinutesUI({
   let railProjectMeeting = null;
 
   const searchBand = toolbarPresentation === 'search-band';
+  if (searchBand && typeof workspaceSearchBand !== 'function') {
+    throw new Error('検索帯の共通部品を読み込めませんでした。ページを再読み込みしてください。');
+  }
   const compact = searchBand || toolbarPresentation === 'compact';
   const screen = makeElement(doc, 'div', { className: `bb-minutes-screen${compact ? ' bb-minutes-compact bb-ws-neutral-controls' : ''}`, attrs: { 'data-contract-version': MEETING_MINUTES_UI_CONTRACT_VERSION } });
   if (searchBand) screen.classList.add('bb-minutes-search-band');
@@ -1800,7 +1806,7 @@ export function createMeetingMinutesUI({
   }
 
   function renderDetail(detail, documentRecord = null, selectedVersion = null) {
-    detailDrawer?.setTitle('議事録の詳細');
+    detailDrawer?.setTitle?.('議事録の詳細');
     clear(detailPane);
     connectionsSlot = null;
     participantsSlot = null;
@@ -1878,7 +1884,7 @@ export function createMeetingMinutesUI({
   }
 
   function renderCreateForm() {
-    detailDrawer?.setTitle('会議を作成');
+    detailDrawer?.setTitle?.('会議を作成');
     detailRequestGeneration += 1;
     detailDrawer?.open();
     clear(detailPane);
