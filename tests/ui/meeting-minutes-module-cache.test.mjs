@@ -23,6 +23,18 @@ it('loads a new lazy minutes screen after the unqualified old kit is already cac
       const fresh = await import('./workspace-kit.js?capability=search-band-v1');
       assert.equal(typeof fresh.workspaceSearchBand, 'function');
       assert.equal(typeof fresh.workspaceCombobox, 'function');
+      writeFileSync('baseline-kit.js', readFileSync('fresh-kit.txt'));
+      const baseline = await import('./baseline-kit.js');
+      const element = () => ({ className: '', attributes: {}, children: [],
+        classList: { add() {} }, setAttribute(k, v) { this.attributes[k] = String(v); },
+        append(...nodes) { this.children.push(...nodes); }, addEventListener() {} });
+      const doc = { createElement: element, body: element() };
+      const originalDrawer = baseline.workspaceDetailDrawer(doc, { title: 'Host detail' });
+      const freshDrawer = fresh.workspaceDetailDrawer(doc, { title: 'Meeting detail' });
+      const originalId = originalDrawer.dialog.attributes['aria-labelledby'];
+      const freshId = freshDrawer.dialog.attributes['aria-labelledby'];
+      assert.notEqual(freshId, originalId);
+      assert.equal(freshDrawer.dialog.children[0].children[0].attributes.id, freshId);
     `], { cwd: dir, encoding: 'utf8' });
     expect(result.stderr).toBe('');
     expect(result.status).toBe(0);
