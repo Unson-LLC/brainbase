@@ -599,12 +599,13 @@ function entry({ id, title, scheduledAt, createdAt, minutes = 1, versionIds = 1,
 describe('meeting minutes page review', () => {
   const today = new Date('2026-10-14T12:00:00+09:00');
 
-  function mount(meetings, { detailFor, canEditMinutes = true, now = () => today, canCreateMeeting, createUnavailableReason, hostFilters, toolbarPresentation = 'expanded' } = {}) {
+  function mount(meetings, { detailFor, canEditMinutes = true, now = () => today, canCreateMeeting, createUnavailableReason, hostFilters, toolbarPresentation = 'expanded', ...uiOptions } = {}) {
     const root = new FakeElement('div');
     const view = createMeetingMinutesUI({
       root,
-      document: toolbarPresentation === 'compact' ? new CompactDocument() : new FakeDocument(),
+      document: toolbarPresentation !== 'expanded' ? new CompactDocument() : new FakeDocument(),
       toolbarPresentation,
+      ...uiOptions,
       now,
       canEditMinutes,
       ...(canCreateMeeting === undefined ? {} : { canCreateMeeting }),
@@ -657,6 +658,26 @@ describe('meeting minutes page review', () => {
     findAll(sort, node => node.className.includes('bb-ws-combobox-trigger'))[0].click();
     findAll(sort, node => node.getAttribute?.('data-value') === 'updated-desc')[0].click();
     expect(listTitles(root)[0]).toBe('日時のない新しい更新');
+  });
+
+  it('search band separates scope/query from filter reset and retains its open scope root across quiet refresh', async () => {
+    const scope = { id: 'project', label: 'プロジェクト', placement: 'scope', multiple: true, values: ['a'],
+      options: [{ value: '', label: 'すべてのプロジェクト' }, { value: 'a', label: 'A' }, { value: 'b', label: 'B' }],
+      onChange: values => { scope.values = values; }, matches: (entry, values) => !values.length || values.includes(entry.meeting.project_code) };
+    const meetings = filterMeetings(); meetings.forEach((entry, index) => { entry.meeting.project_code = index === 0 ? 'a' : 'b'; });
+    const { root, view } = mount(meetings, { toolbarPresentation: 'search-band', hostFilters: () => [scope] }); await flush();
+    const slot = findAll(root, node => node.className.includes('bb-ws-toolbar-scope'))[0];
+    const box = slot.children[0]; const trigger = findAll(box, node => node.className.includes('bb-ws-combobox-trigger'))[0];
+    trigger.click(); expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    const query = findAll(root, node => node.className.includes('bb-minutes-filter-keyword'))[0];
+    query.value = '週次'; query.listeners.get('input')();
+    const group = findAll(root, node => node.className.includes('bb-ws-toolbar-filter-group'))[0];
+    expect(group.className).not.toContain('is-filtered');
+    await view.refresh({ quiet: true }); expect(slot.children[0]).toBe(box); expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    const reset = findAll(root, node => node.className.includes('bb-minutes-filter-reset'))[0]; reset.click();
+    expect(query.value).toBe('週次'); expect(scope.values).toEqual(['a']);
+    expect(findAll(root, node => node.className.includes('bb-minutes-status'))[0].hidden).toBe(true);
+    view.destroy();
   });
 
   it('orders dated meetings newest first, keeps today first, and does not count a single minutes document', async () => {
@@ -1546,5 +1567,34 @@ describe('meeting minutes connections', () => {
     expect(connectionRows(root)).toBeNull();
     expect(links(rail).filter((link) => link.textContent === 'Brainbase')).toHaveLength(0);
     expect(collectText(rail)).toContain('Brainbase');
+  });
+});
+
+describe('explicit creation project', () => {
+  it('validates the form scope and can keep an out-of-list creation from making a wrongly scoped detail request', async () => {
+    const doc = new CompactDocument(); const root = doc.createElement('div');
+    const requests = []; const creations = [];
+    const scope = { id: 'project', label: 'プロジェクト', placement: 'scope', multiple: true, values: ['project-a'], options: [{ value: '', label: 'すべて' }, { value: 'project-a', label: 'A' }, { value: 'project-b', label: 'B' }] };
+    const view = createMeetingMinutesUI({ root, document: doc, toolbarPresentation: 'search-band',
+      hostFilters: () => [scope], canCreateMeeting: () => true,
+      createProjectOptions: () => [{ value: 'project-a', label: 'A' }, { value: 'project-b', label: 'B' }], createProjectValue: () => '',
+      createMeeting: async (payload, projectCode) => { creations.push({ payload, projectCode }); return { meeting: { meeting_id: 'created-b' } }; },
+      shouldOpenCreatedMeeting: (_, projectCode) => scope.values.includes(projectCode),
+      fetcher: async path => { requests.push(path); return jsonResponse(200, { absence_confirmed: true, meetings: [] }); },
+    });
+    await flush(); findAll(root, node => node.tagName === 'BUTTON' && node.textContent === '会議を作成')[0].click();
+    const form = findAll(root, node => node.tagName === 'FORM')[0];
+    await form.listeners.get('submit')({ preventDefault() {} });
+    expect(creations).toHaveLength(0); expect(collectText(form)).toContain('プロジェクトを選択してください。');
+    const projectBox = findAll(form, node => node.className.split(' ').includes('bb-ws-combobox'))[0];
+    findAll(projectBox, node => node.className.includes('bb-ws-combobox-trigger'))[0].click();
+    findAll(projectBox, node => node.getAttribute?.('data-value') === 'project-b')[0].click();
+    findAll(form, node => node.getAttribute?.('name') === 'title')[0].value = '会議B';
+    await form.listeners.get('submit')({ preventDefault() {} });
+    expect(creations).toEqual([{ payload: expect.objectContaining({ title: '会議B' }), projectCode: 'project-b' }]);
+    expect(requests).toEqual(['/api/meeting-minutes', '/api/meeting-minutes']);
+    expect(scope.values).toEqual(['project-a']);
+    expect(findAll(root, node => node.className.includes('bb-minutes-status'))[0].textContent).toBe('会議を保存しました。');
+    view.destroy();
   });
 });
