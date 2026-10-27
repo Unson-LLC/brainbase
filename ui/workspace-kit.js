@@ -83,7 +83,7 @@ export function workspaceTopbar(doc, { title = '' } = {}) {
 /** A reusable right inspector whose content can refresh without replacing the modal. */
 export function workspaceDetailDrawer(doc, { title = '詳細', opener, onClose } = {}) {
   const dialog = workspaceApplyDrawer(el(doc, 'dialog', { className: 'bb-ws-dialog bb-ws-detail-drawer' }));
-  const titleId = `bb-ws-inspector-${++workspaceSequence}`;
+  const titleId = `bb-ws-inspector-${nextWorkspaceSequence()}`;
   dialog.setAttribute('aria-labelledby', titleId);
   const head = el(doc, 'header', { className: 'bb-ws-detail-closebar' });
   const label = el(doc, 'h2', { className: 'bb-ws-visually-hidden', text: title, attrs: { id: titleId } });
@@ -296,12 +296,18 @@ export function workspaceSectionTitle(doc, { title, lead } = {}) {
 
 
 let workspaceSequence = 0;
+// Capability-isolated modules coexist with an older kit in the same document.
+const workspaceIdScope = new URL(import.meta.url).searchParams.get('capability') ?? '';
+function nextWorkspaceSequence() {
+  const next = ++workspaceSequence;
+  return workspaceIdScope ? `${encodeURIComponent(workspaceIdScope)}-${next}` : next;
+}
 /** Shared explanatory help: hover/focus above the control, click for touch. */
 export function workspaceHelp(doc, { text, label } = {}) {
   const wrap = el(doc, 'span', { className: 'bb-ws-help' });
   const control = workspaceButton(doc, { text: 'i', attrs: { 'aria-label': `${label}の説明`, 'aria-expanded': 'false' } });
   control.className = 'bb-ws-help-button';
-  const bubble = el(doc, 'span', { className: 'bb-ws-help-bubble', text, attrs: { id: `bb-ws-help-${++workspaceSequence}`, role: 'tooltip' } });
+  const bubble = el(doc, 'span', { className: 'bb-ws-help-bubble', text, attrs: { id: `bb-ws-help-${nextWorkspaceSequence()}`, role: 'tooltip' } });
   control.setAttribute('aria-describedby', bubble.id || bubble.getAttribute?.('id') || bubble.attributes?.id);
   control.addEventListener('click', event => {
     event.stopPropagation(); event.preventDefault();
@@ -360,7 +366,7 @@ export function workspaceCloseDrawer(dialog, finish) {
 export function workspaceDialog(doc, { title, content, opener, presentation = 'center', onClose } = {}) {
   const dialog = el(doc, 'dialog', { className: 'bb-ws-dialog' });
   if (presentation === 'drawer') workspaceApplyDrawer(dialog);
-  const headingId = `bb-ws-dialog-${++workspaceSequence}`;
+  const headingId = `bb-ws-dialog-${nextWorkspaceSequence()}`;
   dialog.setAttribute('aria-labelledby', headingId);
   const head = el(doc, 'header', { className: 'bb-ws-dialog-head' });
   const nativeClose = dialog.close.bind(dialog);
@@ -404,8 +410,8 @@ export function workspaceDialog(doc, { title, content, opener, presentation = 'c
 /** Anchored advanced search. Hosts destroy it before replacing its controls. */
 export function workspaceFilterPopover(doc, { content, open = false, onToggle, trigger, panel: suppliedPanel, initialFocus } = {}) {
   const root = el(doc, 'span', { className: 'bb-ws-filter-anchor' });
-  const panel = suppliedPanel || el(doc, 'div', { className: 'bb-ws-filter-popover', attrs: { id: `bb-ws-filter-${++workspaceSequence}`, role: 'region', 'aria-label': '詳細検索' } });
-  if (!panel.id && !panel.getAttribute?.('id')) panel.setAttribute('id', `bb-ws-filter-${++workspaceSequence}`);
+  const panel = suppliedPanel || el(doc, 'div', { className: 'bb-ws-filter-popover', attrs: { id: `bb-ws-filter-${nextWorkspaceSequence()}`, role: 'region', 'aria-label': '詳細検索' } });
+  if (!panel.id && !panel.getAttribute?.('id')) panel.setAttribute('id', `bb-ws-filter-${nextWorkspaceSequence()}`);
   panel.classList?.add('bb-ws-filter-popover');
   const control = trigger || workspaceButton(doc, { text: '詳細検索', variant: 'quiet' });
   control.setAttribute('aria-controls', panel.id || panel.getAttribute?.('id') || panel.attributes?.id);
@@ -533,7 +539,7 @@ export function workspaceCombobox(doc, {
   emptyText = '一致する候補はありません', limit = 100, searchable = 'auto', className, onChange,
   multiple = false, values = [], renderIcon, showCount = true, showHints = true, align = 'start',
 } = {}) {
-  const sequence = ++workspaceSequence;
+  const sequence = nextWorkspaceSequence();
   const listId = `bb-ws-combobox-${sequence}-list`;
   const root = el(doc, 'span', { className: ['bb-ws-combobox', className].filter(Boolean).join(' ') });
   if (multiple) root.classList?.add('bb-ws-combobox-multiple');
