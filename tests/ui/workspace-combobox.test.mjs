@@ -139,3 +139,35 @@ describe('workspaceCombobox', () => {
     expect(box.isOpen).toBe(false);
   });
 });
+
+
+describe('opt-in multiple scope choices', () => {
+  it('toggles choices without closing or resetting the list scroll, and clears with the empty choice', () => {
+    const { box, onChange, doc } = setup({ multiple: true, values: ['per_3'], searchable: false, showCount: false, showHints: false, align: 'end' });
+    box.open(); expect(doc.activeElement).toBe(box.list);
+    expect(box.list.getAttribute('aria-multiselectable')).toBe('true');
+    box.list.scrollTop = 120;
+    box.list.children.find(item => item.getAttribute('data-value') === 'per_7').dispatch('click');
+    expect(box.values).toEqual(['per_3', 'per_7']); expect(box.isOpen).toBe(true); expect(box.list.scrollTop).toBe(120);
+    expect(box.trigger.getAttribute('aria-label')).toBe('担当: 2件選択中');
+    press(box.list, ' '); expect(box.values).toEqual(['per_3']);
+    press(box.list, ' '); expect(box.values).toEqual(['per_3', 'per_7']);
+    expect(box.popup.children[2].hidden).toBe(true);
+    expect(onChange).toHaveBeenLastCalledWith(['per_3', 'per_7'], expect.anything());
+    box.list.children[0].dispatch('click'); expect(box.values).toEqual([]); expect(box.isOpen).toBe(true);
+    press(box.list, 'End'); press(box.list, ' '); expect(box.values).toEqual(['per_29']);
+    press(box.list, 'Escape'); expect(doc.activeElement).toBe(box.trigger);
+  });
+
+  it('does not rebuild identical open options, but still exposes empty and truncated-list feedback', () => {
+    const { box } = setup({ multiple: true, values: ['per_3'], searchable: false, showCount: false });
+    box.open(); const first = box.list.children[0];
+    box.update({ options: people.map(option => ({ ...option })), values: ['per_3'] });
+    expect(box.list.children[0]).toBe(first);
+    box.update({ options: [] }); expect(box.popup.children[2].hidden).toBe(false);
+    expect(box.popup.children[2].textContent).toBe('一致する候補はありません');
+    const limited = setup({ showCount: false, limit: 2 }).box; limited.open();
+    expect(limited.popup.children[2].hidden).toBe(false);
+    expect(limited.popup.children[2].textContent).toContain('ほか');
+  });
+});

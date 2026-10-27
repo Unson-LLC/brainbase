@@ -68,3 +68,27 @@ desktop/mobile、長いタイトル、スクロール時の固定、詳細の開
 The shared appearance is 44px high, 13px text at weight500, no gap and 12px internal horizontal padding. Hover does not change foreground or background. The 1px baseline and 2px selected indicator share the same bottom edge. Strips scroll horizontally within their own bounds, preserve hidden nodes and show keyboard focus. Layout gutters and vertical margins remain the host's responsibility. Use `bb-ws-tab-count` only for existing counts, and `bb-ws-tabs--summary` when a tab already has a secondary line.
 
 Application must be explicit: do not style every `role=tablist` globally. Task list/kanban/Gantt view modes remain unmarked and retain their existing segmented appearance. Search toolbar placement and intake-page styling are independent changes. Organization hosts consume the published exact-pinned package; source-backed previews do not replace that release gate.
+
+
+### 検索帯（明示適用）
+
+`workspaceSearchBand(document, { root, query, filters, sort, reset, onResetSort })` は共通の検索帯を組み立てる。左は `primary`、右は文字検索 → `scopeSlot` → フィルターアイコン → 並べ替えアイコン。ホストが渡したinput、各条件、comboboxとhandlerの所有は変えない。`destroy()`で追加listenerとpopoverを破棄する。既存 `workspaceCompactToolbar` と各画面の既定表示は変更しない。
+
+- 本文のスクロール領域で共通ヘッダー直下44pxに固定。高さ56px、操作高さ32px、上下12px、下線とその下12px。スクロール領域と本文外枠の配置はホストが所有する。
+- 検索は180px上限の薄灰・枠なし楕円。入力があると選択面へ変わる。scope選択は内容幅で伸縮し、複数時は「N件選択中」の選択面を使う。色・寸法は `--bb-search-band-*` で定義する。
+- 右の操作は24px幅のアイコンで、互いの間は4px。適用時は選択面と太い線、名前にも「適用中」を含める。解除操作は各popoverの内部に置き、フィルター解除は左右中央。queryとscopeはフィルター解除で変えない。
+- `workspaceDropdownChevron(document)` は10×6px、線幅1.2、丸端の浅いV字SVG。装飾として `aria-hidden`、クリック・focus・名前は親triggerが所有する。画面ごとの文字グリフ・上下位置補正を増やさない。
+
+`workspaceCombobox` の複数選択は `multiple: true, values: string[]` と `onChange(values, option)` で使う。空値の候補は全選択解除。選択後も開いたまま、選択はチェックのみ、背景はhover時のみ。Arrow/Home/End/PageキーとEnter/Space、Escape/Tab、外側クリックの閉じる操作を保持する。スクロールは候補一覧の内部だけを動かし、同じoptionsと値の `update` でDOMを作り直さない。
+
+- `renderIcon(option)` は表示用Nodeを返す。画像値・名称はホストの選択肢から渡す。
+- `showHints: false` で識別子などの補足表示を隠す。`showCount: false` は単純な件数のみ隠し、候補なし・表示上限の案内は残す。
+- `searchable: false` は入力欄を出さずlistboxにfocusする。`align: 'end'` はtrigger右端にpopupを揃える。長い候補一覧のscrollbar余白は両側に確保する。
+
+議事録は `toolbarPresentation: 'search-band'` でこの共通部品を選ぶ。`hostFilters` は `placement: 'scope', multiple: true, values, options, renderIcon, showHints: false, onChange` を受け取る。任意の `matches(entry, values)` は取得済みの一覧を絞り込む。候補の可視性・許可、複数scopeの取得と合算、URL状態はホストが所有し、OSSが組織の認可や取得経路を変更しない。
+
+`refresh({ quiet: true })` は既存結果を保って再取得し、正常な更新時に一時読込文で本文を押し下げない。失敗と再試行は隠さない。選択中のscope rootと開いたメニューを差し替えず、スクロールとfocusを保つ。
+
+会議作成は一覧scopeとは独立して `createProjectOptions()` と `createProjectValue()` で保存先を選べる。候補にない保存先は送信せず、`createMeeting(payload, projectCode)` へ明示scopeを渡す。ホストが既存の認可・mutation・詳細readbackを担当する。callback未指定は従来の `mutate` を保つ。作成可否は引き続きホストの `canCreateMeeting` で決まる。
+
+保存先が現在の一覧scope外なら、ホストは明示保存先でreadbackした後、`shouldOpenCreatedMeeting(created, projectCode)`でfalseを返せる。UIは一覧条件を変えず作成drawerを閉じ、誤った一覧scopeで詳細を再取得しない。未指定は従来の詳細表示を保持する。

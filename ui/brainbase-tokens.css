@@ -105,4 +105,24 @@
   --bb-tab-indicator-size: 2px;
   --bb-tab-count-size: 20px;
   --bb-tab-count-font-size: 12px;
+  /* Opt-in search band: dimensions and interaction surfaces. */
+  --bb-search-band-query-width: 180px;
+  --bb-search-band-placeholder: #9b9ba3;
+  --bb-search-band-selected: var(--bb-color-interaction-hover, #e5f8e1);
+  --bb-search-band-icon-width: 24px;
+  --bb-search-band-icon-stroke: 1.5;
+  --bb-search-band-icon-selected-stroke: 2;
+  --bb-search-band-chevron-width: 10px;
+  --bb-search-band-chevron-height: 6px;
+  --bb-search-band-chevron-stroke: 1.2;
+  --bb-search-band-header-height: 44px;
+  --bb-search-band-scope-padding: 13px;
+  --bb-search-band-scope-viewport-reserve: 192px;
+  --bb-search-band-scope-popup-width: 260px;
+  --bb-search-band-project-icon-size: 18px;
+  --bb-control-small-height: 28px;
+  --bb-create-background: #24324b;
+  --bb-create-hover: #1b263a;
+  --bb-radius-pill: 999px;
+
 }
