@@ -46,6 +46,10 @@
   font-weight: 600;
 }
 
+.bb-inbox.is-today .bb-inbox-today-count.is-unreadable {
+  color: var(--bb-color-warning);
+}
+
 .bb-inbox.is-today .bb-inbox-today-section .bb-inbox-group-title {
   color: var(--bb-color-ink);
   font-size: 13px;
