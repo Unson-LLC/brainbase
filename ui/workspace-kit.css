@@ -821,7 +821,7 @@
 
 /* Shared dropdown symbol; pointer/keyboard behavior remains on its trigger. */
 .bb-ws-combobox-chevron { display: inline-flex; align-items: center; justify-content: center; flex: none; line-height: 0; }
-.bb-ws-combobox-chevron::after { content: none; }
+.bb-ws-combobox-chevron:has(.bb-ws-dropdown-chevron)::after { content: none; }
 .bb-ws-dropdown-chevron { display: block; width: var(--bb-search-band-chevron-width); height: var(--bb-search-band-chevron-height); fill: none; stroke: currentColor; stroke-width: var(--bb-search-band-chevron-stroke); stroke-linecap: round; stroke-linejoin: round; }
 .bb-ws-combobox-align-end .bb-ws-combobox-popup { left: auto; right: 0; transform-origin: top right; }
 .bb-ws-combobox-multiple .bb-ws-combobox-list { scrollbar-gutter: stable both-edges; }

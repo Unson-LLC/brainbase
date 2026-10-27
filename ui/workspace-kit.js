@@ -763,7 +763,7 @@ export function workspaceTabList(root) {
 export function workspaceDropdownChevron(doc) {
   const wrap = el(doc, 'span', { className: 'bb-ws-combobox-chevron', attrs: { 'aria-hidden': 'true' } });
   const create = tag => typeof doc.createElementNS === 'function' ? doc.createElementNS('http://www.w3.org/2000/svg', tag) : doc.createElement(tag);
-  const svg = create('svg'); svg.setAttribute('viewBox', '0 0 12 8'); svg.setAttribute('class', 'bb-ws-dropdown-chevron');
+  const svg = create('svg'); svg.setAttribute('viewBox', '0 0 12 8'); svg.setAttribute('width', '10'); svg.setAttribute('height', '6'); svg.setAttribute('class', 'bb-ws-dropdown-chevron');
   const path = create('path'); path.setAttribute('d', 'M1 2.5l5 3 5-3'); svg.append(path); wrap.append(svg); return wrap;
 }
 
