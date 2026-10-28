@@ -10,11 +10,11 @@
 根拠は原則としてファイルパスと行番号で示す。確証のない箇所は「推測」と明記する。秘密の値（owner JWT、person_id/tenant_id の実値、bearer、プロンプト全文、応答全文、モデルの鍵）は書かない。
 
 根拠（要件の出所）:
-- 佐藤さん 2026-10-27 01:44 JST 原文「Grokだと判断の履歴って記録されないのはなんでだっけ」（Director 経由）。
+- オーナーが、Grok では判断の履歴が記録されない理由を問うた。
 - Director 2026-10-27 01:51 JST の判断2（Grok Bot 自身の判断も判断の履歴に届ける要件を台帳に足し、設計をキューに入れる。設計は Draft PR まで）。
-- 開発を本番キューに通す方針: 佐藤さん 2026-10-27 01:08 JST「キューをとおせばいいよね?」（Director 経由）。
+- 開発を本番キューに通す方針は、オーナーが確認した。
 
-> 注記（sandbox 境界）: 本書は brainbase（OSS）の develop から作業している。要件台帳本体、`contract.js`、`brainbase-organization`、`brainbase-unson` の各ファイルは本セッションの作業ディレクトリ外にあり直接再読できない。これらの引用は brainbase#878（RQ-119 設計書、main）の記載と行番号に依拠する。brainbase 内の `src/judgment-history.ts` / `src/judgment-frame.ts` は本セッションで直接確認した（develop 時点）。外部ファイルは実装前に原本で再確認すること（＝一部推測）。
+> 注記（sandbox 境界）: 本書は brainbase（OSS）の develop から作業している。要件台帳本体、`contract.js`、`brainbase-organization`、社内の配備リポの各ファイルは本セッションの作業ディレクトリ外にあり直接再読できない。これらの引用は brainbase#878（RQ-119 設計書、main）の記載と行番号に依拠する。brainbase 内の `src/judgment-history.ts` / `src/judgment-frame.ts` は本セッションで直接確認した（develop 時点）。外部ファイルは実装前に原本で再確認すること（＝一部推測）。
 
 ---
 
@@ -40,7 +40,7 @@ RQ-119（#878）は **道具の実行**（Codex hook / Claude Code hook / openco
 Grok Bot 自身（Director / Worker などの Grok bot）が下す判断を、Codex hook・RQ-119 の Worker 経路と同じ判断の形・同じ共有 record 契約で、組織版の判断履歴（judgment history）に届ける。
 
 ### 背景（なぜ今記録されないか）
-- 佐藤さんの問い「Grokだと判断の履歴って記録されないのはなんでだっけ」の構造的な答え: 判断を履歴に送る経路は **道具の実行に紐づくイベント**（Codex の `Stop`、RQ-119 で設計した Claude Code の `Stop` / opencode の `session.idle`）に限られている。Grok Bot 自身は道具の実行ではなく、これらのイベントを一度も発火しない。よって Grok Bot の判断を拾う箇所がどこにも無い。
+- オーナーの問い「Grokだと判断の履歴って記録されないのはなんでだっけ」の構造的な答え: 判断を履歴に送る経路は **道具の実行に紐づくイベント**（Codex の `Stop`、RQ-119 で設計した Claude Code の `Stop` / opencode の `session.idle`）に限られている。Grok Bot 自身は道具の実行ではなく、これらのイベントを一度も発火しない。よって Grok Bot の判断を拾う箇所がどこにも無い。
 - RQ-119 は line 109 の定義で Grok Bot 自身を明示的に対象外にした。つまり「記録されない」のは不具合ではなく、設計上まだ経路が無いだけである。本件がその経路を設計する。
 
 ### やること
@@ -111,7 +111,7 @@ Codex / RQ-119 Worker と同じ共有 record 契約（`src/judgment-history.ts` 
 
 ### 4.1 entrypoint の新設（`grok_bot`）
 - 現在の enum は `JUDGMENT_HISTORY_ENTRYPOINTS = ['codex','claude_code','mana','company_os','unknown']`（`src/judgment-history.ts:11-17`。develop 時点。RQ-119 が追加予定の `opencode` はまだ develop に無い）。
-- 本件は **`grok_bot` を新設** する。理由: Grok Bot 自身の判断は道具の実行（codex / claude_code / opencode）とは別主体であり、履歴上で区別できる必要がある（佐藤さんの問いは「Grok の判断」が見えないことだった）。
+- 本件は **`grok_bot` を新設** する。理由: Grok Bot 自身の判断は道具の実行（codex / claude_code / opencode）とは別主体であり、履歴上で区別できる必要がある（オーナーの問いは「Grok の判断」が見えないことだった）。
 - 実モデル名（例 grok-4 等の実名）は **entrypoint では表さない**。entrypoint は「Grok Bot 自身」という主体の種別を表し、実モデル名は receipt の **メタ情報** に残す（#878 決定事項(3) と同じ扱い。RQ-119 が「DeepSeek / deepseek-flash を entrypoint にせず opencode にする」としたのと同型）。
 - Director / Worker の役割区別（どの bot か）は entrypoint では分けず、メタ情報（例 `bot_role: director|worker` や agent member 識別子）に残す。entrypoint を役割ごとに増やすと enum が運用で膨らむため。
 - 共有契約（enum）の変更は影響範囲が広い（§8・§9 の S1）。`src/judgment-history.ts` に加え、同じ enum を持つ外部正本（`contract.js:7` ＝ #878 の引用。sandbox 外）にも `grok_bot` を足す必要がある。合意は実装 Story で取る。
@@ -169,7 +169,7 @@ RQ-119 §5（#878）の agent 資格・認可の枠組みをそのまま使う�
 
 - 原則: Grok Bot は人ではない。owner JWT（人の資格）を流用しない（#878 §5）。使うのは組織版の **agent 資格（agent-credential-service / `agent-mcp-authorization.js`。#878 §5 の引用、sandbox 外）**。
 - Grok Bot ごと（Director / Worker）に、または Grok Bot 群で 1 つの **agent member 資格** を割り当てる。scope は 1 組織・1 テナント・対象 project に限定し、`judgment_receipts` の RLS（#878 §4・§5 の引用）と整合させる。
-- **帰属の写像**（#878 §5 の決定事項(1) をそのまま継ぐ）: receipt の `owner_person_id` には、照合済み資格行が示す **owner person（project owner。例 佐藤さん）** を入れる。Grok Bot 自身（agent member の personId）は `owner_person_id` にしない。agent 本人の personId は別列（メタ）に記録し、照合されていない owner 指定は拒否する。これにより `judgment_receipts` の一意キーと RLS が成立する。
+- **帰属の写像**（#878 §5 の決定事項(1) をそのまま継ぐ）: receipt の `owner_person_id` には、照合済み資格行が示す **owner person（project owner。例 オーナー）** を入れる。Grok Bot 自身（agent member の personId）は `owner_person_id` にしない。agent 本人の personId は別列（メタ）に記録し、照合されていない owner 指定は拒否する。これにより `judgment_receipts` の一意キーと RLS が成立する。
   - 意味: 「Grok Bot 自身の判断」も、履歴上の持ち主は **委任元の人（project owner）** である。entrypoint `grok_bot` と実モデル名・bot_role メタで「実際に判断したのは Grok Bot である」ことは残る。
 - **判断記録用の認可**（#878 §5 の決定事項(2)(b)）: `agent-mcp-authorization.js` の操作別認可は既存のタスク／進捗ツール限定で判断記録は対象外。判断記録用の `toolName='judgment.record'`、`resourceId`（`project_code`（＋ owner person）スコープ）、必要権限 `judgment:write` を新たに定義する必要がある。Grok Bot の資格にこの権限を付与して初めて記録できる。この認可が定義されるまでは本人（資格）確認だけで書き込みを許さない。
 - **資格の出し直しは人の操作で、人の通常操作とは別の承認が要る**（#878 §5 の決定事項(2)(a)・未決事項8 を継ぐ。本件で明示）:
@@ -277,7 +277,7 @@ G1 →（G3 と同時）G2 → G4（別リポジトリ）→ G5 → G6（RQ-116 
 
 - Grok Bot（Director / Worker）の実行基盤（box プロセスか、ホスト型 Grok チャットか）と、そこから CLI / MCP tool を呼べるかは本セッションで直接確認できていない＝推測（§3）。実装前に Grok Bot の実行基盤を確認する。
 - 「判断」の区切り（番号付き判断ブロック）は根拠の連絡から観測した形に基づく。Grok Bot が常にこの形で判断を出すか、記録コマンドを毎回呼べるかは運用規約の前提＝要確認（§2・§3 案(c)）。
-- 外部ファイル（要件台帳、`contract.js`、`brainbase-organization`、`brainbase-unson`、agent credential / `agent-mcp-authorization.js`、受領 repository の `ON CONFLICT DO NOTHING` 挙動と 409、public-projection の entrypoint 固定）は本セッションの作業ディレクトリ外にあり、brainbase#878（RQ-119 設計書）の記載・行番号に依拠した引用である＝一部推測。実装前に原本で再確認する。
+- 外部ファイル（要件台帳、`contract.js`、`brainbase-organization`、社内の配備リポ、agent credential / `agent-mcp-authorization.js`、受領 repository の `ON CONFLICT DO NOTHING` 挙動と 409、public-projection の entrypoint 固定）は本セッションの作業ディレクトリ外にあり、brainbase#878（RQ-119 設計書）の記載・行番号に依拠した引用である＝一部推測。実装前に原本で再確認する。
 - brainbase 内の `src/judgment-history.ts`（entrypoint enum `:11-17`、record `:77-89`、judgment `:63-69`、feedback `:34-39`、status `:44`）と `src/judgment-frame.ts`（public_frame キー `:209`、最大長 `:49`、digest `:242`、credential 検知 `:220`、検証 `:416-435`）は本セッションで直接確認した（develop 時点）。
 
 ---
