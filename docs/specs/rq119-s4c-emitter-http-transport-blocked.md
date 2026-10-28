@@ -1,7 +1,7 @@
 # RQ-119 S4c（judgment outbox → 組織版受け取り口への HTTP 送り手）: 前提未成立により停止
 
 - 台帳要件: **RQ-119**
-- 設計: brainbase#878（マージ想定コミット `729f4248`、`docs/specs/rq119-worker-judgment-emission-design.md`、写し `/workspace/logs/req-patrol-1027/rq119-design.md`）
+- 設計: brainbase#878（マージ想定コミット `729f4248`、`docs/specs/rq119-worker-judgment-emission-design.md`）
 - 対象ブランチ: `queue/9TSojsbc`（base: `develop`）
 - 判定日: 2026-10-28
 
@@ -74,6 +74,5 @@ timeout/ネットワーク失敗→`failed` を返す形になる想定。ただ
 ## 根拠
 
 - Director 2026-10-27 09:10 JST の依頼（要件の巡回、キュー登録後に進める）。
-- 開発を本番キューに通す: 佐藤さん 2026-10-27 01:08 JST「キューをとおせばいいよね?」（Director 経由）。
-- 佐藤さん 2026-10-27 02:21 JST（Director 経由、原文）「RQ-121 T7とRQ-119 S4cのnpm公開を、CIとCodexが通ったらしていい」。
-  — 本件は前提未成立のため、実装・PR・npm 公開のいずれにも進まない。
+- 開発は本番キューを通す方針である。
+- 前提が届いていない。本件は前提未成立のため、実装・PR・npm 公開のいずれにも進まない。
