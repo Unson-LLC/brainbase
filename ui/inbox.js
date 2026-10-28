@@ -748,12 +748,23 @@ export function createInboxUI({
     view.append(workspacePageHeader(doc, { crumbs, title: '受信箱', source: page?.source ?? undefined }));
     if (!isToday) view.append(renderTabs(waitingCount));
     if (isToday && shown) {
+      const decideGroups = INBOX_TODAY_SECTIONS[0].groups;
       const decideCount = shown.waiting
-        .filter((item) => INBOX_TODAY_SECTIONS[0].groups.includes(item.group))
+        .filter((item) => decideGroups.includes(item.group))
         .reduce((sum, item) => sum + unitsOf(item), 0);
+      // 決めることの取得元（answer・approve）が読めていないのに0件を「ありません」と
+      // 断定しない。読めなかったときは件数ではなく、読めなかったことを出す。
+      const decideUnreadable = (state.result.sources ?? [])
+        .some((source) => decideGroups.includes(source.group) && source.status === 'unavailable');
+      const decideUnknown = decideCount === 0 && decideUnreadable;
       view.append(el(doc, 'p', {
-        className: 'bb-inbox-today-count',
-        text: decideCount > 0 ? `今日決めること ${decideCount}件` : '今日決めることはありません',
+        className: `bb-inbox-today-count${decideUnknown ? ' is-unreadable' : ''}`,
+        text: decideCount > 0
+          ? `今日決めること ${decideCount}件`
+          : decideUnreadable
+            ? '今日決めることを読めませんでした。0件ではありません。'
+            : '今日決めることはありません',
+        attrs: decideUnknown ? { role: 'status' } : {},
       }));
     }
     if (state.phase === 'loading') view.append(el(doc, 'div', { className: 'bb-inbox-loading', text: '読み込んでいます', attrs: { role: 'status' } }));

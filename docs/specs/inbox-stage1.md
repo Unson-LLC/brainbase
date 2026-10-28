@@ -123,7 +123,7 @@ interface InboxPort {
 
 組織版 RQ-121 の受信箱は、この共通UIをそのまま配信したうえで、ホストから次のオプションを渡す。Personal Web などが渡さないときの見た目と振る舞いは、これまでと変えない。
 
-- `layout: 'today'` のときは、タブを出さず1列に並べる。見出しは「受信箱」のまま、その下に `今日決めること <units合計>件` を出す。決めることが0件なら「今日決めることはありません」と出す。
+- `layout: 'today'` のときは、タブを出さず1列に並べる。見出しは「受信箱」のまま、その下に `今日決めること <units合計>件` を出す。決めることが0件なら「今日決めることはありません」と出す。ただし決めることの取得元（group `answer`・`approve`）に `unavailable` があり、読めた決めることが0件のときは、「ありません」と断定せず「今日決めることを読めませんでした。0件ではありません。」を出す（`bb-inbox-today-count is-unreadable`）。`not_connected` の取得元は未接続として扱い、「ありません」のままとする。
 - 段は `decide`（決めること。group `answer` と `approve`）、`batch`（まとめて片付くもの。group `triage`）、`look`（見るだけ。group `task`）の3つ。段の中の並びは `sortInboxItems` のまま。行の無い段は出さず、読めない種類の説明はその group が属する段に出す。
 - 行の待ち日数は `receivedAt` から閲覧者の `now` までを日単位で切り捨て、`待ち <days>日`（0日なら「今日」）と出す。3日を超えるものは `bb-inbox-wait is-long`。`layout: 'today'` の行は相対時刻の代わりにこれを出す。
 - 主ボタン（`tone: 'primary'` の action）がある行には「片付けた」を出さない。「あとで」は出す。
