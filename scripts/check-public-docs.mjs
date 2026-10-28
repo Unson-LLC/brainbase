@@ -4,6 +4,8 @@ import { dirname, extname, join, resolve } from 'node:path';
 import { syncPublicMessage, validatePublicMessage } from './lib/public-message.mjs';
 import { parsePublicReleaseState } from './lib/public-release-state.mjs';
 
+import { headings } from './draft-release-notes.mjs';
+
 const root = resolve(process.cwd());
 
 async function read(relativePath) {
@@ -63,6 +65,49 @@ async function checkLinks(relativePath, text) {
   }
 }
 
+function checkReleaseHeadings(status, version, history) {
+  const state = parsePublicReleaseState(status, version);
+  requireText(status, `Released — v${state.releasedVersion}`, 'status');
+  if (state.state === 'candidate') requireText(status, `Candidate — v${version}`, 'status');
+  requireText(status, 'Develop — release前', 'status');
+  requireText(status, 'Planned — 未実装または未完成', 'status');
+  const expected = state.state === 'candidate' ? `${version} candidate — npm公開前` : version;
+  if (!headings(history).some(h => h.level === 2 && (h.title === expected || (state.state === 'released' && h.title.startsWith(`${expected} `))))) {
+    throw new Error(`version-history missing heading: ## ${expected}`);
+  }
+  requireText(history, '## Unreleased — develop', 'version-history');
+  return state;
+}
+
+function checkDraftMarkers(text) {
+  const markers = [...text.matchAll(/<!--\s*release-notes:([\s\S]*?)-->/g)].map(m => m[1]);
+  const seen = new Set();
+  for (const marker of markers) {
+    if (!/^brainbase#[1-9]\d*\s*$/.test(marker)) throw new Error('Invalid release notes marker');
+    const id = marker.trim();
+    if (seen.has(id)) throw new Error(`Duplicate release notes marker: ${id}`);
+    seen.add(id);
+  }
+  if ((text.match(/<!--\s*release-notes:/g) ?? []).length !== markers.length) throw new Error('Unclosed release notes marker');
+}
+
+async function main() {
+  const args = process.argv.slice(2);
+  if (args.length) {
+    if (args.length !== 2 || args[0] !== '--release-notes-fixture') throw new Error('Usage: check-public-docs.mjs [--release-notes-fixture FILE.json]');
+    // An isolated contract check, never a substitute for the full docs check.
+    const fixture = JSON.parse(await readFile(resolve(args[1]), 'utf8'));
+    checkReleaseHeadings(fixture.status, fixture.version, fixture.history);
+    checkDraftMarkers(fixture.draft);
+    if (!/^<!-- release-notes:brainbase#[1-9]\d* -->/m.test(fixture.draft)) throw new Error('Draft missing release notes marker');
+    if (!headings(fixture.draft).some(h => h.level === 3 && /^PR #[1-9]\d*$/.test(h.title))) throw new Error('Draft missing PR heading');
+    const ids = [...fixture.draft.matchAll(/^### PR #([1-9]\d*)$/gm)].map(m => m[1]);
+    const markers = [...fixture.draft.matchAll(/<!-- release-notes:brainbase#([1-9]\d*) -->/g)].map(m => m[1]);
+    if (JSON.stringify(ids) !== JSON.stringify(markers)) throw new Error('Draft PR/marker mismatch');
+    console.log(JSON.stringify({ status: 'release_notes_fixture_valid' }));
+    return;
+  }
+
 await syncPublicMessage(root, { write: false });
 
 const publicMessage = validatePublicMessage(
@@ -87,7 +132,8 @@ const candidateSchema = JSON.parse(await read('contracts/public-message-candidat
 const docsWorkflow = await read('.github/workflows/docs-cloudflare-pages.yml');
 const promotionWorkflow = await read('.github/workflows/public-message-promotion.yml');
 const publicVerifier = await read('scripts/verify-public-site.mjs');
-const releaseState = parsePublicReleaseState(status, packageJson.version);
+const releaseState = checkReleaseHeadings(status, packageJson.version, versionHistory);
+checkDraftMarkers(versionHistory);
 
 for (const [path, text] of [
   ['README.md', readme],
@@ -204,3 +250,7 @@ process.stdout.write(`${JSON.stringify({
   checked_pages: 8,
   checked_workflows: 2
 }, null, 2)}\n`);
+
+}
+
+main().catch(error => { console.error(error.message); process.exitCode = 1; });
