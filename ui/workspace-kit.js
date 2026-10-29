@@ -783,6 +783,112 @@ export function workspaceTabList(root) {
   return root;
 }
 
+const TAB_STRIP_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'Home', 'End']);
+// How long a key move may wait for the host to redraw before focus is no longer brought back.
+const TAB_STRIP_FOCUS_WINDOW_MS = 5000;
+const tabStrips = new WeakMap();
+const tabStripMemory = new Map();
+const isEnabledTab = node => node?.getAttribute?.('role') === 'tab' && !node.hidden && !node.disabled && node.getAttribute('aria-disabled') !== 'true';
+const isSelectedTab = node => node?.getAttribute?.('aria-selected') === 'true' || node?.getAttribute?.('aria-current') === 'page' || node?.getAttribute?.('aria-pressed') === 'true';
+
+/** Opt-in keyboard switching and a sliding indicator on top of `workspaceTabList`.
+ * Selection stays with the host: a key move calls the tab's own click().  Hosts
+ * that redraw the strip as new nodes pass the same `memoryKey`; hosts that keep
+ * the root and replace its children call `update()` after drawing.
+ */
+export function workspaceTabStrip(root, { memoryKey } = {}) {
+  workspaceTabList(root);
+  if (tabStrips.has(root)) return tabStrips.get(root);
+  const doc = root.ownerDocument;
+  const view = doc?.defaultView;
+  const schedule = typeof view?.requestAnimationFrame === 'function' ? fn => view.requestAnimationFrame(fn) : fn => { Promise.resolve().then(fn); };
+  const key = typeof memoryKey === 'string' && memoryKey ? memoryKey : null;
+  if (key && !tabStripMemory.has(key)) tabStripMemory.set(key, { x: null, width: null, focusUntil: 0 });
+  const local = { x: null, width: null, focusUntil: 0 };
+  const memory = () => (key ? tabStripMemory.get(key) : local);
+  const children = () => Array.from(root.children ?? []);
+  const tabs = () => children().filter(isEnabledTab);
+  const selectedTab = () => children().find(isSelectedTab) ?? null;
+  let placed = false;
+  let destroyed = false;
+
+  const setIndicator = ({ x, width }) => {
+    root.style.setProperty('--bb-tab-indicator-x', `${x}px`);
+    root.style.setProperty('--bb-tab-indicator-width', `${width}px`);
+  };
+  const placeIndicator = tab => {
+    const width = tab?.offsetWidth;
+    if (!(width > 0) || typeof root.style?.setProperty !== 'function') {
+      toggleWorkspaceClass(root, 'is-indicator-ready', false); placed = false; return;
+    }
+    // Measure from the strip itself: before the strip is positioned, offsetLeft counts from an outer box.
+    const box = tab.getBoundingClientRect?.();
+    const origin = root.getBoundingClientRect?.();
+    const target = box && origin ? { x: box.left - origin.left + (root.scrollLeft || 0), width: box.width } : { x: tab.offsetLeft, width };
+    const mem = memory();
+    if (!placed) {
+      // A new strip starts where the last strip with the same key left the bar, then slides.
+      const from = mem.width > 0 && !reducedMotion(root) ? mem : target;
+      toggleWorkspaceClass(root, 'is-indicator-instant', true);
+      setIndicator(from); toggleWorkspaceClass(root, 'is-indicator-ready', true);
+      void root.offsetWidth;
+      toggleWorkspaceClass(root, 'is-indicator-instant', false);
+    }
+    setIndicator(target); placed = true;
+    mem.x = target.x; mem.width = target.width;
+  };
+  const restoreFocus = () => {
+    const mem = memory();
+    if (!(mem.focusUntil > Date.now())) return;
+    const target = selectedTab();
+    if (!target || root.isConnected === false) return;
+    const active = doc?.activeElement ?? null;
+    if (active === target) { mem.focusUntil = 0; return; }
+    const lost = !active || active === doc.body || active.isConnected === false;
+    // Focus moved somewhere else: the viewer chose it, so leave it there.
+    if (!lost && !root.contains?.(active)) { mem.focusUntil = 0; return; }
+    // Still on a tab of this strip: the host has not finished selecting yet.
+    if (!lost) return;
+    target.focus?.({ preventScroll: true });
+    target.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+    mem.focusUntil = 0;
+  };
+  const update = () => {
+    // A strip the host already replaced must not move the shared memory back.
+    if (destroyed || root.isConnected === false) return;
+    const all = tabs();
+    const selected = selectedTab();
+    const focusable = all.includes(selected) ? selected : all[0];
+    for (const tab of all) tab.setAttribute('tabindex', tab === focusable ? '0' : '-1');
+    placeIndicator(selected);
+    restoreFocus();
+  };
+  const keydown = event => {
+    if (!TAB_STRIP_KEYS.has(event.key) || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    const all = tabs();
+    const current = all.indexOf(event.target);
+    if (current < 0 || all.length < 2) return;
+    event.preventDefault?.();
+    const last = all.length - 1;
+    const index = event.key === 'Home' ? 0 : event.key === 'End' ? last : (current + (event.key === 'ArrowRight' ? 1 : last)) % all.length;
+    const next = all[index];
+    if (next === event.target) return;
+    memory().focusUntil = Date.now() + TAB_STRIP_FOCUS_WINDOW_MS;
+    next.focus?.({ preventScroll: true });
+    if (!isSelectedTab(next)) next.click?.();
+    schedule(update);
+  };
+  root.addEventListener?.('keydown', keydown);
+  const controller = { root, update, destroy() {
+    destroyed = true; root.removeEventListener?.('keydown', keydown); tabStrips.delete(root);
+    toggleWorkspaceClass(root, 'is-indicator-ready', false);
+    root.style?.removeProperty?.('--bb-tab-indicator-x'); root.style?.removeProperty?.('--bb-tab-indicator-width');
+  } };
+  tabStrips.set(root, controller);
+  schedule(update);
+  return controller;
+}
+
 /** The shared shallow dropdown chevron, sized and colored through shared CSS. */
 export function workspaceDropdownChevron(doc) {
   const wrap = el(doc, 'span', { className: 'bb-ws-combobox-chevron', attrs: { 'aria-hidden': 'true' } });

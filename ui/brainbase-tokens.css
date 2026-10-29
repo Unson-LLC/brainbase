@@ -103,6 +103,8 @@
   --bb-tab-line-height: 20px;
   --bb-tab-font-weight: 500;
   --bb-tab-indicator-size: 2px;
+  --bb-tab-indicator-duration: 260ms;
+  --bb-tab-indicator-ease: cubic-bezier(.2, .8, .2, 1);
   --bb-tab-count-size: 20px;
   --bb-tab-count-font-size: 12px;
   /* Opt-in search band: dimensions and interaction surfaces. */
