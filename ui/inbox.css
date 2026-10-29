@@ -142,6 +142,76 @@ a.bb-inbox-title:focus-visible {
   color: var(--bb-color-ink);
 }
 
+.bb-inbox-due.is-soon {
+  color: var(--bb-color-warning);
+  font-weight: 600;
+}
+
+.bb-inbox-due.is-expired {
+  border-radius: 999px;
+  padding: 0 8px;
+  background: var(--bb-color-danger-soft);
+  color: var(--bb-color-danger);
+  font-weight: 600;
+}
+
+.bb-inbox-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 2px var(--bb-space-3);
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+
+.bb-inbox-fact {
+  display: contents;
+}
+
+.bb-inbox-facts dt {
+  color: var(--bb-color-muted);
+}
+
+.bb-inbox-facts dd {
+  margin: 0;
+  color: var(--bb-color-ink);
+  overflow-wrap: anywhere;
+}
+
+.bb-inbox-row.is-running .bb-inbox-row-main {
+  opacity: 0.6;
+}
+
+.bb-inbox-running {
+  align-self: center;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-inbox-done {
+  color: var(--bb-color-success);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.bb-inbox-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  flex-basis: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--bb-space-2) var(--bb-space-3);
+  border-radius: var(--bb-radius-sm);
+  padding: var(--bb-space-2) var(--bb-space-3);
+  background: var(--bb-color-danger-soft);
+}
+
+.bb-inbox-confirm-text {
+  margin: 0;
+  color: var(--bb-color-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .bb-inbox-row-actions {
   display: flex;
   flex-wrap: wrap;

@@ -256,6 +256,36 @@ function waitingDays(value, now) {
   return Math.max(0, Math.floor((now.getTime() - time) / 86_400_000));
 }
 
+const DUE_SOON_MS = 86_400_000;
+
+/**
+ * How a due time reads on a row: past it is 期限切れ, within a day it is the
+ * time left, otherwise the date.  Only the words change; whether the request
+ * has lapsed is the host's record, never this clock.
+ */
+export function inboxDueLabel(value, now = new Date()) {
+  const time = timeOf(value);
+  if (time === null) return null;
+  const left = time - now.getTime();
+  if (left <= 0) return { state: 'expired', text: '期限切れ' };
+  if (left <= DUE_SOON_MS) {
+    const minutes = Math.ceil(left / 60_000);
+    return { state: 'soon', text: minutes < 60 ? `期限まであと${minutes}分` : `期限まであと${Math.floor(minutes / 60)}時間` };
+  }
+  return { state: 'later', text: `期限 ${formatShort(value)}` };
+}
+
+/** The named facts of a row (依頼・対象 …), in the host's order; anything without both words is left out. */
+function factsOf(item) {
+  return (Array.isArray(item?.facts) ? item.facts : [])
+    .map((fact) => ({ label: textOf(fact?.label), value: textOf(fact?.value) }))
+    .filter((fact) => fact.label && fact.value);
+}
+
+function doneTextOf(action) {
+  return textOf(action?.doneLabel) ?? `「${action.label}」を実行しました`;
+}
+
 export function createInboxUI({
   root,
   page,
@@ -268,6 +298,7 @@ export function createInboxUI({
   now = () => new Date(),
   layout: layoutOption = 'tabs',
   undoWindowMs: undoWindowMsOption = 0,
+  doneShownMs: doneShownMsOption = 1100,
   timers: timersOption,
 } = {}) {
   if (!root) throw new TypeError('root is required');
@@ -280,6 +311,7 @@ export function createInboxUI({
   const readNow = () => (typeof now === 'function' ? now() : now);
   const layout = layoutOption === 'today' ? 'today' : 'tabs';
   const undoWindowMs = Number.isFinite(undoWindowMsOption) && undoWindowMsOption > 0 ? undoWindowMsOption : 0;
+  const doneShownMs = Number.isFinite(doneShownMsOption) && doneShownMsOption >= 0 ? doneShownMsOption : 1100;
   const timers = {
     set: typeof timersOption?.set === 'function' ? timersOption.set : (fn, ms) => globalThis.setTimeout(fn, ms),
     clear: typeof timersOption?.clear === 'function' ? timersOption.clear : (id) => globalThis.clearTimeout(id),
@@ -302,9 +334,29 @@ export function createInboxUI({
     notices: null,
     pending: new Map(),
     sent: new Set(),
+    // A row whose action was sent and has not answered: its buttons stay still.
+    running: new Map(),
+    // A row whose action succeeded: its result shows for a moment before the rows are read again.
+    done: new Map(),
+    // The one action waiting for its second press (an action with `confirm`).
+    confirming: null,
+    // Where focus goes on the next render ({ itemId, target: 'confirm' | 'action', actionId }).
+    focus: null,
+    // A result to read out with the next count (an action sent after its undo window).
+    said: null,
     destroyed: false,
   };
   let generation = 0;
+  const doneTimers = new Set();
+  // The element to focus once the next render is in place (the confirm band's buttons).
+  let focusTarget = null;
+  // One live region kept across renders, so a changed count or a result is read out once.
+  const announcer = el(doc, 'p', { className: 'bb-inbox-announcer bb-ws-visually-hidden', attrs: { role: 'status', 'aria-live': 'polite' } });
+  let lastAnnouncedCount = null;
+
+  function announce(text) {
+    announcer.textContent = text;
+  }
 
   function setNotice(message, owner = null) {
     state.notice = message;
@@ -328,27 +380,33 @@ export function createInboxUI({
     else applyRoute(next);
   }
 
-  function reportCount() {
-    if (typeof onCount !== 'function') return;
-    if (!state.result) {
-      onCount({ count: null, unreadable: [] });
-      return;
-    }
+  function countNow() {
+    if (!state.result) return { count: null, unreadable: [] };
     const current = readNow();
     const base = countInboxWaiting({ ...state.result, dispositions: [...state.dispositions.values()] }, current);
-    if ((state.pending.size === 0 && state.sent.size === 0) || base.count === null) {
-      onCount(base);
-      return;
-    }
+    // Rows waiting to be sent, sent, or showing their result are not waiting any more.
+    const gone = new Set([...state.pending.keys(), ...state.sent, ...state.done.keys()]);
+    if (gone.size === 0 || base.count === null) return base;
     const rows = new Map(readableItems(state.result).map((item) => [item.id, item]));
     let count = base.count;
-    for (const id of new Set([...state.pending.keys(), ...state.sent])) {
+    for (const id of gone) {
       const row = rows.get(id);
       if (!row) continue;
       if (activeDisposition(row, state.dispositions, current)) continue;
       count -= unitsOf(row);
     }
-    onCount({ count: Math.max(0, count), unreadable: base.unreadable });
+    return { count: Math.max(0, count), unreadable: base.unreadable };
+  }
+
+  /** Tells the host the count, and reads it out when it changed (never the first one) or with a result. */
+  function reportCount({ said = null } = {}) {
+    const counted = countNow();
+    if (typeof onCount === 'function') onCount(counted);
+    const words = said ?? state.said;
+    state.said = null;
+    if (words) announce(counted.count === null ? words : `${words}。対応待ち ${counted.count}件`);
+    else if (lastAnnouncedCount !== null && counted.count !== null && counted.count !== lastAnnouncedCount) announce(`対応待ち ${counted.count}件`);
+    if (counted.count !== null) lastAnnouncedCount = counted.count;
   }
 
   function noticesWanted() {
@@ -387,12 +445,18 @@ export function createInboxUI({
       result = { status: 'unavailable', reason: error instanceof Error ? error.message : 'request_failed' };
     }
     if (current !== generation || state.destroyed) return;
+    state.done.clear();
     if (result?.status === 'ok' && Array.isArray(result.sources) && Array.isArray(result.items)) {
       state.result = result;
       state.dispositions = dispositionMap(result.dispositions);
       state.phase = 'ready';
       state.reason = null;
       state.sent.clear();
+      // A confirm band is for the row as it was; a changed or gone row closes it.
+      const confirming = state.confirming;
+      if (confirming && !readableItems(result).some((item) => item.id === confirming.itemId && (item.revision ?? null) === confirming.revision)) {
+        state.confirming = null;
+      }
     } else {
       state.result = null;
       state.phase = 'error';
@@ -437,22 +501,43 @@ export function createInboxUI({
   }
 
   async function runAction(item, action) {
+    // The row stays still while its action is out: a second press sends nothing.
+    if (state.running.has(item.id) || state.done.has(item.id)) return;
     const owner = { itemId: item.id, actionId: action.id };
+    state.running.set(item.id, action.id);
+    state.laterOpen = null;
+    render();
     let result;
     try {
       result = await port.runAction(item.id, action.id);
     } catch (error) {
       result = { status: 'unavailable', reason: error instanceof Error ? error.message : 'request_failed' };
     }
+    state.running.delete(item.id);
     if (state.destroyed) return;
     if (result?.status === 'ok') {
       if (undoWindowMs > 0) clearNoticeFor(owner);
       else clearNotice();
-      await load();
+      await showDone(item, action);
       return;
     }
     setNotice(`「${action.label}」を実行できませんでした。理由: ${reasonText(result?.reason ?? 'response_invalid')}。`, owner);
     render();
+  }
+
+  /** The host said yes: the row shows its result for a moment, then the rows are read again. */
+  function showDone(item, action) {
+    const said = doneTextOf(action);
+    state.done.set(item.id, said);
+    render();
+    reportCount({ said });
+    return new Promise((resolve) => {
+      const timerId = timers.set(() => {
+        doneTimers.delete(timerId);
+        resolve(load());
+      }, doneShownMs);
+      doneTimers.add(timerId);
+    });
   }
 
   function clearPendingTimer(entry) {
@@ -474,6 +559,7 @@ export function createInboxUI({
     if (state.destroyed) return;
     if (result?.status === 'ok') {
       state.sent.add(entry.item.id);
+      state.said = doneTextOf(entry.action);
       clearNoticeFor({ itemId: entry.item.id, actionId: entry.action.id });
       await load();
       return;
@@ -494,6 +580,52 @@ export function createInboxUI({
     entry.timerId = timers.set(() => { void commitPending(entry); }, undoWindowMs);
     render();
     reportCount();
+  }
+
+  /** A press on a row's action: one with `confirm` first turns the row's buttons into the confirm band. */
+  function pressFromRow(item, action) {
+    if (state.running.has(item.id) || state.done.has(item.id)) return;
+    if (textOf(action.confirm)) {
+      state.confirming = { itemId: item.id, actionId: action.id, revision: item.revision ?? null };
+      state.focus = { itemId: item.id, target: 'confirm' };
+      state.laterOpen = null;
+      render();
+      return;
+    }
+    pressAction(item, action);
+  }
+
+  function confirmingAction(item, actions) {
+    const confirming = state.confirming;
+    if (!confirming || confirming.itemId !== item.id || confirming.revision !== (item.revision ?? null)) return null;
+    return actions.find((action) => action.id === confirming.actionId && textOf(action.confirm)) ?? null;
+  }
+
+  function renderConfirm(item, action) {
+    const band = el(doc, 'div', { className: 'bb-inbox-confirm', attrs: { role: 'group', 'aria-label': `「${action.label}」の確認` } });
+    band.append(el(doc, 'p', { className: 'bb-inbox-confirm-text', text: textOf(action.confirm) }));
+    const buttons = el(doc, 'div', { className: 'bb-inbox-row-actions' });
+    const send = workspaceButton(doc, {
+      text: action.label,
+      variant: action.tone === 'danger' ? 'danger' : 'primary',
+      onClick: () => {
+        state.confirming = null;
+        pressAction(item, action);
+      },
+    });
+    const cancel = workspaceButton(doc, {
+      text: 'やめる',
+      variant: 'quiet',
+      onClick: () => {
+        state.confirming = null;
+        state.focus = { itemId: item.id, target: 'action', actionId: action.id };
+        render();
+      },
+    });
+    if (state.focus?.itemId === item.id && state.focus.target === 'confirm') focusTarget = send;
+    buttons.append(send, cancel);
+    band.append(buttons);
+    return band;
   }
 
   function undoPending(entry) {
@@ -544,17 +676,40 @@ export function createInboxUI({
     return menu;
   }
 
+  function renderFacts(facts) {
+    const list = el(doc, 'dl', { className: 'bb-inbox-facts' });
+    for (const fact of facts) {
+      const pair = el(doc, 'div', { className: 'bb-inbox-fact' });
+      pair.append(el(doc, 'dt', { text: fact.label }), el(doc, 'dd', { text: fact.value }));
+      list.append(pair);
+    }
+    return list;
+  }
+
   function renderRow(item, view) {
-    const row = el(doc, 'div', { className: `bb-inbox-row${item.blocking === true ? ' is-blocking' : ''}`, attrs: { role: 'listitem', 'data-inbox-item': item.id } });
+    const running = view === 'waiting' && state.running.has(item.id);
+    const done = view === 'waiting' ? state.done.get(item.id) ?? null : null;
+    const row = el(doc, 'div', {
+      className: `bb-inbox-row${item.blocking === true ? ' is-blocking' : ''}${running ? ' is-running' : ''}${done ? ' is-done' : ''}`,
+      attrs: { role: 'listitem', 'data-inbox-item': item.id, 'aria-busy': running ? 'true' : undefined },
+    });
     const main = el(doc, 'div', { className: 'bb-inbox-row-main' });
     const href = textOf(item.href);
     const title = el(doc, href ? 'a' : 'span', { className: 'bb-inbox-title', text: item.title, attrs: href ? { href } : {} });
     if (href) title.addEventListener('click', (event) => openItem(item, event));
     main.append(title);
+    const facts = factsOf(item);
+    if (facts.length > 0) main.append(renderFacts(facts));
     const meta = el(doc, 'div', { className: 'bb-inbox-meta' });
     if (item.blocking === true) meta.append(el(doc, 'span', { className: 'bb-inbox-blocking', text: '止めています' }));
-    const due = formatShort(item.dueAt);
-    if (due) meta.append(el(doc, 'span', { className: 'bb-inbox-due', text: `期限 ${due}` }));
+    const due = inboxDueLabel(item.dueAt, readNow());
+    if (due) {
+      meta.append(el(doc, 'span', {
+        className: `bb-inbox-due${due.state === 'later' ? '' : ` is-${due.state}`}`,
+        text: due.text,
+        attrs: { title: due.state === 'later' ? undefined : `期限 ${formatShort(item.dueAt)}` },
+      }));
+    }
     if (layout === 'today') {
       const days = waitingDays(item.receivedAt, readNow());
       if (days !== null) {
@@ -575,22 +730,36 @@ export function createInboxUI({
     row.append(main);
 
     const controls = el(doc, 'div', { className: 'bb-inbox-row-actions' });
+    if (done) {
+      controls.append(el(doc, 'span', { className: 'bb-inbox-done', text: `✓ ${done}` }));
+      row.append(controls);
+      return row;
+    }
     if (view === 'waiting') {
       const actions = typeof port.runAction === 'function'
         ? (Array.isArray(item.actions) ? item.actions : []).filter((action) => textOf(action?.id) && textOf(action?.label))
         : [];
+      const confirming = running ? null : confirmingAction(item, actions);
+      if (confirming) {
+        row.append(renderConfirm(item, confirming));
+        return row;
+      }
       const hasPrimary = actions.some((action) => action.tone === 'primary');
       for (const action of actions) {
-        controls.append(workspaceButton(doc, {
+        const button = workspaceButton(doc, {
           text: action.label,
           variant: action.tone === 'primary' ? 'primary' : action.tone === 'danger' ? 'danger' : 'default',
-          onClick: () => pressAction(item, action),
-        }));
+          disabled: running,
+          onClick: () => pressFromRow(item, action),
+        });
+        if (state.focus?.itemId === item.id && state.focus.target === 'action' && state.focus.actionId === action.id) focusTarget = button;
+        controls.append(button);
       }
       controls.append(
         workspaceButton(doc, {
           text: 'あとで',
           variant: 'quiet',
+          disabled: running,
           attrs: { 'aria-expanded': state.laterOpen === item.id ? 'true' : 'false', 'aria-haspopup': 'true' },
           onClick: () => {
             state.laterOpen = state.laterOpen === item.id ? null : item.id;
@@ -599,13 +768,14 @@ export function createInboxUI({
         }),
       );
       if (!(layout === 'today' && hasPrimary)) {
-        controls.append(workspaceButton(doc, { text: '片付けた', variant: 'quiet', onClick: () => void dispose(item, { state: 'cleared', revision: item.revision ?? null }, '片付けられませんでした') }));
+        controls.append(workspaceButton(doc, { text: '片付けた', variant: 'quiet', disabled: running, onClick: () => void dispose(item, { state: 'cleared', revision: item.revision ?? null }, '片付けられませんでした') }));
       }
+      if (running) controls.append(el(doc, 'span', { className: 'bb-inbox-running', text: '送っています' }));
     } else {
       controls.append(workspaceButton(doc, { text: '対応待ちに戻す', variant: 'quiet', onClick: () => void dispose(item, { state: 'open' }, '対応待ちに戻せませんでした') }));
     }
     row.append(controls);
-    if (state.laterOpen === item.id) row.append(renderLaterMenu(item));
+    if (state.laterOpen === item.id && !running) row.append(renderLaterMenu(item));
     return row;
   }
 
@@ -738,8 +908,11 @@ export function createInboxUI({
   function render() {
     if (state.destroyed) return;
     const current = readNow();
+    focusTarget = null;
     const shown = state.result ? partition(current) : null;
-    const waitingCount = shown ? shown.waiting.reduce((sum, item) => sum + unitsOf(item), 0) : null;
+    // A row showing its result is still drawn but no longer waiting.
+    const stillWaiting = (item) => !state.done.has(item.id);
+    const waitingCount = shown ? shown.waiting.filter(stillWaiting).reduce((sum, item) => sum + unitsOf(item), 0) : null;
     const isToday = layout === 'today';
     const view = el(doc, 'div', {
       className: `bb-inbox${isToday ? ' is-today' : ''}`,
@@ -750,7 +923,7 @@ export function createInboxUI({
     if (isToday && shown) {
       const decideGroups = INBOX_TODAY_SECTIONS[0].groups;
       const decideCount = shown.waiting
-        .filter((item) => decideGroups.includes(item.group))
+        .filter((item) => decideGroups.includes(item.group) && stillWaiting(item))
         .reduce((sum, item) => sum + unitsOf(item), 0);
       // 決めることの取得元（answer・approve）が読めていないのに0件を「ありません」と
       // 断定しない。読めなかったときは件数ではなく、読めなかったことを出す。
@@ -779,7 +952,11 @@ export function createInboxUI({
       if (isToday) view.append(state.route.view === 'waiting' ? renderTodayWaiting(shown) : renderSet(shown, state.route.view));
       else view.append(state.route.view === 'waiting' ? renderWaiting(shown) : renderSet(shown, state.route.view));
     }
-    root.replaceChildren(view);
+    root.replaceChildren(view, announcer);
+    if (state.focus) {
+      focusTarget?.focus?.({ preventScroll: true });
+      state.focus = null;
+    }
   }
 
   const controller = {
@@ -791,6 +968,8 @@ export function createInboxUI({
     destroy() {
       state.destroyed = true;
       generation += 1;
+      for (const timerId of doneTimers) timers.clear(timerId);
+      doneTimers.clear();
       const remaining = [...state.pending.values()];
       state.pending.clear();
       for (const entry of remaining) {
