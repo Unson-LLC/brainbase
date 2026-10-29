@@ -41,7 +41,7 @@ PlaudとTactiqの公式MCPから、指定した期間の会議の一覧と、各
 
 ### 要約 `readProviderSummary({ provider, callTool, meetingId })`
 
-- Plaudは `get_note`、Tactiqは `get_meeting` の `detailedSummary`。結果は `{ status: 'ok', summary: { kind: 'provider_summary', text } | null }` で、全文の結果には混ぜない。生成待ちや空は `summary: null`、失敗は `{ status: 'unavailable', failure }`。
+- Plaudは `get_note`、Tactiqは `get_meeting` の `detailedSummary`。結果は `{ status: 'ok', state, summary: { kind: 'provider_summary', text } | null, jobId }` で、全文の結果には混ぜない。`state` は `ready`（使える要約あり・`summary` は非null）／`generating`（Tactiqが生成中。`summary` は null、`jobId` で後から取り直す）／`empty`（要約なし）。生成中は『未完了』として保存し、後で取り直せるようにする。失敗は `{ status: 'unavailable', failure }`。
 
 ## テスト
 
