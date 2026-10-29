@@ -2,7 +2,7 @@
 
 状態: 設計（Planned）。実装・テスト・npm 公開・本番反映は本書に含めない。
 対象読者: Director とレビュアー。
-Director 確認前の未決（資格の粒度、訂正の残し方、migration の有無）は §11。選択肢・推奨・必要な権限を書いてあり、決定済みではない。
+Director が確定した 3 点（資格の分け方、訂正の残し方、保存先）は §11。決定済みであり、未決のままにはしない。
 関連:
 - 要件台帳 RQ-126（117 行「Grok Bot 自身の判断も、判断の履歴に届ける」）。
 - 要件台帳 RQ-119（109 行「Claude Code と opencode の判断を届ける。Grok Bot 自身は対象外」）＝本件が埋める空白。
@@ -48,15 +48,15 @@ Grok Bot 自身（Director / Worker などの Grok bot）が下す判断を、Co
 - Grok Bot の実行環境のどこで判断の区切り（turn）を取るかの決定（§3）。
 - 何を送るか＝共有 record 契約のどの項目を埋めるか、entrypoint `grok_bot` の新設、public_frame の明示記録の担い手、session_id / turn_id / resolved_at / project_code / 実モデル名の取り方（§4）。
 - RQ-119 の共通送り口（#878 S1）を使うかどうかと、使う場合に S1 へ足りない点（§5）。
-- 認証: §5（#878）の `judgment.record` 認可を Grok Bot の資格にどう付けるか。資格の出し直しが人の操作であり、人の通常操作とは別の承認を要することの明記（§6）。
+- 認証: §5（#878）の `judgment.record` 認可を Grok Bot の資格に付ける。資格は Director と Worker で分け、再発行は owner または CEO の別承認だけにする（§6・§11.1）。権限は project スコープの `judgment:write`。
 - 冪等性・再送・失敗時の理由コード（#878 §6・§7 にそろえる。§7）。
 - 組織版（brainbase-organization）側で要る変更の一覧と、npm 公開が要る箇所（§8）。
 - 実装を Draft PR 単位に分けた Story 一覧と受入条件（§9）。
-- 残っている未決について、選択肢・推奨・必要な権限・migration の有無を書く（§11）。
+- Director が確定した資格・訂正・保存先を書く。いずれも migration は不要（§11）。
 
 ### やらないこと
 - 実装・テストコード（本書は設計のみ）。
-- npm 公開・本番反映・配備、および migration / schema / GRANT / ROLE / RLS の適用。要否の判断材料は §11.3（推奨は migration 不要）。
+- npm 公開・本番反映・配備、および migration / schema / GRANT / ROLE / RLS の適用。保存先は既存の receipt JSONB であり、新しい列・GRANT・RLS・migration は要らない（§11.3）。
 - Grok Bot の過去（本機能稼働前）の判断のバックフィル（#878 §8 と同方針）。
 - 道具の実行の判断（RQ-119 の対象）の再設計。
 - Mac relay の owner 資格修復（RQ-120）。
@@ -115,7 +115,7 @@ Codex / RQ-119 Worker と同じ共有 record 契約（`src/judgment-history.ts` 
 - 現在の enum は `JUDGMENT_HISTORY_ENTRYPOINTS = ['codex','claude_code','mana','company_os','unknown']`（`src/judgment-history.ts:11-17`。develop 時点。RQ-119 が追加予定の `opencode` はまだ develop に無い）。
 - 本件は **`grok_bot` を新設** する。理由: Grok Bot 自身の判断は道具の実行（codex / claude_code / opencode）とは別主体であり、履歴上で区別できる必要がある（オーナーの問いは「Grok の判断」が見えないことだった）。
 - 実モデル名（例 grok-4 等の実名）は **entrypoint では表さない**。entrypoint は「Grok Bot 自身」という主体の種別を表し、実モデル名は receipt の **メタ情報** に残す（#878 決定事項(3) と同じ扱い。RQ-119 が「DeepSeek / deepseek-flash を entrypoint にせず opencode にする」としたのと同型）。
-- Director / Worker の役割区別（どの bot か）は entrypoint では分けず、メタの `bot_role`（`director` | `worker` | `unknown`）に残す。実モデル名も同じメタに残す。OSS の公開 record には person の実値も agent member の生識別子も入れない。それらは組織版 receipt の既存の別列に残す（§6・§11.3）。entrypoint を役割ごとに増やすと enum が運用で膨らむため。
+- Director / Worker の役割区別（どの bot か）は entrypoint では分けず、メタの `bot_role`（`director` | `worker` | `unknown`）に残す。実モデル名も同じメタに残す。置き場は既存 `judgment_receipts.receipt` JSONB である。新しい列は足さない（§11.3）。OSS の公開 record には person の実値も agent member の生識別子も入れない。それらは組織版 receipt の既存列（`owner_person_id` など）に残す（§6）。entrypoint を役割ごとに増やすと enum が運用で膨らむため。資格そのものは Director と Worker で分ける（§6・§11.1）。entrypoint と資格は別である。
 - 共有契約（enum）の変更は影響範囲が広い（§8・§9 の S1）。`src/judgment-history.ts` に加え、同じ enum を持つ外部正本（`contract.js:7` ＝ #878 の引用。sandbox 外）にも `grok_bot` を足す必要がある。合意は実装 Story で取る。
 
 ### 4.2 record に埋める項目
@@ -158,7 +158,7 @@ RQ-119 S1 をそのまま使える部分:
 S1 に **足りない点（本件で足す差分）**:
 1. **entrypoint `grok_bot` の追加**（§4.1）。S1 の契約骨格は enum に依存するため、enum に `grok_bot` を加える（＋外部正本 `contract.js`）。
 2. **道具イベントに依存しない入力口**。S1 のアダプタ入力は hook イベント（Stop / session.idle）を前提にしている。Grok Bot にはそのイベントが無いので、**記録コマンド（CLI / MCP tool）から session_id / turn_id / resolved_at / project_code / public_frame を直接受ける入力路**を S1 に足す（§3 案(c)・§4.3）。S1 は「イベント適応層は薄いアダプタ、認証・冪等・送信・保持は共通」という分離（#878 §3.2）なので、Grok 用アダプタ＝記録コマンドを新規に足すだけで中核は共有できる。
-3. **実モデル名・bot_role のメタ情報**をメタ欄に通す（S1 が受けて receipt メタに載せる。§4.1）。
+3. **実モデル名・bot_role のメタ情報**をメタ欄に通す（S1 が受けて、既存 `judgment_receipts.receipt` JSONB に載せる。新しい列は足さない。§4.1・§11.3）。
 4. **判断ブロック＝ turn の区切り規約**（§2）に対応する turn_id の受け口（S1 は turn_id を受けるだけでよく、区切りの決定は Grok Bot 側）。
 
 いずれも S1 の中核契約を変えず、入力口と enum を広げるだけで足りる。
@@ -170,13 +170,13 @@ S1 に **足りない点（本件で足す差分）**:
 RQ-119 §5（#878）の agent 資格・認可の枠組みをそのまま使う。Grok Bot 固有の差分だけ書く。
 
 - 原則: Grok Bot は人ではない。owner JWT（人の資格）を流用しない（#878 §5）。使うのは組織版の **agent 資格（agent-credential-service / `agent-mcp-authorization.js`。#878 §5 の引用、sandbox 外）**。
-- agent member 資格を Director と Worker で分けるか、Grok Bot 群で 1 つにするかは §11.1（推奨は分ける）。scope は 1 組織・1 テナント・対象 project に限定し、`judgment_receipts` の RLS（#878 §4・§5 の引用）と整合させる。必要な権限は `judgment:write`（下記）。
-- **帰属の写像**（#878 §5 の決定事項(1) をそのまま継ぐ）: receipt の `owner_person_id` には、照合済み資格行が示す **owner person（project owner。例 オーナー）** を入れる。Grok Bot 自身（agent member の personId）は `owner_person_id` にしない。agent 本人の personId は別列（メタ）に記録し、照合されていない owner 指定は拒否する。これにより `judgment_receipts` の一意キーと RLS が成立する。
+- agent member 資格は Director と Worker で分ける（§11.1）。Grok Bot 群で 1 資格にはしない。scope はいずれも 1 組織・1 テナント・対象 project に限定し、`judgment_receipts` の既存 RLS（#878 §4・§5 の引用）と整合させる。新しい GRANT / RLS は足さない。必要な権限は project スコープの `judgment:write`（`toolName='judgment.record'`、`resourceId` は `project_code`。下記）。
+- **帰属の写像**（#878 §5 の決定事項(1) をそのまま継ぐ）: receipt の `owner_person_id` には、照合済み資格行が示す **owner person（project owner。例 オーナー）** を入れる。Grok Bot 自身（agent member の personId）は `owner_person_id` にしない。agent 本人の personId は既存の別列に記録し、新しい列は足さない。照合されていない owner 指定は拒否する。これにより `judgment_receipts` の一意キーと RLS が成立する。entrypoint `grok_bot`、`bot_role`、実モデル名は既存の `receipt` JSONB に載せる（§11.3）。
   - 意味: 「Grok Bot 自身の判断」も、履歴上の持ち主は **委任元の人（project owner）** である。entrypoint `grok_bot` と実モデル名・bot_role メタで「実際に判断したのは Grok Bot である」ことは残る。
-- **判断記録用の認可**（#878 §5 の決定事項(2)(b)）: `agent-mcp-authorization.js` の操作別認可は既存のタスク／進捗ツール限定で判断記録は対象外。判断記録用の `toolName='judgment.record'`、`resourceId`（`project_code`（＋ owner person）スコープ）、必要権限 `judgment:write` を新たに定義する必要がある。Grok Bot の資格にこの権限を付与して初めて記録できる。この認可が定義されるまでは本人（資格）確認だけで書き込みを許さない。
-- **資格の出し直しは人の操作で、人の通常操作とは別の承認が要る**（#878 §5 の決定事項(2)(a)・未決事項8 を継ぐ。本件で明示）:
+- **判断記録用の認可**（#878 §5 の決定事項(2)(b)）: `agent-mcp-authorization.js` の操作別認可は既存のタスク／進捗ツール限定で判断記録は対象外。判断記録用の `toolName='judgment.record'`、`resourceId`（`project_code`（＋ owner person）スコープ）、必要権限 `judgment:write` を新たに定義する必要がある。Director と Worker のそれぞれの資格に、この project スコープの権限を付与して初めて記録できる。この認可が定義されるまでは本人（資格）確認だけで書き込みを許さない。
+- **資格の再発行は、owner または CEO の別承認があるときだけ行う**（#878 §5 の決定事項(2)(a) を継ぎ、本件 §11.1 で確定）:
   - agent-credential-service の `issue()` は `authority()` で有効な人間の owner/CEO を要求し、agent 自身からの発行を拒否する（#878 §5 の引用）。したがって **Grok Bot は自分の資格を作り直せない**。
-  - 資格の出し直し（issue / 再発行）は、Grok Bot の判断を記録するという通常の運用操作とは **別の、人（owner/CEO）による明示承認** を要する。Grok Bot が「記録のために資格が要る」と判断しても、それだけで資格を得ることはできない。人の承認の記録（誰が・いつ・どの scope で発行したか）を残す。
+  - 資格の出し直し（issue / 再発行）は、Grok Bot の判断を記録するという通常の運用操作とは **別の、人（owner または CEO）による明示承認** を要する。再発行のたびにこの別承認が要る。Bot 自身や自動サービスによる再発行はしない。Grok Bot が「記録のために資格が要る」と判断しても、それだけで資格を得ることはできない。人の承認の記録（誰が・いつ・どの scope で発行したか）を残す。
   - Grok Bot の送り口は送信前に必ず資格の有効性を確かめ、期限切れ／失効を検知したら自動再発行せず outbox を保持して停止し（`blocked_credential`、理由コード例 `agent_credential_expired` / `agent_credential_revoked`）、人に再発行が必要なことを知らせる。人が再発行した後に `blocked_credential` を `pending` に戻して再開する（#878 §7）。
 - 受け手側（組織版）: 非 person（agent）認証を受理する判断受領エンドポイント（#878 S4 と同じ口）を使う。`agent-mcp-authorization.js` の資格行照合（agentMemberId / ownerPersonId の区別・scope・失効確認）に通し、照合済み ownerPersonId を保存用 actor へ写像してから `judgment_receipts.record()` を呼ぶ。Grok Bot 専用の新しい受領口は作らず、RQ-119 S4 の受領口に entrypoint `grok_bot` を受理させるだけにする（口の分散を避ける）。
 - ログ規則: token / bearer / person の実値、プロンプト全文、応答、会話本文を outbox・ログに出さない。失敗は理由コード（`judgment_*` / `grok_bot_*` 形）だけ（#878 §5）。
@@ -197,7 +197,7 @@ RQ-119 §6（冪等受領契約）・§7（失敗保持）をそのまま継ぐ�
   - 同一キー＋内容一致 → `already_saved`（成功。`src/judgment-history.ts:44` の `status:'saved'|'already_saved'`）。
   - 同一キー＋内容相違 → 競合 409 `judgment_receipt_immutable_conflict`。黙って上書きしない。送り手は理由コードを残し、resolution_id 導出ミスや内容取り違えとして扱う。
 - content_digest ／ receipt_digest の役割分担は #878 §6 と同じ。
-- 判断の訂正（同じ判断ブロックを後で訂正した場合）: #878 §9 未決事項6 を継ぐ。選択肢・推奨・権限・migration の有無は §11.2。Director の確認前は未決。推奨は、行を更新せず別 `resolution_id` の receipt に `kind: correction` と元 record へのリンクを載せる。`JudgmentHistoryFeedbackEvent`（`src/judgment-history.ts:34-39`、kind=`correction`）は読み出し側の形であり、専用表は作らない。
+- 判断の訂正（同じ判断ブロックを後で訂正した場合）: 訂正は **新しい receipt** である（§11.2）。`kind` は `correction`。元 record へのリンク（`record_id` または元の `resolution_id`）を載せる。元の record は編集しない。内容が変われば content_digest が変わり、別 `resolution_id` になる。権限は初回と同じ project スコープの `judgment:write`。`JudgmentHistoryFeedbackEvent`（`src/judgment-history.ts:26` の `JudgmentHistoryFeedbackKind` と `:389` の `FEEDBACK_KINDS` に `correction` がある。公開形は `:34-39`）は読み出し側の形であり、専用表は作らない。行の更新もしない。
 
 ### 失敗保持（#878 §7）
 - ローカル outbox: 共通送り口が送信前に `pending/attempts/status/envelope-digest` を書く（#878 §7、envelope と digest のみ）。
@@ -221,11 +221,11 @@ RQ-119 §6（冪等受領契約）・§7（失敗保持）をそのまま継ぐ�
 
 ### 組織版で要る変更（RQ-119 S4 と大半を共有）
 1. **判断受領エンドポイント（非 person / agent 認証）**: RQ-119 S4 で設計する受領口に、entrypoint `grok_bot` を受理させる。Grok 専用の新口は作らない（口の分散回避）。現 route は person 専用（`public-projection-route.js:19,391` の引用）なので、agent 資格受理の口が前提（S4 と共有）。
-2. **`judgment.record` 認可の定義**（§6）: `agent-mcp-authorization.js` に `toolName='judgment.record'` / `resourceId`（project スコープ）/ `judgment:write` を定義し、Grok Bot の agent member にその権限を付与できるようにする（RQ-119 S4 と共有の定義）。
-3. **Grok Bot の agent credential**: Director / Worker の Grok Bot に agent member 資格を発行する運用（人の承認つき。§6）。これは組織版の発行フローの運用設定であり、OSS の範囲外。
+2. **`judgment.record` 認可の定義**（§6）: `agent-mcp-authorization.js` に `toolName='judgment.record'` / `resourceId`（project スコープ）/ `judgment:write` を定義し、Director と Worker のそれぞれの agent member にその権限を付与できるようにする（RQ-119 S4 と共有の定義）。資格は Bot ごとに分け、再発行は owner または CEO の別承認だけにする（§11.1）。
+3. **Grok Bot の agent credential**: Director と Worker に、別々の agent member 資格を発行する運用（再発行は owner または CEO の別承認だけ。§6・§11.1）。これは組織版の発行フローの運用設定であり、OSS の範囲外。新しい列・GRANT・RLS・migration は要らない。
 4. **409 読み戻し・receipt_digest 比較の追加実装**（#878 §6。RQ-119 S4 と共有）。
 5. **entrypoint `grok_bot` の受理**: 受領口・履歴投影（RQ-116 連携）が `grok_bot` を既知の entrypoint として扱えること。entrypoint `codex` 固定の public-projection 契約（#878 §2.3 の引用、`public-projection.js:17,353`）は案A（DB 直書き）では迂回するため、`grok_bot` は DB receipt / 投影に素直に載る。
-6. **メタ情報の受理**: 実モデル名・bot_role を receipt メタに格納できること。
+6. **メタ情報の受理**: 実モデル名・`bot_role`・entrypoint `grok_bot` を、既存 `judgment_receipts.receipt` JSONB に格納する。新しい列は足さない（§11.3）。訂正は同じ JSONB を持つ別 receipt とし、`kind` は `correction`、元 record へのリンクを載せる。元の行は更新しない（§11.2）。
 
 ### npm 公開が要る箇所
 - **共有 record 契約パッケージ**（本リポジトリ brainbase が公開する `@unson/brainbase-mcp`。公開手順は Skill `brainbase-npm-publish`）: `JUDGMENT_HISTORY_ENTRYPOINTS` に `grok_bot` を足す変更（`src/judgment-history.ts:11-17`）は、組織版がこのパッケージを consume して enum を共有している限り、**組織版が新 enum を使うには再公開が必要**。
@@ -240,7 +240,7 @@ RQ-119 §6（冪等受領契約）・§7（失敗保持）をそのまま継ぐ�
 各 Story は独立した Draft PR を想定。RQ-119 の Story と共有できるものは共有し、重複実装しない。
 
 - **G1: 共有契約へ entrypoint `grok_bot` を追加（brainbase）**
-  - 内容: `JUDGMENT_HISTORY_ENTRYPOINTS` に `grok_bot` を追加（`src/judgment-history.ts:11-17`）。外部正本 `contract.js` の enum 同期の設計明記。実モデル名・bot_role をメタに通す型の追加。
+  - 内容: `JUDGMENT_HISTORY_ENTRYPOINTS` に `grok_bot` を追加（`src/judgment-history.ts:11-17`）。外部正本 `contract.js` の enum 同期の設計明記。実モデル名・bot_role をメタに通す型の追加。DB の列・GRANT・RLS・migration は足さない（§11.3）。訂正の `kind=correction` も既存 JSONB の別 receipt であり、この Story で列は足さない（§11.2）。
   - 受入: `grok_bot` が既知 entrypoint として型・schema を通る。既存 entrypoint の record は不変。OSS 単体（organization なし）でビルド・型チェックが通る（CLAUDE.md 境界）。
   - テスト: 契約の単体テスト（enum・record 形・メタ項目）。
   - 備考: この変更は npm 公開が必要になる（§8）。公開は本 Story の範囲外（別途承認フロー）。
@@ -258,7 +258,7 @@ RQ-119 §6（冪等受領契約）・§7（失敗保持）をそのまま継ぐ�
   - 備考: RQ-119 S1 の PR に含めるか別 PR にするかは S1 の進行で判断。
 
 - **G4: 組織版 受領口の entrypoint `grok_bot` 受理と `judgment.record` 認可（brainbase-organization）**
-  - 内容: §8 の 1・2・5・6。RQ-119 S4 の受領口・認可定義に `grok_bot` と Grok Bot agent member の権限付与を足す。409 読み戻し・receipt_digest 比較（§7）は S4 と共有。
+  - 内容: §8 の 1・2・5・6。RQ-119 S4 の受領口・認可定義に `grok_bot` と、Director / Worker それぞれの agent member への `judgment:write` 付与を足す。保存は既存 `receipt` JSONB。訂正は `kind=correction` の別 receipt。列・GRANT・RLS・migration は足さない（§11）。409 読み戻し・receipt_digest 比較（§7）は S4 と共有。
   - 受入: 正資格の Grok Bot record が saved、再送で冪等（`already_saved`）、内容相違で 409、失効資格で 403・outbox 保持（`blocked_credential`）。owner JWT を要求しない。entrypoint `grok_bot` が receipt / 投影に載る。
   - テスト: 受領口の結合テスト（冪等・RLS・資格失効・entrypoint 受理）。
   - 依存: RQ-119 S4。別リポジトリ（brainbase-organization）の PR。
@@ -282,68 +282,69 @@ G1 →（G3 と同時）G2 → G4（別リポジトリ）→ G5 → G6（RQ-116 
 - 「判断」の区切り（番号付き判断ブロック）は根拠の連絡から観測した形に基づく。Grok Bot が常にこの形で判断を出すか、記録コマンドを毎回呼べるかは運用規約の前提＝要確認（§2・§3 案(c)）。
 - 外部ファイル（要件台帳、`contract.js`、`brainbase-organization`、社内の配備リポ、agent credential / `agent-mcp-authorization.js`、受領 repository の `ON CONFLICT DO NOTHING` 挙動と 409、public-projection の entrypoint 固定）は本セッションの作業ディレクトリ外にあり、brainbase#878（RQ-119 設計書）の記載・行番号に依拠した引用である＝一部推測。実装前に原本で再確認する。
 - brainbase 内の `src/judgment-history.ts`（entrypoint enum `:11-17`、record `:77-89`、judgment `:63-69`、feedback `:34-39`、status `:44`）と `src/judgment-frame.ts`（public_frame キー `:209`、最大長 `:49`、digest 宣言 `:241`、credential 検知 `:220`、検証 `:416-438`）は本セッションで直接確認した（develop 時点。当該2ファイルは PR 分岐後の develop 先端でも差分なし）。
-- 組織版の `judgment_receipts` に entrypoint 用の CHECK や SQL enum が無いかは、本セッションでは原本を再読していない。§11.3 の「migration 不要」はこの未確認を残した推奨である。
+- 本リポジトリの schema / migrations / SQL を検索した。`judgment_receipts` 表は無く、entrypoint `grok_bot` または `kind=correction` を拒む CHECK・SQL enum・JSONB 検証も無かった（§11.3）。組織版 schema のファイルは作業ディレクトリ外のままである。本リポジトリの範囲では migration を足さない、が §11.3 の決定である。
 
 ---
 
-## 11. Director が確認する未決事項（選択肢・推奨・権限・migration）
+## 11. Director が確定した事項（資格・訂正・保存先）
 
-本節は、残っている選択を Director が採るかどうかの材料である。推奨は Director の判断ではない。確認が終わるまで未決のままにする。実装、migration の適用、npm 公開は行わない。組織版の schema と認可実装は本セッションで再読しておらず、#878 の引用に依拠する（§10）。
+本節は Director の決定である。以前の選択肢は、採らなかった案として残す。実装、migration の適用、npm 公開は行わない。組織版の schema と認可実装のファイルは作業ディレクトリ外にあり、#878 の引用に依拠する（§10）。本リポジトリ側の CHECK 検索結果は §11.3 に書く。
 
-### 11.1 資格を Bot ごとに分けるか
+### 11.1 資格は Director と Worker で分ける（決定）
 
-未決: Grok Bot の agent member 資格を Director と Worker で分けるか、群で 1 つにするか。人を介さない再発行を許すか。
+決定: Director と Worker は、それぞれ別の agent member 資格を持つ。Grok Bot 群で 1 資格にはしない。
 
-選択肢:
-- 案1（推奨）: Director と Worker で agent member 資格を分ける。scope はいずれも 1 組織・1 テナント・対象 project。再発行は人（owner/CEO）の明示承認だけにする。Bot 自身の `issue()` は拒否されたままにする。期限切れは `blocked_credential` で停止する（§6）。
-- 案2: Grok Bot 群で 1 資格にする。付与と失効は一度で済む。片方の失効が両方の記録を止める。
-- 案3: 期限切れを Bot または自動サービスが再発行する。#878 §9 未決事項8 の経路。#878 が引用する `issue()` は人の owner/CEO を要求する、という記載と衝突する。
+再発行: 資格の再発行は、owner または CEO の別承認があるときだけ行う。記録のための通常操作とは別の承認である。Bot 自身の `issue()` は拒否されたままにする。期限切れを Bot または自動サービスが再発行することはしない。期限切れは `blocked_credential` で停止する（§6）。
 
-推奨: 案1。記録の停止範囲を Bot ごとに閉じ、資格を発行する権限は人に残す。
+scope はいずれも 1 組織・1 テナント・対象 project。
+
+採らなかった案:
+- 群で 1 資格にする案。片方の失効が両方の記録を止める。
+- 期限切れを Bot または自動サービスが再発行する案。#878 が引用する `issue()` は人の owner/CEO を要求する、という記載と衝突する。
 
 必要な権限:
 - 記録: `toolName='judgment.record'`。`resourceId` は `project_code` スコープ。権限名は `judgment:write`。付与先は当該 Bot の agent member。この定義と付与が終わるまで、資格の本人確認だけでは書き込まない（§6）。
-- 発行と再発行: 既存の人（owner/CEO）の `authority()`。新しい DB 権限は足さない。
+- 発行と再発行: 既存の人（owner または CEO）の `authority()`。再発行のたびに別承認を要する。新しい DB 権限は足さない。
 - 記録に使わないもの: owner JWT、既存のタスク／進捗ツールの権限、Bot 自身による `issue()`。
 
 migration: 不要。資格は組織版の既存 agent credential の運用であり、`judgment_receipts` の列・GRANT・RLS を変えない。
 
-### 11.2 同じ判断ブロックの訂正をどう残すか
+### 11.2 訂正は新しい receipt である（決定）
 
-未決: 同じ session / turn の判断を後から訂正したとき、履歴にどう残すか（#878 §9 未決事項6）。
+決定: 訂正は新しい receipt である。`kind` は `correction`。元 record へのリンクを載せる。元の record は編集しない。
 
-前提: `resolution_id = f(entrypoint='grok_bot', session_id, turn_id, content_digest)`（§7）。summary / reason が変われば content_digest が変わり、別 `resolution_id` になる。既存行の上書きは受領契約が拒否する。
+前提: `resolution_id = f(entrypoint='grok_bot', session_id, turn_id, content_digest)`（§7）。summary / reason が変われば content_digest が変わり、別 `resolution_id` になる。既存行の上書きは受領契約が拒否する。訂正 receipt の JSONB には `kind: 'correction'` と、訂正対象の `record_id`（または元の `resolution_id`）へのリンクを載せる。投影（G6 / RQ-116）が、同じ turn の複数 receipt のうち後の `resolved_at` を訂正として束ねる。OSS の `JudgmentHistoryFeedbackEvent`（kind=`correction`。`src/judgment-history.ts:26` と `:389`、公開形は `:34-39`）は読み出し側の形である。保存のための新しい表は作らない。
 
-選択肢:
-- 案1（推奨）: 訂正は別 `resolution_id` の別 receipt として追記する。receipt JSONB に `kind: 'correction'` と、訂正対象の `record_id`（または元の `resolution_id`）へのリンクを載せる。先の receipt は更新しない。投影（G6 / RQ-116）が、同じ turn の複数 receipt のうち後の `resolved_at` を訂正として束ねる。OSS の `JudgmentHistoryFeedbackEvent`（kind=`correction`、`src/judgment-history.ts:34-39`）は読み出し側の形である。保存のための新しい表は作らない。
-- 案2: 同一 receipt 行の JSONB に feedback を追記する。現行の不変契約（内容相違は 409）と衝突し、repository に更新経路が要る。列の追加は無い。
-- 案3: feedback 専用の表を新設する。migration が要る。本件の範囲を超える。
+採らなかった案:
+- 同一 receipt 行の JSONB に feedback を追記する案。現行の不変契約（内容相違は 409）と衝突し、repository に更新経路が要る。元 record を編集することになるため採らない。
+- feedback 専用の表を新設する案。migration が要る。本件の範囲を超える。
 
-推奨: 案1。冪等キーと不変契約を維持し、訂正であることは JSONB のリンクで残す。
+必要な権限: 訂正 record も初回と同じ project スコープの `judgment:write`。訂正専用の権限は足さない。
 
-必要な権限: 訂正 record も初回と同じ `judgment:write`。訂正専用の権限は足さない。
+migration: 不要。リンクは既存の receipt JSONB に載る。新しい列・表は作らない。
 
-migration: 案1は不要（リンクは既存の receipt JSONB）。案2も列の migration は不要で、不変契約の変更が要る。案3は migration が要る。推奨は案1。
+### 11.3 保存は既存 JSONB である（決定）
 
-### 11.3 保存先と migration の有無
+決定: 既存 `judgment_receipts` の `receipt` JSONB に書く。entrypoint `grok_bot`、`bot_role`（`director` | `worker` | `unknown`）、実モデル名は、その JSONB のメタに載せる。新しい列は足さない。GRANT は変えない。RLS は変えない。migration は作らない、適用しない。
 
-未決: Grok Bot の record をどこへ書くか。そのために DB migration が要るか。
+#878 の案Aを継ぐ。RQ-119 と同じ受領口から書く。OSS 共有 record には任意の `actor_meta` を G1 で足す。中身は `model` と `bot_role` だけにする。person の実値と agent member の生識別子は入れない。この型追加は npm 公開の対象であり（§8）、DB migration ではない。公開は別承認であり、本書では行わない。
 
-選択肢:
-- 案1（推奨）: #878 の案Aを継ぐ。既存 `judgment_receipts` へ、RQ-119 と同じ受領口から書く。entrypoint `grok_bot`、`bot_role`（`director` | `worker` | `unknown`）、実モデル名は receipt JSONB のメタに載せる。OSS 共有 record には任意の `actor_meta` を G1 で足す。中身は `model` と `bot_role` だけにする。person の実値と agent member の生識別子は入れない。この型追加は npm 公開の対象であり（§8）、DB migration ではない。公開は別承認であり、本書では行わない。
-- 案2: `bot_role` や entrypoint を新しい列、または SQL enum / CHECK の変更として schema に足す。migration が要る。
-- 案3: 既存 public relay（#878 案B）に載せる。#878 の記載では entrypoint が `codex` 固定であり、認証が owner JWT に戻る。採らない。
-
-推奨: 案1。
+採らなかった案:
+- `bot_role` や entrypoint を新しい列、または SQL enum / CHECK の変更として schema に足す案。migration が要るため採らない。
+- 既存 public relay（#878 案B）に載せる案。#878 の記載では entrypoint が `codex` 固定であり、認証が owner JWT に戻る。採らない。
 
 `project_code` が解決できない判断は組織版へ送らない。理由コード `grok_bot_project_unresolved` を outbox に残す。一意キーと RLS が `project_code` を含む、という #878 の記載に合わせ、null の行は挿入しない。共有 record 型が `string | null` であることは、ローカルで欠落を表すためであり、受領口がその null を受け入れる意味ではない。
 
 必要な権限: §11.1 と同じ `judgment:write`。受け手は既存 RLS（owner / project / org）のままにする。新しい GRANT / ROLE / RLS policy は作らない。呼び出しが自己申告した owner は拒否し、照合済み資格行の owner person だけを `owner_person_id` に写す（§6）。
 
-migration:
-- 推奨案（案1）: **不要**。新しい表、列、CHECK、GRANT、ROLE、RLS policy は作らない。
-- 根拠は #878 が引用する schema である。列は `organization_id`, `project_code`, `owner_person_id`, `resolution_id`, `turn_id`, `receipt`（JSONB）, `created_at`。entrypoint はその JSONB に載る、という記載である。本セッションでは組織版の schema 原本を再読していない（§10）。実装の G4 に入る前に、entrypoint を限定する CHECK または SQL enum が無いことを原本で確認する。もしあれば、その制約を広げる migration が要る。推奨は、その migration を先に作らず、JSON として受理できることを確認してから G4 に進む、である。
-- `judgment:write` は `agent-mcp-authorization` の操作定義であり、SQL migration ではない。
+migration: **不要**。新しい表、列、CHECK、GRANT、ROLE、RLS policy は作らない。`judgment:write` は `agent-mcp-authorization` の操作定義であり、SQL migration ではない。
+
+CHECK 検索（本リポジトリ、2026-10-29）:
+- 対象: schema、migrations、SQL。`judgment_receipts` と、その `receipt` JSONB、entrypoint、`kind` を拒む CHECK / SQL enum / 検証。
+- 検索した SQL: `contracts/canonical-task/operation-schema.sql`、`contracts/canonical-task/search-indexes.sql`、`contracts/canonical-task/store-schema.sql`、`contracts/foundation/graph-history.sql`。埋め込み SQL: `tests/foundation-graph-history-sql.test.ts`、`tests/graph-foundation-public.integration.test.ts`。`migrations/` ディレクトリは無い。`CREATE TYPE` / `AS ENUM` は SQL・TS・JS に無い。
+- 結果: **見つからなかった**。`judgment_receipts` 表はこのリポジトリに無い。entrypoint `grok_bot` または `kind=correction` を拒む CHECK、SQL enum、JSONB 検証は無い。したがって migration で制約を広げる作業はしない。
+- 根拠として #878 が引用する列は `organization_id`, `project_code`, `owner_person_id`, `resolution_id`, `turn_id`, `receipt`（JSONB）, `created_at`。entrypoint と `kind` はその JSONB に載る。組織版 schema のファイルは作業ディレクトリ外である（§10）。本決定は、本リポジトリに拒む制約が無かったことと、新しい列・GRANT・RLS・migration を足さないことである。
+- OSS の entrypoint 共用体（`src/judgment-history.ts:11-17`）は、まだ `grok_bot` を含まない。これは G1 のコード変更であり、DB migration ではない。`kind=correction` は `JudgmentHistoryFeedbackKind`（同ファイル `:26`）と `FEEDBACK_KINDS`（`:389`）に既にある。
 
 ### 11.4 実装前に確認するが、Director の選択ではないもの
 
@@ -351,11 +352,11 @@ migration:
 - `contract.js` と `src/judgment-history.ts` のどちらを enum の正本にするかは、G1 の実装 Story で確定する（§4.1・§8）。値は `grok_bot` で揃える。
 - G3 を RQ-119 S1 の PR に含めるか別 PR にするかは、S1 の進行で決める（§9）。
 
-### 11.5 Director への確認（本書の推奨）
+### 11.5 Director の決定
 
-1. 資格は Director と Worker で分ける。再発行は人（owner/CEO）の別承認のみ。権限は project スコープの `judgment:write`（`toolName='judgment.record'`）。migration は不要。
-2. 訂正は行を更新しない。別 `resolution_id` の receipt に `kind: 'correction'` と元 record へのリンクを載せる。権限は初回と同じ。migration は不要。
-3. 保存は既存 `judgment_receipts` の JSONB。entrypoint `grok_bot`、`bot_role`、実モデル名もそこへ載せる。新しい列・GRANT・RLS は足さない。migration は不要。原本に entrypoint を拒む CHECK または SQL enum があれば、そのときだけ migration を別判断にする。
+1. 資格は Director と Worker で分ける。再発行は owner または CEO の別承認だけである。権限は project スコープの `judgment:write`（`toolName='judgment.record'`）。migration は不要。
+2. 訂正は新しい receipt である。`kind` は `correction`。元 record へのリンクを載せる。元の record は編集しない。権限は初回と同じ。migration は不要。
+3. 保存は既存 `judgment_receipts` の JSONB である。entrypoint `grok_bot`、`bot_role`、実モデル名もそこへ載せる。新しい列・GRANT・RLS は足さない。migration は不要。本リポジトリの schema / migrations / SQL に、その値を拒む CHECK は無かった（§11.3）。
 
 ---
 
@@ -365,3 +366,4 @@ migration:
 コード・テスト・他ドキュメント・`package.json` の version・CHANGELOG・`.github/` は変更していない。実装・npm 公開・本番反映・配備・DB migration/schema/GRANT/ROLE/RLS の適用は行っていない。
 
 - 2026-10-29 更新: §11 を追加し、資格の粒度・訂正の残し方・保存先について選択肢、推奨、必要な権限、migration の有無を書いた。いずれも Director 確認前の推奨であり、決定済みにはしていない。`judgmentFramePublicFrameDigest` の引用行を宣言行 `:241` に、public_frame 検証の引用を `:416-438` に直した。組織版へは未解決の `project_code` を送らない理由コード `grok_bot_project_unresolved` を足した。
+- 2026-10-29 更新: Director の 3 決定を本文へ反映した。資格は Director と Worker で分け、再発行は owner または CEO の別承認だけ、権限は project スコープの `judgment:write`。訂正は `kind=correction` の新しい receipt で、元 record は編集しない。保存は既存 `judgment_receipts.receipt` JSONB。新しい列・GRANT・RLS・migration は足さない。本リポジトリの SQL に、entrypoint `grok_bot` または `kind=correction` を拒む CHECK は無かった。
