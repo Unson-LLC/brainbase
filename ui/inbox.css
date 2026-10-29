@@ -151,7 +151,7 @@ a.bb-inbox-title:focus-visible {
   border-radius: 999px;
   padding: 0 8px;
   background: var(--bb-color-danger-soft);
-  color: var(--bb-color-danger);
+  color: var(--bb-color-inline-error);
   font-weight: 600;
 }
 

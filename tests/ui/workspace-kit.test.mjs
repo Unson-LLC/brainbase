@@ -138,6 +138,33 @@ describe('reusable notification surfaces', () => {
     expect(error.className).toContain('bb-ws-notification-card is-danger');
     expect(text(error)).toContain('0件とは未確認');
     expect(byClass(error, 'bb-ws-button')[0].listeners.get('click')).toBe(retry);
+    expect(error.children.find(child => child.tagName === 'DETAILS').open).toBe(false);
+    const opened = workspaceErrorCard(doc, { title: '一覧を読めませんでした', message: '0件ではありません', open: true });
+    expect(opened.children.find(child => child.tagName === 'DETAILS').open).toBe(true);
+  });
+});
+
+describe('readable colors', () => {
+  const rule = (file, selector) => {
+    const css = readFileSync(new URL(`../../ui/${file}`, import.meta.url), 'utf8');
+    const start = css.indexOf(`${selector} {`);
+    expect(start, `${file}: ${selector}`).toBeGreaterThanOrEqual(0);
+    return css.slice(start, css.indexOf('}', start));
+  };
+
+  it('draws the primary button on the action color so it reads stronger than a default button on white', () => {
+    const primary = rule('workspace-kit.css', '.bb-ws-button.is-primary');
+    expect(primary).toMatch(/background:\s*var\(--bb-color-action\)/);
+    expect(primary).toMatch(/color:\s*var\(--bb-color-action-text\)/);
+    expect(primary).not.toMatch(/--bb-color-rail/);
+    expect(rule('workspace-kit.css', '.bb-ws-button.is-primary:hover:not(:disabled)')).toMatch(/background:\s*var\(--bb-color-action-hover\)/);
+    // Screens no longer repaint the shared primary button.
+    expect(readFileSync(new URL('../../ui/people-and-companies-view.css', import.meta.url), 'utf8')).not.toContain('.bb-ws-button.is-primary');
+  });
+
+  it('keeps small breadcrumb and expired-due text at 4.5:1 or more by choosing darker existing tokens', () => {
+    expect(rule('workspace-kit.css', '.bb-ws-breadcrumb')).toMatch(/color:\s*var\(--bb-color-muted\)/);
+    expect(rule('inbox.css', '.bb-inbox-due.is-expired')).toMatch(/color:\s*var\(--bb-color-inline-error\)/);
   });
 });
 
