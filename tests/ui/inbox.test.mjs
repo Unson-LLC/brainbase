@@ -1,16 +1,17 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   countInboxWaiting,
   createLocalInboxDispositions,
   createInboxUI,
   INBOX_TODAY_SECTIONS,
+  inboxDueLabel,
   inboxLaterChoices,
   inboxRouteTarget,
   parseInboxRoute,
   sortInboxItems,
   withLocalInboxDispositions,
 } from '../../ui/inbox.js';
-import { collectText, FakeDocument, findAll, waitFor } from './graph-ui-harness.mjs';
+import { collectText, FakeDocument, FakeElement, findAll, waitFor } from './graph-ui-harness.mjs';
 
 const NOW = new Date('2026-10-18T03:00:00.000Z');
 
@@ -69,6 +70,7 @@ async function mount(options = {}) {
     route: options.route,
     layout: options.layout,
     undoWindowMs: options.undoWindowMs,
+    doneShownMs: options.doneShownMs,
     timers: options.timers,
     onRouteChange: (route) => { routes.push(route); view.applyRoute(route); },
     onNavigate: (href) => navigations.push(href),
@@ -767,6 +769,9 @@ describe('元に戻す（undoWindowMs）', () => {
     expect(port.runAction).toHaveBeenCalledWith('approval', 'approve');
     expect(text(root)).not.toContain('「承認」を実行します。');
     expect(timers.size()).toBe(0);
+    // The only timer is the one that holds the result before the rows are read again.
+    await waitFor(() => timers.size() === 1);
+    timers.run([...timers.scheduled.keys()][0]);
     await waitFor(() => port.readInbox.mock.calls.length === 2);
   });
 });
@@ -820,5 +825,192 @@ describe('お知らせ', () => {
     const { root } = await mount({ route: { tab: 'notices' } });
     expect(text(root)).toContain('お知らせはまだ集めていません');
     expect(text(root)).not.toContain('待っているものはありません');
+  });
+});
+
+describe('行の操作の手触り', () => {
+  const APPROVE_SOURCES = [{ kind: 'agent_registration', label: 'AIの登録申請', group: 'approve', status: 'ok' }];
+
+  function registration(overrides = {}) {
+    return item('reg-1', {
+      kind: 'agent_registration',
+      group: 'approve',
+      title: 'Codex（研究用）の登録申請',
+      detail: '申請の理由: 調査を任せたい',
+      facts: [
+        { label: '依頼', value: '田中さん' },
+        { label: '対象', value: 'brainbase' },
+        { label: '空', value: '  ' },
+      ],
+      actions: [
+        { id: 'approve', label: '承認する', tone: 'primary', doneLabel: '承認しました' },
+        { id: 'reject', label: '断る', tone: 'danger', confirm: 'この申請を断ります。取り消せません。', doneLabel: '断りました' },
+      ],
+      ...overrides,
+    });
+  }
+
+  function registrationPort(overrides = {}) {
+    return fakePort({
+      readInbox: vi.fn(async () => okResult({ sources: APPROVE_SOURCES, items: [registration()], uncollected: [] })),
+      runAction: vi.fn(async () => ({ status: 'ok' })),
+      ...overrides,
+    });
+  }
+
+  const announcerOf = (root) => findAll(root, (node) => String(node.className).includes('bb-inbox-announcer'))[0];
+
+  it('送っている間は行のボタンを止め、もう一度押しても1回しか送らない', async () => {
+    let release;
+    const runAction = vi.fn(() => new Promise((resolve) => { release = resolve; }));
+    const timers = fakeTimers();
+    const { root } = await mount({ port: registrationPort({ runAction }), timers });
+    buttonIn(rowsOf(root)[0], '承認する').dispatch('click');
+    const row = rowsOf(root)[0];
+    expect(row.attributes['aria-busy']).toBe('true');
+    expect(text(row)).toContain('送っています');
+    for (const label of ['承認する', '断る', 'あとで', '片付けた']) {
+      expect(buttonIn(row, label).attributes.disabled).toBe('');
+    }
+    // A press on a disabled button can still reach the handler in old browsers; it sends nothing.
+    buttonIn(row, '承認する').dispatch('click');
+    expect(runAction).toHaveBeenCalledTimes(1);
+    release({ status: 'ok' });
+    await waitFor(() => text(root).includes('✓ 承認しました'));
+  });
+
+  it('成功してから結果を出し、表示中は件数に数えず、時間が過ぎてから読み直す', async () => {
+    const timers = fakeTimers();
+    const port = registrationPort();
+    const { root, counts } = await mount({ port, timers, doneShownMs: 900 });
+    expect(counts.at(-1).count).toBe(1);
+    buttonIn(rowsOf(root)[0], '承認する').dispatch('click');
+    await waitFor(() => text(root).includes('✓ 承認しました'));
+    const row = rowsOf(root)[0];
+    expect(buttonIn(row, '断る')).toBeUndefined();
+    expect(counts.at(-1).count).toBe(0);
+    expect(port.readInbox).toHaveBeenCalledTimes(1);
+    const [id] = [...timers.scheduled.keys()];
+    expect(timers.scheduled.get(id).ms).toBe(900);
+    port.readInbox.mockResolvedValueOnce(okResult({ sources: APPROVE_SOURCES, items: [], uncollected: [] }));
+    timers.run(id);
+    await waitFor(() => port.readInbox.mock.calls.length === 2);
+    await waitFor(() => rowsOf(root).length === 0);
+  });
+
+  it('失敗したら結果を出さず、行とボタンを戻して理由を出す', async () => {
+    const timers = fakeTimers();
+    const port = registrationPort({ runAction: vi.fn(async () => ({ status: 'unavailable', reason: 'forbidden' })) });
+    const { root } = await mount({ port, timers });
+    buttonIn(rowsOf(root)[0], '承認する').dispatch('click');
+    await waitFor(() => text(root).includes('「承認する」を実行できませんでした'));
+    const row = rowsOf(root)[0];
+    expect(text(root)).not.toContain('✓');
+    expect(row.attributes['aria-busy']).toBeUndefined();
+    expect(buttonIn(row, '承認する').attributes.disabled).toBeUndefined();
+    expect(timers.size()).toBe(0);
+  });
+
+  it('最初の件数は読み上げず、成功のときは結果と件数をまとめて読む', async () => {
+    const timers = fakeTimers();
+    const { root } = await mount({ port: registrationPort(), timers });
+    expect(announcerOf(root).attributes.role).toBe('status');
+    expect(announcerOf(root).attributes['aria-live']).toBe('polite');
+    expect(announcerOf(root).textContent).toBe('');
+    buttonIn(rowsOf(root)[0], '承認する').dispatch('click');
+    await waitFor(() => announcerOf(root).textContent === '承認しました。対応待ち 0件');
+  });
+
+  it('件数が変わったら対応待ちの件数を読む', async () => {
+    const { root } = await mount({ port: fakePort() });
+    buttonIn(rowsOf(root).find((node) => node.attributes['data-inbox-item'] === 'task-a'), '片付けた').dispatch('click');
+    await waitFor(() => announcerOf(root).textContent === '対応待ち 16件');
+  });
+
+  it('名前つきの項目を題名の下に並べ、空の項目は出さない', async () => {
+    const { root } = await mount({ port: registrationPort() });
+    const list = findAll(rowsOf(root)[0], (node) => node.tagName === 'DL')[0];
+    expect(findAll(list, (node) => node.tagName === 'DT').map(collectText)).toEqual(['依頼', '対象']);
+    expect(findAll(list, (node) => node.tagName === 'DD').map(collectText)).toEqual(['田中さん', 'brainbase']);
+    expect(text(rowsOf(root)[0])).toContain('申請の理由: 調査を任せたい');
+  });
+
+  describe('取り消せない操作の確認', () => {
+    const focused = [];
+    beforeEach(() => {
+      focused.length = 0;
+      FakeElement.prototype.focus = function focus() { focused.push(this); };
+    });
+    afterEach(() => { delete FakeElement.prototype.focus; });
+
+    it('1回目では送らず、行の中に確かめる帯を出して送るボタンへフォーカスを移す', async () => {
+      const port = registrationPort();
+      const { root } = await mount({ port });
+      buttonIn(rowsOf(root)[0], '断る').dispatch('click');
+      expect(port.runAction).not.toHaveBeenCalled();
+      const row = rowsOf(root)[0];
+      expect(text(row)).toContain('この申請を断ります。取り消せません。');
+      expect(buttonIn(row, '承認する')).toBeUndefined();
+      expect(focused.at(-1)).toBe(buttonIn(row, '断る'));
+      buttonIn(row, '断る').dispatch('click');
+      expect(port.runAction).toHaveBeenCalledWith('reg-1', 'reject');
+      await waitFor(() => text(root).includes('✓ 断りました'));
+    });
+
+    it('やめるで送らずに戻し、元のボタンへフォーカスを返す', async () => {
+      const port = registrationPort();
+      const { root } = await mount({ port });
+      buttonIn(rowsOf(root)[0], '断る').dispatch('click');
+      buttonIn(rowsOf(root)[0], 'やめる').dispatch('click');
+      const row = rowsOf(root)[0];
+      expect(text(row)).not.toContain('取り消せません');
+      expect(buttonIn(row, '承認する')).toBeDefined();
+      expect(focused.at(-1)).toBe(buttonIn(row, '断る'));
+      expect(port.runAction).not.toHaveBeenCalled();
+    });
+
+    it('確かめてから元に戻すの帯へ進む（undoWindowMs）', async () => {
+      const timers = fakeTimers();
+      const port = registrationPort();
+      const { root } = await mount({ port, undoWindowMs: 5000, timers });
+      buttonIn(rowsOf(root)[0], '断る').dispatch('click');
+      expect(timers.size()).toBe(0);
+      buttonIn(rowsOf(root)[0], '断る').dispatch('click');
+      expect(text(root)).toContain('「断る」を実行します。');
+      expect(port.runAction).not.toHaveBeenCalled();
+    });
+
+    it('読み直しで行の版が変わったら帯を閉じる', async () => {
+      const port = registrationPort();
+      const { root, view } = await mount({ port });
+      buttonIn(rowsOf(root)[0], '断る').dispatch('click');
+      port.readInbox.mockResolvedValueOnce(okResult({ sources: APPROVE_SOURCES, items: [registration({ revision: 'r2' })], uncollected: [] }));
+      await view.load();
+      expect(text(rowsOf(root)[0])).not.toContain('取り消せません');
+      expect(buttonIn(rowsOf(root)[0], '承認する')).toBeDefined();
+    });
+  });
+
+  describe('期限', () => {
+    it('過ぎた・24時間以内・それより先で言葉を変える', () => {
+      expect(inboxDueLabel('2026-10-18T02:00:00.000Z', NOW)).toEqual({ state: 'expired', text: '期限切れ' });
+      expect(inboxDueLabel('2026-10-18T08:00:00.000Z', NOW)).toEqual({ state: 'soon', text: '期限まであと5時間' });
+      expect(inboxDueLabel('2026-10-18T03:20:00.000Z', NOW)).toEqual({ state: 'soon', text: '期限まであと20分' });
+      expect(inboxDueLabel('2026-10-20T00:00:00.000Z', NOW).state).toBe('later');
+      expect(inboxDueLabel('2026-10-20T00:00:00.000Z', NOW).text).toMatch(/^期限 10\/20 /u);
+      expect(inboxDueLabel(null, NOW)).toBeNull();
+    });
+
+    it('期限切れでも行を隠さず、操作も送らない', async () => {
+      const port = registrationPort({
+        readInbox: vi.fn(async () => okResult({ sources: APPROVE_SOURCES, items: [registration({ dueAt: '2026-10-17T00:00:00.000Z' })], uncollected: [] })),
+      });
+      const { root, counts } = await mount({ port });
+      const due = findAll(rowsOf(root)[0], (node) => String(node.className).startsWith('bb-inbox-due'))[0];
+      expect(due.className).toBe('bb-inbox-due is-expired');
+      expect(collectText(due)).toBe('期限切れ');
+      expect(counts.at(-1).count).toBe(1);
+      expect(port.runAction).not.toHaveBeenCalled();
+    });
   });
 });
