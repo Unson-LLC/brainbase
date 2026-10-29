@@ -307,6 +307,48 @@ describe('今日決めること（layout: today）', () => {
     expect(text(root)).not.toContain('今日決めること 0件');
   });
 
+  it('決めることの取得元が読めないときは0件に見せず、読めなかったことを件数に出す', async () => {
+    const { root } = await mount({
+      layout: 'today',
+      port: fakePort({
+        readInbox: vi.fn(async () => todayResult({
+          sources: [
+            { ...TODAY_SOURCES[0], status: 'unavailable', reason: 'upstream_unavailable' },
+            { ...TODAY_SOURCES[1], status: 'unavailable', reason: 'request_failed' },
+            TODAY_SOURCES[2],
+            TODAY_SOURCES[3],
+          ],
+          items: todayItems().filter((entry) => !['answer', 'approve'].includes(entry.group)),
+        })),
+      }),
+    });
+    const count = findAll(root, (node) => node.className === 'bb-inbox-today-count is-unreadable')[0];
+    expect(count).toBeDefined();
+    expect(collectText(count)).toContain('今日決めることを読めませんでした');
+    expect(collectText(count)).toContain('0件ではありません');
+    expect(count.attributes.role).toBe('status');
+    expect(text(root)).not.toContain('今日決めることはありません');
+  });
+
+  it('取得元が未接続なだけなら今日決めることはありませんのまま出す', async () => {
+    const { root } = await mount({
+      layout: 'today',
+      port: fakePort({
+        readInbox: vi.fn(async () => todayResult({
+          sources: [
+            { ...TODAY_SOURCES[0], status: 'not_connected' },
+            { ...TODAY_SOURCES[1], status: 'not_connected' },
+            TODAY_SOURCES[2],
+            TODAY_SOURCES[3],
+          ],
+          items: todayItems().filter((entry) => !['answer', 'approve'].includes(entry.group)),
+        })),
+      }),
+    });
+    expect(text(root)).toContain('今日決めることはありません');
+    expect(text(root)).not.toContain('今日決めることを読めませんでした');
+  });
+
   it('段の中は sortInboxItems のまま並べ、待ち日数と3日超の is-long を出す', async () => {
     const { root } = await mount({
       layout: 'today',
