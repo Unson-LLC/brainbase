@@ -8,7 +8,10 @@
  * review host.
  */
 
-import {
+// A new lazy screen must not reuse the pre-loading-stage kit cached by an open tab.
+// The capability query gives this compatible kit its own browser module identity.
+import * as workspaceKit from './workspace-kit.js?capability=loading-stage-v1';
+const {
   makeWorkspaceElement,
   workspaceButton,
   workspaceDialog,
@@ -22,7 +25,7 @@ import {
   workspaceRailBlock,
   workspaceRailHead,
   workspaceLoadingStage,
-} from './workspace-kit.js';
+} = workspaceKit;
 
 export const JUDGMENT_HISTORY_UI_CONTRACT_VERSION = 'brainbase.judgment-history-ui.v1';
 
