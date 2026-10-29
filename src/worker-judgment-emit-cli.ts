@@ -18,6 +18,22 @@ interface CliPayload {
   readonly effectiveAfter?: string;
 }
 
+/**
+ * Fixed, input-free Japanese details keyed by the emitter's stable error codes.
+ * The underlying exception message is never echoed: a corrupt-outbox or
+ * conflict error carries the outbox path (which embeds `journalRoot`, possibly a
+ * secret), so only a short constant string may reach the log.
+ */
+const CLI_ERROR_DETAIL: Record<string, string> = {
+  worker_judgment_input_invalid: '入力が不正です',
+  worker_judgment_entrypoint_invalid: 'entrypoint が不正です',
+  worker_judgment_effective_after_invalid: '有効化境界の時刻が不正です',
+  worker_judgment_journal_root_required: 'outbox の保存先が指定されていません',
+  worker_judgment_receipt_conflict: '同じ判断に別の内容が既に保存されています',
+  worker_judgment_outbox_corrupt: '保存済みの outbox が壊れています',
+  worker_judgment_transport_error: '送信に失敗しました'
+};
+
 /** The pair of write sinks the CLI uses, injectable so a test never touches real process streams. */
 export interface WorkerJudgmentEmitCliIo {
   readonly stdout: { write(chunk: string): unknown };
@@ -52,39 +68,39 @@ export async function runWorkerJudgmentEmitCli(
     if (!isRecord(parsed) || !isRecord(parsed.input)) throw new Error('payload shape');
     payload = parsed as unknown as CliPayload;
   } catch {
-    io.stderr.write(`${JSON.stringify({ error: 'worker_judgment_cli_input_invalid', detail: 'stdin must be a JSON object { input, journalRoot?, effectiveAfter? }' })}\n`);
+    io.stderr.write(`${JSON.stringify({ error: 'worker_judgment_cli_input_invalid', detail: 'stdin は { input, journalRoot?, effectiveAfter? } の JSON オブジェクトである必要があります' })}\n`);
     return 2;
   }
 
   const journalRoot = payload.journalRoot ?? env.BRAINBASE_WORKER_JUDGMENT_JOURNAL_DIR;
   const effectiveAfter = payload.effectiveAfter ?? env.BRAINBASE_WORKER_JUDGMENT_EFFECTIVE_AFTER;
   if (!journalRoot || !effectiveAfter) {
-    io.stderr.write(`${JSON.stringify({ error: 'worker_judgment_cli_config_missing', detail: 'journalRoot and effectiveAfter are required (payload or env)' })}\n`);
+    io.stderr.write(`${JSON.stringify({ error: 'worker_judgment_cli_config_missing', detail: 'journalRoot と effectiveAfter が必要です（payload か env で指定）' })}\n`);
     return 2;
   }
 
   try {
     const result = await emitWorkerJudgment(payload.input, { journalRoot, effectiveAfter });
-    // Print only hashed identifiers and status. Never echo the public frame.
+    // Print only hashed identifiers and status — never the public frame, and
+    // never the absolute outbox path (it embeds the possibly-secret journalRoot).
+    // The outbox is addressed by its resolution_id alone.
     const summary = result.outcome === 'skipped'
-      ? { outcome: result.outcome, reason_code: result.reason_code, path: result.path }
+      ? { outcome: result.outcome, reason_code: result.reason_code }
       : {
           outcome: result.outcome,
           status: result.status,
           resolution_id: result.receipt.resolution_id,
           turn_ref: result.receipt.turn_ref,
-          deduped: result.deduped,
-          path: result.path
+          deduped: result.deduped
         };
     io.stdout.write(`${JSON.stringify(summary)}\n`);
     return 0;
   } catch (error) {
-    // Only the emitter's own code/message is controlled and input-free; any other
-    // failure reports a fixed reason so a stray value can never reach the log.
-    const report = error instanceof WorkerJudgmentEmitterError
-      ? { error: error.code, detail: error.message }
-      : { error: 'worker_judgment_cli_error', detail: 'the turn could not be emitted' };
-    io.stderr.write(`${JSON.stringify(report)}\n`);
+    // Report only a stable error code and a fixed Japanese detail. The exception
+    // message is never echoed — it can carry the outbox path (and journalRoot).
+    const code = error instanceof WorkerJudgmentEmitterError ? error.code : 'worker_judgment_cli_error';
+    const detail = CLI_ERROR_DETAIL[code] ?? 'ターンを emit できませんでした';
+    io.stderr.write(`${JSON.stringify({ error: code, detail })}\n`);
     return 1;
   }
 }

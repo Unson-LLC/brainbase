@@ -2,7 +2,6 @@ import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
@@ -363,8 +362,10 @@ describe('injected transport (OSS 既定は注入なし)', () => {
     expect(result.outcome).toBe('emitted');
     if (result.outcome !== 'emitted') return;
     expect(result.status).toBe('saved');
+    // Success is recorded by the `.sent` marker, not by rewriting the body.
+    await expect(stat(`${result.path}.sent`)).resolves.toBeTruthy();
     const stored = JSON.parse(await readFile(result.path, 'utf8'));
-    expect(stored.delivery.status).toBe('saved');
+    expect(stored.delivery.status).toBe('pending');
   });
 
   it('records blocked_credential with its reason code', async () => {
@@ -412,8 +413,10 @@ describe('re-emit never undoes delivery progress (§6/§7)', () => {
     expect(second.status).toBe('saved');
     expect(second.deduped).toBe(true);
     expect(called).toBe(false);
+    // The marker is still present and the body was never rewritten to failed.
+    await expect(stat(`${second.path}.sent`)).resolves.toBeTruthy();
     const stored = JSON.parse(await readFile(second.path, 'utf8'));
-    expect(stored.delivery.status).toBe('saved');
+    expect(stored.delivery.status).not.toBe('failed');
   });
 
   it('returns the stored status on a no-transport re-run instead of a fresh pending', async () => {
@@ -426,65 +429,87 @@ describe('re-emit never undoes delivery progress (§6/§7)', () => {
     if (reRun.outcome !== 'emitted') return;
     expect(reRun.status).toBe('saved');
     expect(reRun.deduped).toBe(true);
+    // The marker records the success; the body is left as published (`pending`).
+    await expect(stat(`${reRun.path}.sent`)).resolves.toBeTruthy();
     const stored = JSON.parse(await readFile(reRun.path, 'utf8'));
-    expect(stored.delivery.status).toBe('saved');
+    expect(stored.delivery.status).toBe('pending');
   });
 
-  it('does not downgrade a concurrently saved receipt when a slower re-emit would fail', async () => {
+  it('does not downgrade a concurrently saved receipt when a slower re-emit fails', async () => {
     const root = await freshRoot();
-    // The delivery-and-record critical section is serialized, so the second
-    // re-emit must observe the first save and keep it — it must not re-send and
-    // must not clobber `saved` with `failed`.
+    // Without a lock, two concurrent re-emits may both reach the transport. The
+    // first records success by creating the `.sent` marker; a slower second send
+    // that fails must neither remove the marker nor make the observable state
+    // anything but saved.
     let calls = 0;
-    let releaseSecondSend: () => void = () => {};
-    const secondSendGate = new Promise<void>((resolve) => { releaseSecondSend = resolve; });
     const transport: WorkerJudgmentTransport = {
       async send() {
-        calls += 1;
-        if (calls === 1) return { status: 'saved' };
-        // A second send would only happen if the critical section were not
-        // exclusive. Let it resolve to `failed` so the downgrade regression,
-        // if present, is written and caught by the assertions below.
-        await secondSendGate;
+        const n = (calls += 1);
+        if (n === 1) return { status: 'saved' };
+        // Yield so the first emit records its success marker before this slower
+        // one, having failed, re-checks it.
+        await Promise.resolve();
+        await Promise.resolve();
         return { status: 'failed', reason_code: 'late_failure' };
       }
     };
 
-    const first = emitWorkerJudgment(input(), { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW, transport });
-    const second = emitWorkerJudgment(input(), { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW, transport });
-    const firstResult = await first;
-    releaseSecondSend();
-    const secondResult = await second;
+    const [a, b] = await Promise.all([
+      emitWorkerJudgment(input(), { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW, transport }),
+      emitWorkerJudgment(input(), { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW, transport })
+    ]);
 
-    expect(firstResult.outcome).toBe('emitted');
-    expect(secondResult.outcome).toBe('emitted');
-    if (firstResult.outcome !== 'emitted' || secondResult.outcome !== 'emitted') return;
-    expect(firstResult.status).toBe('saved');
-    expect(secondResult.status).toBe('saved');
-    expect(secondResult.deduped).toBe(true);
-    // Exactly one delivery happened and the on-disk record is still `saved`.
-    expect(calls).toBe(1);
-    const stored = JSON.parse(await readFile(firstResult.path, 'utf8'));
-    expect(stored.delivery.status).toBe('saved');
+    expect(a.outcome).toBe('emitted');
+    expect(b.outcome).toBe('emitted');
+    if (a.outcome !== 'emitted' || b.outcome !== 'emitted') return;
+    // Neither re-emit observes anything but saved, even though one delivery failed.
+    expect(a.status).toBe('saved');
+    expect(b.status).toBe('saved');
+    expect(calls).toBe(2);
+
+    const path = join(resolveWorkerJudgmentTurnDir(root, 'session-abc', 'turn-123'), `${a.receipt.resolution_id}.json`);
+    await expect(stat(`${path}.sent`)).resolves.toBeTruthy();
+    // The body was never rewritten to failed by the slow failure.
+    const stored = JSON.parse(await readFile(path, 'utf8'));
+    expect(stored.delivery.status).not.toBe('failed');
   });
 });
 
-describe('crashed lock holder is reclaimed (異常終了後も再送できる)', () => {
-  it('reclaims an outbox lock left by a dead process instead of waiting out the timeout', async () => {
+describe('delivery success is a marker, not a body rewrite (異常終了後も再送できる)', () => {
+  it('treats an existing (even empty) success marker as saved without re-sending', async () => {
     const root = await freshRoot();
-    // Seed a pending receipt so the target outbox file and its path exist.
+    // Seed a pending receipt so the outbox body and its path exist.
     const first = await emitWorkerJudgment(input(), { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW });
     if (first.outcome !== 'emitted') throw new Error('expected an emitted receipt');
+    // A crash between creating and writing the marker leaves it empty; presence
+    // alone must still read as saved (no owner content to parse, nothing to time out).
+    await writeFile(`${first.path}.sent`, '', { mode: 0o600 });
 
-    // A child that has already exited leaves behind a pid that is no longer
-    // running, exactly like a delivery process killed while it held the lock.
-    const exited = spawnSync(process.execPath, ['-e', '0']);
-    const deadPid = exited.pid;
-    expect(typeof deadPid).toBe('number');
-    await writeFile(`${first.path}.lock`, `${deadPid}\n`, { mode: 0o600 });
+    let called = false;
+    const failing: WorkerJudgmentTransport = { send: () => { called = true; throw new Error('boom'); } };
+    const result = await emitWorkerJudgment(
+      input(),
+      { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW, transport: failing }
+    );
+    expect(result.outcome).toBe('emitted');
+    if (result.outcome !== 'emitted') return;
+    expect(result.status).toBe('saved');
+    expect(result.deduped).toBe(true);
+    // The marker short-circuits before delivery, so the transport is never consulted.
+    expect(called).toBe(false);
+    // The failure is neither recorded in the body nor allowed to remove the marker.
+    const stored = JSON.parse(await readFile(result.path, 'utf8'));
+    expect(stored.delivery.status).not.toBe('failed');
+    await expect(stat(`${result.path}.sent`)).resolves.toBeTruthy();
+  });
 
-    // Re-emit with a transport: it must reclaim the stale lock and deliver,
-    // rather than waiting out the ~5s attempt budget and failing to acquire.
+  it('ignores a stray lock file from an older build and still delivers at once', async () => {
+    const root = await freshRoot();
+    const first = await emitWorkerJudgment(input(), { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW });
+    if (first.outcome !== 'emitted') throw new Error('expected an emitted receipt');
+    // No lock is used any more; a leftover `.lock` must neither block nor delay re-send.
+    await writeFile(`${first.path}.lock`, '123\n', { mode: 0o600 });
+
     const saving: WorkerJudgmentTransport = { send: () => ({ status: 'saved' }) };
     const result = await emitWorkerJudgment(
       input(),
@@ -493,11 +518,10 @@ describe('crashed lock holder is reclaimed (異常終了後も再送できる)',
     expect(result.outcome).toBe('emitted');
     if (result.outcome !== 'emitted') return;
     expect(result.status).toBe('saved');
-    const stored = JSON.parse(await readFile(result.path, 'utf8'));
-    expect(stored.delivery.status).toBe('saved');
+    await expect(stat(`${result.path}.sent`)).resolves.toBeTruthy();
   });
 
-  it('removes the lock file after a successful delivery so the next re-emit is unblocked', async () => {
+  it('records a success marker on delivery so the next re-emit reads saved without re-sending', async () => {
     const root = await freshRoot();
     const saving: WorkerJudgmentTransport = { send: () => ({ status: 'saved' }) };
     const result = await emitWorkerJudgment(
@@ -506,7 +530,17 @@ describe('crashed lock holder is reclaimed (異常終了後も再送できる)',
     );
     expect(result.outcome).toBe('emitted');
     if (result.outcome !== 'emitted') return;
-    await expect(stat(`${result.path}.lock`)).rejects.toMatchObject({ code: 'ENOENT' });
+    await expect(stat(`${result.path}.sent`)).resolves.toBeTruthy();
+
+    let called = false;
+    const failing: WorkerJudgmentTransport = { send: () => { called = true; return { status: 'failed', reason_code: 'late' }; } };
+    const reRun = await emitWorkerJudgment(
+      input(),
+      { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW, transport: failing }
+    );
+    if (reRun.outcome !== 'emitted') throw new Error('expected an emitted receipt');
+    expect(reRun.status).toBe('saved');
+    expect(called).toBe(false);
   });
 });
 

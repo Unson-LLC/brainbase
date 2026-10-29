@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { closeSync, linkSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, linkSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
@@ -23,6 +23,8 @@ import { canonicalJson, type JudgmentHistoryEntrypoint } from './judgment-histor
 export const WORKER_JUDGMENT_RECEIPT_SCHEMA = 'brainbase-worker-judgment-receipt-v1' as const;
 export const WORKER_JUDGMENT_OUTBOX_SCHEMA = 'brainbase-worker-judgment-outbox-v1' as const;
 export const WORKER_JUDGMENT_SKIP_SCHEMA = 'brainbase-worker-judgment-skip-v1' as const;
+/** The presence of a `<resolution_id>.json.sent` marker is the authoritative "delivered" signal; the outbox body is never rewritten on success. */
+export const WORKER_JUDGMENT_SENT_SCHEMA = 'brainbase-worker-judgment-sent-v1' as const;
 
 /** Only Worker tools emit through this port. `opencode` is the shared enum value for DeepSeek via opencode. */
 export const WORKER_JUDGMENT_ENTRYPOINTS = Object.freeze(['claude_code', 'opencode'] as const);
@@ -294,8 +296,19 @@ export function resolveWorkerJudgmentTurnDir(journalRoot: string, sessionId: str
   return join(journalRoot, sha256Hex(requireId(sessionId, 'session_id')), sha256Hex(requireId(turnId, 'turn_id')));
 }
 
+/**
+ * A per-process counter so two writes that share a pid and an injected (fixed)
+ * clock still get distinct temp names. Without it, two concurrent writers under a
+ * test clock would collide on the temp path.
+ */
+let outboxTempSequence = 0;
+function nextTempPath(target: string, now: () => Date): string {
+  outboxTempSequence += 1;
+  return `${target}.${process.pid}.${now().getTime()}.${outboxTempSequence}.tmp`;
+}
+
 function atomicWriteReplace(target: string, value: unknown, now: () => Date): void {
-  const temporary = `${target}.${process.pid}.${now().getTime()}.tmp`;
+  const temporary = nextTempPath(target, now);
   writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
   renameSync(temporary, target);
 }
@@ -307,7 +320,7 @@ function atomicWriteReplace(target: string, value: unknown, now: () => Date): vo
  * outbox.
  */
 function atomicPublishNoReplace(target: string, value: unknown, now: () => Date): void {
-  const temporary = `${target}.${process.pid}.${now().getTime()}.tmp`;
+  const temporary = nextTempPath(target, now);
   writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
   try {
     linkSync(temporary, target);
@@ -412,118 +425,34 @@ function readStoredOutboxState(path: string): StoredOutboxState | null {
 }
 
 /**
- * Serialize the deliver-and-record critical section for one receipt with an
- * exclusive lock file. Two concurrent re-emits must not both advance to delivery
- * and then clobber each other's recorded status: only the lock holder sends and
- * writes, so a stored success is read before the next writer can downgrade it.
+ * Record a successful delivery as a separate marker file created exclusively
+ * (`wx`). The outbox body is never rewritten on success, so a slow concurrent
+ * failure cannot clobber a recorded success: the marker's presence — not a body
+ * status — is the authoritative "delivered" signal, and a marker, once created,
+ * is never removed. Creating a marker that already exists is treated as success:
+ * another writer, or an earlier crash, already delivered it. The marker carries
+ * no judgment body, only a schema tag and the time it was recorded, and its
+ * content is never read: presence alone means saved, so a crash between creating
+ * and writing the marker still reads as delivered.
  */
-const OUTBOX_LOCK_WAIT_MS = 10;
-const OUTBOX_LOCK_MAX_ATTEMPTS = 500;
-
-/**
- * A token written into the lock file so a later process can tell who holds it.
- * It leads with the owner pid (so `readOutboxLockOwner` can parse it) and adds a
- * per-process sequence and a monotonic clock reading so no two acquisitions —
- * even after pid reuse — ever share a token.
- */
-let outboxLockSequence = 0;
-function nextOutboxLockToken(): string {
-  outboxLockSequence += 1;
-  return `${process.pid}:${outboxLockSequence}:${process.hrtime.bigint().toString(36)}`;
-}
-
-interface OutboxLockOwner {
-  readonly pid: number;
-  readonly token: string;
-}
-
-/** Read the lock's recorded owner. `pid` is 0 when the content is absent or unparseable. */
-function readOutboxLockOwner(lockPath: string): OutboxLockOwner | null {
-  let raw: string;
+function recordDeliverySuccess(markerPath: string, now: () => Date): void {
+  let fd: number;
   try {
-    raw = readFileSync(lockPath, 'utf8');
+    fd = openSync(markerPath, 'wx', 0o600);
   } catch (error) {
-    if (isErrno(error, 'ENOENT')) return null;
+    if (isErrno(error, 'EEXIST')) return;
     throw error;
   }
-  const token = raw.trim();
-  const pid = Number.parseInt(token, 10);
-  return { pid: Number.isInteger(pid) && pid > 0 ? pid : 0, token };
-}
-
-/** True unless the owner pid is provably gone. `EPERM` or any other error is treated as alive so a live lock is never stolen. */
-function isOutboxLockOwnerAlive(pid: number): boolean {
   try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return !isErrno(error, 'ESRCH');
+    writeFileSync(fd, `${JSON.stringify({ schema_version: WORKER_JUDGMENT_SENT_SCHEMA, recorded_at: now().toISOString() })}\n`);
+  } finally {
+    closeSync(fd);
   }
 }
 
-/**
- * A lock whose owner process is gone — e.g. the holder was killed mid delivery —
- * would otherwise block every later re-emit until the attempt budget is spent,
- * so each re-send would wait the full ~5s and then fail. Reclaim such a lock, but
- * only when the recorded owner pid is confirmed dead and the lock still carries
- * the exact same token at removal time. That keeps a lock a live process just
- * acquired (a different token, including after pid reuse) from being stolen, and
- * an unparseable lock is left alone so a genuinely corrupt lock fails loudly via
- * the attempt timeout rather than being silently discarded. Returns true when the
- * caller should retry acquiring immediately.
- */
-function reclaimStaleOutboxLock(lockPath: string): boolean {
-  const owner = readOutboxLockOwner(lockPath);
-  if (!owner) return true;
-  if (owner.pid <= 0) return false;
-  if (isOutboxLockOwnerAlive(owner.pid)) return false;
-  const confirm = readOutboxLockOwner(lockPath);
-  if (!confirm) return true;
-  if (confirm.token !== owner.token) return false;
-  try {
-    unlinkSync(lockPath);
-  } catch (error) {
-    if (!isErrno(error, 'ENOENT')) throw error;
-  }
-  return true;
-}
-
-/** Release only our own lock, so a lock another process already reclaimed is never deleted out from under it. */
-function releaseOutboxLock(lockPath: string, token: string): void {
-  try {
-    const owner = readOutboxLockOwner(lockPath);
-    if (owner && owner.token === token) unlinkSync(lockPath);
-  } catch (error) {
-    if (!isErrno(error, 'ENOENT')) throw error;
-  }
-}
-
-async function withOutboxLock<T>(target: string, run: () => Promise<T>): Promise<T> {
-  const lockPath = `${target}.lock`;
-  const token = nextOutboxLockToken();
-  for (let attempt = 0; attempt <= OUTBOX_LOCK_MAX_ATTEMPTS; attempt += 1) {
-    let fd: number;
-    try {
-      fd = openSync(lockPath, 'wx', 0o600);
-    } catch (error) {
-      if (!isErrno(error, 'EEXIST')) throw error;
-      // The lock is held. If its owner crashed, reclaim it and retry at once;
-      // otherwise wait a little and try again until the attempt budget is spent.
-      if (!reclaimStaleOutboxLock(lockPath)) {
-        await new Promise((resolve) => setTimeout(resolve, OUTBOX_LOCK_WAIT_MS));
-      }
-      continue;
-    }
-    try {
-      // Record the owner so a later process can detect a crash and reclaim it.
-      writeFileSync(fd, `${token}\n`);
-      return await run();
-    } finally {
-      closeSync(fd);
-      releaseOutboxLock(lockPath, token);
-    }
-  }
-  throw new WorkerJudgmentEmitterError('worker_judgment_outbox_locked', `Could not acquire the outbox lock for ${target}`);
+/** True when a success marker is present. Presence is the only signal; the content is never read. */
+function deliverySucceeded(markerPath: string): boolean {
+  return existsSync(markerPath);
 }
 
 /**
@@ -563,6 +492,7 @@ export async function emitWorkerJudgment(
 
   const receipt = built.receipt;
   const target = join(dir, `${receipt.resolution_id}.json`);
+  const markerPath = `${target}.sent`;
   let deduped = false;
   let stored: StoredOutboxState | null = null;
   try {
@@ -578,22 +508,16 @@ export async function emitWorkerJudgment(
     deduped = true;
   }
 
-  // A receipt already delivered must never be downgraded by a later re-emit:
-  // keep the stored success and do not re-send or overwrite the record.
-  if (stored && isSuccessStatus(stored.status)) {
-    return {
-      outcome: 'emitted',
-      status: stored.status,
-      receipt,
-      path: target,
-      deduped,
-      ...(stored.last_error_code ? { last_error_code: stored.last_error_code } : {})
-    };
+  // A delivered receipt is marked by a `.sent` file, never by the outbox body:
+  // if the marker is present the receipt was already saved and must not be
+  // re-sent or downgraded, whatever the body or a later transport says.
+  if (deliverySucceeded(markerPath)) {
+    return { outcome: 'emitted', status: 'saved', receipt, path: target, deduped };
   }
 
   if (!options.transport) {
-    // On a re-emit the receipt stays whatever was already recorded (e.g. a prior
-    // success), not a fresh `pending`. A first write is `pending`.
+    // No transport: the receipt keeps whatever the body already recorded
+    // (`pending` on a first write, or a prior `failed`), never a fresh success.
     const status = stored ? stored.status : 'pending';
     return {
       outcome: 'emitted',
@@ -605,43 +529,39 @@ export async function emitWorkerJudgment(
     };
   }
 
-  const transport = options.transport;
-  return withOutboxLock(target, async () => {
-    // Under the lock, re-read what is actually on disk. A concurrent re-emit may
-    // have already delivered this receipt; a recorded success must be kept and
-    // the transport must not be consulted again.
-    const current = readStoredOutboxState(target);
-    if (current && isSuccessStatus(current.status)) {
-      return {
-        outcome: 'emitted' as const,
-        status: current.status,
-        receipt,
-        path: target,
-        deduped,
-        ...(current.last_error_code ? { last_error_code: current.last_error_code } : {})
-      };
-    }
+  let status: WorkerJudgmentDeliveryStatus = 'pending';
+  let lastErrorCode: string | undefined;
+  try {
+    const result = await options.transport.send(receipt);
+    status = result.status;
+    if (result.status === 'blocked_credential' || result.status === 'failed') lastErrorCode = result.reason_code;
+  } catch (error) {
+    status = 'failed';
+    lastErrorCode = error instanceof WorkerJudgmentEmitterError ? error.code : 'worker_judgment_transport_error';
+  }
 
-    let status: WorkerJudgmentDeliveryStatus = 'pending';
-    let lastErrorCode: string | undefined;
-    try {
-      const result = await transport.send(receipt);
-      status = result.status;
-      if (result.status === 'blocked_credential' || result.status === 'failed') lastErrorCode = result.reason_code;
-    } catch (error) {
-      status = 'failed';
-      lastErrorCode = error instanceof WorkerJudgmentEmitterError ? error.code : 'worker_judgment_transport_error';
+  if (isSuccessStatus(status)) {
+    // Success is recorded only by exclusively creating the marker; the body is
+    // left as published. An already-present marker means a concurrent writer (or
+    // an earlier crash mid-delivery) already recorded success, which is fine.
+    recordDeliverySuccess(markerPath, now);
+    return { outcome: 'emitted', status, receipt, path: target, deduped };
+  }
+
+  // Delivery failed. If a concurrent re-emit already recorded success, keep that
+  // success and neither record the failure in the body nor touch the marker.
+  if (deliverySucceeded(markerPath)) {
+    return { outcome: 'emitted', status: 'saved', receipt, path: target, deduped };
+  }
+  atomicWriteReplace(target, {
+    schema_version: WORKER_JUDGMENT_OUTBOX_SCHEMA,
+    receipt,
+    delivery: {
+      status,
+      attempt: 1,
+      queued_at: now().toISOString(),
+      ...(lastErrorCode ? { last_error_code: lastErrorCode } : {})
     }
-    atomicWriteReplace(target, {
-      schema_version: WORKER_JUDGMENT_OUTBOX_SCHEMA,
-      receipt,
-      delivery: {
-        status,
-        attempt: 1,
-        queued_at: now().toISOString(),
-        ...(lastErrorCode ? { last_error_code: lastErrorCode } : {})
-      }
-    }, now);
-    return { outcome: 'emitted' as const, status, receipt, path: target, deduped, ...(lastErrorCode ? { last_error_code: lastErrorCode } : {}) };
-  });
+  }, now);
+  return { outcome: 'emitted', status, receipt, path: target, deduped, ...(lastErrorCode ? { last_error_code: lastErrorCode } : {}) };
 }

@@ -1,9 +1,10 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { runWorkerJudgmentEmitCli } from '../src/worker-judgment-emit-cli.js';
+import { resolveWorkerJudgmentTurnDir } from '../src/worker-judgment-emitter.js';
 
 const roots: string[] = [];
 
@@ -84,8 +85,48 @@ describe('worker judgment emit CLI', () => {
     expect(out.stdout()).not.toContain('案Aを採用');
     expect(out.stdout()).not.toContain('owner JWT');
     expect(summary.resolution_id).toMatch(/^[a-f0-9]{64}$/);
+    // The absolute outbox path (which embeds journalRoot) is never printed.
+    expect(summary.path).toBeUndefined();
+    expect(out.stdout()).not.toContain(root);
 
-    const stored = JSON.parse(await readFile(summary.path, 'utf8'));
+    const dir = resolveWorkerJudgmentTurnDir(root, 'session-abc', 'turn-123');
+    const stored = JSON.parse(await readFile(join(dir, `${summary.resolution_id}.json`), 'utf8'));
     expect(stored.receipt.resolution_id).toBe(summary.resolution_id);
+  });
+
+  it('reports a corrupt outbox with a fixed code and never prints the outbox path', async () => {
+    const root = await freshRoot();
+    const payload = JSON.stringify({
+      input: {
+        entrypoint: 'claude_code',
+        session_id: 'session-abc',
+        turn_id: 'turn-123',
+        resolved_at: '2026-10-19T12:00:00.000Z',
+        project_code: 'brainbase',
+        public_frame: { summary: 'ok', reason: 'ok' },
+        meta: { model: 'm' }
+      },
+      journalRoot: root
+    });
+
+    const first = capture();
+    expect(await runWorkerJudgmentEmitCli(payload, first.io, ENV)).toBe(0);
+    const summary = JSON.parse(first.stdout());
+    const dir = resolveWorkerJudgmentTurnDir(root, 'session-abc', 'turn-123');
+    const path = join(dir, `${summary.resolution_id}.json`);
+    // Tamper the stored body so the recomputed digest no longer matches.
+    const stored = JSON.parse(await readFile(path, 'utf8'));
+    stored.receipt.project_code = 'tampered';
+    await writeFile(path, `${JSON.stringify(stored, null, 2)}\n`);
+
+    const out = capture();
+    const code = await runWorkerJudgmentEmitCli(payload, out.io, ENV);
+    expect(code).toBe(1);
+    const report = JSON.parse(out.stderr());
+    expect(report.error).toBe('worker_judgment_outbox_corrupt');
+    // The absolute path (which embeds journalRoot) must never leak into the report.
+    expect(out.stderr()).not.toContain(root);
+    expect(out.stderr()).not.toContain(path);
+    expect(out.stdout()).toBe('');
   });
 });
