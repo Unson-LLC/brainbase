@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - develop
+      - main
     paths:
       - README.md
       - AGENTS.md
@@ -141,14 +142,36 @@ jobs:
             exit 1
           }
 
+      - name: Resolve Cloudflare Pages production branch
+        id: pages_production
+        if: ${{ steps.deployment.outputs.should_deploy == 'true' }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          branch="$(node scripts/cloudflare-pages-production.mjs print-branch)"
+          printf 'production_branch=%s\n' "$branch" >> "$GITHUB_OUTPUT"
+
       - name: Deploy verified build to Cloudflare Pages
         if: ${{ steps.deployment.outputs.should_deploy == 'true' }}
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy docs/.vitepress/dist --project-name=brainbase --branch=main --commit-dirty=true
+          command: pages deploy docs/.vitepress/dist --project-name=brainbase --branch=${{ steps.pages_production.outputs.production_branch }} --commit-hash=${{ github.sha }} --commit-dirty=true
 
+      - name: Require a production Pages deployment
+        if: ${{ steps.deployment.outputs.should_deploy == 'true' }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          EXPECTED_COMMIT_SHA: ${{ github.sha }}
+        run: node scripts/cloudflare-pages-production.mjs assert-production "$EXPECTED_COMMIT_SHA"
+
+      # Readback stays immediately after the production deploy. Run 40817994386
+      # printed a preview alias and left https://brainbase.pages.dev unchanged;
+      # npm publish finishing later does not promote that preview.
       - name: Read back the public site
         if: ${{ steps.deployment.outputs.should_deploy == 'true' }}
         env:
@@ -164,8 +187,8 @@ jobs:
           {
             echo '## Documentation CI failure/cancellation summary'
             echo
-            echo '- Protection: docs contracts, publication contracts, VitePress build, smoke check, and required post-deploy public readback.'
+            echo '- Protection: docs contracts, publication contracts, VitePress build, smoke check, a Cloudflare Pages production deployment (not a preview alias), and required post-deploy public readback of https://brainbase.pages.dev.'
             echo '- Reproduce: `npm ci --ignore-scripts && npm run docs:check && npx vitest run tests/public-message-promotion.test.ts tests/repo-hygiene.test.ts && npm run docs:build && npm run docs:smoke`.'
-            echo '- Expected: validation passes before a deploy; a main push or approved manual deploy from main also passes `docs:verify-public`.'
-            echo '- Unknown: inspect the failed step; if deployment/readback failed, the public site state requires a fresh readback.'
+            echo '- Expected: validation passes before a deploy; a main push or approved manual deploy from main deploys to the project production branch, records environment=production for this commit, and passes `docs:verify-public`.'
+            echo '- Unknown: inspect the failed step. A preview alias does not update the production hostname. If deployment or readback failed, the public site state requires a fresh production deploy and readback.'
           } >> "$GITHUB_STEP_SUMMARY"

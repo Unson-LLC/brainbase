@@ -8,9 +8,9 @@
 | --- | --- | --- |
 | パッケージ関連のPull Request（`develop`または`main`向け） | Node 22の`npm test -- --maxWorkers=4`（Vitestの完全収集）とbuild、Node 20の代表統合スイート | deployなし |
 | パッケージ関連のPull Requestの正式release検証 | 組織のself-hosted runnerのNode 22で、immutableなPR headと実在するPR branch remoteを対象に`npm run release:validate`（build、完全テスト、production依存監査、pack、consumer smoke）を実行 | npm公開・deployなし。proofとtarballを短期artifactとして保存 |
-| ドキュメント関連のPull Request | `docs:check`、公開契約テスト、VitePress build、built HTML smoke | deployなし |
+| ドキュメント関連のPull Request（`develop`または`main`向け） | `docs:check`、公開契約テスト、VitePress build、built HTML smoke。`package.json`のversionは`docs/manual/guide/status.md`の最初のReleasedまたはCandidate見出し、および`docs/manual/reference/version-history.md`の対応見出しと一致していること | deployなし |
 | `develop`への公開サイト入力のpush | 上記ドキュメント検証のみ（deployなし） | なし |
-| `main`への公開サイト入力のpush | 上記ドキュメント検証、Cloudflare Pages deploy、`docs:verify-public`による公開後readback | 公開サイトのみ |
+| `main`への公開サイト入力のpush | 上記ドキュメント検証、Cloudflare Pagesの`production_branch`へのdeploy、deploymentが`production`であることの確認、`docs:verify-public`による`https://brainbase.pages.dev`の公開後readback（18回、5秒間隔） | 公開サイトのみ |
 | npm公開 | `main`へのpushまたは手動dispatch。immutable commitのrelease validation、registry既存versionのskip、artifact/proofの受け渡し、GitHub-hosted runnerでのprovenance付きpublish（publishジョブだけが`id-token: write`を持つ）、GitHub Release確認 | npm公開権限はrelease workflowだけが使用 |
 | public-message promotion | 候補の契約検証とドキュメント検証を済ませたreview PRの作成 | 自動merge・自動deployなし |
 
@@ -64,7 +64,11 @@ if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.re
 
 `pull_request_target`でpull requestのheadをcheckoutしない。`npm-publish.yml`は、`main`への`push`と`workflow_dispatch`のときだけ動く。npmは`pull_request_target`から来たTrusted Publishingのトークンを拒否するので、このイベントでは起動しない。checkoutは`main`と、pushされたcommitまたは`origin/main`の祖先である。version bumpが無い場合、またはnpm registryに同じ`gitHead`のversionが既にある場合は公開をskipする（`main`を既公開commitへ戻したときの再実行も失敗しない）。npmへの公開はpublish jobのnpm Trusted Publishing（OIDC）だけで認証し、npm tokenのsecretを使わない。validate jobは`id-token: write`も公開用secretも持たない。integrate branchは`develop`、production branchは`main`であり、npm公開と公開サイトdeployは`main`への昇格後だけ行う。
 
-`CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_API_TOKEN`、`BRAINBASE_SERVICE_JWT`はjobのenvに置かない。対象確認、Worker secret同期、deploy前確認の各stepのenvだけが、そのstepが使うsecretを読む。Cloudflare Pages deployのwrangler-actionは`with`で`secrets.*`を直接参照する。
+Gitのproduction branchが`main`であることと、Cloudflare Pages projectの`production_branch`は別である。`wrangler pages deploy --branch=main`は、projectの`production_branch`が`main`でないときpreviewになる。成功ログの`Deployment alias URL`（例: `https://main.brainbase.pages.dev`）はpreviewであり、本番ホスト`https://brainbase.pages.dev`は前回のproduction deploymentのままになる。npm publishの完了はpreviewをproductionへ昇格しない。docs workflowはdeploy前にAPIで`production_branch`を読み、そのbranchへ出す。続けて同じcommitのdeploymentを読み、`environment`が`production`でなければreadbackへ進まず失敗する。readbackは本番ホストに対する18回×5秒のまま、このproduction deployの直後に行う。
+
+versionを上げるPull Requestは、merge前に次を同じcommitへ入れる。`docs/manual/guide/status.md`では、最初の`## Candidate — v<version>（npm公開前）`見出しを既存のCandidate見出しより前に追加する（すでにそのversionが最初の`## Released — v<version>`である場合を除く）。`docs/manual/reference/version-history.md`には`## <version> candidate — npm公開前`を追加する。判定に使うのは各ファイルの最初のReleased見出しと最初のCandidate見出しだけである。不一致は`npm run docs:check`とpackage testが、追加すべき見出しを含むメッセージで失敗する。この検査は`main`向けのPull Requestでもdocs workflowが実行する。release CLIはpackage.jsonを自動変更しない。見出しの本文は人が書く。
+
+`CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_API_TOKEN`、`BRAINBASE_SERVICE_JWT`はjobのenvに置かない。対象確認、Worker secret同期、deploy前確認、production branchの解決、production deploymentの確認の各stepのenvだけが、そのstepが使うsecretを読む。Cloudflare Pages deployのwrangler-actionは`with`で`secrets.*`を直接参照する。
 
 すべての`actions/checkout`は`persist-credentials: false`である。`public-message-promotion.yml`のreview branch pushは、そのコマンドだけで`GH_TOKEN`を`http.extraheader`に渡す。checkoutには資格情報を残さない。
 
