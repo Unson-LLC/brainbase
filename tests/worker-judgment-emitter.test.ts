@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
@@ -168,7 +169,15 @@ describe('project_code screening (meta と同じ拒否)', () => {
 
   it('skips when project_code carries control characters', () => {
     const built = buildWorkerJudgmentReceipt(
-      input({ project_code: 'brainsettinglinebell' }),
+      input({ project_code: 'brainsetting' }),
+      config()
+    );
+    expect(built).toMatchObject({ outcome: 'skipped', reason_code: 'worker_project_code_invalid' });
+  });
+
+  it('rejects a project_code of the wrong type instead of dropping the project link', () => {
+    const built = buildWorkerJudgmentReceipt(
+      input({ project_code: 123 as unknown as string }),
       config()
     );
     expect(built).toMatchObject({ outcome: 'skipped', reason_code: 'worker_project_code_invalid' });
@@ -457,6 +466,47 @@ describe('re-emit never undoes delivery progress (§6/§7)', () => {
     expect(calls).toBe(1);
     const stored = JSON.parse(await readFile(firstResult.path, 'utf8'));
     expect(stored.delivery.status).toBe('saved');
+  });
+});
+
+describe('crashed lock holder is reclaimed (異常終了後も再送できる)', () => {
+  it('reclaims an outbox lock left by a dead process instead of waiting out the timeout', async () => {
+    const root = await freshRoot();
+    // Seed a pending receipt so the target outbox file and its path exist.
+    const first = await emitWorkerJudgment(input(), { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW });
+    if (first.outcome !== 'emitted') throw new Error('expected an emitted receipt');
+
+    // A child that has already exited leaves behind a pid that is no longer
+    // running, exactly like a delivery process killed while it held the lock.
+    const exited = spawnSync(process.execPath, ['-e', '0']);
+    const deadPid = exited.pid;
+    expect(typeof deadPid).toBe('number');
+    await writeFile(`${first.path}.lock`, `${deadPid}\n`, { mode: 0o600 });
+
+    // Re-emit with a transport: it must reclaim the stale lock and deliver,
+    // rather than waiting out the ~5s attempt budget and failing to acquire.
+    const saving: WorkerJudgmentTransport = { send: () => ({ status: 'saved' }) };
+    const result = await emitWorkerJudgment(
+      input(),
+      { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW, transport: saving }
+    );
+    expect(result.outcome).toBe('emitted');
+    if (result.outcome !== 'emitted') return;
+    expect(result.status).toBe('saved');
+    const stored = JSON.parse(await readFile(result.path, 'utf8'));
+    expect(stored.delivery.status).toBe('saved');
+  });
+
+  it('removes the lock file after a successful delivery so the next re-emit is unblocked', async () => {
+    const root = await freshRoot();
+    const saving: WorkerJudgmentTransport = { send: () => ({ status: 'saved' }) };
+    const result = await emitWorkerJudgment(
+      input(),
+      { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW, transport: saving }
+    );
+    expect(result.outcome).toBe('emitted');
+    if (result.outcome !== 'emitted') return;
+    await expect(stat(`${result.path}.lock`)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 });
 

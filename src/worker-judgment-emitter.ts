@@ -195,13 +195,16 @@ function normalizeMetaField(value: unknown): string | null | undefined {
 
 /**
  * `project_code` is stored in the receipt and handed to any injected transport,
- * so it gets the same secret/control-character/length screen as meta. An
- * absent, null, or blank value is "not recorded" (`null`); a non-empty string
- * that fails the screen is rejected (`undefined`) instead of being stored.
+ * so it gets the same secret/control-character/length screen as meta. An absent,
+ * null, or blank string is "not recorded" (`null`); a value of the wrong type
+ * (e.g. a number smuggled in from a CLI JSON payload), or a non-empty string
+ * that fails the screen, is rejected (`undefined`) instead of being silently
+ * dropped to `null` and losing the project link.
  */
 function normalizeProjectCode(value: unknown): string | null | undefined {
   if (value === undefined || value === null) return null;
-  if (typeof value !== 'string' || !value.trim()) return null;
+  if (typeof value !== 'string') return undefined;
+  if (!value.trim()) return null;
   if (value.length > MAX_META_TEXT || publicFrameTextHasControlCharacters(value) || containsJudgmentFrameCredential(value)) {
     return undefined;
   }
@@ -417,27 +420,110 @@ function readStoredOutboxState(path: string): StoredOutboxState | null {
 const OUTBOX_LOCK_WAIT_MS = 10;
 const OUTBOX_LOCK_MAX_ATTEMPTS = 500;
 
+/**
+ * A token written into the lock file so a later process can tell who holds it.
+ * It leads with the owner pid (so `readOutboxLockOwner` can parse it) and adds a
+ * per-process sequence and a monotonic clock reading so no two acquisitions —
+ * even after pid reuse — ever share a token.
+ */
+let outboxLockSequence = 0;
+function nextOutboxLockToken(): string {
+  outboxLockSequence += 1;
+  return `${process.pid}:${outboxLockSequence}:${process.hrtime.bigint().toString(36)}`;
+}
+
+interface OutboxLockOwner {
+  readonly pid: number;
+  readonly token: string;
+}
+
+/** Read the lock's recorded owner. `pid` is 0 when the content is absent or unparseable. */
+function readOutboxLockOwner(lockPath: string): OutboxLockOwner | null {
+  let raw: string;
+  try {
+    raw = readFileSync(lockPath, 'utf8');
+  } catch (error) {
+    if (isErrno(error, 'ENOENT')) return null;
+    throw error;
+  }
+  const token = raw.trim();
+  const pid = Number.parseInt(token, 10);
+  return { pid: Number.isInteger(pid) && pid > 0 ? pid : 0, token };
+}
+
+/** True unless the owner pid is provably gone. `EPERM` or any other error is treated as alive so a live lock is never stolen. */
+function isOutboxLockOwnerAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return !isErrno(error, 'ESRCH');
+  }
+}
+
+/**
+ * A lock whose owner process is gone — e.g. the holder was killed mid delivery —
+ * would otherwise block every later re-emit until the attempt budget is spent,
+ * so each re-send would wait the full ~5s and then fail. Reclaim such a lock, but
+ * only when the recorded owner pid is confirmed dead and the lock still carries
+ * the exact same token at removal time. That keeps a lock a live process just
+ * acquired (a different token, including after pid reuse) from being stolen, and
+ * an unparseable lock is left alone so a genuinely corrupt lock fails loudly via
+ * the attempt timeout rather than being silently discarded. Returns true when the
+ * caller should retry acquiring immediately.
+ */
+function reclaimStaleOutboxLock(lockPath: string): boolean {
+  const owner = readOutboxLockOwner(lockPath);
+  if (!owner) return true;
+  if (owner.pid <= 0) return false;
+  if (isOutboxLockOwnerAlive(owner.pid)) return false;
+  const confirm = readOutboxLockOwner(lockPath);
+  if (!confirm) return true;
+  if (confirm.token !== owner.token) return false;
+  try {
+    unlinkSync(lockPath);
+  } catch (error) {
+    if (!isErrno(error, 'ENOENT')) throw error;
+  }
+  return true;
+}
+
+/** Release only our own lock, so a lock another process already reclaimed is never deleted out from under it. */
+function releaseOutboxLock(lockPath: string, token: string): void {
+  try {
+    const owner = readOutboxLockOwner(lockPath);
+    if (owner && owner.token === token) unlinkSync(lockPath);
+  } catch (error) {
+    if (!isErrno(error, 'ENOENT')) throw error;
+  }
+}
+
 async function withOutboxLock<T>(target: string, run: () => Promise<T>): Promise<T> {
   const lockPath = `${target}.lock`;
-  for (let attempt = 0; ; attempt += 1) {
+  const token = nextOutboxLockToken();
+  for (let attempt = 0; attempt <= OUTBOX_LOCK_MAX_ATTEMPTS; attempt += 1) {
     let fd: number;
     try {
       fd = openSync(lockPath, 'wx', 0o600);
     } catch (error) {
       if (!isErrno(error, 'EEXIST')) throw error;
-      if (attempt >= OUTBOX_LOCK_MAX_ATTEMPTS) {
-        throw new WorkerJudgmentEmitterError('worker_judgment_outbox_locked', `Could not acquire the outbox lock for ${target}`);
+      // The lock is held. If its owner crashed, reclaim it and retry at once;
+      // otherwise wait a little and try again until the attempt budget is spent.
+      if (!reclaimStaleOutboxLock(lockPath)) {
+        await new Promise((resolve) => setTimeout(resolve, OUTBOX_LOCK_WAIT_MS));
       }
-      await new Promise((resolve) => setTimeout(resolve, OUTBOX_LOCK_WAIT_MS));
       continue;
     }
     try {
+      // Record the owner so a later process can detect a crash and reclaim it.
+      writeFileSync(fd, `${token}\n`);
       return await run();
     } finally {
       closeSync(fd);
-      try { unlinkSync(lockPath); } catch { /* best effort; a stale lock is retried above */ }
+      releaseOutboxLock(lockPath, token);
     }
   }
+  throw new WorkerJudgmentEmitterError('worker_judgment_outbox_locked', `Could not acquire the outbox lock for ${target}`);
 }
 
 /**
