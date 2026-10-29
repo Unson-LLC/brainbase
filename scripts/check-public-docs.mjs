@@ -222,7 +222,11 @@ requireText(docsWorkflow, 'pages deploy docs/.vitepress/dist', '.github/workflow
 requireText(docsWorkflow, 'npm run docs:verify-public', '.github/workflows/docs-cloudflare-pages.yml');
 requireText(docsWorkflow, '  pull_request:\n    branches:\n      - develop\n      - main\n', '.github/workflows/docs-cloudflare-pages.yml');
 requireText(docsWorkflow, 'node scripts/cloudflare-pages-production.mjs print-branch', '.github/workflows/docs-cloudflare-pages.yml');
-requireText(docsWorkflow, 'node scripts/cloudflare-pages-production.mjs assert-production', '.github/workflows/docs-cloudflare-pages.yml');
+requireText(docsWorkflow, 'node scripts/cloudflare-pages-production.mjs decide-deploy', '.github/workflows/docs-cloudflare-pages.yml');
+requireText(docsWorkflow, 'node scripts/cloudflare-pages-production.mjs assert-deployment', '.github/workflows/docs-cloudflare-pages.yml');
+requireText(docsWorkflow, 'pages-deployment-id', '.github/workflows/docs-cloudflare-pages.yml');
+requireText(docsWorkflow, "inputs.deploy == true && github.ref == 'refs/heads/main' && github.sha", '.github/workflows/docs-cloudflare-pages.yml');
+requireText(docsWorkflow, "github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'", '.github/workflows/docs-cloudflare-pages.yml');
 requireText(docsWorkflow, "PUBLIC_READBACK_ATTEMPTS: '18'", '.github/workflows/docs-cloudflare-pages.yml');
 requireText(docsWorkflow, "PUBLIC_READBACK_DELAY_MS: '5000'", '.github/workflows/docs-cloudflare-pages.yml');
 requireText(docsWorkflow, 'BRAINBASE_PUBLIC_URL: https://brainbase.pages.dev', '.github/workflows/docs-cloudflare-pages.yml');

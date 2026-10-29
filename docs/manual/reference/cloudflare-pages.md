@@ -24,7 +24,7 @@ pull requestからはdeployしません。
 
 ### mainへ昇格後
 
-上記の検証に加えて、`docs/.vitepress/dist`をCloudflare Pages project `brainbase`の`production_branch`へdeployします（`main`へのpush、または手動dispatchで`main`をbuildしてdeployを有効化）。branch名はdeployの直前にproject APIから読みます。`environment`が`production`でないdeploymentは、ここで失敗します。その後、公開URL `https://brainbase.pages.dev`をreadbackし、次を確認します。previewの別名（`https://<branch>.brainbase.pages.dev`）は公開URLの代わりになりません。
+上記の検証に加えて、`docs/.vitepress/dist`をCloudflare Pages project `brainbase`の`production_branch`へdeployします（`main`へのpush、または`refs/heads/main`からの手動dispatchでdeployを有効化）。`main`以外のrefで手動deployを有効にすると、理由を出して失敗し、deployしません。許可された手動deployでは、checkout、`--commit-hash`、readbackが同じcommit SHAを指します。`develop`へのマージではdeployしません。`main`へのマージは、workflowのpush pathに当たる変更があるとき本番deployになります。branch名はdeployの直前にproject APIから読みます。確認するのは、その実行が作ったdeployment idだけです。同じcommitの古いpreviewでは失敗しません。そのdeploymentの`environment`が`production`でないときは、ここで失敗します。その後、公開URL `https://brainbase.pages.dev`をreadbackし、次を確認します。previewの別名（`https://<branch>.brainbase.pages.dev`）は公開URLの代わりになりません。
 
 - 「自分の判断力を、ひとり分で終わらせない。」が表示される
 - システム構成ページと構成図が取得できる
