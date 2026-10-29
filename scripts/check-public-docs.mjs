@@ -2,7 +2,7 @@
 import { access, readFile } from 'node:fs/promises';
 import { dirname, extname, join, resolve } from 'node:path';
 import { syncPublicMessage, validatePublicMessage } from './lib/public-message.mjs';
-import { parsePublicReleaseState } from './lib/public-release-state.mjs';
+import { assertVersionHistoryDocuments, parsePublicReleaseState } from './lib/public-release-state.mjs';
 
 import { headings } from './draft-release-notes.mjs';
 
@@ -71,10 +71,7 @@ function checkReleaseHeadings(status, version, history) {
   if (state.state === 'candidate') requireText(status, `Candidate — v${version}`, 'status');
   requireText(status, 'Develop — release前', 'status');
   requireText(status, 'Planned — 未実装または未完成', 'status');
-  const expected = state.state === 'candidate' ? `${version} candidate — npm公開前` : version;
-  if (!headings(history).some(h => h.level === 2 && (h.title === expected || (state.state === 'released' && h.title.startsWith(`${expected} `))))) {
-    throw new Error(`version-history missing heading: ## ${expected}`);
-  }
+  assertVersionHistoryDocuments(headings(history), state, version);
   requireText(history, '## Unreleased — develop', 'version-history');
   return state;
 }
@@ -223,6 +220,21 @@ if (candidateSchema.properties?.source?.properties?.type?.const !== 'brainbase_g
 requireText(docsWorkflow, 'npm run docs:check', '.github/workflows/docs-cloudflare-pages.yml');
 requireText(docsWorkflow, 'pages deploy docs/.vitepress/dist', '.github/workflows/docs-cloudflare-pages.yml');
 requireText(docsWorkflow, 'npm run docs:verify-public', '.github/workflows/docs-cloudflare-pages.yml');
+requireText(docsWorkflow, '  pull_request:\n    branches:\n      - develop\n      - main\n', '.github/workflows/docs-cloudflare-pages.yml');
+requireText(docsWorkflow, 'node scripts/cloudflare-pages-production.mjs print-branch', '.github/workflows/docs-cloudflare-pages.yml');
+requireText(docsWorkflow, 'node scripts/cloudflare-pages-production.mjs decide-deploy', '.github/workflows/docs-cloudflare-pages.yml');
+requireText(docsWorkflow, 'node scripts/cloudflare-pages-production.mjs assert-deployment', '.github/workflows/docs-cloudflare-pages.yml');
+requireText(docsWorkflow, 'pages-deployment-id', '.github/workflows/docs-cloudflare-pages.yml');
+requireText(docsWorkflow, "inputs.deploy == true && github.ref == 'refs/heads/main' && github.sha", '.github/workflows/docs-cloudflare-pages.yml');
+requireText(docsWorkflow, "github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main'", '.github/workflows/docs-cloudflare-pages.yml');
+requireText(docsWorkflow, "PUBLIC_READBACK_ATTEMPTS: '18'", '.github/workflows/docs-cloudflare-pages.yml');
+requireText(docsWorkflow, "PUBLIC_READBACK_DELAY_MS: '5000'", '.github/workflows/docs-cloudflare-pages.yml');
+requireText(docsWorkflow, 'BRAINBASE_PUBLIC_URL: https://brainbase.pages.dev', '.github/workflows/docs-cloudflare-pages.yml');
+if (docsWorkflow.includes('--branch=main') || docsWorkflow.includes('--branch main')) {
+  throw new Error(
+    '.github/workflows/docs-cloudflare-pages.yml must not hardcode a Pages branch of main. Deploy to the project production_branch, or the upload stays a preview and https://brainbase.pages.dev does not change.'
+  );
+}
 requireText(promotionWorkflow, 'brainbase-public-message-candidate', '.github/workflows/public-message-promotion.yml');
 requireText(promotionWorkflow, 'npm run docs:promotion:plan', '.github/workflows/public-message-promotion.yml');
 requireText(promotionWorkflow, 'gh pr create', '.github/workflows/public-message-promotion.yml');

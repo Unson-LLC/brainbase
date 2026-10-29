@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - develop
+      - main
     paths:
       - README.md
       - AGENTS.md
@@ -62,7 +63,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && 'main' || github.ref }}
+          # deploy=true on main checks out github.sha, the same commit as --commit-hash and readback.
+          # Any other workflow_dispatch still checks out main and must not deploy.
+          ref: ${{ github.event_name == 'workflow_dispatch' && (inputs.deploy == true && github.ref == 'refs/heads/main' && github.sha || 'main') || github.ref }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -117,17 +120,10 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           GITHUB_REF: ${{ github.ref }}
           MANUAL_DEPLOY: ${{ inputs.deploy }}
-        run: |
-          SHOULD_DEPLOY=false
-          if [ "$EVENT_NAME" = "push" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; then
-            SHOULD_DEPLOY=true
-          elif [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$MANUAL_DEPLOY" = "true" ]; then
-            SHOULD_DEPLOY=true
-          fi
-          echo "should_deploy=$SHOULD_DEPLOY" >> "$GITHUB_OUTPUT"
+        run: node scripts/cloudflare-pages-production.mjs decide-deploy
 
       - name: Require Cloudflare deployment credentials
-        if: ${{ steps.deployment.outputs.should_deploy == 'true' }}
+        if: ${{ steps.deployment.outputs.should_deploy == 'true' && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main') }}
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -141,16 +137,43 @@ jobs:
             exit 1
           }
 
+      - name: Resolve Cloudflare Pages production branch
+        id: pages_production
+        if: ${{ steps.deployment.outputs.should_deploy == 'true' && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main') }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          branch="$(node scripts/cloudflare-pages-production.mjs print-branch)"
+          printf 'production_branch=%s\n' "$branch" >> "$GITHUB_OUTPUT"
+
       - name: Deploy verified build to Cloudflare Pages
-        if: ${{ steps.deployment.outputs.should_deploy == 'true' }}
+        id: pages_deploy
+        if: ${{ steps.deployment.outputs.should_deploy == 'true' && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main') }}
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy docs/.vitepress/dist --project-name=brainbase --branch=main --commit-dirty=true
+          # pages-deployment-id requires wrangler >= 3.81. Pin so a preinstalled wrangler cannot drop it.
+          wranglerVersion: "3.90.0"
+          command: pages deploy docs/.vitepress/dist --project-name=brainbase --branch=${{ steps.pages_production.outputs.production_branch }} --commit-hash=${{ github.sha }} --commit-dirty=true
 
+      - name: Require a production Pages deployment
+        if: ${{ steps.deployment.outputs.should_deploy == 'true' && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main') }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          EXPECTED_COMMIT_SHA: ${{ github.sha }}
+          PAGES_DEPLOYMENT_ID: ${{ steps.pages_deploy.outputs.pages-deployment-id }}
+        run: node scripts/cloudflare-pages-production.mjs assert-deployment "$PAGES_DEPLOYMENT_ID" "$EXPECTED_COMMIT_SHA"
+
+      # Readback stays immediately after the production deploy. Run 40817994386
+      # printed a preview alias and left https://brainbase.pages.dev unchanged;
+      # npm publish finishing later does not promote that preview.
+      # Judge only this run's deployment id. An older preview of the same commit is not this deployment.
       - name: Read back the public site
-        if: ${{ steps.deployment.outputs.should_deploy == 'true' }}
+        if: ${{ steps.deployment.outputs.should_deploy == 'true' && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main') }}
         env:
           EXPECTED_BUILD_SHA: ${{ github.sha }}
           BRAINBASE_PUBLIC_URL: https://brainbase.pages.dev
@@ -164,8 +187,8 @@ jobs:
           {
             echo '## Documentation CI failure/cancellation summary'
             echo
-            echo '- Protection: docs contracts, publication contracts, VitePress build, smoke check, and required post-deploy public readback.'
+            echo '- Protection: docs contracts, publication contracts, VitePress build, smoke check, a Cloudflare Pages production deployment (not a preview alias), and required post-deploy public readback of https://brainbase.pages.dev.'
             echo '- Reproduce: `npm ci --ignore-scripts && npm run docs:check && npx vitest run tests/public-message-promotion.test.ts tests/repo-hygiene.test.ts && npm run docs:build && npm run docs:smoke`.'
-            echo '- Expected: validation passes before a deploy; a main push or approved manual deploy from main also passes `docs:verify-public`.'
-            echo '- Unknown: inspect the failed step; if deployment/readback failed, the public site state requires a fresh readback.'
+            echo '- Expected: validation passes before a deploy. A main push, or workflow_dispatch with deploy=true from refs/heads/main, checks out that same commit, deploys it to the project production branch, requires environment=production on the deployment id created by this run, and passes `docs:verify-public` for that same SHA. workflow_dispatch deploy=true from any other ref fails before deploy. A develop push does not deploy.'
+            echo '- Unknown: inspect the failed step. A preview alias does not update the production hostname. If deployment or readback failed, the public site state requires a fresh production deploy and readback.'
           } >> "$GITHUB_STEP_SUMMARY"
