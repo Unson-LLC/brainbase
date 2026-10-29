@@ -156,6 +156,96 @@ describe('public_frame rejection (拒否のみ・書き換えない)', () => {
   });
 });
 
+describe('project_code screening (meta と同じ拒否)', () => {
+  it('skips when project_code carries a credential-like value', () => {
+    const built = buildWorkerJudgmentReceipt(
+      input({ project_code: 'password=hunter2hunter2hunter2' }),
+      config()
+    );
+    expect(built).toMatchObject({ outcome: 'skipped', reason_code: 'worker_project_code_invalid' });
+  });
+
+  it('skips when project_code carries control characters', () => {
+    const built = buildWorkerJudgmentReceipt(
+      input({ project_code: 'brainsettinglinebell' }),
+      config()
+    );
+    expect(built).toMatchObject({ outcome: 'skipped', reason_code: 'worker_project_code_invalid' });
+  });
+
+  it('skips when project_code is over length', () => {
+    const built = buildWorkerJudgmentReceipt(
+      input({ project_code: 'a'.repeat(201) }),
+      config()
+    );
+    expect(built).toMatchObject({ outcome: 'skipped', reason_code: 'worker_project_code_invalid' });
+  });
+
+  it('treats an absent or blank project_code as not recorded', () => {
+    for (const value of [undefined, null, '   '] as const) {
+      const built = buildWorkerJudgmentReceipt(input({ project_code: value as string | null }), config());
+      if (built.outcome !== 'receipt') throw new Error('expected a receipt');
+      expect(built.receipt.project_code).toBeNull();
+    }
+  });
+
+  it('never stores the rejected project_code value in the skip marker', async () => {
+    const root = await freshRoot();
+    const result = await emitWorkerJudgment(
+      input({ project_code: 'password=hunter2hunter2hunter2' }),
+      { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW }
+    );
+    expect(result.outcome).toBe('skipped');
+    if (result.outcome !== 'skipped') return;
+    expect(result.reason_code).toBe('worker_project_code_invalid');
+    const raw = await readFile(result.path, 'utf8');
+    expect(raw).not.toContain('hunter2');
+    expect(raw).not.toContain('password=');
+  });
+});
+
+describe('resolved_at timezone and calendar validity', () => {
+  it('rejects a zone-less resolved_at so the host timezone cannot shift the boundary', () => {
+    const built = buildWorkerJudgmentReceipt(
+      input({ resolved_at: '2026-10-19T12:00:00' }),
+      config()
+    );
+    expect(built).toMatchObject({ outcome: 'skipped', reason_code: 'worker_resolved_at_invalid' });
+  });
+
+  it('rejects a rolled-over calendar date rather than carrying it forward', () => {
+    const built = buildWorkerJudgmentReceipt(
+      input({ resolved_at: '2026-02-30T00:00:00.000Z' }),
+      config()
+    );
+    expect(built).toMatchObject({ outcome: 'skipped', reason_code: 'worker_resolved_at_invalid' });
+  });
+
+  it('applies the boundary on the real instant, not the wall clock, across offsets', () => {
+    // 08:59:59+09:00 is 2026-09-30T23:59:59Z — one second before the boundary.
+    const before = buildWorkerJudgmentReceipt(
+      input({ resolved_at: '2026-10-01T08:59:59+09:00' }),
+      config()
+    );
+    expect(before).toMatchObject({ outcome: 'skipped', reason_code: 'worker_resolved_at_before_boundary' });
+    // 09:00:00+09:00 is exactly the boundary instant — accepted and normalized to UTC.
+    const atBoundary = buildWorkerJudgmentReceipt(
+      input({ resolved_at: '2026-10-01T09:00:00.000+09:00' }),
+      config()
+    );
+    if (atBoundary.outcome !== 'receipt') throw new Error('expected a receipt');
+    expect(atBoundary.receipt.resolved_at).toBe('2026-10-01T00:00:00.000Z');
+  });
+
+  it('yields the same receipt_digest for the same instant written with different offsets', () => {
+    const utc = buildWorkerJudgmentReceipt(input({ resolved_at: '2026-10-19T12:00:00.000Z' }), config());
+    const offset = buildWorkerJudgmentReceipt(input({ resolved_at: '2026-10-19T21:00:00.000+09:00' }), config());
+    if (utc.outcome !== 'receipt' || offset.outcome !== 'receipt') throw new Error('expected receipts');
+    expect(offset.receipt.resolved_at).toBe(utc.receipt.resolved_at);
+    expect(offset.receipt.receipt_digest).toBe(utc.receipt.receipt_digest);
+  });
+});
+
 describe('resolved_at boundary (§8)', () => {
   it('skips when resolved_at is before effective_after', () => {
     const built = buildWorkerJudgmentReceipt(
@@ -290,5 +380,43 @@ describe('injected transport (OSS 既定は注入なし)', () => {
     expect(result.status).toBe('failed');
     const stored = JSON.parse(await readFile(result.path, 'utf8'));
     expect(stored.receipt.resolution_id).toBe(result.receipt.resolution_id);
+  });
+});
+
+describe('re-emit never undoes delivery progress (§6/§7)', () => {
+  it('keeps a saved receipt saved when a later re-emit would fail', async () => {
+    const root = await freshRoot();
+    const saving: WorkerJudgmentTransport = { send: () => ({ status: 'saved' }) };
+    const first = await emitWorkerJudgment(input(), { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW, transport: saving });
+    expect(first.outcome).toBe('emitted');
+    if (first.outcome !== 'emitted') return;
+    expect(first.status).toBe('saved');
+
+    let called = false;
+    const failing: WorkerJudgmentTransport = { send: () => { called = true; throw new Error('boom'); } };
+    const second = await emitWorkerJudgment(input(), { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW, transport: failing });
+    expect(second.outcome).toBe('emitted');
+    if (second.outcome !== 'emitted') return;
+    // The stored success is kept, the failing transport is never consulted, and
+    // the on-disk record is not downgraded to failed.
+    expect(second.status).toBe('saved');
+    expect(second.deduped).toBe(true);
+    expect(called).toBe(false);
+    const stored = JSON.parse(await readFile(second.path, 'utf8'));
+    expect(stored.delivery.status).toBe('saved');
+  });
+
+  it('returns the stored status on a no-transport re-run instead of a fresh pending', async () => {
+    const root = await freshRoot();
+    const saving: WorkerJudgmentTransport = { send: () => ({ status: 'saved' }) };
+    await emitWorkerJudgment(input(), { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW, transport: saving });
+
+    const reRun = await emitWorkerJudgment(input(), { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW });
+    expect(reRun.outcome).toBe('emitted');
+    if (reRun.outcome !== 'emitted') return;
+    expect(reRun.status).toBe('saved');
+    expect(reRun.deduped).toBe(true);
+    const stored = JSON.parse(await readFile(reRun.path, 'utf8'));
+    expect(stored.delivery.status).toBe('saved');
   });
 });

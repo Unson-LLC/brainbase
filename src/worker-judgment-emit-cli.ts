@@ -18,6 +18,12 @@ interface CliPayload {
   readonly effectiveAfter?: string;
 }
 
+/** The pair of write sinks the CLI uses, injectable so a test never touches real process streams. */
+export interface WorkerJudgmentEmitCliIo {
+  readonly stdout: { write(chunk: string): unknown };
+  readonly stderr: { write(chunk: string): unknown };
+}
+
 async function readStdin(): Promise<string> {
   const chunks: Buffer[] = [];
   for await (const chunk of process.stdin) chunks.push(chunk as Buffer);
@@ -28,22 +34,32 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
-async function main(): Promise<number> {
-  const raw = await readStdin();
+/**
+ * Run one emission from an already-read stdin string. Pure over its inputs: it
+ * writes only to the injected io and returns the exit code, so it is tested
+ * without spawning a process or reading real streams. Error reports are
+ * input-free on purpose — a rejected turn descriptor may still carry a
+ * credential, so the raw input and parser messages are never echoed.
+ */
+export async function runWorkerJudgmentEmitCli(
+  raw: string,
+  io: WorkerJudgmentEmitCliIo,
+  env: Record<string, string | undefined> = process.env
+): Promise<number> {
   let payload: CliPayload;
   try {
     const parsed = JSON.parse(raw) as unknown;
-    if (!isRecord(parsed) || !isRecord(parsed.input)) throw new Error('payload must be { input, journalRoot?, effectiveAfter? }');
+    if (!isRecord(parsed) || !isRecord(parsed.input)) throw new Error('payload shape');
     payload = parsed as unknown as CliPayload;
-  } catch (error) {
-    process.stderr.write(`${JSON.stringify({ error: 'worker_judgment_cli_input_invalid', detail: (error as Error).message })}\n`);
+  } catch {
+    io.stderr.write(`${JSON.stringify({ error: 'worker_judgment_cli_input_invalid', detail: 'stdin must be a JSON object { input, journalRoot?, effectiveAfter? }' })}\n`);
     return 2;
   }
 
-  const journalRoot = payload.journalRoot ?? process.env.BRAINBASE_WORKER_JUDGMENT_JOURNAL_DIR;
-  const effectiveAfter = payload.effectiveAfter ?? process.env.BRAINBASE_WORKER_JUDGMENT_EFFECTIVE_AFTER;
+  const journalRoot = payload.journalRoot ?? env.BRAINBASE_WORKER_JUDGMENT_JOURNAL_DIR;
+  const effectiveAfter = payload.effectiveAfter ?? env.BRAINBASE_WORKER_JUDGMENT_EFFECTIVE_AFTER;
   if (!journalRoot || !effectiveAfter) {
-    process.stderr.write(`${JSON.stringify({ error: 'worker_judgment_cli_config_missing', detail: 'journalRoot and effectiveAfter are required (payload or env)' })}\n`);
+    io.stderr.write(`${JSON.stringify({ error: 'worker_judgment_cli_config_missing', detail: 'journalRoot and effectiveAfter are required (payload or env)' })}\n`);
     return 2;
   }
 
@@ -60,16 +76,27 @@ async function main(): Promise<number> {
           deduped: result.deduped,
           path: result.path
         };
-    process.stdout.write(`${JSON.stringify(summary)}\n`);
+    io.stdout.write(`${JSON.stringify(summary)}\n`);
     return 0;
   } catch (error) {
-    const code = error instanceof WorkerJudgmentEmitterError ? error.code : 'worker_judgment_cli_error';
-    process.stderr.write(`${JSON.stringify({ error: code, detail: (error as Error).message })}\n`);
+    // Only the emitter's own code/message is controlled and input-free; any other
+    // failure reports a fixed reason so a stray value can never reach the log.
+    const report = error instanceof WorkerJudgmentEmitterError
+      ? { error: error.code, detail: error.message }
+      : { error: 'worker_judgment_cli_error', detail: 'the turn could not be emitted' };
+    io.stderr.write(`${JSON.stringify(report)}\n`);
     return 1;
   }
 }
 
-main().then((code) => { process.exitCode = code; }).catch((error) => {
-  process.stderr.write(`${JSON.stringify({ error: 'worker_judgment_cli_error', detail: (error as Error).message })}\n`);
-  process.exitCode = 1;
-});
+async function main(): Promise<number> {
+  return runWorkerJudgmentEmitCli(await readStdin(), { stdout: process.stdout, stderr: process.stderr }, process.env);
+}
+
+// Only run when invoked as the process entrypoint, not when imported by a test.
+if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
+  main().then((code) => { process.exitCode = code; }).catch(() => {
+    process.stderr.write(`${JSON.stringify({ error: 'worker_judgment_cli_error', detail: 'the turn could not be emitted' })}\n`);
+    process.exitCode = 1;
+  });
+}

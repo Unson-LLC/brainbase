@@ -36,6 +36,7 @@ export type WorkerJudgmentSkipReason =
   | 'worker_public_frame_absent'
   | 'frame_public_invalid'
   | 'worker_meta_invalid'
+  | 'worker_project_code_invalid'
   | 'worker_resolved_at_missing'
   | 'worker_resolved_at_invalid'
   | 'worker_resolved_at_before_boundary';
@@ -141,9 +142,36 @@ function sha256Hex(value: string): string {
   return createHash('sha256').update(value, 'utf8').digest('hex');
 }
 
+/**
+ * Accept only an explicit calendar date-time that carries a timezone (`Z` or a
+ * numeric offset). A zone-less value like `2026-10-01T00:00:00` would otherwise
+ * be read in the host timezone, so the §8 boundary and the receipt_digest would
+ * differ between a UTC runner and an Asia/Tokyo laptop. Calendar fields are
+ * checked against a UTC round-trip so a rolled-over date (`2026-02-30`,
+ * hour `25`) is rejected rather than silently carried forward. The accepted
+ * value is returned normalized to a UTC ISO string; it is never rewritten
+ * beyond that canonicalization.
+ */
+const ISO_DATETIME_WITH_TZ = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:Z|[+-]\d{2}:\d{2})$/;
+
 function normalizeIso(value: unknown): string | null {
-  if (typeof value !== 'string' || !value.trim()) return null;
-  const ms = Date.parse(value);
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  const match = ISO_DATETIME_WITH_TZ.exec(trimmed);
+  if (!match) return null;
+  const [, y, mo, d, h, mi, s] = match;
+  const year = Number(y);
+  const month = Number(mo);
+  const day = Number(d);
+  const hour = Number(h);
+  const minute = Number(mi);
+  const second = Number(s);
+  const check = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+  if (check.getUTCFullYear() !== year || check.getUTCMonth() !== month - 1 || check.getUTCDate() !== day
+    || check.getUTCHours() !== hour || check.getUTCMinutes() !== minute || check.getUTCSeconds() !== second) {
+    return null;
+  }
+  const ms = Date.parse(trimmed);
   if (!Number.isFinite(ms)) return null;
   return new Date(ms).toISOString();
 }
@@ -160,6 +188,21 @@ function normalizeMetaField(value: unknown): string | null | undefined {
   if (value === undefined || value === null) return null;
   if (typeof value !== 'string' || !value.trim() || value.length > MAX_META_TEXT
     || publicFrameTextHasControlCharacters(value) || containsJudgmentFrameCredential(value)) {
+    return undefined;
+  }
+  return value;
+}
+
+/**
+ * `project_code` is stored in the receipt and handed to any injected transport,
+ * so it gets the same secret/control-character/length screen as meta. An
+ * absent, null, or blank value is "not recorded" (`null`); a non-empty string
+ * that fails the screen is rejected (`undefined`) instead of being stored.
+ */
+function normalizeProjectCode(value: unknown): string | null | undefined {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string' || !value.trim()) return null;
+  if (value.length > MAX_META_TEXT || publicFrameTextHasControlCharacters(value) || containsJudgmentFrameCredential(value)) {
     return undefined;
   }
   return value;
@@ -199,6 +242,11 @@ export function buildWorkerJudgmentReceipt(
     return { outcome: 'skipped', reason_code: 'worker_meta_invalid', detail: 'meta contains an invalid or credential-like value' };
   }
 
+  const projectCode = normalizeProjectCode(input.project_code);
+  if (projectCode === undefined) {
+    return { outcome: 'skipped', reason_code: 'worker_project_code_invalid', detail: 'project_code is invalid or credential-like' };
+  }
+
   if (input.resolved_at === undefined || input.resolved_at === null
     || (typeof input.resolved_at === 'string' && !input.resolved_at.trim())) {
     return { outcome: 'skipped', reason_code: 'worker_resolved_at_missing', detail: 'resolved_at was not provided' };
@@ -216,7 +264,6 @@ export function buildWorkerJudgmentReceipt(
     return { outcome: 'skipped', reason_code: 'worker_resolved_at_before_boundary', detail: 'resolved_at is before the activation boundary' };
   }
 
-  const projectCode = typeof input.project_code === 'string' && input.project_code.trim() ? input.project_code : null;
   const contentDigest = judgmentFramePublicFrameDigest(frameCheck.frame);
   const resolutionId = sha256Hex(canonicalJson({
     content_digest: contentDigest,
@@ -270,16 +317,40 @@ function isErrno(error: unknown, code: string): boolean {
   return Boolean(error && typeof error === 'object' && 'code' in error && (error as NodeJS.ErrnoException).code === code);
 }
 
-function readStoredReceiptDigest(path: string): string | null {
+interface StoredOutboxState {
+  readonly receipt_digest: string;
+  readonly status: WorkerJudgmentDeliveryStatus;
+  readonly last_error_code?: string;
+}
+
+const DELIVERY_STATUSES: readonly WorkerJudgmentDeliveryStatus[] =
+  ['pending', 'saved', 'already_saved', 'blocked_credential', 'failed'];
+
+/**
+ * Read the digest and the recorded delivery state of a receipt already on disk.
+ * A re-emit must compare the digest (§6 conflict) and must not undo delivery
+ * progress, so the stored status is read too. Returns `null` when the file is
+ * unreadable or does not carry a comparable receipt_digest.
+ */
+function readStoredOutboxState(path: string): StoredOutboxState | null {
   try {
     const parsed = JSON.parse(readFileSync(path, 'utf8')) as unknown;
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      const receipt = (parsed as { receipt?: unknown }).receipt;
-      if (receipt && typeof receipt === 'object' && !Array.isArray(receipt)) {
-        const digest = (receipt as { receipt_digest?: unknown }).receipt_digest;
-        if (typeof digest === 'string') return digest;
-      }
-    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    const receipt = (parsed as { receipt?: unknown }).receipt;
+    if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) return null;
+    const digest = (receipt as { receipt_digest?: unknown }).receipt_digest;
+    if (typeof digest !== 'string') return null;
+    const delivery = (parsed as { delivery?: unknown }).delivery;
+    const rawStatus = delivery && typeof delivery === 'object' && !Array.isArray(delivery)
+      ? (delivery as { status?: unknown }).status
+      : undefined;
+    const status = DELIVERY_STATUSES.includes(rawStatus as WorkerJudgmentDeliveryStatus)
+      ? (rawStatus as WorkerJudgmentDeliveryStatus)
+      : 'pending';
+    const rawError = delivery && typeof delivery === 'object' && !Array.isArray(delivery)
+      ? (delivery as { last_error_code?: unknown }).last_error_code
+      : undefined;
+    return { receipt_digest: digest, status, ...(typeof rawError === 'string' ? { last_error_code: rawError } : {}) };
   } catch { /* unreadable or malformed; treat as no comparable receipt */ }
   return null;
 }
@@ -322,6 +393,7 @@ export async function emitWorkerJudgment(
   const receipt = built.receipt;
   const target = join(dir, `${receipt.resolution_id}.json`);
   let deduped = false;
+  let stored: StoredOutboxState | null = null;
   try {
     atomicPublishNoReplace(target, {
       schema_version: WORKER_JUDGMENT_OUTBOX_SCHEMA,
@@ -330,13 +402,36 @@ export async function emitWorkerJudgment(
     }, now);
   } catch (error) {
     if (!isErrno(error, 'EEXIST')) throw error;
-    const existingDigest = readStoredReceiptDigest(target);
-    if (existingDigest !== receipt.receipt_digest) throw new WorkerJudgmentConflictError(receipt.resolution_id);
+    stored = readStoredOutboxState(target);
+    if (!stored || stored.receipt_digest !== receipt.receipt_digest) throw new WorkerJudgmentConflictError(receipt.resolution_id);
     deduped = true;
   }
 
+  // A receipt already delivered must never be downgraded by a later re-emit:
+  // keep the stored success and do not re-send or overwrite the record.
+  if (stored && (stored.status === 'saved' || stored.status === 'already_saved')) {
+    return {
+      outcome: 'emitted',
+      status: stored.status,
+      receipt,
+      path: target,
+      deduped,
+      ...(stored.last_error_code ? { last_error_code: stored.last_error_code } : {})
+    };
+  }
+
   if (!options.transport) {
-    return { outcome: 'emitted', status: 'pending', receipt, path: target, deduped };
+    // On a re-emit the receipt stays whatever was already recorded (e.g. a prior
+    // success), not a fresh `pending`. A first write is `pending`.
+    const status = stored ? stored.status : 'pending';
+    return {
+      outcome: 'emitted',
+      status,
+      receipt,
+      path: target,
+      deduped,
+      ...(stored?.last_error_code ? { last_error_code: stored.last_error_code } : {})
+    };
   }
 
   let status: WorkerJudgmentDeliveryStatus = 'pending';
