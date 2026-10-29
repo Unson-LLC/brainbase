@@ -544,6 +544,55 @@ describe('delivery success is a marker, not a body rewrite (異常終了後も�
   });
 });
 
+describe('legacy body-recorded success is honored (印ファイルの無い旧形式)', () => {
+  // Seed a pending outbox, then rewrite only its delivery.status to a legacy
+  // success — the format a prior commit wrote before the `.sent` marker existed.
+  // Rewriting delivery.status leaves the receipt (and its receipt_digest) intact,
+  // so the body is not corrupt; there is deliberately no `.sent` marker.
+  async function seedLegacySuccess(status: 'saved' | 'already_saved'): Promise<{ root: string; path: string }> {
+    const root = await freshRoot();
+    const first = await emitWorkerJudgment(input(), { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW });
+    if (first.outcome !== 'emitted') throw new Error('expected an emitted receipt');
+    const stored = JSON.parse(await readFile(first.path, 'utf8'));
+    stored.delivery.status = status;
+    await writeFile(first.path, `${JSON.stringify(stored, null, 2)}\n`, { mode: 0o600 });
+    return { root, path: first.path };
+  }
+
+  for (const status of ['saved', 'already_saved'] as const) {
+    it(`treats a marker-less ${status} body as delivered without re-sending`, async () => {
+      const { root, path } = await seedLegacySuccess(status);
+
+      let called = false;
+      const failing: WorkerJudgmentTransport = { send: () => { called = true; throw new Error('boom'); } };
+      const result = await emitWorkerJudgment(
+        input(),
+        { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW, transport: failing }
+      );
+      expect(result.outcome).toBe('emitted');
+      if (result.outcome !== 'emitted') return;
+      // The stored success is honored verbatim, the transport is never consulted,
+      // and the failing re-send does not downgrade the body to failed.
+      expect(result.status).toBe(status);
+      expect(result.deduped).toBe(true);
+      expect(called).toBe(false);
+      const stored = JSON.parse(await readFile(path, 'utf8'));
+      expect(stored.delivery.status).toBe(status);
+    });
+
+    it(`returns the legacy ${status} status on a no-transport re-run`, async () => {
+      const { root, path } = await seedLegacySuccess(status);
+      const reRun = await emitWorkerJudgment(input(), { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW });
+      expect(reRun.outcome).toBe('emitted');
+      if (reRun.outcome !== 'emitted') return;
+      expect(reRun.status).toBe(status);
+      expect(reRun.deduped).toBe(true);
+      const stored = JSON.parse(await readFile(path, 'utf8'));
+      expect(stored.delivery.status).toBe(status);
+    });
+  }
+});
+
 describe('corrupt stored outbox fails loudly (正本の破損を明示的に失敗させる)', () => {
   async function seedPending(): Promise<{ root: string; path: string }> {
     const root = await freshRoot();

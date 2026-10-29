@@ -515,6 +515,21 @@ export async function emitWorkerJudgment(
     return { outcome: 'emitted', status: 'saved', receipt, path: target, deduped };
   }
 
+  // Legacy success: an outbox written before the `.sent` marker existed recorded
+  // delivery only in its body. A marker-less `saved` / `already_saved` body is
+  // still an authoritative success, so honor it exactly like a marker — never
+  // re-send through the transport, and never let a later failure downgrade it.
+  if (stored && isSuccessStatus(stored.status)) {
+    return {
+      outcome: 'emitted',
+      status: stored.status,
+      receipt,
+      path: target,
+      deduped,
+      ...(stored.last_error_code ? { last_error_code: stored.last_error_code } : {})
+    };
+  }
+
   if (!options.transport) {
     // No transport: the receipt keeps whatever the body already recorded
     // (`pending` on a first write, or a prior `failed`), never a fresh success.
