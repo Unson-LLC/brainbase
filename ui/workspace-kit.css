@@ -831,6 +831,26 @@
   line-height: var(--bb-tab-count-size);
   font-weight: var(--bb-tab-font-weight);
 }
+/* workspaceTabStrip: one bar slides between tabs once the selected tab was measured. */
+.bb-ws-tabs.is-indicator-ready { position: relative; }
+.bb-ws-tabs.is-indicator-ready > :is([role="tab"], a, button):is([aria-selected="true"], [aria-current="page"], [aria-pressed="true"]),
+.bb-ws-tabs.is-indicator-ready > :is([role="tab"], a, button):is([aria-selected="true"], [aria-current="page"], [aria-pressed="true"]):hover {
+  box-shadow: none;
+}
+.bb-ws-tabs.is-indicator-ready::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: var(--bb-tab-indicator-width, 0px);
+  height: var(--bb-tab-indicator-size);
+  background: var(--bb-color-ink);
+  transform: translateX(var(--bb-tab-indicator-x, 0px));
+  transition: transform var(--bb-tab-indicator-duration) var(--bb-tab-indicator-ease), width var(--bb-tab-indicator-duration) var(--bb-tab-indicator-ease);
+  pointer-events: none;
+}
+.bb-ws-tabs.is-indicator-instant::after { transition: none; }
+@media (prefers-reduced-motion: reduce) { .bb-ws-tabs.is-indicator-ready::after { transition: none; } }
 .bb-ws-tabs::-webkit-scrollbar { display: none; }
 .bb-ws-tabs[hidden],
 .bb-ws-tabs > [hidden] { display: none; }
