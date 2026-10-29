@@ -1,15 +1,17 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   countInboxWaiting,
   createLocalInboxDispositions,
   createInboxUI,
+  INBOX_TODAY_SECTIONS,
+  inboxDueLabel,
   inboxLaterChoices,
   inboxRouteTarget,
   parseInboxRoute,
   sortInboxItems,
   withLocalInboxDispositions,
 } from '../../ui/inbox.js';
-import { collectText, FakeDocument, findAll, waitFor } from './graph-ui-harness.mjs';
+import { collectText, FakeDocument, FakeElement, findAll, waitFor } from './graph-ui-harness.mjs';
 
 const NOW = new Date('2026-10-18T03:00:00.000Z');
 
@@ -60,24 +62,80 @@ async function mount(options = {}) {
   const root = document.createElement('div');
   const routes = [];
   const navigations = [];
+  const counts = [];
   const view = createInboxUI({
     root,
     document,
     port: options.port ?? fakePort(),
     route: options.route,
+    layout: options.layout,
+    undoWindowMs: options.undoWindowMs,
+    doneShownMs: options.doneShownMs,
+    timers: options.timers,
     onRouteChange: (route) => { routes.push(route); view.applyRoute(route); },
     onNavigate: (href) => navigations.push(href),
+    onCount: (count) => counts.push(count),
     now: () => options.now ?? NOW,
   });
   await view.load();
-  return { view, root, routes, navigations };
+  return { view, root, routes, navigations, counts };
 }
 
 const text = (root) => collectText(root);
 const sections = (root) => findAll(root, (node) => node.tagName === 'SECTION' && node.attributes?.['data-group']);
+const todaySections = (root) => findAll(root, (node) => node.tagName === 'SECTION' && node.attributes?.['data-section']);
 const rowsOf = (node) => findAll(node, (child) => child.attributes?.['data-inbox-item']);
 const buttonIn = (node, label) => findAll(node, (child) => child.tagName === 'BUTTON' && collectText(child) === label)[0];
 const linkIn = (node) => findAll(node, (child) => child.tagName === 'A')[0];
+
+function fakeTimers() {
+  let nextId = 1;
+  const scheduled = new Map();
+  return {
+    scheduled,
+    set(fn, ms) {
+      const id = nextId++;
+      scheduled.set(id, { fn, ms });
+      return id;
+    },
+    clear(id) {
+      scheduled.delete(id);
+    },
+    run(id) {
+      const entry = scheduled.get(id);
+      scheduled.delete(id);
+      entry?.fn();
+    },
+    size: () => scheduled.size,
+  };
+}
+
+const TODAY_SOURCES = [
+  { kind: 'question', label: 'AIからの質問', group: 'answer', status: 'ok' },
+  { kind: 'automation_step', label: '自動化の人の手順', group: 'approve', status: 'ok' },
+  { kind: 'memory_candidates', label: '取り込み待ち', group: 'triage', status: 'ok' },
+  { kind: 'assigned_task', label: '新しく割り当てられたタスク', group: 'task', status: 'ok' },
+];
+
+function todayItems() {
+  return [
+    item('answer-a', { kind: 'question', group: 'answer', title: '方針を決める', units: 2, receivedAt: '2026-10-14T00:00:00.000Z' }),
+    item('approve-a', { kind: 'automation_step', group: 'approve', title: '経費を承認する', receivedAt: '2026-10-18T00:00:00.000Z', actions: [{ id: 'approve', label: '承認', tone: 'primary' }] }),
+    item('triage-a', { kind: 'memory_candidates', group: 'triage', title: '候補を取り込む', units: 4, receivedAt: '2026-10-15T00:00:00.000Z' }),
+    item('task-a', { kind: 'assigned_task', group: 'task', title: '資料を読む', receivedAt: '2026-10-18T00:00:00.000Z' }),
+  ];
+}
+
+function todayResult(overrides = {}) {
+  return {
+    status: 'ok',
+    sources: TODAY_SOURCES,
+    items: todayItems(),
+    dispositions: [],
+    uncollected: ['ゲストの操作の承認'],
+    ...overrides,
+  };
+}
 
 describe('routes', () => {
   it('タブと一覧の切り替えだけをアドレスに残し、待っているものの中身を載せない', () => {
@@ -139,6 +197,17 @@ describe('inboxLaterChoices', () => {
     ]);
     const night = new Date(2026, 9, 15, 20, 0); // Thursday
     expect(inboxLaterChoices(night).map((choice) => [choice.label, choice.until.getDate()])).toEqual([['明日の朝', 16], ['来週の月曜の朝', 19]]);
+  });
+});
+
+describe('inboxLaterChoices today', () => {
+  it('style today は21時前だけ今夜21時を出し、明日の朝9時と来週の月曜9時を出す', () => {
+    const morning = new Date(2026, 9, 18, 10, 0); // Sunday
+    expect(inboxLaterChoices(morning, { style: 'today' }).map((choice) => [choice.label, choice.until.getDate(), choice.until.getHours()])).toEqual([
+      ['今夜 21:00', 18, 21], ['明日の朝 9:00', 19, 9], ['来週の月曜 9:00', 19, 9],
+    ]);
+    const night = new Date(2026, 9, 15, 21, 30); // Thursday
+    expect(inboxLaterChoices(night, { style: 'today' }).map((choice) => [choice.label, choice.until.getDate()])).toEqual([['明日の朝 9:00', 16], ['来週の月曜 9:00', 19]]);
   });
 });
 
@@ -215,6 +284,198 @@ describe('対応待ち', () => {
     release(okResult({ items: [] }));
     await pending;
     expect(text(root)).toContain('待っているものはありません');
+  });
+});
+
+describe('今日決めること（layout: today）', () => {
+  it('タブを出さず、3段を決まった順に並べ、件数見出しに決めることの units 合計を出す', async () => {
+    const { root } = await mount({
+      layout: 'today',
+      port: fakePort({ readInbox: vi.fn(async () => todayResult()), runAction: vi.fn(async () => ({ status: 'ok' })) }),
+    });
+    expect(findAll(root, (node) => node.attributes?.role === 'tab')).toEqual([]);
+    expect(todaySections(root).map((node) => node.attributes['data-section'])).toEqual(INBOX_TODAY_SECTIONS.map((section) => section.id));
+    expect(todaySections(root).map((node) => collectText(node.children[0]))).toEqual(['決めること', 'まとめて片付くもの', '見るだけ']);
+    expect(text(root)).toContain('今日決めること 3件');
+    expect(root.children[0].className).toBe('bb-inbox is-today');
+  });
+
+  it('決めることが0件なら今日決めることはありませんと出す', async () => {
+    const { root } = await mount({
+      layout: 'today',
+      port: fakePort({ readInbox: vi.fn(async () => okResult()) }),
+    });
+    expect(text(root)).toContain('今日決めることはありません');
+    expect(text(root)).not.toContain('今日決めること 0件');
+  });
+
+  it('決めることの取得元が読めないときは0件に見せず、読めなかったことを件数に出す', async () => {
+    const { root } = await mount({
+      layout: 'today',
+      port: fakePort({
+        readInbox: vi.fn(async () => todayResult({
+          sources: [
+            { ...TODAY_SOURCES[0], status: 'unavailable', reason: 'upstream_unavailable' },
+            { ...TODAY_SOURCES[1], status: 'unavailable', reason: 'request_failed' },
+            TODAY_SOURCES[2],
+            TODAY_SOURCES[3],
+          ],
+          items: todayItems().filter((entry) => !['answer', 'approve'].includes(entry.group)),
+        })),
+      }),
+    });
+    const count = findAll(root, (node) => node.className === 'bb-inbox-today-count is-unreadable')[0];
+    expect(count).toBeDefined();
+    expect(collectText(count)).toContain('今日決めることを読めませんでした');
+    expect(collectText(count)).toContain('0件ではありません');
+    expect(count.attributes.role).toBe('status');
+    expect(text(root)).not.toContain('今日決めることはありません');
+  });
+
+  it('取得元が未接続なだけなら今日決めることはありませんのまま出す', async () => {
+    const { root } = await mount({
+      layout: 'today',
+      port: fakePort({
+        readInbox: vi.fn(async () => todayResult({
+          sources: [
+            { ...TODAY_SOURCES[0], status: 'not_connected' },
+            { ...TODAY_SOURCES[1], status: 'not_connected' },
+            TODAY_SOURCES[2],
+            TODAY_SOURCES[3],
+          ],
+          items: todayItems().filter((entry) => !['answer', 'approve'].includes(entry.group)),
+        })),
+      }),
+    });
+    expect(text(root)).toContain('今日決めることはありません');
+    expect(text(root)).not.toContain('今日決めることを読めませんでした');
+  });
+
+  it('段の中は sortInboxItems のまま並べ、待ち日数と3日超の is-long を出す', async () => {
+    const { root } = await mount({
+      layout: 'today',
+      port: fakePort({ readInbox: vi.fn(async () => todayResult()), runAction: vi.fn(async () => ({ status: 'ok' })) }),
+    });
+    const [decide] = todaySections(root);
+    expect(rowsOf(decide).map((row) => row.attributes['data-inbox-item'])).toEqual(['approve-a', 'answer-a']);
+    const approveRow = rowsOf(decide).find((row) => row.attributes['data-inbox-item'] === 'approve-a');
+    const answerRow = rowsOf(decide).find((row) => row.attributes['data-inbox-item'] === 'answer-a');
+    expect(collectText(findAll(approveRow, (node) => node.className === 'bb-inbox-wait')[0])).toBe('今日');
+    const long = findAll(answerRow, (node) => node.className === 'bb-inbox-wait is-long')[0];
+    expect(collectText(long)).toBe('待ち 4日');
+    expect(text(root)).not.toContain('時間前');
+  });
+
+  it('主ボタンのある行には片付けたを出さず、あとでは出す', async () => {
+    const { root } = await mount({
+      layout: 'today',
+      port: fakePort({ readInbox: vi.fn(async () => todayResult()), runAction: vi.fn(async () => ({ status: 'ok' })) }),
+    });
+    const approveRow = rowsOf(todaySections(root)[0]).find((row) => row.attributes['data-inbox-item'] === 'approve-a');
+    const answerRow = rowsOf(todaySections(root)[0]).find((row) => row.attributes['data-inbox-item'] === 'answer-a');
+    expect(buttonIn(approveRow, '承認')).toBeDefined();
+    expect(buttonIn(approveRow, 'あとで')).toBeDefined();
+    expect(buttonIn(approveRow, '片付けた')).toBeUndefined();
+    expect(buttonIn(answerRow, '片付けた')).toBeDefined();
+  });
+
+  it('あとでの選択肢を today の言葉にし、21時前だけ今夜を出す', async () => {
+    const { root } = await mount({
+      layout: 'today',
+      now: new Date(2026, 9, 18, 10, 0),
+      port: fakePort({ readInbox: vi.fn(async () => todayResult()) }),
+    });
+    const answerRow = () => rowsOf(todaySections(root)[0]).find((row) => row.attributes['data-inbox-item'] === 'answer-a');
+    buttonIn(answerRow(), 'あとで').dispatch('click');
+    expect(buttonIn(answerRow(), '今夜 21:00')).toBeDefined();
+    expect(buttonIn(answerRow(), '明日の朝 9:00')).toBeDefined();
+    expect(buttonIn(answerRow(), '来週の月曜 9:00')).toBeDefined();
+    expect(buttonIn(answerRow(), '今日の夕方')).toBeUndefined();
+  });
+
+  it('読めない種類を、その group が属する段に出す', async () => {
+    const { root } = await mount({
+      layout: 'today',
+      port: fakePort({
+        readInbox: vi.fn(async () => todayResult({
+          sources: [
+            { ...TODAY_SOURCES[0], status: 'unavailable', reason: 'upstream_unavailable' },
+            { ...TODAY_SOURCES[1], status: 'unavailable', reason: 'forbidden' },
+            { ...TODAY_SOURCES[2], status: 'unavailable', reason: 'upstream_unavailable' },
+            { ...TODAY_SOURCES[3], status: 'not_connected' },
+          ],
+          items: [],
+        })),
+      }),
+    });
+    const [decide, batch, look] = todaySections(root);
+    expect(collectText(decide)).toContain('AIからの質問を読めませんでした');
+    expect(collectText(decide)).toContain('自動化の人の手順を読めませんでした');
+    expect(collectText(batch)).toContain('取り込み待ちを読めませんでした');
+    expect(collectText(look)).toContain('新しく割り当てられたタスクは未接続です');
+    expect(text(root)).not.toContain('待っているものはありません');
+    expect(text(root)).toContain('まだ集めていない種類があります');
+  });
+
+  it('お知らせの読み手があるときだけ見るだけの段の下に出し、無ければ何も出さない', async () => {
+    const withNotices = await mount({
+      layout: 'today',
+      port: fakePort({ readInbox: vi.fn(async () => todayResult()), readNotices: vi.fn(async () => ({ status: 'ok', items: [] })) }),
+    });
+    expect(text(withNotices.root)).toContain('お知らせはありません');
+    expect(text(withNotices.root).indexOf('見るだけ')).toBeLessThan(text(withNotices.root).indexOf('お知らせはありません'));
+    const without = await mount({
+      layout: 'today',
+      port: fakePort({ readInbox: vi.fn(async () => todayResult()) }),
+    });
+    expect(text(without.root)).not.toContain('お知らせはまだ集めていません');
+    expect(text(without.root)).not.toContain('お知らせはありません');
+  });
+
+  it('お知らせが返らなくても受信箱の行と件数を出し、後から届いたお知らせを足す', async () => {
+    let releaseNotices;
+    const readNotices = vi.fn(() => new Promise((resolve) => { releaseNotices = resolve; }));
+    const { root, counts } = await mount({
+      layout: 'today',
+      port: fakePort({ readInbox: vi.fn(async () => todayResult()), readNotices }),
+    });
+    expect(readNotices).toHaveBeenCalledTimes(1);
+    expect(todaySections(root)).toHaveLength(3);
+    expect(rowsOf(root).map((row) => row.attributes['data-inbox-item'])).toContain('answer-a');
+    expect(text(root)).toContain('今日決めること 3件');
+    expect(counts.at(-1)).toEqual({ count: 8, unreadable: [] });
+    expect(text(root)).not.toContain('お知らせはありません');
+    releaseNotices({ status: 'ok', items: [] });
+    await waitFor(() => text(root).includes('お知らせはありません'));
+    expect(findAll(root, (node) => node.className === 'bb-inbox-notices')).toHaveLength(1);
+    expect(text(root).indexOf('見るだけ')).toBeLessThan(text(root).indexOf('お知らせはありません'));
+    expect(counts.at(-1)).toEqual({ count: 8, unreadable: [] });
+  });
+
+  it('route.tab が notices でも、あとでへ移るときは tab を waiting に戻して view を残す', async () => {
+    const { root, routes } = await mount({
+      layout: 'today',
+      route: { tab: 'notices' },
+      now: new Date(2026, 9, 18, 10, 0),
+      port: fakePort({
+        readInbox: vi.fn(async () => todayResult({
+          dispositions: [{ itemId: 'task-a', revision: 'r1', state: 'later', until: '2026-10-19T00:00:00.000Z', at: '2026-10-18T00:00:00.000Z' }],
+        })),
+      }),
+    });
+    buttonIn(root, 'あとで 1件').dispatch('click');
+    expect(routes.at(-1)).toEqual({ tab: 'waiting', view: 'later' });
+    expect(inboxRouteTarget(routes.at(-1))).toBe('inbox?view=later');
+  });
+
+  it('route.tab を無視して常に対応待ち側を描く', async () => {
+    const { root } = await mount({
+      layout: 'today',
+      route: { tab: 'notices' },
+      port: fakePort({ readInbox: vi.fn(async () => todayResult()), runAction: vi.fn(async () => ({ status: 'ok' })) }),
+    });
+    expect(todaySections(root)).toHaveLength(3);
+    expect(text(root)).not.toContain('お知らせはまだ集めていません');
   });
 });
 
@@ -299,6 +560,222 @@ describe('行のボタン', () => {
   });
 });
 
+describe('元に戻す（undoWindowMs）', () => {
+  const ACTION_SOURCES = [{ kind: 'automation_step', label: '自動化の人の手順', group: 'approve', status: 'ok' }];
+  const ACTION_ITEMS = [item('approval', {
+    kind: 'automation_step',
+    group: 'approve',
+    title: '自動化の人の手順',
+    actions: [{ id: 'approve', label: '承認', tone: 'primary' }],
+  })];
+
+  function actionPort(overrides = {}) {
+    return fakePort({
+      readInbox: vi.fn(async () => okResult({ sources: ACTION_SOURCES, items: ACTION_ITEMS, uncollected: [] })),
+      runAction: vi.fn(async () => ({ status: 'ok' })),
+      ...overrides,
+    });
+  }
+
+  it('押すとすぐ行と件数から外し、元に戻すと runAction を呼ばずに戻す', async () => {
+    const timers = fakeTimers();
+    const port = actionPort();
+    const { root, counts } = await mount({ port, undoWindowMs: 5000, timers });
+    expect(counts.at(-1)).toEqual({ count: 1, unreadable: [] });
+    buttonIn(rowsOf(root)[0], '承認').dispatch('click');
+    expect(port.runAction).not.toHaveBeenCalled();
+    expect(rowsOf(root)).toEqual([]);
+    expect(counts.at(-1)).toEqual({ count: 0, unreadable: [] });
+    expect(text(root)).toContain('「承認」を実行します。');
+    expect(timers.size()).toBe(1);
+    buttonIn(root, '元に戻す').dispatch('click');
+    expect(port.runAction).not.toHaveBeenCalled();
+    expect(rowsOf(root).map((row) => row.attributes['data-inbox-item'])).toEqual(['approval']);
+    expect(counts.at(-1)).toEqual({ count: 1, unreadable: [] });
+    expect(text(root)).not.toContain('「承認」を実行します。');
+    expect(timers.size()).toBe(0);
+  });
+
+  it('元に戻す待ちの間に再読み込みが走り、同じ id の units が 2→5 に変わっても、一覧は0行・onCount は 0（他の行が無いとき）になる', async () => {
+    const timers = fakeTimers();
+    const approval = (units) => item('approval', {
+      kind: 'automation_step',
+      group: 'approve',
+      title: '自動化の人の手順',
+      units,
+      actions: [{ id: 'approve', label: '承認', tone: 'primary' }],
+    });
+    const readInbox = vi.fn()
+      .mockResolvedValueOnce(okResult({ sources: ACTION_SOURCES, items: [approval(2)], uncollected: [] }))
+      .mockResolvedValueOnce(okResult({ sources: ACTION_SOURCES, items: [approval(5)], uncollected: [] }));
+    const port = actionPort({ readInbox });
+    const { root, view, counts } = await mount({ port, undoWindowMs: 5000, timers });
+    expect(counts.at(-1)).toEqual({ count: 2, unreadable: [] });
+    buttonIn(rowsOf(root)[0], '承認').dispatch('click');
+    expect(counts.at(-1)).toEqual({ count: 0, unreadable: [] });
+    await view.load();
+    expect(rowsOf(root)).toEqual([]);
+    expect(counts.at(-1)).toEqual({ count: 0, unreadable: [] });
+  });
+
+  it('送信が始まったら元に戻すを出さず、二重に送らない', async () => {
+    const timers = fakeTimers();
+    let release;
+    const runAction = vi.fn(() => new Promise((resolve) => { release = resolve; }));
+    const port = actionPort({ runAction });
+    const { root } = await mount({ port, undoWindowMs: 5000, timers });
+    buttonIn(rowsOf(root)[0], '承認').dispatch('click');
+    const [id] = [...timers.scheduled.keys()];
+    timers.run(id);
+    expect(runAction).toHaveBeenCalledTimes(1);
+    expect(text(root)).toContain('「承認」を実行しています。');
+    expect(buttonIn(root, '元に戻す')).toBeUndefined();
+    expect(rowsOf(root)).toEqual([]);
+    timers.run(id);
+    expect(runAction).toHaveBeenCalledTimes(1);
+    release({ status: 'ok' });
+    await waitFor(() => text(root).includes('自動化の人の手順'));
+  });
+
+  it('時間が過ぎたら1回だけ runAction を呼び、成功で読み直す', async () => {
+    const timers = fakeTimers();
+    const port = actionPort();
+    const { root } = await mount({ port, undoWindowMs: 5000, timers });
+    buttonIn(rowsOf(root)[0], '承認').dispatch('click');
+    const [id] = [...timers.scheduled.keys()];
+    timers.run(id);
+    await waitFor(() => port.readInbox.mock.calls.length === 2);
+    expect(port.runAction).toHaveBeenCalledTimes(1);
+    expect(port.runAction).toHaveBeenCalledWith('approval', 'approve');
+    await waitFor(() => text(root).includes('自動化の人の手順'));
+    expect(text(root)).not.toContain('「承認」を実行します。');
+  });
+
+  it('送信が成功してから再取得が終わるまでは行もボタンも出さず、再クリックで二重送信しない', async () => {
+    const timers = fakeTimers();
+    let releaseRead;
+    const readInbox = vi.fn()
+      .mockResolvedValueOnce(okResult({ sources: ACTION_SOURCES, items: ACTION_ITEMS, uncollected: [] }))
+      .mockImplementationOnce(() => new Promise((resolve) => { releaseRead = resolve; }));
+    const port = actionPort({ readInbox });
+    const { root } = await mount({ port, undoWindowMs: 5000, timers });
+    buttonIn(rowsOf(root)[0], '承認').dispatch('click');
+    const [id] = [...timers.scheduled.keys()];
+    timers.run(id);
+    await waitFor(() => readInbox.mock.calls.length === 2);
+    expect(port.runAction).toHaveBeenCalledTimes(1);
+    expect(rowsOf(root)).toEqual([]);
+    expect(buttonIn(root, '承認')).toBeUndefined();
+    expect(buttonIn(root, '元に戻す')).toBeUndefined();
+    releaseRead(okResult({ sources: ACTION_SOURCES, items: [], uncollected: [] }));
+    await waitFor(() => !text(root).includes('読み込んでいます'));
+    expect(rowsOf(root)).toEqual([]);
+    expect(port.runAction).toHaveBeenCalledTimes(1);
+  });
+
+  it('失敗したら行を戻して今と同じ文で知らせる', async () => {
+    const timers = fakeTimers();
+    const port = actionPort({ runAction: vi.fn(async () => ({ status: 'unavailable', reason: 'upstream_unavailable' })) });
+    const { root } = await mount({ port, undoWindowMs: 5000, timers });
+    buttonIn(rowsOf(root)[0], '承認').dispatch('click');
+    const [id] = [...timers.scheduled.keys()];
+    timers.run(id);
+    await waitFor(() => text(root).includes('「承認」を実行できませんでした'));
+    expect(text(root)).toContain('元の記録を読めません（upstream_unavailable）');
+    expect(rowsOf(root).map((row) => row.attributes['data-inbox-item'])).toEqual(['approval']);
+    expect(text(root)).not.toContain('「承認」を実行します。');
+    expect(port.readInbox).toHaveBeenCalledTimes(1);
+  });
+
+  it('Aが失敗したあとBが成功しても、Aの失敗通知を消さない', async () => {
+    const timers = fakeTimers();
+    const items = [
+      item('a', {
+        kind: 'automation_step',
+        group: 'approve',
+        title: 'Aの手順',
+        actions: [{ id: 'go', label: '実行A', tone: 'primary' }],
+      }),
+      item('b', {
+        kind: 'automation_step',
+        group: 'approve',
+        title: 'Bの手順',
+        actions: [{ id: 'go', label: '実行B', tone: 'primary' }],
+      }),
+    ];
+    const readInbox = vi.fn(async () => okResult({ sources: ACTION_SOURCES, items, uncollected: [] }));
+    const runAction = vi.fn(async (itemId) => (itemId === 'a'
+      ? { status: 'unavailable', reason: 'upstream_unavailable' }
+      : { status: 'ok' }));
+    const port = actionPort({ readInbox, runAction });
+    const { root } = await mount({ port, undoWindowMs: 5000, timers });
+    buttonIn(rowsOf(root).find((node) => node.attributes['data-inbox-item'] === 'a'), '実行A').dispatch('click');
+    buttonIn(rowsOf(root).find((node) => node.attributes['data-inbox-item'] === 'b'), '実行B').dispatch('click');
+    const [first, second] = [...timers.scheduled.keys()];
+    timers.run(first);
+    await waitFor(() => text(root).includes('「実行A」を実行できませんでした'));
+    timers.run(second);
+    await waitFor(() => port.readInbox.mock.calls.length === 2);
+    expect(text(root)).toContain('「実行A」を実行できませんでした');
+    expect(text(root)).not.toContain('「実行B」を実行できませんでした');
+  });
+
+  it('既定（undoWindowMs 未指定）では、片付けたの失敗通知の後に別の行の action が成功すると通知が消える', async () => {
+    const items = [
+      item('task-a', { title: '片付ける行' }),
+      ...ACTION_ITEMS,
+    ];
+    const port = fakePort({
+      readInbox: vi.fn(async () => okResult({
+        sources: [...ACTION_SOURCES, { kind: 'assigned_task', label: '新しく割り当てられたタスク', group: 'task', status: 'ok' }],
+        items,
+        uncollected: [],
+      })),
+      setDisposition: vi.fn(async (itemId) => (itemId === 'task-a'
+        ? { status: 'unavailable', reason: 'store_unavailable' }
+        : { status: 'ok' })),
+      runAction: vi.fn(async () => ({ status: 'ok' })),
+    });
+    const { root, counts } = await mount({ port });
+    buttonIn(rowsOf(root).find((node) => node.attributes['data-inbox-item'] === 'task-a'), '片付けた').dispatch('click');
+    await waitFor(() => text(root).includes('片付けられませんでした'));
+    buttonIn(rowsOf(root).find((node) => node.attributes['data-inbox-item'] === 'approval'), '承認').dispatch('click');
+    await waitFor(() => port.readInbox.mock.calls.length === 2);
+    expect(text(root)).not.toContain('片付けられませんでした');
+    expect(counts.at(-1)).toEqual({ count: 2, unreadable: [] });
+  });
+
+  it('destroy で残っている操作はタイマーを止めてすぐ送る', async () => {
+    const timers = fakeTimers();
+    const port = actionPort();
+    const { root, view } = await mount({ port, undoWindowMs: 5000, timers });
+    buttonIn(rowsOf(root)[0], '承認').dispatch('click');
+    view.destroy();
+    expect(port.runAction).toHaveBeenCalledWith('approval', 'approve');
+    expect(timers.size()).toBe(0);
+    expect(root.children).toEqual([]);
+  });
+
+  it('pending が無いときの件数は countInboxWaiting の結果のまま', async () => {
+    const { counts } = await mount({ port: fakePort() });
+    expect(counts.at(-1)).toEqual(countInboxWaiting(okResult(), NOW));
+  });
+
+  it('undoWindowMs が0なら従来どおり結果を待って読み直し、帯を出さない', async () => {
+    const timers = fakeTimers();
+    const port = actionPort();
+    const { root } = await mount({ port, undoWindowMs: 0, timers });
+    buttonIn(rowsOf(root)[0], '承認').dispatch('click');
+    expect(port.runAction).toHaveBeenCalledWith('approval', 'approve');
+    expect(text(root)).not.toContain('「承認」を実行します。');
+    expect(timers.size()).toBe(0);
+    // The only timer is the one that holds the result before the rows are read again.
+    await waitFor(() => timers.size() === 1);
+    timers.run([...timers.scheduled.keys()][0]);
+    await waitFor(() => port.readInbox.mock.calls.length === 2);
+  });
+});
+
 describe('createLocalInboxDispositions', () => {
   function memoryStorage() {
     const values = new Map();
@@ -348,5 +825,192 @@ describe('お知らせ', () => {
     const { root } = await mount({ route: { tab: 'notices' } });
     expect(text(root)).toContain('お知らせはまだ集めていません');
     expect(text(root)).not.toContain('待っているものはありません');
+  });
+});
+
+describe('行の操作の手触り', () => {
+  const APPROVE_SOURCES = [{ kind: 'agent_registration', label: 'AIの登録申請', group: 'approve', status: 'ok' }];
+
+  function registration(overrides = {}) {
+    return item('reg-1', {
+      kind: 'agent_registration',
+      group: 'approve',
+      title: 'Codex（研究用）の登録申請',
+      detail: '申請の理由: 調査を任せたい',
+      facts: [
+        { label: '依頼', value: '田中さん' },
+        { label: '対象', value: 'brainbase' },
+        { label: '空', value: '  ' },
+      ],
+      actions: [
+        { id: 'approve', label: '承認する', tone: 'primary', doneLabel: '承認しました' },
+        { id: 'reject', label: '断る', tone: 'danger', confirm: 'この申請を断ります。取り消せません。', doneLabel: '断りました' },
+      ],
+      ...overrides,
+    });
+  }
+
+  function registrationPort(overrides = {}) {
+    return fakePort({
+      readInbox: vi.fn(async () => okResult({ sources: APPROVE_SOURCES, items: [registration()], uncollected: [] })),
+      runAction: vi.fn(async () => ({ status: 'ok' })),
+      ...overrides,
+    });
+  }
+
+  const announcerOf = (root) => findAll(root, (node) => String(node.className).includes('bb-inbox-announcer'))[0];
+
+  it('送っている間は行のボタンを止め、もう一度押しても1回しか送らない', async () => {
+    let release;
+    const runAction = vi.fn(() => new Promise((resolve) => { release = resolve; }));
+    const timers = fakeTimers();
+    const { root } = await mount({ port: registrationPort({ runAction }), timers });
+    buttonIn(rowsOf(root)[0], '承認する').dispatch('click');
+    const row = rowsOf(root)[0];
+    expect(row.attributes['aria-busy']).toBe('true');
+    expect(text(row)).toContain('送っています');
+    for (const label of ['承認する', '断る', 'あとで', '片付けた']) {
+      expect(buttonIn(row, label).attributes.disabled).toBe('');
+    }
+    // A press on a disabled button can still reach the handler in old browsers; it sends nothing.
+    buttonIn(row, '承認する').dispatch('click');
+    expect(runAction).toHaveBeenCalledTimes(1);
+    release({ status: 'ok' });
+    await waitFor(() => text(root).includes('✓ 承認しました'));
+  });
+
+  it('成功してから結果を出し、表示中は件数に数えず、時間が過ぎてから読み直す', async () => {
+    const timers = fakeTimers();
+    const port = registrationPort();
+    const { root, counts } = await mount({ port, timers, doneShownMs: 900 });
+    expect(counts.at(-1).count).toBe(1);
+    buttonIn(rowsOf(root)[0], '承認する').dispatch('click');
+    await waitFor(() => text(root).includes('✓ 承認しました'));
+    const row = rowsOf(root)[0];
+    expect(buttonIn(row, '断る')).toBeUndefined();
+    expect(counts.at(-1).count).toBe(0);
+    expect(port.readInbox).toHaveBeenCalledTimes(1);
+    const [id] = [...timers.scheduled.keys()];
+    expect(timers.scheduled.get(id).ms).toBe(900);
+    port.readInbox.mockResolvedValueOnce(okResult({ sources: APPROVE_SOURCES, items: [], uncollected: [] }));
+    timers.run(id);
+    await waitFor(() => port.readInbox.mock.calls.length === 2);
+    await waitFor(() => rowsOf(root).length === 0);
+  });
+
+  it('失敗したら結果を出さず、行とボタンを戻して理由を出す', async () => {
+    const timers = fakeTimers();
+    const port = registrationPort({ runAction: vi.fn(async () => ({ status: 'unavailable', reason: 'forbidden' })) });
+    const { root } = await mount({ port, timers });
+    buttonIn(rowsOf(root)[0], '承認する').dispatch('click');
+    await waitFor(() => text(root).includes('「承認する」を実行できませんでした'));
+    const row = rowsOf(root)[0];
+    expect(text(root)).not.toContain('✓');
+    expect(row.attributes['aria-busy']).toBeUndefined();
+    expect(buttonIn(row, '承認する').attributes.disabled).toBeUndefined();
+    expect(timers.size()).toBe(0);
+  });
+
+  it('最初の件数は読み上げず、成功のときは結果と件数をまとめて読む', async () => {
+    const timers = fakeTimers();
+    const { root } = await mount({ port: registrationPort(), timers });
+    expect(announcerOf(root).attributes.role).toBe('status');
+    expect(announcerOf(root).attributes['aria-live']).toBe('polite');
+    expect(announcerOf(root).textContent).toBe('');
+    buttonIn(rowsOf(root)[0], '承認する').dispatch('click');
+    await waitFor(() => announcerOf(root).textContent === '承認しました。対応待ち 0件');
+  });
+
+  it('件数が変わったら対応待ちの件数を読む', async () => {
+    const { root } = await mount({ port: fakePort() });
+    buttonIn(rowsOf(root).find((node) => node.attributes['data-inbox-item'] === 'task-a'), '片付けた').dispatch('click');
+    await waitFor(() => announcerOf(root).textContent === '対応待ち 16件');
+  });
+
+  it('名前つきの項目を題名の下に並べ、空の項目は出さない', async () => {
+    const { root } = await mount({ port: registrationPort() });
+    const list = findAll(rowsOf(root)[0], (node) => node.tagName === 'DL')[0];
+    expect(findAll(list, (node) => node.tagName === 'DT').map(collectText)).toEqual(['依頼', '対象']);
+    expect(findAll(list, (node) => node.tagName === 'DD').map(collectText)).toEqual(['田中さん', 'brainbase']);
+    expect(text(rowsOf(root)[0])).toContain('申請の理由: 調査を任せたい');
+  });
+
+  describe('取り消せない操作の確認', () => {
+    const focused = [];
+    beforeEach(() => {
+      focused.length = 0;
+      FakeElement.prototype.focus = function focus() { focused.push(this); };
+    });
+    afterEach(() => { delete FakeElement.prototype.focus; });
+
+    it('1回目では送らず、行の中に確かめる帯を出して送るボタンへフォーカスを移す', async () => {
+      const port = registrationPort();
+      const { root } = await mount({ port });
+      buttonIn(rowsOf(root)[0], '断る').dispatch('click');
+      expect(port.runAction).not.toHaveBeenCalled();
+      const row = rowsOf(root)[0];
+      expect(text(row)).toContain('この申請を断ります。取り消せません。');
+      expect(buttonIn(row, '承認する')).toBeUndefined();
+      expect(focused.at(-1)).toBe(buttonIn(row, '断る'));
+      buttonIn(row, '断る').dispatch('click');
+      expect(port.runAction).toHaveBeenCalledWith('reg-1', 'reject');
+      await waitFor(() => text(root).includes('✓ 断りました'));
+    });
+
+    it('やめるで送らずに戻し、元のボタンへフォーカスを返す', async () => {
+      const port = registrationPort();
+      const { root } = await mount({ port });
+      buttonIn(rowsOf(root)[0], '断る').dispatch('click');
+      buttonIn(rowsOf(root)[0], 'やめる').dispatch('click');
+      const row = rowsOf(root)[0];
+      expect(text(row)).not.toContain('取り消せません');
+      expect(buttonIn(row, '承認する')).toBeDefined();
+      expect(focused.at(-1)).toBe(buttonIn(row, '断る'));
+      expect(port.runAction).not.toHaveBeenCalled();
+    });
+
+    it('確かめてから元に戻すの帯へ進む（undoWindowMs）', async () => {
+      const timers = fakeTimers();
+      const port = registrationPort();
+      const { root } = await mount({ port, undoWindowMs: 5000, timers });
+      buttonIn(rowsOf(root)[0], '断る').dispatch('click');
+      expect(timers.size()).toBe(0);
+      buttonIn(rowsOf(root)[0], '断る').dispatch('click');
+      expect(text(root)).toContain('「断る」を実行します。');
+      expect(port.runAction).not.toHaveBeenCalled();
+    });
+
+    it('読み直しで行の版が変わったら帯を閉じる', async () => {
+      const port = registrationPort();
+      const { root, view } = await mount({ port });
+      buttonIn(rowsOf(root)[0], '断る').dispatch('click');
+      port.readInbox.mockResolvedValueOnce(okResult({ sources: APPROVE_SOURCES, items: [registration({ revision: 'r2' })], uncollected: [] }));
+      await view.load();
+      expect(text(rowsOf(root)[0])).not.toContain('取り消せません');
+      expect(buttonIn(rowsOf(root)[0], '承認する')).toBeDefined();
+    });
+  });
+
+  describe('期限', () => {
+    it('過ぎた・24時間以内・それより先で言葉を変える', () => {
+      expect(inboxDueLabel('2026-10-18T02:00:00.000Z', NOW)).toEqual({ state: 'expired', text: '期限切れ' });
+      expect(inboxDueLabel('2026-10-18T08:00:00.000Z', NOW)).toEqual({ state: 'soon', text: '期限まであと5時間' });
+      expect(inboxDueLabel('2026-10-18T03:20:00.000Z', NOW)).toEqual({ state: 'soon', text: '期限まであと20分' });
+      expect(inboxDueLabel('2026-10-20T00:00:00.000Z', NOW).state).toBe('later');
+      expect(inboxDueLabel('2026-10-20T00:00:00.000Z', NOW).text).toMatch(/^期限 10\/20 /u);
+      expect(inboxDueLabel(null, NOW)).toBeNull();
+    });
+
+    it('期限切れでも行を隠さず、操作も送らない', async () => {
+      const port = registrationPort({
+        readInbox: vi.fn(async () => okResult({ sources: APPROVE_SOURCES, items: [registration({ dueAt: '2026-10-17T00:00:00.000Z' })], uncollected: [] })),
+      });
+      const { root, counts } = await mount({ port });
+      const due = findAll(rowsOf(root)[0], (node) => String(node.className).startsWith('bb-inbox-due'))[0];
+      expect(due.className).toBe('bb-inbox-due is-expired');
+      expect(collectText(due)).toBe('期限切れ');
+      expect(counts.at(-1).count).toBe(1);
+      expect(port.runAction).not.toHaveBeenCalled();
+    });
   });
 });

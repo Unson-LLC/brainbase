@@ -1,4 +1,5 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import { isCanonicalTaskRecordKind } from './canonical-task-service.js';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -100,6 +101,7 @@ const MUTABLE_COLUMNS: Readonly<Record<string, string>> = Object.freeze({
 
 /** Errors that keep their meaning across the store boundary. */
 const PASSTHROUGH_ERROR_CODES = new Set([
+  'ledger_record_use_ledger_api',
   'task_not_found',
   'validation_failed',
   'version_conflict',
@@ -284,6 +286,10 @@ export class CanonicalTaskPostgresRepository {
   normalize(row: JsonRecord | null | undefined): JsonRecord | null {
     if (!row) return null;
     const warnings: JsonRecord[] = [];
+    const recordKind = isCanonicalTaskRecordKind(row.record_kind) ? row.record_kind : 'unknown';
+    if (recordKind === 'unknown') {
+      warnings.push({ code: 'unknown_record_kind', message: 'Unknown Task record kind' });
+    }
     let status = row.status;
     let priority = row.priority;
     if (!STATUSES.has(status as string)) {
@@ -302,6 +308,9 @@ export class CanonicalTaskPostgresRepository {
     const id = this.encodeTaskId(row);
     const task: JsonRecord = {
       id,
+      record_kind: recordKind,
+      ledger_attributes: row.ledger_attributes ?? null,
+      ledger_agreed: row.ledger_agreed ?? null,
       version: Number(row.version ?? 1),
       title: String(row.title ?? ''),
       description: row.description ?? null,
@@ -494,6 +503,12 @@ export class CanonicalTaskPostgresRepository {
     const columns: Array<[string, unknown, string?]> = [
       ['id', randomUUID()],
       ['title', input.title],
+      ...(input.record_kind !== undefined && input.record_kind !== 'work'
+        ? [['record_kind', input.record_kind] as [string, unknown]] : []),
+      ...(input.ledger_attributes != null
+        ? [['ledger_attributes', JSON.stringify(input.ledger_attributes), '::jsonb'] as [string, unknown, string]]
+        : []),
+      ...(input.ledger_agreed != null ? [['ledger_agreed', input.ledger_agreed] as [string, unknown]] : []),
       ['description', input.description ?? null],
       ['status', input.status],
       ['priority', input.priority],
@@ -607,14 +622,18 @@ export class CanonicalTaskPostgresRepository {
         `UPDATE canonical_tasks
          SET ${assignments.join(', ')}, updated_at = NOW()
          WHERE ${locator.column} = $${locatorParameter}
+         AND record_kind = 'work'
          ${expectedVersion === null ? '' : `AND version = $${versionParameter}`}
          RETURNING *`,
         values,
       );
       if (result.rows[0]) return this.normalize(result.rows[0])!;
-      if (expectedVersion !== null) {
-        const current = await client.query(`SELECT * FROM canonical_tasks WHERE ${locator.column} = $1 LIMIT 1`, [locator.value]);
-        if (current.rows[0]) throw versionConflict(this.normalize(current.rows[0]));
+      const current = await client.query(`SELECT * FROM canonical_tasks WHERE ${locator.column} = $1 LIMIT 1`, [locator.value]);
+      if (current.rows[0]) {
+        if (current.rows[0].record_kind !== 'work') {
+          throw storeError('ledger_record_use_ledger_api', 'Use the ledger API to mutate this record', 409);
+        }
+        if (expectedVersion !== null) throw versionConflict(this.normalize(current.rows[0]));
       }
       throw notFound();
     };
@@ -665,12 +684,15 @@ export class CanonicalTaskPostgresRepository {
       throw storeError('validation_failed', 'Expected Task version is required', 422);
     }
     const result = await this.query(
-      `DELETE FROM canonical_tasks WHERE ${locator.column} = $1 AND version = $2 RETURNING id`,
+      `DELETE FROM canonical_tasks WHERE ${locator.column} = $1 AND version = $2 AND record_kind = 'work' RETURNING id`,
       [locator.value, expectedVersion],
     );
     if (result.rows[0]) return;
     const currentTask = await this.get(taskId);
     if (!currentTask) throw notFound();
+    if (currentTask.record_kind !== 'work') {
+      throw storeError('ledger_record_use_ledger_api', 'Use the ledger API to mutate this record', 409);
+    }
     throw versionConflict(currentTask);
   }
 }
