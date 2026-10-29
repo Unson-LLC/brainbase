@@ -500,10 +500,10 @@ export function workspaceDismissNotification(card, onDismiss) {
   return cancel;
 }
 
-/** Persistent, initially closed notification. The caller owns its lifecycle. */
-export function workspaceErrorCard(doc, { title, message, tone = 'danger', onRetry } = {}) {
+/** Persistent notification, closed unless `open`. The caller owns its lifecycle. */
+export function workspaceErrorCard(doc, { title, message, tone = 'danger', onRetry, open = false } = {}) {
   const card = workspaceNotificationCard(doc, { tone, className: 'bb-ws-error-card', role: 'listitem' });
-  const details = el(doc, 'details');
+  const details = el(doc, 'details'); details.open = open;
   const summary = el(doc, 'summary', { attrs: { 'aria-label': `${title}の通知` } });
   summary.append(el(doc, 'span', { className: 'bb-ws-error-symbol', text: '!', attrs: { 'aria-hidden': 'true' } }), el(doc, 'span', { text: title }));
   details.append(summary, el(doc, 'p', { text: message })); card.append(details);

@@ -898,7 +898,7 @@ export function createInboxUI({
     if (!notices || notices.phase === 'not_collected') {
       view.append(el(doc, 'p', { className: 'bb-inbox-uncollected', text: 'お知らせはまだ集めていません。AIに任せた仕事の終わり・議事録ができたこと・申請の結果は、これから集めます。' }));
     } else if (notices.phase === 'unavailable') {
-      view.append(workspaceErrorCard(doc, { title: 'お知らせを読めませんでした', message: `理由: ${reasonText(notices.reason)}。0件ではありません。` }));
+      view.append(workspaceErrorCard(doc, { title: 'お知らせを読めませんでした', message: `理由: ${reasonText(notices.reason)}。0件ではありません。`, open: true }));
     } else if (notices.items.length === 0) {
       view.append(el(doc, 'p', { className: 'bb-inbox-empty', text: 'お知らせはありません。' }));
     }
@@ -947,7 +947,7 @@ export function createInboxUI({
     if (!isToday && state.route.tab === 'notices') {
       view.append(renderNotices());
     } else if (state.phase === 'error' && !shown) {
-      view.append(workspaceErrorCard(doc, { title: '受信箱を読めませんでした', message: `理由: ${reasonText(state.reason)}。0件ではありません。`, onRetry: () => void load() }));
+      view.append(workspaceErrorCard(doc, { title: '受信箱を読めませんでした', message: `理由: ${reasonText(state.reason)}。0件ではありません。`, onRetry: () => void load(), open: true }));
     } else if (shown) {
       if (isToday) view.append(state.route.view === 'waiting' ? renderTodayWaiting(shown) : renderSet(shown, state.route.view));
       else view.append(state.route.view === 'waiting' ? renderWaiting(shown) : renderSet(shown, state.route.view));
