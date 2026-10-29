@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -9,6 +9,7 @@ import {
   emitWorkerJudgment,
   resolveWorkerJudgmentTurnDir,
   WorkerJudgmentConflictError,
+  WorkerJudgmentOutboxCorruptError,
   WORKER_JUDGMENT_OUTBOX_SCHEMA,
   WORKER_JUDGMENT_RECEIPT_SCHEMA,
   WORKER_JUDGMENT_SKIP_SCHEMA,
@@ -418,5 +419,97 @@ describe('re-emit never undoes delivery progress (§6/§7)', () => {
     expect(reRun.deduped).toBe(true);
     const stored = JSON.parse(await readFile(reRun.path, 'utf8'));
     expect(stored.delivery.status).toBe('saved');
+  });
+
+  it('does not downgrade a concurrently saved receipt when a slower re-emit would fail', async () => {
+    const root = await freshRoot();
+    // The delivery-and-record critical section is serialized, so the second
+    // re-emit must observe the first save and keep it — it must not re-send and
+    // must not clobber `saved` with `failed`.
+    let calls = 0;
+    let releaseSecondSend: () => void = () => {};
+    const secondSendGate = new Promise<void>((resolve) => { releaseSecondSend = resolve; });
+    const transport: WorkerJudgmentTransport = {
+      async send() {
+        calls += 1;
+        if (calls === 1) return { status: 'saved' };
+        // A second send would only happen if the critical section were not
+        // exclusive. Let it resolve to `failed` so the downgrade regression,
+        // if present, is written and caught by the assertions below.
+        await secondSendGate;
+        return { status: 'failed', reason_code: 'late_failure' };
+      }
+    };
+
+    const first = emitWorkerJudgment(input(), { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW, transport });
+    const second = emitWorkerJudgment(input(), { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW, transport });
+    const firstResult = await first;
+    releaseSecondSend();
+    const secondResult = await second;
+
+    expect(firstResult.outcome).toBe('emitted');
+    expect(secondResult.outcome).toBe('emitted');
+    if (firstResult.outcome !== 'emitted' || secondResult.outcome !== 'emitted') return;
+    expect(firstResult.status).toBe('saved');
+    expect(secondResult.status).toBe('saved');
+    expect(secondResult.deduped).toBe(true);
+    // Exactly one delivery happened and the on-disk record is still `saved`.
+    expect(calls).toBe(1);
+    const stored = JSON.parse(await readFile(firstResult.path, 'utf8'));
+    expect(stored.delivery.status).toBe('saved');
+  });
+});
+
+describe('corrupt stored outbox fails loudly (正本の破損を明示的に失敗させる)', () => {
+  async function seedPending(): Promise<{ root: string; path: string }> {
+    const root = await freshRoot();
+    const first = await emitWorkerJudgment(input(), { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW });
+    if (first.outcome !== 'emitted') throw new Error('expected an emitted receipt');
+    return { root, path: first.path };
+  }
+
+  it('rejects a receipt body that no longer matches its stored digest instead of re-sending', async () => {
+    const { root, path } = await seedPending();
+    const stored = JSON.parse(await readFile(path, 'utf8'));
+    // Keep the stale receipt_digest string but tamper the body it should cover.
+    stored.receipt.project_code = 'tampered-after-the-fact';
+    await writeFile(path, `${JSON.stringify(stored, null, 2)}\n`);
+
+    await expect(
+      emitWorkerJudgment(input(), { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW })
+    ).rejects.toBeInstanceOf(WorkerJudgmentOutboxCorruptError);
+  });
+
+  it('rejects an invalid delivery status rather than silently treating it as pending', async () => {
+    const { root, path } = await seedPending();
+    const stored = JSON.parse(await readFile(path, 'utf8'));
+    stored.delivery.status = 'definitely-not-a-status';
+    await writeFile(path, `${JSON.stringify(stored, null, 2)}\n`);
+
+    await expect(
+      emitWorkerJudgment(input(), { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW })
+    ).rejects.toBeInstanceOf(WorkerJudgmentOutboxCorruptError);
+  });
+
+  it('rejects an unexpected outbox schema_version', async () => {
+    const { root, path } = await seedPending();
+    const stored = JSON.parse(await readFile(path, 'utf8'));
+    stored.schema_version = 'brainbase-worker-judgment-outbox-v999';
+    await writeFile(path, `${JSON.stringify(stored, null, 2)}\n`);
+
+    await expect(
+      emitWorkerJudgment(input(), { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW })
+    ).rejects.toBeInstanceOf(WorkerJudgmentOutboxCorruptError);
+  });
+
+  it('rejects a missing receipt_digest', async () => {
+    const { root, path } = await seedPending();
+    const stored = JSON.parse(await readFile(path, 'utf8'));
+    delete stored.receipt.receipt_digest;
+    await writeFile(path, `${JSON.stringify(stored, null, 2)}\n`);
+
+    await expect(
+      emitWorkerJudgment(input(), { journalRoot: root, effectiveAfter: EFFECTIVE_AFTER, now: NOW })
+    ).rejects.toBeInstanceOf(WorkerJudgmentOutboxCorruptError);
   });
 });

@@ -326,33 +326,118 @@ interface StoredOutboxState {
 const DELIVERY_STATUSES: readonly WorkerJudgmentDeliveryStatus[] =
   ['pending', 'saved', 'already_saved', 'blocked_credential', 'failed'];
 
+/** A delivery state a later re-emit must never silently undo. */
+function isSuccessStatus(status: WorkerJudgmentDeliveryStatus): boolean {
+  return status === 'saved' || status === 'already_saved';
+}
+
+/** Raised when a stored outbox file exists but is corrupt. We never re-send or overwrite over corruption (§ fail loudly). */
+export class WorkerJudgmentOutboxCorruptError extends WorkerJudgmentEmitterError {
+  constructor(path: string, detail: string) {
+    super('worker_judgment_outbox_corrupt', `Stored outbox ${path} ${detail}`);
+    this.name = 'WorkerJudgmentOutboxCorruptError';
+  }
+}
+
+/** Recompute the receipt_digest from the receipt body so a tampered or truncated body cannot ride on a stale digest string. */
+function recomputeReceiptDigest(receipt: Record<string, unknown>): string {
+  const core: Record<string, unknown> = { ...receipt };
+  delete core.receipt_digest;
+  return sha256Hex(canonicalJson(core));
+}
+
 /**
  * Read the digest and the recorded delivery state of a receipt already on disk.
  * A re-emit must compare the digest (§6 conflict) and must not undo delivery
- * progress, so the stored status is read too. Returns `null` when the file is
- * unreadable or does not carry a comparable receipt_digest.
+ * progress, so the stored status is read too. The stored digest string is not
+ * trusted on its own: the receipt_digest is recomputed from the receipt body,
+ * the outbox schema and the delivery status are verified, and any mismatch is a
+ * loud `WorkerJudgmentOutboxCorruptError` rather than a silent re-send or
+ * overwrite. Returns `null` only when the file is genuinely absent.
  */
 function readStoredOutboxState(path: string): StoredOutboxState | null {
+  let raw: string;
   try {
-    const parsed = JSON.parse(readFileSync(path, 'utf8')) as unknown;
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
-    const receipt = (parsed as { receipt?: unknown }).receipt;
-    if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) return null;
-    const digest = (receipt as { receipt_digest?: unknown }).receipt_digest;
-    if (typeof digest !== 'string') return null;
-    const delivery = (parsed as { delivery?: unknown }).delivery;
-    const rawStatus = delivery && typeof delivery === 'object' && !Array.isArray(delivery)
-      ? (delivery as { status?: unknown }).status
-      : undefined;
-    const status = DELIVERY_STATUSES.includes(rawStatus as WorkerJudgmentDeliveryStatus)
-      ? (rawStatus as WorkerJudgmentDeliveryStatus)
-      : 'pending';
-    const rawError = delivery && typeof delivery === 'object' && !Array.isArray(delivery)
-      ? (delivery as { last_error_code?: unknown }).last_error_code
-      : undefined;
-    return { receipt_digest: digest, status, ...(typeof rawError === 'string' ? { last_error_code: rawError } : {}) };
-  } catch { /* unreadable or malformed; treat as no comparable receipt */ }
-  return null;
+    raw = readFileSync(path, 'utf8');
+  } catch (error) {
+    if (isErrno(error, 'ENOENT')) return null;
+    throw new WorkerJudgmentOutboxCorruptError(path, 'could not be read');
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new WorkerJudgmentOutboxCorruptError(path, 'is not valid JSON');
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new WorkerJudgmentOutboxCorruptError(path, 'is not an object');
+  }
+  if ((parsed as { schema_version?: unknown }).schema_version !== WORKER_JUDGMENT_OUTBOX_SCHEMA) {
+    throw new WorkerJudgmentOutboxCorruptError(path, 'has an unexpected schema_version');
+  }
+  const receipt = (parsed as { receipt?: unknown }).receipt;
+  if (!receipt || typeof receipt !== 'object' || Array.isArray(receipt)) {
+    throw new WorkerJudgmentOutboxCorruptError(path, 'is missing its receipt');
+  }
+  const digest = (receipt as { receipt_digest?: unknown }).receipt_digest;
+  if (typeof digest !== 'string' || !digest) {
+    throw new WorkerJudgmentOutboxCorruptError(path, 'is missing its receipt_digest');
+  }
+  let recomputed: string;
+  try {
+    recomputed = recomputeReceiptDigest(receipt as Record<string, unknown>);
+  } catch {
+    throw new WorkerJudgmentOutboxCorruptError(path, 'has a receipt body that cannot be canonicalized');
+  }
+  if (recomputed !== digest) {
+    throw new WorkerJudgmentOutboxCorruptError(path, 'has a receipt_digest that does not match its body');
+  }
+  const delivery = (parsed as { delivery?: unknown }).delivery;
+  if (!delivery || typeof delivery !== 'object' || Array.isArray(delivery)) {
+    throw new WorkerJudgmentOutboxCorruptError(path, 'is missing its delivery state');
+  }
+  const rawStatus = (delivery as { status?: unknown }).status;
+  if (!DELIVERY_STATUSES.includes(rawStatus as WorkerJudgmentDeliveryStatus)) {
+    throw new WorkerJudgmentOutboxCorruptError(path, 'has an invalid delivery status');
+  }
+  const status = rawStatus as WorkerJudgmentDeliveryStatus;
+  const rawError = (delivery as { last_error_code?: unknown }).last_error_code;
+  if (rawError !== undefined && typeof rawError !== 'string') {
+    throw new WorkerJudgmentOutboxCorruptError(path, 'has an invalid last_error_code');
+  }
+  return { receipt_digest: digest, status, ...(typeof rawError === 'string' ? { last_error_code: rawError } : {}) };
+}
+
+/**
+ * Serialize the deliver-and-record critical section for one receipt with an
+ * exclusive lock file. Two concurrent re-emits must not both advance to delivery
+ * and then clobber each other's recorded status: only the lock holder sends and
+ * writes, so a stored success is read before the next writer can downgrade it.
+ */
+const OUTBOX_LOCK_WAIT_MS = 10;
+const OUTBOX_LOCK_MAX_ATTEMPTS = 500;
+
+async function withOutboxLock<T>(target: string, run: () => Promise<T>): Promise<T> {
+  const lockPath = `${target}.lock`;
+  for (let attempt = 0; ; attempt += 1) {
+    let fd: number;
+    try {
+      fd = openSync(lockPath, 'wx', 0o600);
+    } catch (error) {
+      if (!isErrno(error, 'EEXIST')) throw error;
+      if (attempt >= OUTBOX_LOCK_MAX_ATTEMPTS) {
+        throw new WorkerJudgmentEmitterError('worker_judgment_outbox_locked', `Could not acquire the outbox lock for ${target}`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, OUTBOX_LOCK_WAIT_MS));
+      continue;
+    }
+    try {
+      return await run();
+    } finally {
+      closeSync(fd);
+      try { unlinkSync(lockPath); } catch { /* best effort; a stale lock is retried above */ }
+    }
+  }
 }
 
 /**
@@ -409,7 +494,7 @@ export async function emitWorkerJudgment(
 
   // A receipt already delivered must never be downgraded by a later re-emit:
   // keep the stored success and do not re-send or overwrite the record.
-  if (stored && (stored.status === 'saved' || stored.status === 'already_saved')) {
+  if (stored && isSuccessStatus(stored.status)) {
     return {
       outcome: 'emitted',
       status: stored.status,
@@ -434,25 +519,43 @@ export async function emitWorkerJudgment(
     };
   }
 
-  let status: WorkerJudgmentDeliveryStatus = 'pending';
-  let lastErrorCode: string | undefined;
-  try {
-    const result = await options.transport.send(receipt);
-    status = result.status;
-    if (result.status === 'blocked_credential' || result.status === 'failed') lastErrorCode = result.reason_code;
-  } catch (error) {
-    status = 'failed';
-    lastErrorCode = error instanceof WorkerJudgmentEmitterError ? error.code : 'worker_judgment_transport_error';
-  }
-  atomicWriteReplace(target, {
-    schema_version: WORKER_JUDGMENT_OUTBOX_SCHEMA,
-    receipt,
-    delivery: {
-      status,
-      attempt: 1,
-      queued_at: now().toISOString(),
-      ...(lastErrorCode ? { last_error_code: lastErrorCode } : {})
+  const transport = options.transport;
+  return withOutboxLock(target, async () => {
+    // Under the lock, re-read what is actually on disk. A concurrent re-emit may
+    // have already delivered this receipt; a recorded success must be kept and
+    // the transport must not be consulted again.
+    const current = readStoredOutboxState(target);
+    if (current && isSuccessStatus(current.status)) {
+      return {
+        outcome: 'emitted' as const,
+        status: current.status,
+        receipt,
+        path: target,
+        deduped,
+        ...(current.last_error_code ? { last_error_code: current.last_error_code } : {})
+      };
     }
-  }, now);
-  return { outcome: 'emitted', status, receipt, path: target, deduped, ...(lastErrorCode ? { last_error_code: lastErrorCode } : {}) };
+
+    let status: WorkerJudgmentDeliveryStatus = 'pending';
+    let lastErrorCode: string | undefined;
+    try {
+      const result = await transport.send(receipt);
+      status = result.status;
+      if (result.status === 'blocked_credential' || result.status === 'failed') lastErrorCode = result.reason_code;
+    } catch (error) {
+      status = 'failed';
+      lastErrorCode = error instanceof WorkerJudgmentEmitterError ? error.code : 'worker_judgment_transport_error';
+    }
+    atomicWriteReplace(target, {
+      schema_version: WORKER_JUDGMENT_OUTBOX_SCHEMA,
+      receipt,
+      delivery: {
+        status,
+        attempt: 1,
+        queued_at: now().toISOString(),
+        ...(lastErrorCode ? { last_error_code: lastErrorCode } : {})
+      }
+    }, now);
+    return { outcome: 'emitted' as const, status, receipt, path: target, deduped, ...(lastErrorCode ? { last_error_code: lastErrorCode } : {}) };
+  });
 }
