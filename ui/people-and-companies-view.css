@@ -272,17 +272,6 @@
   gap: 8px;
 }
 
-.bb-pc-action-row .bb-ws-button.is-primary {
-  border-color: var(--bb-color-action);
-  background: var(--bb-color-action);
-  color: var(--bb-color-action-text);
-}
-
-.bb-pc-action-row .bb-ws-button.is-primary:hover:not(:disabled) {
-  border-color: var(--bb-color-action-hover);
-  background: var(--bb-color-action-hover);
-}
-
 .bb-pc-action-row .bb-ws-button[data-adds]::before {
   content: '＋';
 }
