@@ -4,6 +4,10 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
+## Candidate — v0.48.2（npm公開前）
+
+共通UIのトークン（`ui/brainbase-tokens.css`）を紺・ミントのテーマとNoto Sans JPへ切り替えます。フォントは `--bb-font-sans`・`--bb-font-weight-medium`・`--bb-font-weight-body` で指定します。状態色の意味を保ち、ホストは引き続きトークンを上書きできます（#910）。npm公開・利用ホストの取り込みは、この候補記録だけでは確認できません。
+
 ## Candidate — v0.48.1（npm公開前）
 
 0.47.5以前の共通部品を読み込んだままの古いタブで、判断の履歴と目的と現状の画面が開かなかった不具合を直します。両画面は共通部品を別名（`workspace-kit.js?capability=loading-stage-v1`）で読み込みます。npm公開・利用ホストの取り込みは、この候補記録だけでは確認できません。

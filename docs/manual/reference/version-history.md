@@ -2,6 +2,11 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
+## 0.48.2 candidate — npm公開前
+
+- 共通UIのトークン（`ui/brainbase-tokens.css`）を紺・ミントのテーマとNoto Sans JPへ切り替える。フォントは `--bb-font-sans`・`--bb-font-weight-medium`・`--bb-font-weight-body` で指定する。状態色の意味を保ち、ホストは引き続きトークンを上書きできる（#910）。
+- これは公開候補の記録。npm公開と利用ホストの本番反映は、別の検証で確認する。
+
 ## 0.48.1 candidate — npm公開前
 
 - 0.47.5以前の `workspace-kit.js` を読み込んだままの古いタブで、判断の履歴・目的と現状の画面が `workspaceLoadingStage` を取れず開かなかった。両画面は `workspace-kit.js?capability=loading-stage-v1` から読み込む。
