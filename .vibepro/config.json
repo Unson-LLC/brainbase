@@ -915,6 +915,26 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-rq-113-entity-full-index-oss",
+        "title": "全件索引（entity full index）を OSS @unson/brainbase-mcp に入れ、ソース非依存で再利用できる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": "2026-10-30",
+        "due_at": null,
+        "contract_type": "local_single_owner_non_hosted",
+        "scope_boundary": {
+          "owner_model": "single_local_owner",
+          "deployment_mode": "local_non_hosted",
+          "sharing_boundary": "none",
+          "multi_tenancy_applicability": "not_applicable",
+          "boundary_reason": "Source-agnostic full-index builder runs for one local owner from an injected EntitySource; no hosted entrypoint, tenant partition, or shared resource is defined. GraphAPISource (authenticated remote client) stays in brainbase-unson.",
+          "multi_tenancy_contract_created": false
+        }
       }
     ],
     "current_story_id": "story-ledger-record-kind-screen-v1"

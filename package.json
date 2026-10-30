@@ -15,6 +15,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./entity-indexer": {
+      "types": "./dist/entity-indexer.d.ts",
+      "import": "./dist/entity-indexer.js"
+    },
     "./entity-index-cache": {
       "types": "./dist/entity-index-cache.d.ts",
       "import": "./dist/entity-index-cache.js"
