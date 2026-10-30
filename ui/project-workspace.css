@@ -522,6 +522,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
 .bb-pkw-graph-item.is-selected {
   border-color: var(--bb-color-accent);
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-pkw-graph-item strong {
@@ -547,6 +548,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
   border-radius: var(--bb-radius-sm);
   padding: var(--bb-space-3);
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-pkw-evidence-head strong {
@@ -1119,10 +1121,12 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
 
 .bb-pkw-graph-item:hover {
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-pkw-graph-item.is-selected {
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   box-shadow: inset 3px 0 var(--bb-color-accent);
 }
 

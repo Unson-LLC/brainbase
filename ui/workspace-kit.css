@@ -73,6 +73,7 @@
   border-radius: var(--bb-radius-sm);
   padding: 7px 10px;
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   color: var(--bb-color-accent-strong);
   font-size: 11px;
   font-weight: var(--bb-font-weight-medium);
@@ -97,6 +98,7 @@
   border-left: 3px solid var(--bb-color-accent);
   padding: 14px 16px;
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   color: var(--bb-color-muted);
   font-size: 12px;
   line-height: 1.65;
@@ -276,11 +278,13 @@
 
 .bb-ws-ledger-row.is-selectable:hover {
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-ws-ledger-row.is-selected,
 .bb-ws-ledger-row.is-selectable.is-selected:hover {
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   box-shadow: inset 3px 0 var(--bb-color-accent);
 }
 
@@ -649,7 +653,8 @@
 .bb-ws-combobox-popup[hidden], .bb-ws-combobox-search[hidden] { display: none !important; }
 .bb-ws-combobox-search {
   box-sizing: border-box; width: 100%; min-height: 34px; padding: 0 10px;
-  border: 1px solid var(--bb-color-border-strong); border-radius: var(--bb-radius-sm); background: var(--bb-color-surface); color: var(--bb-color-ink); font: inherit; font-size: 13px;
+  border: 1px solid var(--bb-color-border-strong); border-radius: var(--bb-radius-sm); background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface); color: var(--bb-color-ink); font: inherit; font-size: 13px;
 }
 .bb-ws-combobox-search:focus-visible { outline: 2px solid var(--bb-color-focus); outline-offset: 0; }
 .bb-ws-combobox-list { max-height: 300px; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
@@ -660,7 +665,8 @@
 }
 .bb-ws-combobox-option::before { content: ''; color: var(--bb-color-accent-strong); font-weight: var(--bb-font-weight-medium); }
 .bb-ws-combobox-option[aria-selected='true']::before { content: '✓'; }
-.bb-ws-combobox-option:hover, .bb-ws-combobox-option.is-active { background: var(--bb-color-accent-soft); }
+.bb-ws-combobox-option:hover, .bb-ws-combobox-option.is-active { background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface); }
 .bb-ws-combobox-option.is-active { box-shadow: inset 2px 0 0 var(--bb-color-accent); }
 .bb-ws-combobox-option-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bb-ws-combobox-option-hint { color: var(--bb-color-muted); font-size: 12px; white-space: nowrap; }
@@ -710,6 +716,7 @@
 .bb-ws-neutral-controls
 .bb-ws-combobox-option:is(:hover, .is-active) {
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   box-shadow: none;
 }
 .bb-ws-neutral-controls
@@ -732,13 +739,15 @@
 .bb-ws-toolbar-query > .bb-ws-action-icon { position: absolute; left: var(--bb-space-2); top: 50%; transform: translateY(-50%); color: var(--bb-color-muted); pointer-events: none; }
 .bb-ws-compact-toolbar .bb-ws-toolbar-query input { width: 100%; min-width: 0; height: var(--bb-control-compact-height); min-height: var(--bb-control-compact-height); box-sizing: border-box; padding: var(--bb-space-1) var(--bb-space-2) var(--bb-space-1) calc(var(--bb-space-2) * 2 + var(--bb-toolbar-icon-size)); font-size: var(--bb-toolbar-font-size); }
 .bb-ws-toolbar-filter-group { display: inline-flex; align-items: center; flex: none; border-radius: var(--bb-radius-sm); }
-.bb-ws-toolbar-filter-group.is-filtered { background: var(--bb-color-filter-selected); }
+.bb-ws-toolbar-filter-group.is-filtered { background: var(--bb-color-filter-selected);
+  --bb-color-muted: var(--bb-color-muted-on-surface); }
 .bb-ws-compact-toolbar :is(.bb-ws-toolbar-filter, .bb-ws-toolbar-sort-trigger, .bb-ws-toolbar-clear) { display: inline-flex; align-items: center; justify-content: center; gap: var(--bb-space-1); white-space: nowrap; height: var(--bb-control-compact-height); min-height: var(--bb-control-compact-height); box-sizing: border-box; padding: var(--bb-space-1) var(--bb-space-2); border: 0; border-radius: var(--bb-radius-sm); background: transparent; color: var(--bb-color-muted); font-size: var(--bb-toolbar-font-size); font-weight: 400; box-shadow: none; }
 .bb-ws-compact-toolbar .bb-ws-toolbar-filter { position: relative; padding-right: calc(var(--bb-space-2) + var(--bb-toolbar-clear-width)); }
 .bb-ws-toolbar-filter-group.is-filtered .bb-ws-toolbar-filter { padding-right: var(--bb-space-2); }
 .bb-ws-toolbar-filter-group.is-filtered :is(.bb-ws-toolbar-filter, .bb-ws-toolbar-clear) { color: var(--bb-color-brand-indigo); }
 .bb-ws-compact-toolbar .bb-ws-toolbar-filter::after { display: none; }
-.bb-ws-compact-toolbar .bb-ws-toolbar-filter-group:not(.is-filtered) .bb-ws-toolbar-filter:hover, .bb-ws-compact-toolbar .bb-ws-toolbar-sort-trigger:hover { background: var(--bb-color-surface); color: var(--bb-color-ink); }
+.bb-ws-compact-toolbar .bb-ws-toolbar-filter-group:not(.is-filtered) .bb-ws-toolbar-filter:hover, .bb-ws-compact-toolbar .bb-ws-toolbar-sort-trigger:hover { background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface); color: var(--bb-color-ink); }
 .bb-ws-toolbar-caret { position: absolute; right: 0; top: 0; display: inline-flex; align-items: center; justify-content: center; width: var(--bb-toolbar-clear-width); height: var(--bb-control-compact-height); font-size: 18px; line-height: 1; transform: translate(var(--bb-toolbar-caret-x), var(--bb-toolbar-caret-y)); pointer-events: none; }
 .bb-ws-toolbar-clear-slot { display: inline-flex; width: var(--bb-toolbar-clear-width); height: var(--bb-control-compact-height); flex: none; }
 .bb-ws-compact-toolbar .bb-ws-toolbar-clear { width: var(--bb-toolbar-clear-width); padding: 0; font-size: 20px; }
@@ -870,7 +879,8 @@
 .bb-ws-combobox-multiple .bb-ws-combobox-option,
 .bb-ws-combobox-multiple .bb-ws-combobox-option.is-active,
 .bb-ws-combobox-multiple .bb-ws-combobox-option[aria-selected='true'] { background: transparent; box-shadow: none; }
-.bb-ws-combobox-multiple .bb-ws-combobox-option:hover { background: var(--bb-color-surface); }
+.bb-ws-combobox-multiple .bb-ws-combobox-option:hover { background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface); }
 .bb-ws-combobox-multiple .bb-ws-combobox-list:focus-visible .bb-ws-combobox-option.is-active { outline: 1px solid var(--bb-color-muted); outline-offset: -1px; }
 .bb-ws-combobox-status[hidden] { display: none; }
 

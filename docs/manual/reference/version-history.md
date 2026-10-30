@@ -4,8 +4,8 @@
 
 ## 0.48.3 candidate — npm公開前
 
-- ローカルshellのsidebarと世界canvasのdrawer・helpにfallback付きモーショントークンを適用し、durationとreduced motionの挙動を維持します。
-- 共有モーショントークンを追加し、drawer退場を150ms、通知消去を200msへ短縮。入場・検索帯・モバイル・reduced motionの挙動を維持する公開候補（npm未公開）。
+- 共通UIのトークン（`ui/brainbase-tokens.css`）に `--bb-color-muted-on-surface` を追加する。色付きの背景では `--bb-color-muted` をこのトークンへ切り替え、小さな補助テキストを読みやすくする（#911）。
+- これは公開候補の記録。npm公開と利用ホストの本番反映は、別の検証で確認する。
 
 ## 0.48.2 candidate — npm公開前
 
@@ -71,6 +71,10 @@
 - 共通通知surface `workspaceNotificationCard` を追加。世界の注意・重大なエラーを意味色で区別し、既存のエラー通知とロード表示も共通枠を利用。リンク・操作・理由・原文を保持。
 
 ## Unreleased — develop
+
+- ローカルshellのsidebarと世界canvasのdrawer・helpにfallback付きモーショントークンを適用し、durationとreduced motionの挙動を維持します。
+- 共有モーショントークンを追加し、drawer退場を150ms、通知消去を200msへ短縮。入場・検索帯・モバイル・reduced motionの挙動を維持する公開候補（npm未公開）。
+- 次のバージョン番号は承認待ち。
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 - 「人と会社」で人・会社を選ぶと、一覧が詳細のページに切り替わる。上に一覧へ戻る道と「何件中の何件目」・前後の移動、見出しの下にできる操作（所属を付ける・所属を終える・所属する人を加える）をまとめ、「消す操作は無く、終了日を入れて終える」ことを添える。書けない閲覧者には操作を押せない状態で出し、理由を出す（ホストの `readOnlyNote`）。名前の訂正の案内はホストの `recordFixNote` で差し替えられる。区分・種類・有効期間・IDはホストの右の欄（無ければページの中）に出す。一覧の上に「人を加える」「会社を加える」を並べる。書き込みの経路と規則、段の構成は変えない（`story-people-and-companies-detail-page-v1`）。

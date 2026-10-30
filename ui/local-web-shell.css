@@ -94,6 +94,7 @@ body {
 
 .bb-shell-nav-link[aria-current="page"] {
   background: var(--bb-color-rail-active);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   color: var(--bb-color-accent);
   box-shadow: none;
 }
@@ -169,6 +170,7 @@ body {
   border-left: 1px solid var(--bb-color-border);
   padding: 28px 22px 36px;
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-shell-rail[hidden],
@@ -232,6 +234,7 @@ body {
   border-left: 3px solid var(--bb-color-warning);
   padding: var(--bb-space-5);
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-shell-gate h2,
