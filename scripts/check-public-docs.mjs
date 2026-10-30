@@ -222,6 +222,8 @@ if (candidateSchema.properties?.source?.properties?.type?.const !== 'brainbase_g
 }
 requireText(docsWorkflow, 'npm run docs:check', '.github/workflows/docs-cloudflare-pages.yml');
 requireText(docsWorkflow, 'pages deploy docs/.vitepress/dist', '.github/workflows/docs-cloudflare-pages.yml');
+requireText(docsWorkflow, 'pages/projects/brainbase', '.github/workflows/docs-cloudflare-pages.yml');
+requireText(docsWorkflow, 'production_branch', '.github/workflows/docs-cloudflare-pages.yml');
 requireText(docsWorkflow, 'npm run docs:verify-public', '.github/workflows/docs-cloudflare-pages.yml');
 requireText(promotionWorkflow, 'brainbase-public-message-candidate', '.github/workflows/public-message-promotion.yml');
 requireText(promotionWorkflow, 'npm run docs:promotion:plan', '.github/workflows/public-message-promotion.yml');
