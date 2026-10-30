@@ -279,8 +279,9 @@ describe('shared dismissal motion', () => {
       ['.bb-ws-error-card.is-dismissing', 'toast-out', 'out'],
     ]) {
       const rule = css.slice(css.indexOf(`${selector} {`)).split('}')[0];
-      expect(rule).toContain(`var(--bb-duration-${name})`);
-      expect(rule).toContain(`var(--bb-ease-${curve})`);
+      expect(rule).toContain(`var(--bb-duration-${name}, ${duration(name)}ms)`);
+      const fallback = tokens.match(new RegExp(`--bb-ease-${curve}:\\s*([^;]+);`))[1];
+      expect(rule).toContain(`var(--bb-ease-${curve}, ${fallback})`);
       expect(rule).not.toContain('ease-in');
     }
     expect(css).toContain('.bb-ws-search-band-drawer[open]:not(.is-closing) { animation-name: bb-ws-drawer-opaque-in; }');

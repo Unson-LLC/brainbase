@@ -569,10 +569,10 @@
   margin: 0 0 0 auto; padding: 0; border: 0; border-left: 1px solid var(--bb-color-border);
   border-radius: 0; background: var(--bb-color-panel); color: var(--bb-color-ink); box-shadow: var(--bb-shadow-drawer); overflow: auto;
 }
-.bb-ws-drawer[open] { animation: bb-ws-drawer-in var(--bb-duration-drawer-in) var(--bb-ease-drawer-in); }
+.bb-ws-drawer[open] { animation: bb-ws-drawer-in var(--bb-duration-drawer-in, 180ms) var(--bb-ease-drawer-in, ease-out); }
 .bb-ws-drawer::backdrop { background: var(--bb-color-drawer-overlay); }
-.bb-ws-drawer.is-closing { animation: bb-ws-drawer-out var(--bb-duration-drawer-out) var(--bb-ease-drawer) both; pointer-events: none; }
-.bb-ws-drawer.is-closing::backdrop { animation: bb-ws-drawer-backdrop-out var(--bb-duration-drawer-out) var(--bb-ease-drawer) both; }
+.bb-ws-drawer.is-closing { animation: bb-ws-drawer-out var(--bb-duration-drawer-out, 150ms) var(--bb-ease-drawer, cubic-bezier(0.32, 0.72, 0, 1)) both; pointer-events: none; }
+.bb-ws-drawer.is-closing::backdrop { animation: bb-ws-drawer-backdrop-out var(--bb-duration-drawer-out, 150ms) var(--bb-ease-drawer, cubic-bezier(0.32, 0.72, 0, 1)) both; }
 .bb-ws-drawer .bb-ws-dialog-head { align-items: center; padding: 14px 16px 14px 28px; }
 .bb-ws-drawer .bb-ws-dialog-head h2 { font-weight: var(--bb-font-weight-medium); line-height: 1.35; }
 .bb-ws-drawer .bb-ws-dialog-body { padding: 18px 28px 32px; }
@@ -616,7 +616,7 @@
 }
 .bb-ws-loading-stage-title { margin: 0; font-weight: var(--bb-font-weight-medium); }
 .bb-ws-loading-stage-detail { margin: 0; color: var(--bb-color-muted, inherit); font-size: .875rem; }
-.bb-ws-error-card.is-dismissing { animation: bb-ws-notification-out var(--bb-duration-toast-out) var(--bb-ease-out) both; pointer-events: none; }
+.bb-ws-error-card.is-dismissing { animation: bb-ws-notification-out var(--bb-duration-toast-out, 200ms) var(--bb-ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both; pointer-events: none; }
 @keyframes bb-ws-notification-out { to { opacity: 0; transform: translateX(28px); } }
 @media (max-width:760px) { .bb-ws-drawer { width: 100vw; border-left: 0; } }
 @media (prefers-reduced-motion:reduce) {
