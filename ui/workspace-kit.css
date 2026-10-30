@@ -44,7 +44,7 @@
   margin: 0;
   color: var(--bb-color-ink);
   font-size: clamp(32px, 3.5vw, 44px);
-  font-weight: 760;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1.1;
   letter-spacing: -.055em;
   word-break: keep-all;
@@ -75,7 +75,7 @@
   background: var(--bb-color-accent-soft);
   color: var(--bb-color-accent-strong);
   font-size: 11px;
-  font-weight: 720;
+  font-weight: var(--bb-font-weight-medium);
   white-space: nowrap;
 }
 
@@ -149,7 +149,7 @@
   color: var(--bb-color-ink);
   font: inherit;
   font-size: 13px;
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
   cursor: pointer;
 }
 
@@ -158,14 +158,14 @@
 }
 
 .bb-ws-button.is-primary {
-  border-color: var(--bb-color-rail);
-  background: var(--bb-color-rail);
-  color: var(--bb-color-rail-strong);
+  border-color: var(--bb-color-action);
+  background: var(--bb-color-action);
+  color: var(--bb-color-action-text);
 }
 
 .bb-ws-button.is-primary:hover {
-  border-color: var(--bb-color-accent);
-  background: var(--bb-color-accent);
+  border-color: var(--bb-color-action-hover);
+  background: var(--bb-color-action-hover);
 }
 
 .bb-ws-button.is-danger {
@@ -265,7 +265,7 @@
   min-height: 38px;
   color: var(--bb-color-quiet);
   font-size: 10px;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
   letter-spacing: .08em;
   text-transform: uppercase;
 }
@@ -338,7 +338,7 @@
   margin-bottom: 8px;
   color: var(--bb-color-eyebrow);
   font-size: 11px;
-  font-weight: 720;
+  font-weight: var(--bb-font-weight-medium);
   letter-spacing: .08em;
   text-transform: uppercase;
 }
@@ -547,7 +547,7 @@
   width: var(--bb-search-band-project-icon-size); height: var(--bb-search-band-project-icon-size); border-radius: 3px;
   border: 1px solid var(--bb-notification-symbol-border);
   color: var(--bb-notification-symbol-text);
-  font-size: 11px; font-weight: 700;
+  font-size: 11px; font-weight: var(--bb-font-weight-medium);
 }
 .bb-ws-error-card { display: flex; align-items: start; gap: 8px; width: 100%; pointer-events: auto; }
 .bb-ws-error-card.is-warning { border-left-color: var(--bb-color-notice-warning); }
@@ -574,7 +574,7 @@
 .bb-ws-drawer.is-closing { animation: bb-ws-drawer-out 280ms ease-in both; pointer-events: none; }
 .bb-ws-drawer.is-closing::backdrop { animation: bb-ws-drawer-backdrop-out 280ms ease-in both; }
 .bb-ws-drawer .bb-ws-dialog-head { align-items: center; padding: 14px 16px 14px 28px; }
-.bb-ws-drawer .bb-ws-dialog-head h2 { font-weight: 650; line-height: 1.35; }
+.bb-ws-drawer .bb-ws-dialog-head h2 { font-weight: var(--bb-font-weight-medium); line-height: 1.35; }
 .bb-ws-drawer .bb-ws-dialog-body { padding: 18px 28px 32px; }
 @keyframes bb-ws-drawer-in { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes bb-ws-drawer-out { from { transform: translateX(0); opacity: 1; } to { transform: translateX(32px); opacity: 0; } }
@@ -614,7 +614,7 @@
   0%, 80%, 100% { transform: scale(.6); opacity: .35; }
   40% { transform: scale(1); opacity: 1; }
 }
-.bb-ws-loading-stage-title { margin: 0; font-weight: 600; }
+.bb-ws-loading-stage-title { margin: 0; font-weight: var(--bb-font-weight-medium); }
 .bb-ws-loading-stage-detail { margin: 0; color: var(--bb-color-muted, inherit); font-size: .875rem; }
 .bb-ws-error-card.is-dismissing { animation: bb-ws-notification-out 450ms ease both; pointer-events: none; }
 @keyframes bb-ws-notification-out { to { opacity: 0; transform: translateX(28px); } }
@@ -658,7 +658,7 @@
   display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: var(--bb-space-2);
   padding: 7px 8px; border-radius: var(--bb-radius-sm); font-size: 13px; cursor: pointer;
 }
-.bb-ws-combobox-option::before { content: ''; color: var(--bb-color-accent-strong); font-weight: 700; }
+.bb-ws-combobox-option::before { content: ''; color: var(--bb-color-accent-strong); font-weight: var(--bb-font-weight-medium); }
 .bb-ws-combobox-option[aria-selected='true']::before { content: '✓'; }
 .bb-ws-combobox-option:hover, .bb-ws-combobox-option.is-active { background: var(--bb-color-accent-soft); }
 .bb-ws-combobox-option.is-active { box-shadow: inset 2px 0 0 var(--bb-color-accent); }
@@ -895,3 +895,7 @@
 .bb-ws-search-band-drawer .bb-ws-detail-closebar { border-bottom: 0; box-shadow: none; }
 
 .bb-ws-search-band .bb-ws-toolbar-filter::after { content: none; margin: 0; }
+
+/* Shared typography uses the host-loaded Noto Sans JP with system fallback. */
+:where(.bb-ws, .bb-minutes-screen, .bb-inbox) { font-family: var(--bb-font-sans); font-weight: var(--bb-font-weight-body); }
+:where(h1,h2,h3,h4,h5,h6,strong,b) { font-weight: var(--bb-font-weight-medium); }
