@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   workspaceButton,
+  workspaceCloseDrawer,
+  workspaceDismissNotification,
   workspaceTabList,
   workspaceDefinition,
   workspaceDetailEmpty,
@@ -258,4 +260,102 @@ describe('workspaceTabList', () => {
     expect(viewMode.className).toBe('view-mode');
     expect(() => workspaceTabList(null)).toThrow('tab_root_required');
   });
+});
+
+
+describe('shared dismissal motion', () => {
+  const css = readFileSync(new URL('../../ui/workspace-kit.css', import.meta.url), 'utf8');
+  const tokens = readFileSync(new URL('../../ui/brainbase-tokens.css', import.meta.url), 'utf8');
+  const duration = name => Number(tokens.match(new RegExp(`--bb-duration-${name}:\\s*(\\d+)ms`))[1]);
+  it('uses shared curves and durations while preserving entrance and search drawer overrides', () => {
+    for (const name of ['out', 'in-out', 'drawer']) expect(tokens).toContain(`--bb-ease-${name}: cubic-bezier(`);
+    expect(tokens).toContain('--bb-ease-drawer-in: ease-out;');
+    expect(duration('drawer-in')).toBe(180);
+    expect(duration('drawer-out')).toBeLessThan(duration('drawer-in'));
+    for (const [selector, name, curve] of [
+      ['.bb-ws-drawer[open]', 'drawer-in', 'drawer-in'],
+      ['.bb-ws-drawer.is-closing', 'drawer-out', 'drawer'],
+      ['.bb-ws-drawer.is-closing::backdrop', 'drawer-out', 'drawer'],
+      ['.bb-ws-error-card.is-dismissing', 'toast-out', 'out'],
+    ]) {
+      const rule = css.slice(css.indexOf(`${selector} {`)).split('}')[0];
+      expect(rule).toContain(`var(--bb-duration-${name}, ${duration(name)}ms)`);
+      const fallback = tokens.match(new RegExp(`--bb-ease-${curve}:\\s*([^;]+);`))[1];
+      expect(rule).toContain(`var(--bb-ease-${curve}, ${fallback})`);
+      expect(rule).not.toContain('ease-in');
+    }
+    expect(css).toContain('.bb-ws-search-band-drawer[open]:not(.is-closing) { animation-name: bb-ws-drawer-opaque-in; }');
+    for (const selector of ['.bb-ws-drawer.is-closing', '.bb-ws-error-card.is-dismissing']) {
+      expect(css.slice(css.indexOf('@media (prefers-reduced-motion:reduce)'))).toMatch(new RegExp(selector.replaceAll('.', '\\.').replaceAll(' ', '\\s*') + '[^{}]*\\{ animation: none;'));
+    }
+  });
+  const node = (reduce = false) => Object.assign(new EventTarget(), {
+    open: true, removed: false,
+    ownerDocument: { defaultView: { matchMedia: () => ({ matches: reduce }) } },
+    classList: { add() {}, remove() {} },
+    remove() { this.removed = true; },
+  });
+  for (const [close, animationName, delay, cssDuration] of [
+    [workspaceCloseDrawer, 'bb-ws-drawer-out', 220, 'drawer-out'],
+    [workspaceDismissNotification, 'bb-ws-notification-out', 250, 'toast-out'],
+  ]) {
+    it.each(['400ms', '0.4s', '100ms, 0.4s, 200ms'])(`${animationName} waits for host duration %s plus its margin`, computedDuration => {
+      vi.useFakeTimers();
+      try {
+        const target = node(); const finish = vi.fn();
+        const closingClass = close === workspaceCloseDrawer ? 'is-closing' : 'is-dismissing';
+        target.classList.add = vi.fn();
+        target.ownerDocument.defaultView.getComputedStyle = element => {
+          expect(element).toBe(target);
+          expect(target.classList.add).toHaveBeenCalledWith(closingClass);
+          return { animationDuration: computedDuration };
+        };
+        close(target, finish);
+        vi.advanceTimersByTime(400); expect(finish).not.toHaveBeenCalled();
+        const margin = close === workspaceCloseDrawer ? 70 : 50;
+        vi.advanceTimersByTime(margin - 1); expect(finish).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1); expect(finish).toHaveBeenCalledTimes(1);
+        if (close === workspaceDismissNotification) expect(target.removed).toBe(true);
+        expect(vi.getTimerCount()).toBe(0);
+      } finally { vi.useRealTimers(); }
+    });
+    it.each(['0s', 'invalid', ''])(`${animationName} uses the literal fallback for unresolvable duration %s`, computedDuration => {
+      vi.useFakeTimers();
+      try {
+        const target = node(); const finish = vi.fn();
+        target.ownerDocument.defaultView.getComputedStyle = () => ({ animationDuration: computedDuration });
+        close(target, finish);
+        vi.advanceTimersByTime(delay - 1); expect(finish).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1); expect(finish).toHaveBeenCalledTimes(1);
+        expect(vi.getTimerCount()).toBe(0);
+      } finally { vi.useRealTimers(); }
+    });
+    it(`${animationName} finishes once on animationend and cancels its fallback`, () => {
+      vi.useFakeTimers();
+      try {
+        const target = node(); const finish = vi.fn();
+        close(target, finish);
+        target.dispatchEvent(Object.assign(new Event('animationend'), { animationName: 'unrelated' }));
+        expect(finish).not.toHaveBeenCalled();
+        target.dispatchEvent(Object.assign(new Event('animationend'), { animationName }));
+        expect(finish).toHaveBeenCalledTimes(1);
+        if (close === workspaceDismissNotification) expect(target.removed).toBe(true);
+        vi.runAllTimers(); expect(finish).toHaveBeenCalledTimes(1);
+      } finally { vi.useRealTimers(); }
+    });
+    it(`${animationName} falls back shortly after CSS and finishes immediately with reduced motion`, () => {
+      vi.useFakeTimers();
+      try {
+        expect(delay).toBeGreaterThan(duration(cssDuration));
+        const target = node(); const finish = vi.fn(); close(target, finish);
+        vi.advanceTimersByTime(delay - 1); expect(finish).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1); expect(finish).toHaveBeenCalledTimes(1);
+        if (close === workspaceDismissNotification) expect(target.removed).toBe(true);
+        const reduced = node(true); const immediate = vi.fn(); close(reduced, immediate);
+        expect(immediate).toHaveBeenCalledTimes(1);
+        if (close === workspaceDismissNotification) expect(reduced.removed).toBe(true);
+        expect(vi.getTimerCount()).toBe(0);
+      } finally { vi.useRealTimers(); }
+    });
+  }
 });

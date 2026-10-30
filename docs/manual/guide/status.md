@@ -4,6 +4,10 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
+## Candidate — v0.48.4（npm公開前）
+
+共通UIのトークン（`ui/brainbase-tokens.css`）に共有モーショントークンを追加し、drawer退場を150ms、toast消去を200msへ短縮します。`ui/workspace-kit.css` はfallback付きの `var()` でトークンを参照します。入場・検索帯・モバイル・reduced motionの挙動は維持します（#909）。npm公開・利用ホストの取り込みは、この候補記録だけでは確認できません。
+
 ## Candidate — v0.48.3（npm公開前）
 
 共通UIのトークン（`ui/brainbase-tokens.css`）に `--bb-color-muted-on-surface` を追加します。色付きの背景では `--bb-color-muted` をこのトークンへ切り替え、小さな補助テキストを読みやすくします（#911）。npm公開・利用ホストの取り込みは、この候補記録だけでは確認できません。

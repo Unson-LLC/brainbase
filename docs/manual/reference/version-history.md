@@ -2,6 +2,12 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
+## 0.48.4 candidate — npm公開前
+
+- ローカルshellのsidebarと世界canvasのdrawer・helpにfallback付きモーショントークンを適用し、durationとreduced motionの挙動を維持する。
+- 共有モーショントークンを追加し、drawer退場を150ms、通知消去を200msへ短縮。入場・検索帯・モバイル・reduced motionの挙動を維持する公開候補（npm未公開）。
+- これは公開候補の記録。npm公開と利用ホストの本番反映は、別の検証で確認する。
+
 ## 0.48.3 candidate — npm公開前
 
 - 共通UIのトークン（`ui/brainbase-tokens.css`）に `--bb-color-muted-on-surface` を追加する。色付きの背景では `--bb-color-muted` をこのトークンへ切り替え、小さな補助テキストを読みやすくする（#911）。
