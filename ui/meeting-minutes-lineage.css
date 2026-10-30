@@ -79,7 +79,7 @@
 }
 
 .bb-mml-field-label {
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-mml-input {

@@ -20,7 +20,7 @@
 .bb-pkw-kicker {
   color: var(--bb-color-eyebrow);
   font-size: 11px;
-  font-weight: 760;
+  font-weight: var(--bb-font-weight-medium);
   letter-spacing: .08em;
   text-transform: uppercase;
 }
@@ -42,7 +42,7 @@
 
 .bb-pkw-header h2 {
   font-size: clamp(32px, 3.5vw, 44px);
-  font-weight: 760;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1.1;
   letter-spacing: -.055em;
   word-break: keep-all;
@@ -106,7 +106,7 @@
 .bb-pkw-section h4,
 .bb-pkw-selection h4 {
   font-size: 12px;
-  font-weight: 760;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-pkw .bb-ws-definition {
@@ -173,7 +173,7 @@
   color: var(--bb-color-accent-strong);
   background: transparent;
   font: inherit;
-  font-weight: 720;
+  font-weight: var(--bb-font-weight-medium);
   text-align: left;
   text-decoration: none;
   cursor: pointer;
@@ -249,7 +249,7 @@
   color: var(--bb-color-ink);
   font: inherit;
   font-size: 14px;
-  font-weight: 690;
+  font-weight: var(--bb-font-weight-medium);
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -270,7 +270,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
 
 .bb-pkw-context-task-due.bb-pkw-context-task-overdue {
   color: var(--bb-color-danger);
-  font-weight: 740;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-pkw-context-task-stage {
@@ -522,6 +522,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
 .bb-pkw-graph-item.is-selected {
   border-color: var(--bb-color-accent);
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-pkw-graph-item strong {
@@ -547,6 +548,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
   border-radius: var(--bb-radius-sm);
   padding: var(--bb-space-3);
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-pkw-evidence-head strong {
@@ -635,7 +637,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
 .bb-pkw-dense-eyebrow {
   color: var(--bb-color-eyebrow);
   font-size: 11px;
-  font-weight: 760;
+  font-weight: var(--bb-font-weight-medium);
   letter-spacing: .08em;
 }
 
@@ -678,7 +680,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
 .bb-pkw-dense-metric-label {
   color: var(--bb-color-muted);
   font-size: 11px;
-  font-weight: 720;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-pkw-dense-metric-value {
@@ -687,7 +689,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
   overflow-wrap: anywhere;
   color: var(--bb-color-ink);
   font-size: 30px;
-  font-weight: 760;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1.1;
   letter-spacing: -.03em;
 }
@@ -735,7 +737,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
   background: transparent;
   font: inherit;
   font-size: 12px;
-  font-weight: 720;
+  font-weight: var(--bb-font-weight-medium);
   cursor: pointer;
 }
 
@@ -791,7 +793,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
   color: var(--bb-color-accent-strong);
   background: transparent;
   font: inherit;
-  font-weight: 720;
+  font-weight: var(--bb-font-weight-medium);
   text-align: left;
   text-decoration: none;
   cursor: pointer;
@@ -828,7 +830,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
   padding: 0 0 var(--bb-space-2);
   color: var(--bb-color-muted);
   font-size: 11px;
-  font-weight: 720;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-pkw-dense-table .bb-pkw-dense-item {
@@ -894,7 +896,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
   overflow-wrap: anywhere;
   color: var(--bb-color-ink);
   font-size: clamp(28px, 3vw, 36px);
-  font-weight: 760;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1.1;
   letter-spacing: -.05em;
   word-break: keep-all;
@@ -935,7 +937,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
 
 .bb-pkw-directory-count {
   font-size: 16px;
-  font-weight: 720;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-pkw-directory-card .bb-pkw-dense-action {
@@ -1023,7 +1025,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
 .bb-pkw-work-row-header {
   color: var(--bb-color-muted);
   font-size: 11px;
-  font-weight: 720;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-pkw-work-row > span,
@@ -1119,10 +1121,12 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
 
 .bb-pkw-graph-item:hover {
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-pkw-graph-item.is-selected {
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   box-shadow: inset 3px 0 var(--bb-color-accent);
 }
 
@@ -1181,7 +1185,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
   margin: 0;
   color: var(--bb-color-ink);
   font-size: 16px;
-  font-weight: 760;
+  font-weight: var(--bb-font-weight-medium);
   letter-spacing: -.02em;
 }
 
@@ -1206,7 +1210,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
 .bb-pkw-overview-fact dt {
   color: var(--bb-color-muted);
   font-size: 11px;
-  font-weight: 720;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-pkw-overview-fact dd {
@@ -1253,7 +1257,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
   color: var(--bb-color-accent-strong);
   background: transparent;
   font: inherit;
-  font-weight: 720;
+  font-weight: var(--bb-font-weight-medium);
   text-align: left;
   text-decoration: none;
   cursor: pointer;
@@ -1306,7 +1310,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
 .bb-pkw-overview-material-header {
   border-bottom-color: var(--bb-color-border-strong);
   padding-block: var(--bb-space-2);
-  font-weight: 720;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-pkw-overview-material-row > span,

@@ -6,7 +6,7 @@
 .knowledge-outcome { display: grid; gap: 20px; color: var(--bb-color-ink, #17221c); }
 .knowledge-outcome-head { padding: 24px; border: 1px solid var(--bb-color-border, #dce5df); border-radius: 16px; background: linear-gradient(135deg, var(--bb-color-header-start, #f7faf8), var(--bb-color-header-end, #eef5f0)); }
 .knowledge-outcome-head h2 { margin: 4px 0 8px; font-size: clamp(1.45rem, 3vw, 2rem); }
-.knowledge-eyebrow { color: var(--bb-color-eyebrow, #47715a); font-size: .72rem; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+.knowledge-eyebrow { color: var(--bb-color-eyebrow, #47715a); font-size: .72rem; font-weight: var(--bb-font-weight-medium); letter-spacing: .12em; text-transform: uppercase; }
 .knowledge-outcome-nav,
 .knowledge-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
 .knowledge-tab,
@@ -107,7 +107,7 @@
   display: block;
   color: var(--knowledge-green);
   font-size: .65rem;
-  font-weight: 760;
+  font-weight: var(--bb-font-weight-medium);
   letter-spacing: .105em;
   text-transform: uppercase;
 }
@@ -136,7 +136,7 @@
   background: transparent;
   cursor: pointer;
   font-size: .79rem;
-  font-weight: 650;
+  font-weight: var(--bb-font-weight-medium);
   white-space: nowrap;
 }
 .knowledge-outcome .knowledge-tab:hover,
@@ -210,7 +210,7 @@
   min-width: 0;
   color: var(--knowledge-muted);
   font-size: .7rem;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
 }
 .knowledge-outcome .knowledge-filter-actions,
 .knowledge-outcome .knowledge-form-actions,
@@ -278,7 +278,7 @@
   min-width: 0;
   overflow: hidden;
   font-size: .8rem;
-  font-weight: 720;
+  font-weight: var(--bb-font-weight-medium);
   text-overflow: ellipsis;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -287,7 +287,7 @@
   -webkit-line-clamp: 2;
 }
 .knowledge-outcome .knowledge-row-meta { display: flex; flex-wrap: wrap; gap: .15rem .55rem; min-width: 0; }
-.knowledge-outcome .knowledge-row-project { color: var(--knowledge-ink); font-size: .68rem; font-weight: 600; overflow-wrap: anywhere; }
+.knowledge-outcome .knowledge-row-project { color: var(--knowledge-ink); font-size: .68rem; font-weight: var(--bb-font-weight-medium); overflow-wrap: anywhere; }
 .knowledge-outcome .knowledge-row-type,
 .knowledge-outcome .knowledge-row-scope,
 .knowledge-outcome .knowledge-row-state { color: var(--knowledge-muted); font-size: .68rem; white-space: nowrap; }
@@ -300,7 +300,7 @@
   margin-top: .65rem;
   color: var(--knowledge-green);
   font-size: .76rem;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
   text-underline-offset: .15em;
 }
 .knowledge-outcome .knowledge-detail-jump:focus-visible { outline: 3px solid color-mix(in srgb, var(--knowledge-green) 28%, transparent); outline-offset: 2px; }
@@ -400,13 +400,13 @@
 .knowledge-outcome .knowledge-source-column h4,
 .knowledge-outcome .knowledge-proposal-column h4 { margin-bottom: .55rem; }
 .knowledge-outcome .knowledge-choice-group { display: grid; gap: .35rem; margin: .7rem 0; border: 1px solid var(--knowledge-line); border-radius: .4rem; padding: .55rem; }
-.knowledge-outcome .knowledge-choice-group legend { color: var(--knowledge-muted); font-size: .72rem; font-weight: 700; padding: 0 .2rem; }
+.knowledge-outcome .knowledge-choice-group legend { color: var(--knowledge-muted); font-size: .72rem; font-weight: var(--bb-font-weight-medium); padding: 0 .2rem; }
 .knowledge-outcome .knowledge-choice { display: flex; gap: .4rem; align-items: center; color: var(--knowledge-ink); font-size: .78rem; }
 .knowledge-outcome .knowledge-action-details { border: 1px solid var(--knowledge-line); border-radius: .4rem; padding: .58rem; }
 .knowledge-outcome .knowledge-action-details + .knowledge-action-details { margin-top: .5rem; }
-.knowledge-outcome .knowledge-action-details summary { cursor: pointer; font-size: .8rem; font-weight: 700; }
+.knowledge-outcome .knowledge-action-details summary { cursor: pointer; font-size: .8rem; font-weight: var(--bb-font-weight-medium); }
 .knowledge-outcome .knowledge-action-details.danger { border-color: color-mix(in srgb, var(--knowledge-red) 35%, var(--knowledge-line)); }
-.knowledge-outcome .knowledge-isolation-badge { display: inline-flex; margin-top: .55rem; border-radius: 999px; padding: .22rem .5rem; font-size: .7rem; font-weight: 700; }
+.knowledge-outcome .knowledge-isolation-badge { display: inline-flex; margin-top: .55rem; border-radius: 999px; padding: .22rem .5rem; font-size: .7rem; font-weight: var(--bb-font-weight-medium); }
 .knowledge-outcome .knowledge-isolation-badge.confirmed { color: var(--knowledge-green); background: var(--knowledge-green-soft); }
 .knowledge-outcome .knowledge-isolation-badge.unknown { color: var(--knowledge-amber); background: var(--knowledge-amber-soft); }
 .knowledge-outcome .knowledge-preview-executed,

@@ -23,6 +23,7 @@
   margin: 0 0 10px;
   overflow: hidden;
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   color: transparent;
   font-size: 0;
 }
@@ -49,6 +50,7 @@
 .bb-pm-chip.is-active {
   border-color: var(--bb-color-accent);
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-pm-chip-button,
@@ -104,6 +106,7 @@
   border: 1px solid var(--bb-color-border);
   border-radius: 8px;
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-pm-option {
@@ -115,6 +118,7 @@
 .bb-pm-option.is-selected {
   border-color: var(--bb-color-accent);
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-pm-ledger .bb-ws-ledger-row {
@@ -248,7 +252,7 @@
 /* The detail's head is the memory itself: body-sized, not a page title. */
 .bb-pm-detail .bb-ws-rail-head h2 {
   font-size: 16px;
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1.6;
   white-space: pre-wrap;
 }
