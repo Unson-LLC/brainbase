@@ -21,7 +21,7 @@
   margin: 14px 0 8px;
   color: var(--bb-color-muted);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-graph .bb-pc-empty,
@@ -138,7 +138,7 @@
   color: var(--bb-color-ink);
   font: inherit;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
   cursor: pointer;
 }
 
@@ -163,7 +163,7 @@
 
 .bb-graph .bb-pc-company-title {
   color: var(--bb-color-ink);
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-pc-mark {
@@ -176,7 +176,7 @@
   color: var(--bb-pc-mark-ink);
   background: var(--bb-pc-mark-bg);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1;
 }
 
@@ -202,7 +202,7 @@
 .bb-pc-people-ledger .bb-ws-ledger-object strong,
 .bb-pc-company-ledger .bb-ws-ledger-object strong {
   overflow: hidden;
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -235,7 +235,7 @@
   background: var(--bb-color-canvas);
   color: var(--bb-color-muted);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-pc-kind::before {

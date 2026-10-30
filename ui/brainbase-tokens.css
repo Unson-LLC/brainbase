@@ -7,37 +7,38 @@
  * brainbase-organization/apps/web/public/styles.css (final :root layer and
  * outcome workspace overrides). The brand palette is documented separately
  * in brainbase-organization/docs/design/brainbase-brand-palette.md.
- * This boundary clarification intentionally does not change any token value.
+ * Navy actions, mint surfaces, and Noto Sans JP form the standard theme.
+ * Status colors retain their semantic meaning; hosts can still override tokens.
  */
 :root {
-  --bb-color-ink: #202124;
-  --bb-color-muted: #6b6b73;
-  --bb-color-quiet: #76767f;
-  --bb-color-border: #e5e5e9;
-  --bb-color-border-strong: #c9c9d1;
-  --bb-color-control-border: #d7d7de;
+  --bb-color-ink: #202939;
+  --bb-color-muted: #6b7280;
+  --bb-color-quiet: #6b7280;
+  --bb-color-border: #dce4e7;
+  --bb-color-border-strong: #dce4e7;
+  --bb-color-control-border: #dce4e7;
   --bb-color-paper: #ffffff;
-  --bb-color-canvas: #f6f6f8;
+  --bb-color-canvas: #f6f8fa;
   --bb-color-panel: #ffffff;
-  --bb-color-surface: #f6f6f8;
+  --bb-color-surface: #f1f5f4;
   --bb-color-header-start: #ffffff;
-  --bb-color-header-end: #f6f6f8;
-  --bb-color-eyebrow: #5b4bd8;
-  --bb-color-accent: #5b4bd8;
-  --bb-color-accent-soft: #efedff;
-  --bb-color-accent-strong: #4939b8;
-  /* Minutes screen remaps its accent to this indigo. Shared accent stays purple. */
-  --bb-color-brand-indigo: #0F2A43;
-  --bb-color-action: #5b4bd8;
-  --bb-color-action-hover: #4939b8;
+  --bb-color-header-end: #f6f8fa;
+  --bb-color-eyebrow: #24324b;
+  --bb-color-accent: #24324b;
+  --bb-color-accent-soft: #eaf6f3;
+  --bb-color-accent-strong: #24324b;
+  /* Retained token name for existing consumers; standard action is navy. */
+  --bb-color-brand-indigo: #24324b;
+  --bb-color-action: #24324b;
+  --bb-color-action-hover: #3b485e;
   --bb-color-action-text: #ffffff;
-  --bb-color-focus: #5b4bd8;
-  --bb-color-project-ink: #202124;
-  --bb-color-project-muted: #6b6b73;
-  --bb-color-project-border: #e5e5e9;
-  --bb-color-project-border-strong: #c9c9d1;
-  --bb-color-project-accent: #5b4bd8;
-  --bb-color-project-accent-strong: #4939b8;
+  --bb-color-focus: #24324b;
+  --bb-color-project-ink: #202939;
+  --bb-color-project-muted: #6b7280;
+  --bb-color-project-border: #dce4e7;
+  --bb-color-project-border-strong: #dce4e7;
+  --bb-color-project-accent: #24324b;
+  --bb-color-project-accent-strong: #24324b;
   --bb-color-success: #18794e;
   --bb-color-success-soft: #e4f5eb;
   --bb-color-warning: #8a631d;
@@ -45,12 +46,12 @@
   --bb-color-danger: #d92335;
   --bb-color-danger-soft: #fde9eb;
   --bb-color-rail: #ffffff;
-  --bb-color-rail-border: #e5e5e9;
-  --bb-color-rail-text: #202124;
-  --bb-color-rail-muted: #6b6b73;
-  --bb-color-rail-hover: #f6f6f8;
-  --bb-color-rail-active: #efedff;
-  --bb-color-rail-strong: #202124;
+  --bb-color-rail-border: #dce4e7;
+  --bb-color-rail-text: #202939;
+  --bb-color-rail-muted: #6b7280;
+  --bb-color-rail-hover: #f1f5f4;
+  --bb-color-rail-active: #eaf6f3;
+  --bb-color-rail-strong: #202939;
   --bb-color-overlay: rgb(32 33 36 / 40%);
   --bb-color-notice-border: #ffffff20;
   --bb-color-notice-danger: #e29494;
@@ -74,7 +75,12 @@
   --bb-shadow-help: 0 6px 24px #0d192e20;
   --bb-font-help: Georgia,serif;
   --bb-shadow: 0 16px 42px rgb(32 33 36 / 10%);
-  --bb-font-sans: Geist, "Noto Sans JP", "Hiragino Sans", system-ui, sans-serif;
+  --bb-font-sans: "Noto Sans JP", "Hiragino Sans", system-ui, sans-serif;
+  --bb-font-weight-body: 400;
+  --bb-font-weight-medium: 500;
+  --bb-color-mint: #6fc4b5;
+  --bb-color-mint-strong: #4fa999;
+  --bb-color-interaction-hover: #eaf6f3;
   --bb-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --bb-radius-sm: 7px;
   --bb-radius-md: 14px;
@@ -96,7 +102,7 @@
   --bb-toolbar-caret-x: -6px;
   --bb-toolbar-caret-y: -3px;
   --bb-radius-menu: 4px;
-  --bb-color-filter-selected: color-mix(in srgb, var(--bb-color-brand-indigo) 10%, var(--bb-color-paper));
+  --bb-color-filter-selected: var(--bb-color-accent-soft);
   /* Explicitly opted-in tab strips. */
   --bb-tab-height: 44px;
   --bb-tab-font-size: 13px;
@@ -124,7 +130,7 @@
   --bb-search-band-project-icon-size: 18px;
   --bb-control-small-height: 28px;
   --bb-create-background: #24324b;
-  --bb-create-hover: #1b263a;
+  --bb-create-hover: var(--bb-color-action-hover);
   --bb-radius-pill: 999px;
 
 }
