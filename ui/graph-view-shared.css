@@ -115,7 +115,7 @@
   color: var(--bb-color-accent-strong);
   background: var(--bb-color-accent-soft);
   font-size: 15px;
-  font-weight: 750;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1;
 }
 
@@ -248,7 +248,7 @@
   color: var(--bb-color-muted);
   background: var(--bb-color-canvas);
   font-size: 10px;
-  font-weight: 720;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1.5;
   white-space: nowrap;
 }
@@ -281,7 +281,7 @@
   color: var(--bb-color-accent-strong);
   background: none;
   font: inherit;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
   text-align: left;
   cursor: pointer;
   overflow-wrap: anywhere;
@@ -295,7 +295,7 @@
   display: block;
   margin-bottom: 18px;
   font-size: 12px;
-  font-weight: 650;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-graph .bb-ws-ledger-row.is-selectable:focus-visible,
@@ -376,7 +376,7 @@
   align-items: center;
   gap: var(--bb-space-2);
   color: var(--bb-color-ink);
-  font-weight: 690;
+  font-weight: var(--bb-font-weight-medium);
   cursor: pointer;
 }
 
@@ -388,7 +388,7 @@
   margin: 0 0 var(--bb-space-1);
   color: var(--bb-color-muted);
   font-size: 12px;
-  font-weight: 690;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-graph-evidence-part > p {
@@ -488,7 +488,7 @@
 .bb-graph-field label {
   color: var(--bb-color-muted);
   font-size: 12px;
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-graph-field.is-reason label {

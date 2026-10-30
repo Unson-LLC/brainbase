@@ -118,15 +118,15 @@ describe('OSS共通UIの公開契約', () => {
 
   it('新しい部品とホストの外枠は共通の見た目の定義だけで色・文字・余白を決める', async () => {
     const tokens = await readFile(new URL('../ui/brainbase-tokens.css', import.meta.url), 'utf8');
-    // The values are the current white UI design (the visual source of truth).
+    // Standard navy/mint surfaces and Noto Sans JP; semantic status colors stay stable.
     for (const [name, value] of Object.entries({
-      '--bb-color-ink': '#202124', '--bb-color-muted': '#6b6b73', '--bb-color-border': '#e5e5e9', '--bb-color-panel': '#ffffff',
-      '--bb-color-paper': '#ffffff', '--bb-color-canvas': '#f6f6f8', '--bb-color-surface': '#f6f6f8',
-      '--bb-color-accent': '#5b4bd8', '--bb-color-accent-soft': '#efedff', '--bb-color-action': '#5b4bd8',
+      '--bb-color-ink': '#202939', '--bb-color-muted': '#6b7280', '--bb-color-border': '#dce4e7', '--bb-color-panel': '#ffffff',
+      '--bb-color-paper': '#ffffff', '--bb-color-canvas': '#f6f8fa', '--bb-color-surface': '#f1f5f4',
+      '--bb-color-accent': '#24324b', '--bb-color-accent-soft': '#eaf6f3', '--bb-color-action': '#24324b',
       '--bb-color-success': '#18794e', '--bb-color-success-soft': '#e4f5eb', '--bb-color-warning': '#8a631d',
       '--bb-color-warning-soft': '#fff0c7', '--bb-color-danger': '#d92335', '--bb-color-danger-soft': '#fde9eb',
-      '--bb-color-rail': '#ffffff', '--bb-color-rail-active': '#efedff',
-      '--bb-font-sans': 'Geist, "Noto Sans JP", "Hiragino Sans", system-ui, sans-serif',
+      '--bb-color-rail': '#ffffff', '--bb-color-rail-active': '#eaf6f3',
+      '--bb-font-sans': '"Noto Sans JP", "Hiragino Sans", system-ui, sans-serif',
       '--bb-radius-sm': '7px', '--bb-radius-md': '14px', '--bb-radius-lg': '16px', '--bb-space-1': '4px', '--bb-space-2': '8px', '--bb-space-3': '12px',
       '--bb-space-4': '16px', '--bb-space-5': '24px', '--bb-space-6': '32px',
     })) {

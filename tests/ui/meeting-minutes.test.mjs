@@ -955,7 +955,7 @@ describe('meeting minutes page review', () => {
     expect(css).toContain('height: 79px');
     expect(css).not.toContain('max-height: 52px');
     expect(css).not.toContain('box-shadow');
-    expect(tokens).toContain('--bb-color-brand-indigo: #0F2A43;');
+    expect(tokens).toContain('--bb-color-brand-indigo: #24324b;');
     const guard = css.slice(css.indexOf('.bb-minutes-edit-guard.is-info'), css.indexOf('.bb-minutes-source-link'));
     expect(guard).toContain('var(--bb-color-muted)');
     expect(guard).not.toContain('danger');
