@@ -2,6 +2,13 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
+## 0.49.0 candidate — npm公開前
+
+- RQ-113: ソースに依存しないentity index builderを `@unson/brainbase-mcp/entity-indexer` として公開するminor更新候補（#920）。
+- `buildIndex`・`createEmptyIndex`、lifecycle helpers、ontology registry、`EntitySource`・entity型、構造型の `RetrievalEvidence` を提供する。既存の `createEntityIndexCache` のbuildとして利用できる。
+- 配列でないcollection、空id、activeな重複idはエラーにする。`GraphAPISource`・認証・evidence関数はホスト側に残す。
+- これは公開候補の記録。npm公開と利用ホストの本番反映は、別の検証で確認する。
+
 ## 0.48.4
 
 - ローカルshellのsidebarと世界canvasのdrawer・helpにfallback付きモーショントークンを適用し、durationとreduced motionの挙動を維持する（#909）。
