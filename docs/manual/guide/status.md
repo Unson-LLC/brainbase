@@ -4,6 +4,10 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
+## Candidate — v0.48.3（npm公開前）
+
+共通UIのトークン（`ui/brainbase-tokens.css`）に `--bb-color-muted-on-surface` を追加します。色付きの背景では `--bb-color-muted` をこのトークンへ切り替え、小さな補助テキストを読みやすくします（#911）。npm公開・利用ホストの取り込みは、この候補記録だけでは確認できません。
+
 ## Candidate — v0.48.2（npm公開前）
 
 共通UIのトークン（`ui/brainbase-tokens.css`）を紺・ミントのテーマとNoto Sans JPへ切り替えます。フォントは `--bb-font-sans`・`--bb-font-weight-medium`・`--bb-font-weight-body` で指定します。状態色の意味を保ち、ホストは引き続きトークンを上書きできます（#910）。npm公開・利用ホストの取り込みは、この候補記録だけでは確認できません。
