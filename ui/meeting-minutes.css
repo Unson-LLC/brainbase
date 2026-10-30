@@ -1,6 +1,5 @@
 .bb-minutes-screen {
   --bb-color-accent: var(--bb-color-brand-indigo);
-  --bb-color-accent-soft: color-mix(in srgb, var(--bb-color-brand-indigo) 6%, transparent);
   --bb-color-accent-strong: var(--bb-color-brand-indigo);
   --bb-color-action: var(--bb-color-brand-indigo);
   display: grid;
@@ -22,6 +21,7 @@
   border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-lg, 8px);
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-minutes-eyebrow,
@@ -76,7 +76,7 @@
 .bb-minutes-heading h1,
 .bb-minutes-detail-head h2 {
   font-size: 20px;
-  font-weight: 800;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1.25;
 }
 
@@ -118,6 +118,7 @@
   border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-md, 6px);
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-minutes-filter-host {
@@ -190,6 +191,7 @@
   border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-md, 6px);
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-minutes-list-pane,
@@ -289,7 +291,7 @@
   color: var(--bb-color-ink);
   background: var(--bb-color-paper);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 18px;
 }
 
@@ -302,6 +304,7 @@
 .bb-minutes-version.is-selected {
   border-left-color: var(--bb-color-brand-indigo);
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-minutes-item-title,
@@ -316,7 +319,7 @@
 .bb-minutes-item-title,
 .bb-minutes-document-title {
   font-size: 13.5px;
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 18px;
 }
 
@@ -381,6 +384,7 @@
 
 .bb-minutes-state.is-muted {
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   color: var(--bb-color-muted);
 }
 
@@ -426,6 +430,7 @@
 .bb-minutes-withdrawn {
   padding: 8px 12px;
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-sm, 4px);
 }
@@ -445,7 +450,7 @@
 }
 
 .bb-minutes-withdraw-title {
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-minutes-edit-form {
@@ -469,7 +474,7 @@
 .bb-minutes-markdown h4,
 .bb-minutes-markdown h5 {
   margin: 12px 0 4px;
-  font-weight: 650;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1.4;
 }
 
@@ -502,6 +507,7 @@
   padding: 8px;
   border-radius: var(--bb-radius-sm, 4px);
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   overflow-wrap: anywhere;
 }
 
@@ -636,13 +642,14 @@
   border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-md, 6px);
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-minutes-connections-title {
   margin: 0;
   color: var(--bb-color-muted);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-minutes-connection-list {
@@ -708,6 +715,7 @@
   border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-md, 6px);
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-minutes-participants[hidden] {
@@ -784,7 +792,7 @@
 
 .bb-minutes-participant-panel-title {
   margin: 0;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-minutes-participant-others {

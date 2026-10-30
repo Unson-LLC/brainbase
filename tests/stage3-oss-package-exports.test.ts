@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -117,6 +118,63 @@ describe('Stage 3 common contract package exports', () => {
         expect(typeof sourceAdapters.createMeetingSourceMcpAdapter).toBe('function');
         const commonAdapter = await importExport(manifest, './meeting-source-sync-common-adapter');
         expect(typeof commonAdapter.createMeetingSourceSyncCommonAdapter).toBe('function');
+    });
+
+    it('publishes the entity indexer as an independent subpath with a self-contained declaration closure', async () => {
+        const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+        expect(manifest.exports['./entity-indexer']).toEqual({
+            types: './dist/entity-indexer.d.ts',
+            import: './dist/entity-indexer.js'
+        });
+        expect(typeof (await importExport(manifest, './entity-indexer')).buildIndex).toBe('function');
+        const isolatedRoot = await mkdtemp(path.join(os.tmpdir(), 'brainbase-indexer-'));
+        try {
+            const packed = JSON.parse(execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts', '--offline', '--cache', path.join(isolatedRoot, 'cache')], { cwd: root, encoding: 'utf8' }));
+            const files = packed[0].files.map((file: { path: string }) => file.path);
+            expect(files).toContain('dist/entity-indexer.js');
+            expect(files).toContain('dist/entity-indexer.d.ts');
+            expect(files.some((file: string) => /^(src|tests|\.[^/]*ref)\//.test(file))).toBe(false);
+            expect(packed[0].version).toBe(manifest.version);
+            const packageRoot = path.join(isolatedRoot, 'node_modules', '@unson', 'brainbase-mcp');
+            await cp(path.join(root, 'dist'), path.join(packageRoot, 'dist'), { recursive: true });
+            await writeFile(path.join(packageRoot, 'package.json'), JSON.stringify(manifest));
+            await writeFile(path.join(isolatedRoot, 'package.json'), '{"type":"module"}');
+            const declaration = await readFile(path.join(packageRoot, 'dist/entity-indexer.d.ts'), 'utf8');
+            expect(declaration).not.toMatch(/retrieval\/evidence|TokenProvider|GraphAPISource|organization_id|tenant_id|(?:src|tests)\//);
+            expect(declaration).not.toMatch(/(?:from\s*|import\s*\()\s*['"]/);
+            await writeFile(path.join(isolatedRoot, 'consumer.ts'), `
+import { buildIndex, type EntitySource, type EntityIndex, type RetrievalEvidence } from '@unson/brainbase-mcp/entity-indexer';
+const source: EntitySource = {
+  initialize: async () => {},
+  getProjects: async () => [], getPeople: async () => [], getOrganizations: async () => [],
+  getBrands: async () => [], getRACIs: async () => [], getApps: async () => [],
+  getCustomers: async () => [], getPartners: async () => [], getDecisions: async () => [],
+  getGlossaryTerms: async () => [], getDocuments: async () => [],
+  getExtensionTypeRegistrations: async () => [], getExtensionEntities: async () => [],
+};
+const evidence: RetrievalEvidence = { content: 'Example' };
+const index: EntityIndex = await buildIndex(source);
+void evidence; void index;
+`);
+            execFileSync(process.execPath, [path.join(root, 'node_modules/typescript/bin/tsc'),
+                '--noEmit', '--strict', '--target', 'ES2022', '--module', 'NodeNext', '--moduleResolution', 'NodeNext',
+                'consumer.ts'
+            ], { cwd: isolatedRoot, encoding: 'utf8' });
+            const isolated = await import(pathToFileURL(path.join(packageRoot, 'dist/entity-indexer.js')).href);
+            expect(typeof isolated.buildIndex).toBe('function');
+        } finally {
+            await rm(isolatedRoot, { recursive: true, force: true });
+        }
+    }, 30_000);
+
+    it('publishes the entity index cache as an independent subpath', async () => {
+        const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+        expect(manifest.exports['./entity-index-cache']).toEqual({
+            types: './dist/entity-index-cache.d.ts',
+            import: './dist/entity-index-cache.js'
+        });
+        const module = await importExport(manifest, './entity-index-cache');
+        expect(typeof module.createEntityIndexCache).toBe('function');
     });
 
     it('keeps onboarding-runtime importable from an isolated package tree', async () => {

@@ -12,9 +12,10 @@
   border-radius: 999px;
   padding: 0 6px;
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   color: var(--bb-color-accent);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 18px;
   text-align: center;
 }
@@ -24,6 +25,7 @@
   margin: 0 0 10px;
   overflow: hidden;
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   color: transparent;
   font-size: 0;
 }
@@ -36,14 +38,14 @@
   margin: 0 0 var(--bb-space-2);
   color: var(--bb-color-muted);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-inbox.is-today .bb-inbox-today-count {
   margin: 0 0 var(--bb-space-4);
   color: var(--bb-color-ink);
   font-size: 15px;
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-inbox.is-today .bb-inbox-today-count.is-unreadable {
@@ -61,7 +63,7 @@
 
 .bb-inbox-wait.is-long {
   color: var(--bb-color-warning);
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-inbox-undo {
@@ -73,6 +75,7 @@
   border-radius: var(--bb-radius-md);
   padding: var(--bb-space-2) var(--bb-space-3);
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   color: var(--bb-color-ink);
   font-size: 13px;
 }
@@ -104,7 +107,7 @@
 .bb-inbox-title {
   color: var(--bb-color-ink);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
   text-decoration: none;
   overflow-wrap: anywhere;
 }
@@ -135,7 +138,7 @@ a.bb-inbox-title:focus-visible {
   padding: 0 8px;
   background: var(--bb-color-warning-soft);
   color: var(--bb-color-warning);
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-inbox-due {
@@ -144,7 +147,7 @@ a.bb-inbox-title:focus-visible {
 
 .bb-inbox-due.is-soon {
   color: var(--bb-color-warning);
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-inbox-due.is-expired {
@@ -152,7 +155,7 @@ a.bb-inbox-title:focus-visible {
   padding: 0 8px;
   background: var(--bb-color-danger-soft);
   color: var(--bb-color-inline-error);
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-inbox-facts {
@@ -190,7 +193,7 @@ a.bb-inbox-title:focus-visible {
 .bb-inbox-done {
   color: var(--bb-color-success);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-inbox-confirm {
@@ -209,7 +212,7 @@ a.bb-inbox-title:focus-visible {
   margin: 0;
   color: var(--bb-color-ink);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-inbox-row-actions {
