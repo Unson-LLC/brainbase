@@ -566,6 +566,9 @@ function buildBrandAliases(index: EntityIndex): void {
 
 /**
  * Build the complete entity index from EntitySource
+ * Host revision must be cheap, stable, and change on every indexed create/update/retire/delete.
+ * Without such a marker, rebuild per refresh or use a rejecting cache revision (no commit).
+ * Never use fresh random/timestamp revisions: before/after mismatch throws after 3 builds.
  */
 export async function buildIndex(source: EntitySource): Promise<EntityIndex> {
   const index = createEmptyIndex();

@@ -3,7 +3,7 @@
 - story_id: `story-rq-113-entity-full-index-oss`
 - recorded_by: agent:claude-opus（OCO サンドイッチ step1 / scope revision）
 - 日付: 2026-10-30（Codex クロスレビュー PASS_WITH_CHANGES 反映後）
-- 根拠決定: A案（Director/Worker リレー 2026-10-30 12:30 JST「indexer を brainbase main を土台に OSS へ、GraphAPISource は unson に残す」）、佐藤さん承認 18:06 JST「RQ-113 の npm 公開を進めて」
+- 根拠決定: A案（Director/Worker リレー 2026-10-30 12:30 JST「indexer を brainbase main を土台に OSS へ、GraphAPISource は unson に残す」）、Director 承認 18:06 JST「RQ-113 の npm 公開を進めて」
 - 参照元の正本: brainbase-unson `mcp/brainbase/src/`（読み取り専用コピーで実シンボルを確認済み。実名に合わせて本書を改訂した）
 
 ## この scope にした理由（Subtract before adding）
@@ -95,21 +95,13 @@ Codex の実装（`src/entity-indexer.ts`、`tests/entity-indexer.test.ts`、`pa
 - host 側: `GraphAPISource`（unson 残置）は必要なら `interface HostGraphEntity extends BaseEntity { organization_id?: string; tenant_id?: string }` のように host-extended 型を宣言して保持する。
 - 検証: AC-07 のテストが OSS `BaseEntity` にこれらが無いことを型/宣言レベルで確認する。
 
-## retrieval/evidence の扱い（型は IN・関数は Proposal / Director 決定事項）
+## retrieval/evidence の扱い（Director 決定・案b）
 
-settled: 構造型 `RetrievalEvidence` は OSS に置く（`BaseEntity.retrieval_evidence?` の宣言依存を閉じるため必須。Scope IN）。実体は `Partial<Record<content|statement|decision|rationale|body|markdown|body_summary|summary|description|notes|source_pointer|provenance, unknown>>` で、フィールド名は汎用的な content/provenance 語であり Unson 固有ではない（Codex 所見7）。
-
-open（**関数** `extractEvidence` / `hasSubstantiveValue` / `bodyEvidenceFields` / 定数 `BODY_EVIDENCE_FIELDS` をどうするか）:
-
-- 案a: 小ヘルパも OSS へ移す。利点: evidence 抽出が必要なら自己完結。欠点: 不要な関数移動。`GraphAPISource`（unson）が実際の呼び出し元で、builder は呼ばない。
-- 案b（**推奨**）: 関数は unson に残し source 層（`GraphAPISource`）と `server.ts` に閉じる。OSS は構造型のみ。利点: ランタイム境界が正しい（抽出は `GraphAPISource`、整形は server）、OSS 最小。実 `buildIndex` は evidence 抽出を呼ばない（確認済み）ので成立する。
-- 案c: OSS が `EvidenceExtractor` コールバック port を定義し unson が実装注入。欠点: builder は使わないため不要な間接。現設計（source が抽出済み evidence を返す）に対し冗長。
-
-**推奨**: 案b（型だけ OSS、関数は unson）。`buildIndex` は evidence を呼ばないことを実コードで確認済み。最終決定は Director（Open Q1）。
+構造型 `RetrievalEvidence` のみ OSS に置き、`BaseEntity.retrieval_evidence?` の宣言依存を閉じる。関数 `extractEvidence` / `hasSubstantiveValue` / `bodyEvidenceFields` と定数 `BODY_EVIDENCE_FIELDS` は brainbase-unson に残す。`buildIndex` は evidence 抽出を呼ばない。
 
 ## unson が後で行う変更（別 PR・**host コード変更**。config のみではない。ここでは説明のみ・本 PR で実施しない）
 
-公開後に Maintainer が公開版へ unson（mcp/brainbase）側で行う host コード変更:
+依存版 bump と import 差し替えの前提として、staging の実 `GraphAPISource` 出力を本書の fail-loud 検証に通し、拒否レコード件数を報告する。本 PR では未実施。後続の別 PR で、公開後に Maintainer が brainbase-unson `mcp/brainbase/src/...` 側で行う host コード変更:
 
 1. 依存版 bump: `@unson/brainbase-mcp` を公開版へ（Maintainer が公開時に決定）。
 2. import 差し替え（ローカル `./indexer/*`・`./sources/entity-source` → package subpath `@unson/brainbase-mcp/entity-indexer`）。実 import 元:
@@ -128,7 +120,7 @@ open（**関数** `extractEvidence` / `hasSubstantiveValue` / `bodyEvidenceField
 
 ## version bump の判断
 
-**本 PR では bump しない（既定、現 `version` = `0.48.4` のまま）。** 理由: RQ-024（AC「version は変更しない」）と同じ方針で、subpath の追加は後方互換の加算であり PR 単体で version を上げない。公開版は Maintainer が公開時に設定する（佐藤さん承認の「npm 公開を進めて」は Maintainer の公開工程）。`package-lock.json` / `tsconfig.json` も公開のためだけに変更しない。
+**本 PR では bump しない（既定、現 `version` = `0.48.4` のまま）。** 理由: RQ-024（AC「version は変更しない」）と同じ方針で、subpath の追加は後方互換の加算であり PR 単体で version を上げない。公開版は Maintainer が公開時に設定する（Director 承認の「npm 公開を進めて」は Maintainer の公開工程）。`package-lock.json` / `tsconfig.json` も公開のためだけに変更しない。
 
 ## 却下した選択肢（各 1 行理由）
 
@@ -138,16 +130,31 @@ open（**関数** `extractEvidence` / `hasSubstantiveValue` / `bodyEvidenceField
 - builder の名前を `buildEntityIndex` にする → 実在せず rename は抽出外の変更。実名 `buildIndex` を使う（alias も不要）。
 - フィールド単位スキーマ検証を足す → 不変条件に不要・Unson フィールド規約の持ち込み。最小検証（非配列/空id/重複id）に留める。
 - `BaseEntity` に `organization_id`/`tenant_id` を残す → OSS に tenant 概念を持ち込む。host-extended 型へ。
-- export subpath を 2 本（`./entity-indexer` と `./entity-source`）に分割 → 1 本で足りる（Director へ Q2）。
+- export subpath を 2 本（`./entity-indexer` と `./entity-source`）に分割 → 1 本で足りる（Director 決定 Q2）。
 - この PR で `version` を bump → 公開版は Maintainer が公開時に設定。
 
-## Open Questions（Director 向け）
+## Director 決定（2026-10-30）
 
-- Q1: retrieval/evidence の **関数**は案a/b/c のどれか（型 `RetrievalEvidence` は IN で確定。推奨は案b）。
-- Q2: export subpath は `./entity-indexer` 1 本でよいか（既定）、`./entity-source` を分けるか。
-- Q3: `EntitySource`・索引 type・オントロジー・エンティティ型を 1 ファイルに同梱でよいか（既定）、分割するか。
-- Q4: OSS に具体 `LocalEntitySource`（正規グラフ読み取り）も同梱するか（既定は不要、インターフェースのみ）。
-- Q5: cache の `revision()` に何を渡すか（graph revision reader 等）は host 設定（OSS 範囲外、確認のみ）。
+2026-10-30 22:02 JST、Director の判断（可逆）。
+
+- Q1 → 案b: evidence 関数・定数は brainbase-unson に残し、OSS は構造型 `RetrievalEvidence` のみ。
+  - 案a は却下: builder が使わない evidence 関数の移動は不要。
+  - 案c は却下: builder が使わない `EvidenceExtractor` port は不要な間接。
+- Q2 → 公開 subpath は `./entity-indexer` のみ。`./entity-source` は公開しない。
+- Q3 → `src/entity-indexer.ts` は 1 ファイルのまま。
+- Q4 → 今回 `LocalEntitySource` は同梱しない。
+- Q5 → 下記 revision 契約を採用。現状はマーカーがないためキャッシュしない。
+- Unson follow-up は別 PR。依存版 bump / import 差し替え前に staging の実 `GraphAPISource` 出力を検証し、拒否レコード件数を報告する（前提条件・本 PR では未実施）。
+
+### cache revision：確認済みの現状と安全な既定
+
+- コード確認済み: brainbase-unson `mcp/brainbase/src/sources/graphapi-source.ts` の `GraphAPISource.initialize()` は type ごと（`org_alias` / `person_alias` も含む）に `GET <api>/api/info/graph/entities?type=<type>&limit=500` を取得し、JSON body（`{records}` / `{entities}`）だけを読む。versioning 用の response headers（`ETag` / `Last-Modified`）を読まず、`If-None-Match` も使わない。
+- コード確認済み: ホストの Graph API の list route は body `{records}` のみを返し、router は `Cache-Control: no-store` を設定する。`ETag` / `Last-Modified`・collection-level snapshot revision はない。`GraphEntity` にレコード単位の `updated_at: string` / `version: number` はあるが、全件取得（build 相当）なしで collection revision を返す安価な endpoint はない。これは現状の gap として記録する。
+- OSS の既存動作（`src/entity-index-cache.ts`）: `revision()` を各 build の前後で読み、`before !== after` なら再試行、3 回で `EntityIndexUnstableError`。throw/reject 時は構築値を返すが `commit: false` で保存せず、次の `get()` も再構築する（同時進行の `get()` は共有）。revision 関数を省略すると TTL 満了または `invalidate()` まで保持する。
+- host 契約: `revision()` は、索引対象のいずれかのレコードの作成・更新・retire・削除で必ず変わる、安価で安定した Graph API データ版マーカー（collection-level updated-at / ETag 等）を返す。レコード単位の `max(updated_at)` だけでは削除・retire を捉えられず（件数等との組合せが必要）、ここでは全件取得が必要なので安価でもない。
+- **採用する安全な既定: 古い索引を再利用しないため、キャッシュしない。** ホストは refresh ごとに cache なしで `buildIndex(source)` を呼ぶか、`createEntityIndexCache` に必ず reject する `revision()` を渡す（fail-closed、毎回再構築・保存なし）。revision 省略＋正の TTL はこの既定を満たさない。
+- **禁止**: 「毎回一致しない」を毎回新しい random / timestamp で実装しない。build 前後も不一致になり、データを返す代わりに 3 回の build 後 `EntityIndexUnstableError` になる。
+- 将来案（本 PR 外）: Graph API が collection revision（ETag、または retire を含む type ごとの `max(updated_at) + count` 等で上記変更を必ず検知するもの）を提供したら、ホストがそれを `revision()` に渡し、正の `ttlMs` を利用できる。以上は host 側の指針であり、OSS の動作・exports・version は変更しない。
 
 ## CLI 記録状況と担当境界
 
