@@ -656,7 +656,10 @@ describe('per-connection sync saves provider summaries (RQ-073)', () => {
   it('still delivers the transcript when the provider summary cannot be read', async () => {
     const account: PlaudAccount = { files: [{ id: 'f', start_at: '2026-10-09T01:00:00Z', segments: words(1) }], calls: [] };
     const handler = plaudHandler(account);
-    const runtime = fakeRuntime(() => (name, args) => (name === 'get_note' ? errorResult('summary backend error') : handler(name, args)));
+    let summaryReady = false;
+    const runtime = fakeRuntime(() => (name, args) => (name === 'get_note'
+      ? summaryReady ? textResult([{ data_content: 'recovered summary' }]) : errorResult('summary backend error')
+      : handler(name, args)));
     const conn = connection();
     const stateStore = new MemoryMeetingSourceSyncStateStore();
     const { deliveries, deliver } = collector();
@@ -664,8 +667,50 @@ describe('per-connection sync saves provider summaries (RQ-073)', () => {
     const result = await syncMeetingSourceConnection({ connection: conn, runtime, stateStore, deliver, now: clock() });
     expect(result).toMatchObject({ status: 'ok', delivered: [{ meetingId: 'f', version: 1 }] });
     expect(deliveries[0].summary).toBeNull();
-    expect(result.state.pendingSummaries).toEqual([]);
+    expect(result.state.pendingSummaries).toMatchObject([{ meeting: { externalId: 'f' }, attempts: 0, jobId: null }]);
+    const retryAt = result.state.pendingSummaries![0].retryAt!;
+    expect(Date.parse(retryAt)).toBeGreaterThan(NOW.getTime());
+
+    summaryReady = true;
+    const later = await syncMeetingSourceConnection({ connection: conn, runtime, stateStore, deliver, now: clock(new Date(Date.parse(retryAt) + 1)) });
+    expect(later.delivered).toEqual([{ meetingId: 'f', version: 2 }]);
+    expect(later.state.pendingSummaries).toEqual([]);
+    expect(deliveries.at(-1)).toMatchObject({ version: 2, summary: { state: 'ready', text: 'recovered summary' } });
   });
+
+  it.each(['generating', 'unreadable'])('records exhausted %s summaries separately and allows transcript re-checks', async (summaryState) => {
+    let transcriptReads = 0;
+    const runtime = fakeRuntime(() => (name, args) => {
+      if (name === 'search_meetings') return textResult({ results: [{ id: 'm-1', createdAt: '2026-10-09T01:00:00Z' }] });
+      if (name === 'get_meeting') return summaryState === 'unreadable'
+        ? errorResult('summary backend error')
+        : textResult({ id: 'm-1', detailedSummary: { status: 'generating', jobId: 'job-9' } });
+      transcriptReads++;
+      return textResult({ meetingId: args.meetingId, page: 1, totalPages: 1, hasMore: false, entries: [{ speaker: 'A', text: 'hi', startSeconds: 0, endSeconds: 1 }] });
+    });
+    const conn = connection({ provider: 'tactiq' });
+    const stateStore = new MemoryMeetingSourceSyncStateStore();
+    const { deliveries, deliver } = collector();
+    const input = { connection: conn, runtime, stateStore, deliver, maxAttempts: 2 };
+    let result = await syncMeetingSourceConnection({ ...input, now: clock() });
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const next = new Date(Date.parse(result.state.pendingSummaries![0].retryAt!) + 1);
+      result = await syncMeetingSourceConnection({ ...input, now: clock(next) });
+      if (attempt === 1) expect(result.state.pendingSummaries).toMatchObject([{ attempts: 1 }]);
+    }
+    expect(result.state.pendingSummaries).toEqual([]);
+    expect(result.state.unobtainableSummaries).toEqual([{
+      meetingId: 'm-1', reason: 'summary_retry_exhausted',
+      message: 'Provider summary could not be resolved and delivered within maxAttempts.',
+      decidedAt: result.state.lastAttemptAt,
+    }]);
+    expect(result.state.unobtainable).toEqual([]);
+    expect(deliveries).toHaveLength(1);
+    expect(transcriptReads).toBe(1);
+    await syncMeetingSourceConnection({ ...input, recheckDelivered: true, now: clock(new Date('2026-10-09T14:00:00Z')) });
+    expect(transcriptReads).toBe(2);
+  });
+
 });
 
 describe('two connections of the same provider stay separate (AC-07)', () => {

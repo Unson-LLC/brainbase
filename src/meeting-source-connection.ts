@@ -542,7 +542,7 @@ export interface MeetingSourceDeliveredSummary {
   retrievedAt: string;
 }
 
-/** A summary that was still being produced when its transcript was delivered. */
+/** A summary that was generating or unreadable when its transcript was delivered. */
 export interface MeetingSourcePendingSummary {
   meeting: MeetingSourceMeeting;
   jobId: string | null;
@@ -560,8 +560,10 @@ export interface MeetingSourceSyncState {
   /** List-reader revision that produced listedThrough; older cursors are re-listed once. */
   listRevision?: number;
   pending: MeetingSourcePendingMeeting[];
-  /** Delivered meetings whose provider summary was still generating; re-read later. */
+  /** Delivered meetings whose provider summary was generating or unreadable; re-read later. */
   pendingSummaries?: MeetingSourcePendingSummary[];
+  /** Terminal summary retries; never suppresses transcript re-checks. */
+  unobtainableSummaries?: Array<{ meetingId: string; reason: 'summary_retry_exhausted'; message: string; decidedAt: string }>;
   unobtainable: Array<{ meetingId: string; reason: string; message: string; decidedAt: string }>;
   delivered: Record<string, MeetingSourceDeliveredMeeting>;
   tactiqReads: TactiqTranscriptRead[];
@@ -610,6 +612,7 @@ export function emptyMeetingSourceSyncState(connection: MeetingSourceConnectionR
     listedThrough: null,
     pending: [],
     pendingSummaries: [],
+    unobtainableSummaries: [],
     unobtainable: [],
     delivered: {},
     tactiqReads: [],
@@ -646,7 +649,7 @@ export async function syncMeetingSourceConnection(input: {
   initialLookbackMs?: number;
   overlapMs?: number;
   maxAttempts?: number;
-  /** Earliest a still-generating summary is re-read on a later sync. Default 15 min. */
+  /** Earliest a generating or unreadable summary is re-read on a later sync. Default 15 min. */
   summaryRetryMs?: number;
 }): Promise<MeetingSourceSyncResult> {
   const { connection } = input;
@@ -730,17 +733,17 @@ export async function syncMeetingSourceConnection(input: {
 
   const trackSummary = (meeting: MeetingSourceMeeting, summary: MeetingSourceDeliveredSummary | null) => {
     summaryHandled.add(meeting.externalId);
-    if (summary?.state === 'generating') {
+    if (summary === null || summary.state === 'generating') {
       const previous = pendingSummariesById.get(meeting.externalId);
       pendingSummariesById.set(meeting.externalId, {
         meeting,
-        jobId: summary.jobId,
+        jobId: summary?.jobId ?? null,
         retryAt: new Date(now().getTime() + summaryRetryMs).toISOString(),
         attempts: previous?.attempts ?? 0,
         firstSeenAt: previous?.firstSeenAt ?? now().toISOString(),
       });
     } else {
-      // ready, empty, or unreadable: nothing left to re-read.
+      // ready or empty: nothing left to re-read.
       pendingSummariesById.delete(meeting.externalId);
     }
   };
@@ -749,6 +752,12 @@ export async function syncMeetingSourceConnection(input: {
     const attempts = entry.attempts + 1;
     if (attempts >= (input.maxAttempts ?? 5)) {
       pendingSummariesById.delete(entry.meeting.externalId);
+      (state.unobtainableSummaries ??= []).push({
+        meetingId: entry.meeting.externalId,
+        reason: 'summary_retry_exhausted',
+        message: 'Provider summary could not be resolved and delivered within maxAttempts.',
+        decidedAt: now().toISOString(),
+      });
       return;
     }
     pendingSummariesById.set(entry.meeting.externalId, {
@@ -759,7 +768,7 @@ export async function syncMeetingSourceConnection(input: {
   };
 
   /**
-   * Re-reads summaries that were still generating on an earlier sync. The summary
+   * Re-reads summaries that were generating or unreadable on an earlier sync. The summary
    * call (`get_meeting` / `get_note`) does not spend the Tactiq transcript budget;
    * the transcript is re-read only once the summary resolves, so the saved record
    * carries both together.
@@ -775,11 +784,7 @@ export async function syncMeetingSourceConnection(input: {
         continue;
       }
       if (summaryResult.state === 'generating') {
-        pendingSummariesById.set(meetingId, {
-          ...entry,
-          jobId: summaryResult.jobId,
-          retryAt: new Date(now().getTime() + summaryRetryMs).toISOString(),
-        });
+        bumpSummaryRetry({ ...entry, jobId: summaryResult.jobId });
         continue;
       }
       if (budget) {
