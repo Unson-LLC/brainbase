@@ -1,4 +1,7 @@
 import { createHash } from 'node:crypto';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -147,27 +150,37 @@ describe('portable judgment lifecycle core', () => {
   });
 
   it('matches the existing Host builder when the Host supplies its trusted transcript', () => {
-    const hostRequest = buildJudgmentRequest({
-      prompt: 'それでいい。修正して',
-      turn_id: 'turn-2',
-      session_id: 'session-core',
-      model: 'test-model',
-      permission_mode: 'never',
-      cwd: '/tmp'
-    }, {
-      env: {},
-      trustedConversationMessages: messages
-    });
-    const portableRequest = normalizeJudgmentRequest({
-      request: hostRequest.request,
-      turn_id: hostRequest.turn_id,
-      session_ref: hostRequest.conversation_context.session_ref,
-      messages,
-      runtime: hostRequest.conversation_context.runtime,
-      instruction_bindings: hostRequest.conversation_context.instruction_bindings,
-      completeness: hostRequest.conversation_context.completeness
-    });
-    expect(portableRequest).toEqual(hostRequest);
+    const journalDir = mkdtempSync(join(tmpdir(), 'judgment-lifecycle-core-'));
+    try {
+      const hostRequest = buildJudgmentRequest({
+        prompt: 'それでいい。修正して',
+        turn_id: 'turn-2',
+        session_id: 'session-core',
+        model: 'test-model',
+        permission_mode: 'never',
+        cwd: '/tmp'
+      }, {
+        env: {
+          BRAINBASE_JUDGMENT_PROJECT_CODE: 'fixture-project',
+          BRAINBASE_JUDGMENT_JOURNAL_DIR: journalDir
+        },
+        trustedConversationMessages: messages
+      });
+      const portableRequest = normalizeJudgmentRequest({
+        request: hostRequest.request,
+        turn_id: hostRequest.turn_id,
+        project_code: hostRequest.project_code,
+        session_ref: hostRequest.conversation_context.session_ref,
+        messages,
+        runtime: hostRequest.conversation_context.runtime,
+        instruction_bindings: hostRequest.conversation_context.instruction_bindings,
+        completeness: hostRequest.conversation_context.completeness
+      });
+      expect(hostRequest.project_code).toBe('fixture-project');
+      expect(portableRequest).toEqual(hostRequest);
+    } finally {
+      rmSync(journalDir, { recursive: true, force: true });
+    }
   });
 
   it('keeps owner audit rendering identical to the existing Host contract', async () => {
