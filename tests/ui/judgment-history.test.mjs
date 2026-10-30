@@ -1069,7 +1069,7 @@ describe('judgment history UI', () => {
     view.dispose();
   });
 
-  it('counts a result as looked at from the record or an answer, and says how to add one', async () => {
+  it('counts a result as looked at from the record or an answer, without the small how-to-add supplement', async () => {
     const root = new FakeElement('div');
     const unchecked = { status: 'unknown', result_summary: null, outcome_status: 'unknown' };
     const answered = normalRecord({
@@ -1093,7 +1093,9 @@ describe('judgment history UI', () => {
     await view.load();
     const summary = collectText(findAll(root, (node) => node.className === 'bb-jh-summary')[0]);
     expect(summary).toContain('結果を確かめた判断 1件');
-    expect(summary).toContain('判断を開いて「良かったか」を記録すると数えられます');
+    // RQ-015: the small supplementary note is no longer shown in the normal view.
+    expect(summary).not.toContain('判断を開いて「良かったか」を記録すると数えられます');
+    expect(summary).not.toContain('結果は自動では記録されません');
     expect(summary).not.toContain('結果を確認済み');
     const rows = findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row');
     expect(rows.map(collectText).filter((value) => value.includes('あなたの確認待ち'))).toHaveLength(1);
@@ -1648,6 +1650,68 @@ describe('judgment basis (story-judgment-history-frame-basis-v1)', () => {
     const { view, rail } = await openRecord(frameReferences, { resolveReferenceLabels });
     const text = collectText(rail);
     expect(text).toContain('名前を確かめられません守る制約として使った・守れた');
+    view.dispose();
+  });
+});
+
+describe('RQ-015 / UR-015: the small supplementary notes are dropped from the normal view', () => {
+  it('keeps the reference kind counts but drops the "no recorded name" supplement', async () => {
+    const root = new FakeElement('div');
+    const rail = new FakeElement('aside');
+    const doc = new FakeDocument();
+    root.ownerDocument = doc;
+    rail.ownerDocument = doc;
+    // A basis reference with only an id → it renders as a bare kind count, which used
+    // to carry a small explanatory note. The count stays; the note is gone.
+    const entry = proof({
+      decision: { summary: '週次報告を既存の項目で進める', basis: [{ entity_id: 'objective-weekly', layer: 'method' }], inheritance: { sources: [] } },
+    });
+    const view = createJudgmentHistoryUI({
+      root,
+      rail,
+      document: doc,
+      autoLoad: false,
+      fetcher: async () => ({ ok: true, status: 200, json: async () => home([item(entry)]) }),
+      now: OWNER_NOW,
+    });
+    await view.load();
+    findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0].listeners.get('click')();
+    const detailText = collectText(rail);
+    expect(findAll(rail, (node) => node.className === 'bb-jh-reference-kinds')).toHaveLength(1);
+    expect(detailText).not.toContain('この記録には参照の名前が残っていません');
+    expect(detailText).not.toContain('記録の詳細」のIDで確かめられます');
+    view.dispose();
+  });
+
+  it('keeps the handoff heading and copy control but drops its explanatory supplement', async () => {
+    const root = new FakeElement('div');
+    const rail = new FakeElement('aside');
+    const doc = new FakeDocument();
+    root.ownerDocument = doc;
+    rail.ownerDocument = doc;
+    const record = normalRecord({
+      record_id: 'normal-reference-note-1',
+      feedback_events: [{ record_id: 'normal-reference-note-1', event_id: 'event-reference-1', kind: 'result', content: { summary: '結果を確認した' } }],
+    });
+    const view = createJudgmentHistoryUI({
+      root,
+      rail,
+      document: doc,
+      autoLoad: false,
+      fetcher: async (path) => {
+        if (path.includes('/records/')) return { ok: true, status: 200, json: async () => ({ status: 'available', record }) };
+        return { ok: true, status: 200, json: async () => normalHome([record]) };
+      },
+      now: OWNER_NOW,
+    });
+    await view.load();
+    findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0].listeners.get('click')();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const details = findAll(rail, (node) => node.className === 'bb-jh-record-details')[0];
+    expect(collectText(details)).toContain('次の判断に引き継ぐ');
+    expect(findAll(details, (node) => node.attributes['data-action'] === 'copy-judgment-reference').length).toBeGreaterThan(0);
+    expect(collectText(details)).not.toContain('AIへ渡す参照です');
+    expect(collectText(details)).not.toContain('コピーしてAIとの会話に貼ります');
     view.dispose();
   });
 });
