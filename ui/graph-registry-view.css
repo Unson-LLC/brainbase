@@ -71,6 +71,7 @@
   border-radius: 999px;
   padding: 3px 6px 3px 10px;
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   color: var(--bb-color-ink);
   font: inherit;
   font-size: 12px;

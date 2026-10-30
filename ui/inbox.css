@@ -12,6 +12,7 @@
   border-radius: 999px;
   padding: 0 6px;
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   color: var(--bb-color-accent);
   font-size: 11px;
   font-weight: var(--bb-font-weight-medium);
@@ -24,6 +25,7 @@
   margin: 0 0 10px;
   overflow: hidden;
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   color: transparent;
   font-size: 0;
 }
@@ -73,6 +75,7 @@
   border-radius: var(--bb-radius-md);
   padding: var(--bb-space-2) var(--bb-space-3);
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   color: var(--bb-color-ink);
   font-size: 13px;
 }
