@@ -738,6 +738,7 @@
 .bb-jh-owner.is-applied {
   border-color: var(--bb-color-accent);
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-jh-owner strong {
@@ -767,6 +768,7 @@
 .bb-jh-owner-badge.is-applied {
   border-color: var(--bb-color-accent);
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   color: var(--bb-color-accent-strong);
   font-weight: var(--bb-font-weight-medium);
 }

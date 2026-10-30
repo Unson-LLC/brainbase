@@ -132,6 +132,7 @@ body:has(#brainbase-value-proof-review) {
 .bb-ws-button.bb-vpr-toggle.is-pressed {
   border-color: var(--bb-color-accent);
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   color: var(--bb-color-accent-strong);
   box-shadow: inset 3px 0 var(--bb-color-accent);
 }
@@ -171,10 +172,12 @@ body:has(#brainbase-value-proof-review) {
 
 .bb-vpr-map-ledger.is-unrecorded .bb-ws-ledger-row:not(.bb-ws-ledger-head) {
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-vpr-map-ledger.is-unrecorded .bb-ws-ledger-row.is-selected {
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 /* Highlights: compact ledgers of judgments, above the map. */
@@ -342,6 +345,7 @@ body:has(#brainbase-value-proof-review) {
 
 .bb-vpr-item.is-selected {
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   box-shadow: inset 3px 0 var(--bb-color-accent);
 }
 
