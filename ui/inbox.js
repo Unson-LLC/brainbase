@@ -1,4 +1,4 @@
-import { workspaceTabList } from './workspace-kit.js';
+import { workspaceTabStrip } from './workspace-kit.js';
 /*
  * 受信箱 (story-inbox-stage1-v1, docs/specs/inbox-stage1.md).
  *
@@ -647,7 +647,7 @@ export function createInboxUI({
 
   function renderTabs(waitingCount) {
     const bar = el(doc, 'div', { className: 'bb-inbox-tabs', attrs: { role: 'tablist', 'aria-label': '受信箱' } });
-    workspaceTabList(bar);
+    workspaceTabStrip(bar, { memoryKey: 'inbox-tabs' });
     for (const [id, label] of [['waiting', '対応待ち'], ['notices', 'お知らせ']]) {
       const selected = state.route.tab === id;
       const tab = el(doc, 'button', {
@@ -898,7 +898,7 @@ export function createInboxUI({
     if (!notices || notices.phase === 'not_collected') {
       view.append(el(doc, 'p', { className: 'bb-inbox-uncollected', text: 'お知らせはまだ集めていません。AIに任せた仕事の終わり・議事録ができたこと・申請の結果は、これから集めます。' }));
     } else if (notices.phase === 'unavailable') {
-      view.append(workspaceErrorCard(doc, { title: 'お知らせを読めませんでした', message: `理由: ${reasonText(notices.reason)}。0件ではありません。` }));
+      view.append(workspaceErrorCard(doc, { title: 'お知らせを読めませんでした', message: `理由: ${reasonText(notices.reason)}。0件ではありません。`, open: true }));
     } else if (notices.items.length === 0) {
       view.append(el(doc, 'p', { className: 'bb-inbox-empty', text: 'お知らせはありません。' }));
     }
@@ -947,7 +947,7 @@ export function createInboxUI({
     if (!isToday && state.route.tab === 'notices') {
       view.append(renderNotices());
     } else if (state.phase === 'error' && !shown) {
-      view.append(workspaceErrorCard(doc, { title: '受信箱を読めませんでした', message: `理由: ${reasonText(state.reason)}。0件ではありません。`, onRetry: () => void load() }));
+      view.append(workspaceErrorCard(doc, { title: '受信箱を読めませんでした', message: `理由: ${reasonText(state.reason)}。0件ではありません。`, onRetry: () => void load(), open: true }));
     } else if (shown) {
       if (isToday) view.append(state.route.view === 'waiting' ? renderTodayWaiting(shown) : renderSet(shown, state.route.view));
       else view.append(state.route.view === 'waiting' ? renderWaiting(shown) : renderSet(shown, state.route.view));

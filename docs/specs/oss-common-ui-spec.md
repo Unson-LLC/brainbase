@@ -25,7 +25,9 @@ Mana委任UI（`ui/outcome-mana`、そのCSSと`ui/icons/mana`）は、0.8.0の�
 
 **不要なセカンダリラベルや説明を避ける。レイアウトに説明させる。**
 
-新しい部品を作る前に `ui/workspace-kit.js` と対象画面の既存部品を確認する。同じ役割の部品は同じ実装を使い、画面ごとのコピーやホストからのCSS上書きを増やさない。説明を減らしても、未確認・取得失敗・権限・再試行・保存後のreadback情報は隠さない。
+`ui/workspace-kit.js`、既存画面、利用できるカタログは部品を探す参考にできる。用途に合う既存部品の再利用を推奨するが、カタログの参照・取得・部品利用は必須ではない。合う部品がない・見つからない・不適合なら、画面固有の部品を作って進めてよい。カタログへの追加やデザイン確定を機能開発の前提にせず、後から共通化すると便利なものだけ整理する。資料の参照権限がなくても手元の既存ソースで継続できる。
+
+正本は本体の実装と正式な共通部品で、カタログは見本。採用時は対象版との差を確認する。独自部品の作成と、既存の共通部品の改変・複製による別正本化は区別する。共通部品やトークンの変更で他画面へ影響する場合は、影響範囲を確認し、既存の所有境界・承認・互換性の手順に従う。画面ごとの共通部品のコピーやホストからのCSS上書きを増やさない。説明を減らしても、未確認・取得失敗・権限・再試行・保存後のreadback情報は隠さない。
 
 ### ページヘッダー
 
@@ -33,6 +35,13 @@ Mana委任UI（`ui/outcome-mana`、そのCSSと`ui/icons/mana`）は、0.8.0の�
 - 件数、追加ボタン、画面固有のフィルターは本文の操作帯に置く。全ページ共通の用途が定義されていない3点メニューは追加しない。
 - 世界のような没入型キャンバスはヘッダーを出さず、画面上端から内容を表示する。
 - `workspacePageHeader` は本文の説明・出典・操作を組み立てる既存部品。共通バーを使うホストは `.bb-ws-has-topbar` で重複タイトルを省き、固有の操作や説明を保持する。
+
+### 文字の濃さと主ボタン・失敗のカード
+
+- 主ボタン（`.bb-ws-button.is-primary`）は `--bb-color-action` の地と枠、`--bb-color-action-text` の文字、hoverは `--bb-color-action-hover`。白い面の上でも普通のボタンより強く見える。画面のCSSで主ボタンの色を上書きしない。
+- 11〜13pxの文字は、背景に対して4.5:1以上の色を使う。パンくずは `--bb-color-muted`。`--bb-color-quiet` は #f6f6f8 の上で4.17:1と4.5:1に届かないので、読ませる文字に新しく使わない（既存の28か所は画面ごとに直す）。淡い危険の面（`--bb-color-danger-soft`）の上の文字は `--bb-color-inline-error`。
+- 色を直すときは、トークンの値ではなく使うトークンを替える（値の正本は組織版のデザイン）。
+- `workspaceErrorCard` は既定で閉じた通知。画面の中身の代わりに置く失敗（一覧全体を読めなかった、など）には `open: true` を渡し、理由と「0件ではありません」を最初から見せる。
 
 ### 詳細パネル
 
@@ -66,6 +75,8 @@ desktop/mobile、長いタイトル、スクロール時の固定、詳細の開
 `workspaceTabList(root)` adds the opt-in `bb-ws-tabs` class to an existing strip and returns the same node. It is idempotent and adds no listeners, roles, IDs, selection state or lifecycle. Hosts can use the class directly; load `workspace-kit.css` and the shared tokens. Tab buttons retain `aria-selected`, destination links retain `href`/`aria-current`, and exclusive view buttons retain `aria-pressed`. Their owner keeps existing click, keyboard, focus and asynchronous behavior.
 
 The shared appearance is 44px high, 13px text at weight500, no gap and 12px internal horizontal padding. Hover does not change foreground or background. The 1px baseline and 2px selected indicator share the same bottom edge. Strips scroll horizontally within their own bounds, preserve hidden nodes and show keyboard focus. Layout gutters and vertical margins remain the host's responsibility. Use `bb-ws-tab-count` only for existing counts, and `bb-ws-tabs--summary` when a tab already has a secondary line.
+
+`workspaceTabStrip(root, { memoryKey })` is the opt-in for keyboard switching and a sliding indicator ([Story](../stories/story-shared-tab-strip-keys-and-indicator-v1.md)). It applies `workspaceTabList` and returns `{ root, update, destroy }`; calling it again on the same root returns the same controller. On a `role="tab"` child, ←/→ move to the previous/next tab and wrap, Home/End go to the first/last; hidden and disabled tabs are skipped and modified keys are ignored. Selection is made by calling the tab's own `click()`, so the host's handler stays the owner. Only the selected tab has `tabindex="0"`. When the host redraws after a key move, focus returns to the new selected tab and it is scrolled into view, unless the viewer has moved focus elsewhere. The 2px indicator becomes one `::after` bar that slides between tabs; strips redrawn as new nodes pass the same `memoryKey` so the bar slides from the previous position. A host that replaces the children of a kept root calls `update()` after drawing. Reduced motion removes the slide. When a tab cannot be measured, the per-tab indicator above stays.
 
 Application must be explicit: do not style every `role=tablist` globally. Task list/kanban/Gantt view modes remain unmarked and retain their existing segmented appearance. Search toolbar placement and intake-page styling are independent changes. Organization hosts consume the published exact-pinned package; source-backed previews do not replace that release gate.
 

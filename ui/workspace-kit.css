@@ -13,7 +13,7 @@
 
 .bb-ws-breadcrumb {
   margin-bottom: 24px;
-  color: var(--bb-color-quiet);
+  color: var(--bb-color-muted);
   font-size: 11px;
   letter-spacing: .02em;
 }
@@ -165,7 +165,7 @@
   color: var(--bb-color-action-text);
 }
 
-.bb-ws-button.is-primary:hover {
+.bb-ws-button.is-primary:hover:not(:disabled) {
   border-color: var(--bb-color-action-hover);
   background: var(--bb-color-action-hover);
 }
@@ -573,10 +573,10 @@
   margin: 0 0 0 auto; padding: 0; border: 0; border-left: 1px solid var(--bb-color-border);
   border-radius: 0; background: var(--bb-color-panel); color: var(--bb-color-ink); box-shadow: var(--bb-shadow-drawer); overflow: auto;
 }
-.bb-ws-drawer[open] { animation: bb-ws-drawer-in 180ms ease-out; }
+.bb-ws-drawer[open] { animation: bb-ws-drawer-in var(--bb-duration-drawer-in, 180ms) var(--bb-ease-drawer-in, ease-out); }
 .bb-ws-drawer::backdrop { background: var(--bb-color-drawer-overlay); }
-.bb-ws-drawer.is-closing { animation: bb-ws-drawer-out 280ms ease-in both; pointer-events: none; }
-.bb-ws-drawer.is-closing::backdrop { animation: bb-ws-drawer-backdrop-out 280ms ease-in both; }
+.bb-ws-drawer.is-closing { animation: bb-ws-drawer-out var(--bb-duration-drawer-out, 150ms) var(--bb-ease-drawer, cubic-bezier(0.32, 0.72, 0, 1)) both; pointer-events: none; }
+.bb-ws-drawer.is-closing::backdrop { animation: bb-ws-drawer-backdrop-out var(--bb-duration-drawer-out, 150ms) var(--bb-ease-drawer, cubic-bezier(0.32, 0.72, 0, 1)) both; }
 .bb-ws-drawer .bb-ws-dialog-head { align-items: center; padding: 14px 16px 14px 28px; }
 .bb-ws-drawer .bb-ws-dialog-head h2 { font-weight: var(--bb-font-weight-medium); line-height: 1.35; }
 .bb-ws-drawer .bb-ws-dialog-body { padding: 18px 28px 32px; }
@@ -620,7 +620,7 @@
 }
 .bb-ws-loading-stage-title { margin: 0; font-weight: var(--bb-font-weight-medium); }
 .bb-ws-loading-stage-detail { margin: 0; color: var(--bb-color-muted, inherit); font-size: .875rem; }
-.bb-ws-error-card.is-dismissing { animation: bb-ws-notification-out 450ms ease both; pointer-events: none; }
+.bb-ws-error-card.is-dismissing { animation: bb-ws-notification-out var(--bb-duration-toast-out, 200ms) var(--bb-ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both; pointer-events: none; }
 @keyframes bb-ws-notification-out { to { opacity: 0; transform: translateX(28px); } }
 @media (max-width:760px) { .bb-ws-drawer { width: 100vw; border-left: 0; } }
 @media (prefers-reduced-motion:reduce) {
@@ -840,6 +840,26 @@
   line-height: var(--bb-tab-count-size);
   font-weight: var(--bb-tab-font-weight);
 }
+/* workspaceTabStrip: one bar slides between tabs once the selected tab was measured. */
+.bb-ws-tabs.is-indicator-ready { position: relative; }
+.bb-ws-tabs.is-indicator-ready > :is([role="tab"], a, button):is([aria-selected="true"], [aria-current="page"], [aria-pressed="true"]),
+.bb-ws-tabs.is-indicator-ready > :is([role="tab"], a, button):is([aria-selected="true"], [aria-current="page"], [aria-pressed="true"]):hover {
+  box-shadow: none;
+}
+.bb-ws-tabs.is-indicator-ready::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: var(--bb-tab-indicator-width, 0px);
+  height: var(--bb-tab-indicator-size);
+  background: var(--bb-color-ink);
+  transform: translateX(var(--bb-tab-indicator-x, 0px));
+  transition: transform var(--bb-tab-indicator-duration) var(--bb-tab-indicator-ease), width var(--bb-tab-indicator-duration) var(--bb-tab-indicator-ease);
+  pointer-events: none;
+}
+.bb-ws-tabs.is-indicator-instant::after { transition: none; }
+@media (prefers-reduced-motion: reduce) { .bb-ws-tabs.is-indicator-ready::after { transition: none; } }
 .bb-ws-tabs::-webkit-scrollbar { display: none; }
 .bb-ws-tabs[hidden],
 .bb-ws-tabs > [hidden] { display: none; }

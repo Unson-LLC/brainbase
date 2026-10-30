@@ -269,6 +269,8 @@ describe('対応待ち', () => {
     const { root } = await mount({ port: fakePort({ readInbox }) });
     expect(text(root)).toContain('受信箱を読めませんでした');
     expect(text(root)).toContain('0件ではありません');
+    // 一覧の代わりに置く失敗なので、理由を開かずに読める。
+    expect(findAll(root, (node) => node.tagName === 'DETAILS').map((node) => node.open)).toEqual([true]);
     readInbox.mockResolvedValueOnce(okResult());
     buttonIn(root, '再試行').dispatch('click');
     await waitFor(() => text(root).includes('見積もりを確認する'));

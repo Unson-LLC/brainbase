@@ -11,6 +11,14 @@
  * Status colors retain their semantic meaning; hosts can still override tokens.
  */
 :root {
+  /* Shared motion curves and dismissal durations. */
+  --bb-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --bb-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); /* On-screen movement/position swaps only, not enter/exit. */
+  --bb-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --bb-ease-drawer-in: ease-out;
+  --bb-duration-drawer-in: 180ms;
+  --bb-duration-drawer-out: 150ms;
+  --bb-duration-toast-out: 200ms;
   --bb-color-ink: #202939;
   --bb-color-muted: #6b7280;
   /* Small secondary text on tinted surfaces needs a slightly darker mix. */
@@ -111,6 +119,8 @@
   --bb-tab-line-height: 20px;
   --bb-tab-font-weight: 500;
   --bb-tab-indicator-size: 2px;
+  --bb-tab-indicator-duration: 260ms;
+  --bb-tab-indicator-ease: cubic-bezier(.2, .8, .2, 1);
   --bb-tab-count-size: 20px;
   --bb-tab-count-font-size: 12px;
   /* Opt-in search band: dimensions and interaction surfaces. */
