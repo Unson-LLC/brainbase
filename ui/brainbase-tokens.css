@@ -1,5 +1,5 @@
 /*
- * Brainbase shared UI-token contract (color, type, radius, spacing, rail).
+ * Brainbase shared UI-token contract (color, type, radius, spacing, rail, motion).
  * Common OSS UI parts and compatible hosts read these token names. The values
  * below remain this repository's current token defaults; they are not the
  * Brainbase brand palette and do not require every host to adopt one theme.
@@ -7,9 +7,17 @@
  * brainbase-organization/apps/web/public/styles.css (final :root layer and
  * outcome workspace overrides). The brand palette is documented separately
  * in brainbase-organization/docs/design/brainbase-brand-palette.md.
- * This boundary clarification intentionally does not change any token value.
+ * This boundary clarification intentionally does not change any existing token value.
  */
 :root {
+  /* Shared motion curves and dismissal durations. */
+  --bb-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --bb-ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); /* On-screen movement/position swaps only, not enter/exit. */
+  --bb-ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --bb-ease-drawer-in: ease-out;
+  --bb-duration-drawer-in: 180ms;
+  --bb-duration-drawer-out: 150ms;
+  --bb-duration-toast-out: 200ms;
   --bb-color-ink: #202124;
   --bb-color-muted: #6b6b73;
   --bb-color-quiet: #76767f;

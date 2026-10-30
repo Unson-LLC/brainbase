@@ -328,6 +328,14 @@ export function workspaceHelp(doc, { text, label } = {}) {
 const drawerClosings = new WeakMap();
 const notificationClosings = new WeakMap();
 const reducedMotion = node => node.ownerDocument?.defaultView?.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+const animationFallback = (node, margin, fallback) => {
+  const durations = node.ownerDocument?.defaultView?.getComputedStyle?.(node).animationDuration;
+  const duration = Math.max(...(durations ?? '').split(',').map(value => {
+    const match = value.trim().match(/^(\d*\.?\d+)(ms|s)$/);
+    return match ? Number(match[1]) * (match[2] === 's' ? 1000 : 1) : NaN;
+  }));
+  return Number.isFinite(duration) && duration > 0 ? duration + margin : fallback;
+};
 
 /** Apply the same native-dialog presentation to host-owned and kit drawers. */
 export function workspaceApplyDrawer(dialog) {
@@ -358,7 +366,7 @@ export function workspaceCloseDrawer(dialog, finish) {
   dialog.addEventListener('animationend', ended);
   dialog.addEventListener('close', cancel);
   dialog.classList.add('is-closing');
-  timer = setTimeout(complete, 360); // Animation cancellation / background-tab fallback.
+  timer = setTimeout(complete, animationFallback(dialog, 70, 220)); // Animation cancellation / background-tab fallback.
   return cancel;
 }
 
@@ -496,7 +504,7 @@ export function workspaceDismissNotification(card, onDismiss) {
   const complete = () => { if (!active) return; cancel(); remove(); onDismiss?.(); };
   const ended = event => { if (event.target === card && event.animationName === 'bb-ws-notification-out') complete(); };
   notificationClosings.set(card, cancel); card.addEventListener('animationend', ended);
-  card.classList.add('is-dismissing'); timer = setTimeout(complete, 500);
+  card.classList.add('is-dismissing'); timer = setTimeout(complete, animationFallback(card, 50, 250));
   return cancel;
 }
 
