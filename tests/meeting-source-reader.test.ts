@@ -203,9 +203,9 @@ describe('meeting source reader: Plaud', () => {
     const { callTool, calls } = recorder(() => textResult([{ data_content: '## 要約\n決まったこと' }]));
     const summary = await readProviderSummary({ provider: 'plaud', callTool, meetingId: 'file-1' });
     expect(calls[0].name).toBe('get_note');
-    expect(summary).toEqual({ status: 'ok', summary: { kind: 'provider_summary', text: '## 要約\n決まったこと' } });
+    expect(summary).toEqual({ status: 'ok', state: 'ready', summary: { kind: 'provider_summary', text: '## 要約\n決まったこと' }, jobId: null });
     const empty = await readProviderSummary({ provider: 'plaud', callTool: async () => textResult([]), meetingId: 'file-1' });
-    expect(empty).toEqual({ status: 'ok', summary: null });
+    expect(empty).toEqual({ status: 'ok', state: 'empty', summary: null, jobId: null });
   });
 });
 
@@ -316,11 +316,15 @@ describe('meeting source reader: Tactiq', () => {
   it('reads the ready summary as a separate provider summary (AC-06)', async () => {
     const ready = recorder(() => ({ structuredContent: { id: 'm-1', detailedSummary: { status: 'ready', content: { markdown: 'ready summary' } } } }));
     expect(await readProviderSummary({ provider: 'tactiq', callTool: ready.callTool, meetingId: 'm-1' }))
-      .toEqual({ status: 'ok', summary: { kind: 'provider_summary', text: 'ready summary' } });
+      .toEqual({ status: 'ok', state: 'ready', summary: { kind: 'provider_summary', text: 'ready summary' }, jobId: null });
     expect(ready.calls[0]).toEqual({ name: 'get_meeting', args: { meetingId: 'm-1' } });
 
     const generating = recorder(() => ({ structuredContent: { detailedSummary: { status: 'generating', jobId: 'j' } } }));
     expect(await readProviderSummary({ provider: 'tactiq', callTool: generating.callTool, meetingId: 'm-1' }))
-      .toEqual({ status: 'ok', summary: null });
+      .toEqual({ status: 'ok', state: 'generating', summary: null, jobId: 'j' });
+
+    const absent = recorder(() => ({ structuredContent: { id: 'm-1' } }));
+    expect(await readProviderSummary({ provider: 'tactiq', callTool: absent.callTool, meetingId: 'm-1' }))
+      .toEqual({ status: 'ok', state: 'empty', summary: null, jobId: null });
   });
 });
