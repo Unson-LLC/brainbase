@@ -141,6 +141,30 @@ jobs:
             exit 1
           }
 
+      - name: Confirm Cloudflare Pages production branch
+        if: ${{ steps.deployment.outputs.should_deploy == 'true' }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          response="$(curl -fsS \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/brainbase")" || {
+            echo "::error::Failed to read Cloudflare Pages project 'brainbase' from the Cloudflare API." >&2
+            exit 1
+          }
+          if [ "$(printf '%s' "$response" | jq -r '.success')" != "true" ]; then
+            echo "::error::Cloudflare API did not return success while reading the Cloudflare Pages project 'brainbase'." >&2
+            exit 1
+          fi
+          production_branch="$(printf '%s' "$response" | jq -r '.result.production_branch')"
+          if [ "$production_branch" != "main" ]; then
+            echo "::error::Cloudflare Pages project 'brainbase' production branch is '$production_branch', not 'main'. A --branch=main deploy would only be a preview (main.brainbase.pages.dev) and https://brainbase.pages.dev would not change. Fix: set the project's production branch to main in Cloudflare (Workers & Pages > brainbase > Settings > Builds > Branch control), then re-run." >&2
+            exit 1
+          fi
+          echo "Cloudflare Pages project 'brainbase' production branch: $production_branch"
+
       - name: Deploy verified build to Cloudflare Pages
         if: ${{ steps.deployment.outputs.should_deploy == 'true' }}
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
