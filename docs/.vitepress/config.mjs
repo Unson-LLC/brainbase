@@ -6,6 +6,11 @@ const publicMessage = JSON.parse(
 const buildSha = process.env.CF_PAGES_COMMIT_SHA ?? process.env.GITHUB_SHA ?? 'local';
 const buildRef = process.env.CF_PAGES_BRANCH ?? process.env.GITHUB_REF_NAME ?? 'local';
 const shortBuildSha = buildSha === 'local' ? 'local' : buildSha.slice(0, 12);
+const gtmId = (process.env.VITEPRESS_GTM_ID || process.env.GTM_CONTAINER_ID || '').trim();
+const gtmSnippet = gtmId
+  ? `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer',${JSON.stringify(gtmId)});`
+  : '';
+const gtmHead = gtmSnippet ? [['script', {}, gtmSnippet]] : [];
 
 export default {
   title: 'Brainbase',
@@ -13,8 +18,14 @@ export default {
   lang: 'ja-JP',
   cleanUrls: true,
   srcDir: 'manual',
+  vite: {
+    define: {
+      __BRAINBASE_GTM_ENABLED__: JSON.stringify(Boolean(gtmId))
+    }
+  },
   head: [
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/assets/brainbase-mark.svg' }]
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/assets/brainbase-mark.svg' }],
+    ...gtmHead
   ],
   themeConfig: {
     siteTitle: 'Brainbase',
