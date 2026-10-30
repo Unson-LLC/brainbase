@@ -28,7 +28,7 @@ npm run release:plan -- --before <git-ref> --after <git-ref>
 npm run release:validate -- --version <semver> --sha <full-commit-sha> --trusted-ref <default-branch-ref> --proof-file <outside-repo-path>
 ```
 
-固定package name、version、cleanなgit HEADを引数へ照合し、HEADがtrusted refの履歴内にあることを確認する。build、CIと同じ4 worker上限を指定した完全なVitestテスト（`npm test -- --maxWorkers=4`）、`npm audit --omit=dev`を完了し、repository外で最終tarballのmanifestへ期待SHAを`gitHead`として刻印する。worker数以外のテスト対象・timeout・skip・判定は`npm test`と同じとする。そのmanifestを再展開してpackage name・version・gitHeadを照合し、検証後もcheckoutがcleanな場合だけ、最終tarball SHA-256・SHA-512 integrity・package identity・commitを束縛したproofを書く。このフェーズをOIDCとnpm credentialを持たないjobで実行する。
+固定package name、version、cleanなgit HEADを引数へ照合し、HEADがtrusted refの履歴内にあることを確認する。build、共有self-hosted runnerの飽和を避けるため2 worker上限を指定した完全なVitestテスト（`npm test -- --maxWorkers=2`）、`npm audit --omit=dev`を完了し、repository外で最終tarballのmanifestへ期待SHAを`gitHead`として刻印する。worker数以外のテスト対象・timeout・skip・判定は`npm test`と同じとする。そのmanifestを再展開してpackage name・version・gitHeadを照合し、検証後もcheckoutがcleanな場合だけ、最終tarball SHA-256・SHA-512 integrity・package identity・commitを束縛したproofを書く。このフェーズをOIDCとnpm credentialを持たないjobで実行する。
 
 ここでいうcredential-free validationは、npm公開トークン、publication権限、package metadata参照、dist-tag mutationを必要としないことを指す。production auditのread-only vulnerability metadata取得は依存関係の安全性検査であり、publication registry境界には含めない。
 
