@@ -4,7 +4,7 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
-## Candidate — v0.48.4（npm公開前）
+## Released — v0.48.4
 
 共通UIのトークン（`ui/brainbase-tokens.css`）に共有モーショントークンを追加し、drawer退場を150ms、toast消去を200msへ短縮します。`ui/workspace-kit.css` はfallback付きの `var()` でトークンを参照します。入場・検索帯・モバイル・reduced motionの挙動は維持します（#909）。
 
@@ -15,7 +15,7 @@
 - 正式リリース検証のVitest並列数を4から2へ下げます（#912）。
 - 判断ライフサイクルのHost builderとの一致を確かめるテストを、実行環境に左右されないようにします（#914）。
 
-npm公開・利用ホストの取り込みは、この候補記録だけでは確認できません。
+npm公開済みです。npmの`latest`は`0.48.4`を指し、registryの`gitHead`は`28e45e4b`です。利用ホストへの取り込みと本番反映は別途確認します。
 
 ## Candidate — v0.48.3（npm公開前）
 
