@@ -2,11 +2,24 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
-## 0.48.4 candidate — npm公開前
+## 0.49.0 candidate — npm公開前
 
-- ローカルshellのsidebarと世界canvasのdrawer・helpにfallback付きモーショントークンを適用し、durationとreduced motionの挙動を維持する。
-- 共有モーショントークンを追加し、drawer退場を150ms、通知消去を200msへ短縮。入場・検索帯・モバイル・reduced motionの挙動を維持する公開候補（npm未公開）。
+- RQ-113: ソースに依存しないentity index builderを `@unson/brainbase-mcp/entity-indexer` として公開するminor更新候補（#920）。
+- `buildIndex`・`createEmptyIndex`、lifecycle helpers、ontology registry、`EntitySource`・entity型、構造型の `RetrievalEvidence` を提供する。既存の `createEntityIndexCache` のbuildとして利用できる。
+- 配列でないcollection、空id、activeな重複idはエラーにする。`GraphAPISource`・認証・evidence関数はホスト側に残す。
 - これは公開候補の記録。npm公開と利用ホストの本番反映は、別の検証で確認する。
+
+## 0.48.4
+
+- ローカルshellのsidebarと世界canvasのdrawer・helpにfallback付きモーショントークンを適用し、durationとreduced motionの挙動を維持する（#909）。
+- 共有モーショントークンを追加し、drawer退場を150ms、通知消去を200msへ短縮。入場・検索帯・モバイル・reduced motionの挙動を維持する（#909）。
+- 受信箱・情報の「種類」・プロジェクトの記録のタブを矢印キーで切り替え、選択の下線をすべらせる（#903）。
+- 共通の主ボタンを目立たせ、パンくずと受信箱の期限切れの文字を読みやすくし、受信箱の取得失敗の理由を開いて見せる（#904）。
+- Workerの判断を共通の形式でローカルoutboxへ書く送り口の契約と骨格を追加する。既定では外部へ送信しない（#907）。
+- 用途に合う既存UI部品の再利用を推奨しつつ、資料の取得・部品利用・登録・デザイン確定を機能開発の前提にしない方針を明記する（#908）。
+- 正式リリース検証のVitest並列数を4から2へ下げる（#912）。
+- 判断ライフサイクルのHost builderとの一致を確かめるテストを、実行環境に左右されないようにする（#914）。
+- npm公開済み。`latest`は`0.48.4`を指し、`gitHead`は`28e45e4b`。利用ホストへの取り込みと本番反映は、別の検証で確認する。
 
 ## 0.48.3 candidate — npm公開前
 

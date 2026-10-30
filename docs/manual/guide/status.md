@@ -4,9 +4,22 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
-## Candidate — v0.48.4（npm公開前）
+## Candidate — v0.49.0（npm公開前）
 
-共通UIのトークン（`ui/brainbase-tokens.css`）に共有モーショントークンを追加し、drawer退場を150ms、toast消去を200msへ短縮します。`ui/workspace-kit.css` はfallback付きの `var()` でトークンを参照します。入場・検索帯・モバイル・reduced motionの挙動は維持します（#909）。npm公開・利用ホストの取り込みは、この候補記録だけでは確認できません。
+RQ-113のソースに依存しないentity index builderを、新しい公開subpath `@unson/brainbase-mcp/entity-indexer` に追加するminor更新候補です（#920）。`buildIndex`・`createEmptyIndex` と関連するhelper・型を提供し、既存の `createEntityIndexCache` のbuildとして利用できます。`GraphAPISource`・認証・evidence関数はホスト側に残します。npm公開・利用ホストの取り込みは、この候補記録だけでは確認できません。
+
+## Released — v0.48.4
+
+共通UIのトークン（`ui/brainbase-tokens.css`）に共有モーショントークンを追加し、drawer退場を150ms、toast消去を200msへ短縮します。`ui/workspace-kit.css` はfallback付きの `var()` でトークンを参照します。入場・検索帯・モバイル・reduced motionの挙動は維持します（#909）。
+
+- 受信箱・情報の「種類」・プロジェクトの記録のタブを矢印キーで切り替え、選択の下線をすべらせます（#903）。
+- 共通の主ボタンを目立たせ、パンくずと受信箱の期限切れの文字を読みやすくし、受信箱の取得失敗の理由を開いて見せます（#904）。
+- Workerの判断をローカルoutboxへ書く共通の送り口の契約と骨格を追加します。既定では外部へ送信しません（#907）。
+- 既存UI部品の再利用を推奨しつつ、資料の取得や部品利用・登録・デザイン確定を開発の前提にしない方針を明記します（#908）。
+- 正式リリース検証のVitest並列数を4から2へ下げます（#912）。
+- 判断ライフサイクルのHost builderとの一致を確かめるテストを、実行環境に左右されないようにします（#914）。
+
+npm公開済みです。npmの`latest`は`0.48.4`を指し、registryの`gitHead`は`28e45e4b`です。利用ホストへの取り込みと本番反映は別途確認します。
 
 ## Candidate — v0.48.3（npm公開前）
 
