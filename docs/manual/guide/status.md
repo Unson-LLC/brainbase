@@ -4,6 +4,10 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
+## Candidate — v0.49.0（npm公開前）
+
+RQ-113のソースに依存しないentity index builderを、新しい公開subpath `@unson/brainbase-mcp/entity-indexer` に追加するminor更新候補です（#920）。`buildIndex`・`createEmptyIndex` と関連するhelper・型を提供し、既存の `createEntityIndexCache` のbuildとして利用できます。`GraphAPISource`・認証・evidence関数はホスト側に残します。npm公開・利用ホストの取り込みは、この候補記録だけでは確認できません。
+
 ## Candidate — v0.48.4（npm公開前）
 
 共通UIのトークン（`ui/brainbase-tokens.css`）に共有モーショントークンを追加し、drawer退場を150ms、toast消去を200msへ短縮します。`ui/workspace-kit.css` はfallback付きの `var()` でトークンを参照します。入場・検索帯・モバイル・reduced motionの挙動は維持します（#909）。
