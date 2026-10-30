@@ -4,6 +4,7 @@
 
 ## 0.48.2 candidate — npm公開前
 
+- ローカルshellのsidebarと世界canvasのdrawer・helpにfallback付きモーショントークンを適用し、durationとreduced motionの挙動を維持します。
 - 共有モーショントークンを追加し、drawer退場を150ms、通知消去を200msへ短縮。入場・検索帯・モバイル・reduced motionの挙動を維持する公開候補（npm未公開）。
 
 ## 0.47.2 candidate — npm公開前

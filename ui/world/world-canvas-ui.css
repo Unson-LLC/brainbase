@@ -223,7 +223,7 @@
   width: calc(var(--bb-world-panel-width) - var(--bb-world-right-inset));
   overflow: hidden;
   transform: translateX(calc(100% + 20px));
-  transition: transform .24s ease, visibility .24s;
+  transition: transform .24s var(--bb-ease-drawer, cubic-bezier(0.32, 0.72, 0, 1)), visibility .24s;
 }
 .bb-world-canvas-ui .bb-world-canvas-drawer.is-open { transform: translateX(0); }
 .bb-world-canvas-ui .bb-world-canvas-panel-top {
@@ -320,7 +320,7 @@
   overflow: hidden;
   opacity: 0;
   transform: translateY(24px);
-  transition: transform .24s ease, opacity .24s ease, visibility .24s;
+  transition: transform .24s var(--bb-ease-out, cubic-bezier(0.23, 1, 0.32, 1)), opacity .24s var(--bb-ease-out, cubic-bezier(0.23, 1, 0.32, 1)), visibility .24s;
 }
 .bb-world-canvas-ui .bb-world-canvas-help.is-open { opacity: 1; transform: translateY(0); }
 .bb-world-canvas-ui .bb-world-canvas-help-body,

@@ -6,6 +6,8 @@
 
 ## Candidate — v0.48.2（npm公開前）
 
+- ローカルshellのsidebarと世界canvasのdrawer・helpにfallback付きモーショントークンを適用し、durationとreduced motionの挙動を維持します。
+
 共有UIのモーショントークンとdrawer・通知の短い退場モーションを公開候補に追加します。npm公開・利用ホストへの取り込み・本番反映は未確認です。
 
 ## Candidate — v0.47.2（npm公開前）
