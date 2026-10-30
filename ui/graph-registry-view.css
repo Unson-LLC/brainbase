@@ -59,7 +59,7 @@
 .bb-gr-filters-label {
   color: var(--bb-color-muted);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-gr-filter-chip {
@@ -171,7 +171,7 @@
   margin-bottom: 6px;
   color: var(--bb-color-accent);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-gr-detail-head h1 {
@@ -207,7 +207,7 @@
   margin: 0 0 6px;
   color: var(--bb-color-muted);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-gr-connection-list,

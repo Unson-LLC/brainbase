@@ -15,6 +15,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./entity-index-cache": {
+      "types": "./dist/entity-index-cache.d.ts",
+      "import": "./dist/entity-index-cache.js"
+    },
     "./judgment-dag": {
       "types": "./dist/judgment-dag.d.ts",
       "import": "./dist/judgment-dag.js"

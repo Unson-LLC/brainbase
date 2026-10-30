@@ -119,6 +119,16 @@ describe('Stage 3 common contract package exports', () => {
         expect(typeof commonAdapter.createMeetingSourceSyncCommonAdapter).toBe('function');
     });
 
+    it('publishes the entity index cache as an independent subpath', async () => {
+        const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+        expect(manifest.exports['./entity-index-cache']).toEqual({
+            types: './dist/entity-index-cache.d.ts',
+            import: './dist/entity-index-cache.js'
+        });
+        const module = await importExport(manifest, './entity-index-cache');
+        expect(typeof module.createEntityIndexCache).toBe('function');
+    });
+
     it('keeps onboarding-runtime importable from an isolated package tree', async () => {
         const isolatedRoot = await mkdtemp(path.join(os.tmpdir(), 'brainbase-stage3b-onboarding-'));
         try {

@@ -1,6 +1,5 @@
 .bb-minutes-screen {
   --bb-color-accent: var(--bb-color-brand-indigo);
-  --bb-color-accent-soft: color-mix(in srgb, var(--bb-color-brand-indigo) 6%, transparent);
   --bb-color-accent-strong: var(--bb-color-brand-indigo);
   --bb-color-action: var(--bb-color-brand-indigo);
   display: grid;
@@ -76,7 +75,7 @@
 .bb-minutes-heading h1,
 .bb-minutes-detail-head h2 {
   font-size: 20px;
-  font-weight: 800;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1.25;
 }
 
@@ -289,7 +288,7 @@
   color: var(--bb-color-ink);
   background: var(--bb-color-paper);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 18px;
 }
 
@@ -316,7 +315,7 @@
 .bb-minutes-item-title,
 .bb-minutes-document-title {
   font-size: 13.5px;
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 18px;
 }
 
@@ -445,7 +444,7 @@
 }
 
 .bb-minutes-withdraw-title {
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-minutes-edit-form {
@@ -469,7 +468,7 @@
 .bb-minutes-markdown h4,
 .bb-minutes-markdown h5 {
   margin: 12px 0 4px;
-  font-weight: 650;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1.4;
 }
 
@@ -642,7 +641,7 @@
   margin: 0;
   color: var(--bb-color-muted);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-minutes-connection-list {
@@ -784,7 +783,7 @@
 
 .bb-minutes-participant-panel-title {
   margin: 0;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-minutes-participant-others {

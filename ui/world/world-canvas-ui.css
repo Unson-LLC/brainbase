@@ -234,7 +234,7 @@
   padding: 8px 12px;
   border-bottom: 1px solid rgb(13 25 46 / 12%);
 }
-.bb-world-canvas-ui .bb-world-canvas-panel-top h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.bb-world-canvas-ui .bb-world-canvas-panel-top h2 { margin: 0; font-size: 14px; font-weight: var(--bb-font-weight-medium); }
 .bb-world-canvas-ui .bb-world-canvas-close {
   display: grid;
   place-items: center;

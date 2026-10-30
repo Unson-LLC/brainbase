@@ -62,7 +62,7 @@ body {
   padding: 0 10px 22px;
   color: var(--bb-color-rail-strong);
   font-size: 19px;
-  font-weight: 780;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1;
   letter-spacing: -.035em;
 }
@@ -83,7 +83,7 @@ body {
   padding: 0 10px;
   color: var(--bb-color-rail-muted);
   font-size: 13px;
-  font-weight: 620;
+  font-weight: var(--bb-font-weight-medium);
   text-decoration: none;
 }
 
@@ -127,7 +127,7 @@ body {
 .bb-shell-fact-label {
   color: var(--bb-color-rail-muted);
   font-size: 10px;
-  font-weight: 620;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-shell-fact-value {
@@ -276,7 +276,7 @@ body {
   background: var(--bb-color-panel);
   color: var(--bb-color-ink);
   font-size: 13px;
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
   cursor: pointer;
 }
 
@@ -373,7 +373,7 @@ body {
     padding: 6px 12px;
     background: var(--bb-color-panel);
     color: var(--bb-color-ink);
-    font-weight: 680;
+    font-weight: var(--bb-font-weight-medium);
     cursor: pointer;
   }
 

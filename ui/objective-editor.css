@@ -68,7 +68,7 @@
 }
 .objective-editor-header-copy { display: grid; min-width: 0; }
 .objective-editor-header-copy p { color: var(--objective-muted); }
-.objective-editor-eyebrow { color: var(--objective-eyebrow); font-size: .72rem; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+.objective-editor-eyebrow { color: var(--objective-eyebrow); font-size: .72rem; font-weight: var(--bb-font-weight-medium); letter-spacing: .12em; text-transform: uppercase; }
 
 /* Tabs and buttons: one shape; the active tab and the primary action use the action color. */
 .objective-editor-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -84,7 +84,7 @@
   color: var(--objective-ink);
   background: var(--objective-paper);
   cursor: pointer;
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1.3;
 }
 /* The root resets button fonts with `button { font: inherit }`; keep the weight. */
@@ -94,7 +94,7 @@
 .objective-editor-root .objective-editor-button-secondary,
 .objective-editor-root .objective-editor-button-danger,
 .bb-objective-rail .objective-editor-button-secondary,
-.bb-objective-rail .objective-editor-button-danger { font-weight: 680; }
+.bb-objective-rail .objective-editor-button-danger { font-weight: var(--bb-font-weight-medium); }
 .objective-editor-tab:hover,
 .objective-editor-button:hover,
 .objective-editor-button-secondary:hover { border-color: var(--objective-line-strong); }
@@ -124,7 +124,7 @@
   border-radius: var(--bb-radius-md, 14px);
   background: var(--objective-paper);
 }
-.objective-editor-panel-heading { font-size: 1.1rem; font-weight: 700; }
+.objective-editor-panel-heading { font-size: 1.1rem; font-weight: var(--bb-font-weight-medium); }
 .objective-editor-muted,
 .objective-editor-help { color: var(--objective-muted); font-size: .8rem; }
 .objective-editor-list { display: grid; gap: 0; border-top: 1px solid var(--objective-line-strong); }
@@ -158,7 +158,7 @@
   color: var(--objective-muted);
   background: var(--objective-paper);
   font-size: .7rem;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
   white-space: nowrap;
 }
 .objective-editor-badge-judgment_available,
@@ -187,7 +187,7 @@
 .objective-editor-inline-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
 .objective-editor-inline-form { align-items: end; }
 .objective-editor-field { display: grid; gap: .3rem; min-width: 0; }
-.objective-editor-label { color: var(--objective-ink); font-size: .78rem; font-weight: 650; }
+.objective-editor-label { color: var(--objective-ink); font-size: .78rem; font-weight: var(--bb-font-weight-medium); }
 .objective-editor-input {
   width: 100%;
   min-height: 40px;
@@ -200,7 +200,7 @@
 .objective-editor-input:focus { border-color: var(--objective-green); }
 textarea.objective-editor-input { min-height: 5.4rem; resize: vertical; }
 .objective-editor-readonly-value { display: grid; align-content: center; gap: .2rem; min-height: 40px; border-bottom: 1px solid var(--objective-line); }
-.objective-editor-subheading { font-size: .9rem; font-weight: 700; }
+.objective-editor-subheading { font-size: .9rem; font-weight: var(--bb-font-weight-medium); }
 .objective-editor-readiness,
 .objective-editor-reference-section { display: grid; gap: .5rem; min-width: 0; border-top: 1px solid var(--objective-line); padding-top: .8rem; }
 .objective-editor-readiness { justify-items: start; }
@@ -214,7 +214,7 @@ textarea.objective-editor-input { min-height: 5.4rem; resize: vertical; }
 .objective-editor-link-item small { width: 100%; color: var(--objective-muted); font-size: .72rem; }
 .objective-editor-reference-item .objective-editor-button-danger { margin-left: auto; }
 .objective-editor-criteria { display: grid; gap: .5rem; min-width: 0; margin: 0; border: 1px solid var(--objective-line); border-radius: var(--bb-radius-sm, 7px); padding: 12px; }
-.objective-editor-criteria legend { padding: 0 5px; font-size: .9rem; font-weight: 700; }
+.objective-editor-criteria legend { padding: 0 5px; font-size: .9rem; font-weight: var(--bb-font-weight-medium); }
 .objective-editor-criteria > .objective-editor-button-secondary { justify-self: start; }
 .objective-editor-criterion-row { display: grid; grid-template-columns: minmax(8rem, 1.4fr) minmax(6rem, .8fr) minmax(6rem, .7fr) minmax(6rem, .8fr) auto; gap: .5rem; align-items: end; padding: .5rem 0; border-bottom: 1px solid var(--objective-line); }
 .objective-editor-actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; padding-top: .3rem; }
@@ -226,12 +226,12 @@ textarea.objective-editor-input { min-height: 5.4rem; resize: vertical; }
 .bb-objective-workspace > .bb-ws-notice { margin-top: 0; }
 /* The local shell resets `.bb-shell button { font: inherit }`, which outranks the kit's button and row type. */
 .bb-objective-workspace .bb-ws-button,
-.bb-objective-rail .bb-ws-button { font-size: 13px; font-weight: 680; }
+.bb-objective-rail .bb-ws-button { font-size: 13px; font-weight: var(--bb-font-weight-medium); }
 .bb-objective-workspace .bb-ws-button.is-quiet,
 .bb-objective-rail .bb-ws-button.is-quiet { font-size: 12px; }
 .bb-objective-workspace button.bb-ws-ledger-row { font-size: 12px; }
 .bb-objective-ledger .bb-ws-ledger-row { grid-template-columns: minmax(140px, 1.4fr) minmax(110px, 1fr) 72px 136px minmax(152px, 1fr); }
-.bb-objective-judgment { font-weight: 690; }
+.bb-objective-judgment { font-weight: var(--bb-font-weight-medium); }
 .bb-objective-judgment.is-available { color: var(--bb-color-accent-strong); }
 .bb-objective-judgment.is-draft { color: var(--bb-color-warning); }
 .bb-objective-judgment.is-unresolved { color: var(--bb-color-quiet); font-weight: 500; }

@@ -103,3 +103,10 @@ Application must be explicit: do not style every `role=tablist` globally. Task l
 会議作成は一覧scopeとは独立して `createProjectOptions()` と `createProjectValue()` で保存先を選べる。候補にない保存先は送信せず、`createMeeting(payload, projectCode)` へ明示scopeを渡す。ホストが既存の認可・mutation・詳細readbackを担当する。callback未指定は従来の `mutate` を保つ。作成可否は引き続きホストの `canCreateMeeting` で決まる。
 
 保存先が現在の一覧scope外なら、ホストは明示保存先でreadbackした後、`shouldOpenCreatedMeeting(created, projectCode)`でfalseを返せる。UIは一覧条件を変えず作成drawerを閉じ、誤った一覧scopeで詳細を再取得しない。未指定は従来の詳細表示を保持する。
+
+
+### 標準テーマ（2026-10-30）
+
+共通トークンの既定は紺の操作色とミントの補助面、Noto Sans JPです。本文はweight400、見出し・操作は500。余白・寸法・状態の意味は変えません。mintは小さい前景文字や白文字ボタンに使わず、操作前景は紺を使用します。警告・成功・失敗は既存の意味色を保持します。
+
+フォント本体の配信方法はホストが所有します。共通部品は `--bb-font-sans` と `--bb-font-weight-body` / `--bb-font-weight-medium` を読み、フォント取得不能でもシステム書体で機能を維持します。

@@ -248,7 +248,7 @@
 /* The detail's head is the memory itself: body-sized, not a page title. */
 .bb-pm-detail .bb-ws-rail-head h2 {
   font-size: 16px;
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1.6;
   white-space: pre-wrap;
 }
