@@ -21,6 +21,7 @@
   border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-lg, 8px);
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-minutes-eyebrow,
@@ -117,6 +118,7 @@
   border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-md, 6px);
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-minutes-filter-host {
@@ -189,6 +191,7 @@
   border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-md, 6px);
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-minutes-list-pane,
@@ -301,6 +304,7 @@
 .bb-minutes-version.is-selected {
   border-left-color: var(--bb-color-brand-indigo);
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-minutes-item-title,
@@ -380,6 +384,7 @@
 
 .bb-minutes-state.is-muted {
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   color: var(--bb-color-muted);
 }
 
@@ -425,6 +430,7 @@
 .bb-minutes-withdrawn {
   padding: 8px 12px;
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-sm, 4px);
 }
@@ -501,6 +507,7 @@
   padding: 8px;
   border-radius: var(--bb-radius-sm, 4px);
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   overflow-wrap: anywhere;
 }
 
@@ -635,6 +642,7 @@
   border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-md, 6px);
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-minutes-connections-title {
@@ -707,6 +715,7 @@
   border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-md, 6px);
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-minutes-participants[hidden] {

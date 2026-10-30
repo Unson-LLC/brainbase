@@ -232,7 +232,8 @@
 
 .bb-fov-objective-ledger .bb-ws-ledger-row { grid-template-columns: minmax(180px,1.2fr) minmax(200px,1.3fr) minmax(150px,1fr) 110px; }
 .bb-fov-objective-ledger .bb-ws-ledger-row > span { white-space: normal; line-height: 1.7; }
-.bb-fov-objective-ledger .bb-ws-ledger-row:is(.is-selected,:hover) { background: var(--bb-color-accent-soft); box-shadow: inset 3px 0 var(--bb-color-accent); }
+.bb-fov-objective-ledger .bb-ws-ledger-row:is(.is-selected,:hover) { background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface); box-shadow: inset 3px 0 var(--bb-color-accent); }
 .bb-fov .bb-ws-section-title { display: flex; align-items: center; gap: 8px; }
 .bb-fov-philosophy-grid { grid-template-columns: minmax(0,1fr); }
 .bb-fov-philosophy-card { border-top: 0; width: 100%; box-sizing: border-box; }

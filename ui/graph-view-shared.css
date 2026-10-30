@@ -114,6 +114,7 @@
   border-radius: var(--bb-radius-sm);
   color: var(--bb-color-accent-strong);
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   font-size: 15px;
   font-weight: var(--bb-font-weight-medium);
   line-height: 1;
@@ -256,7 +257,8 @@
 .bb-graph-badge.is-success { color: var(--bb-color-accent-strong); background: var(--bb-color-success-soft); }
 .bb-graph-badge.is-warning { color: var(--bb-color-warning); background: var(--bb-color-warning-soft); }
 .bb-graph-badge.is-danger { color: var(--bb-color-danger); background: var(--bb-color-danger-soft); }
-.bb-graph-badge.is-accent { color: var(--bb-color-accent-strong); background: var(--bb-color-accent-soft); }
+.bb-graph-badge.is-accent { color: var(--bb-color-accent-strong); background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface); }
 
 /* Inline messages inside the correction form. */
 .bb-graph-notice,
@@ -268,11 +270,13 @@
   overflow-wrap: anywhere;
 }
 
-.bb-graph-notice.is-muted { border-left-color: var(--bb-color-border-strong); color: var(--bb-color-muted); background: var(--bb-color-surface); }
+.bb-graph-notice.is-muted { border-left-color: var(--bb-color-border-strong); color: var(--bb-color-muted); background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface); }
 .bb-graph-notice.is-warning { border-left-color: var(--bb-color-warning); color: var(--bb-color-warning); background: var(--bb-color-warning-soft); }
 .bb-graph-notice.is-danger { border-left-color: var(--bb-color-danger); color: var(--bb-color-danger); background: var(--bb-color-danger-soft); }
 .bb-graph-notice.is-success,
-.bb-graph-notice.is-accent { border-left-color: var(--bb-color-accent); color: var(--bb-color-accent-strong); background: var(--bb-color-accent-soft); }
+.bb-graph-notice.is-accent { border-left-color: var(--bb-color-accent); color: var(--bb-color-accent-strong); background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface); }
 
 /* A name that opens a record. */
 .bb-graph-link {
@@ -318,6 +322,7 @@
 /* The selected row keeps its soft green while the pointer is on it. */
 .bb-graph .bb-ws-ledger-row.is-selected:hover {
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-graph-facts {

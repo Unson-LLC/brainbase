@@ -13,6 +13,8 @@
 :root {
   --bb-color-ink: #202939;
   --bb-color-muted: #6b7280;
+  /* Small secondary text on tinted surfaces needs a slightly darker mix. */
+  --bb-color-muted-on-surface: color-mix(in srgb, var(--bb-color-muted) 92%, var(--bb-color-ink));
   --bb-color-quiet: #6b7280;
   --bb-color-border: #dce4e7;
   --bb-color-border-strong: #dce4e7;

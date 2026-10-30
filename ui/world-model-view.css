@@ -243,6 +243,7 @@
 
 .bb-wm .bb-ws-ledger-row.is-superseded {
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-wm .bb-ws-ledger-row.is-superseded .bb-wm-cell.is-value .bb-wm-main {
