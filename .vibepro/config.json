@@ -947,8 +947,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-oss-public-contract-fixture-v1",
+        "title": "OSSの公開契約をfixtureで固定する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-mcp-queue-task-tools-v1"
+    "current_story_id": "story-oss-public-contract-fixture-v1"
   }
 }
