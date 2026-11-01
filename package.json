@@ -602,7 +602,10 @@
     "zod": "^4.6.7"
   },
   "overrides": {
-    "ip-address": "^10.4.0"
+    "ip-address": "^10.4.0",
+    "vitepress": {
+      "vite": "^6.4.5"
+    }
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
@@ -614,7 +617,7 @@
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "vitepress": "^1.6.4",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.12"
   },
   "engines": {
     "node": ">=20"
