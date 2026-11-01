@@ -1,3 +1,6 @@
+Brainbase: <task id>
+<!-- 対象タスクがない場合は Brainbase: none (<reason>) に理由を記載してください。 -->
+
 ## 概要
 
 <!-- 変更の目的と内容 -->
