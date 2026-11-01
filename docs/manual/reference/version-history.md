@@ -91,6 +91,8 @@
 
 ## Unreleased — develop
 
+- agent 限定の queue tools（`list_my_tasks` / `get_task` / `claim_task` / `claim_next` / `renew_claim` / `attach_evidence` / `update_status`）と、stdio / Streamable HTTP で共通の契約テストを `@unson/brainbase-mcp/queue-task-tools` と test 専用の `@unson/brainbase-mcp/testing/queue-task-tools-contract` で追加する。host が `QueueTaskBackend` を注入したときだけ登録し、既存の local-first の18 tools は変えない。検証はローカルの fixture backend で行った。実 API の応答 schema、durable replay、agent の principal binding は未確認（`story-mcp-queue-task-tools-v1`）。
+
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 - 「人と会社」で人・会社を選ぶと、一覧が詳細のページに切り替わる。上に一覧へ戻る道と「何件中の何件目」・前後の移動、見出しの下にできる操作（所属を付ける・所属を終える・所属する人を加える）をまとめ、「消す操作は無く、終了日を入れて終える」ことを添える。書けない閲覧者には操作を押せない状態で出し、理由を出す（ホストの `readOnlyNote`）。名前の訂正の案内はホストの `recordFixNote` で差し替えられる。区分・種類・有効期間・IDはホストの右の欄（無ければページの中）に出す。一覧の上に「人を加える」「会社を加える」を並べる。書き込みの経路と規則、段の構成は変えない（`story-people-and-companies-detail-page-v1`）。
 

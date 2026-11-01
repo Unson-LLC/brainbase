@@ -2,7 +2,7 @@
 
 Story ID: `story-mcp-queue-task-tools-v1`
 
-状態: Planned。Story + Specの提案。公開パッケージの実装・公開・利用側切替は未完了。
+状態: Develop / Unreleased（実装PR。fixture で検証、実 API は未確認）
 
 ## Story
 

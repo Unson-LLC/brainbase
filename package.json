@@ -540,7 +540,15 @@
       "import": "./dist/private-philosophy-graph.js"
     },
     "./ui/native-scrollbars": "./ui/native-scrollbars.js",
-    "./ui/native-scrollbars.css": "./ui/native-scrollbars.css"
+    "./ui/native-scrollbars.css": "./ui/native-scrollbars.css",
+    "./queue-task-tools": {
+      "types": "./dist/queue-task-tools.d.ts",
+      "import": "./dist/queue-task-tools.js"
+    },
+    "./testing/queue-task-tools-contract": {
+      "types": "./dist/testing/queue-task-tools-contract.d.ts",
+      "import": "./dist/testing/queue-task-tools-contract.js"
+    }
   },
   "bin": {
     "brainbase-mcp": "dist/index.js",

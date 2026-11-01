@@ -3,7 +3,7 @@
 Story ID: `story-mcp-queue-task-tools-v1`
 親Story: [公開MCPでTask queueの仕事を進める](../stories/story-mcp-queue-task-tools-v1.md)
 
-状態: Planned / Unreleased。本PRは文書のみ。以下の「規定」は実装候補の契約であり、Releasedの機能ではない。
+状態: Develop / Unreleased（実装PR。fixture で検証、実 API は未確認）
 
 ## 決定
 

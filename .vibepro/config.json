@@ -935,8 +935,20 @@
           "boundary_reason": "Source-agnostic full-index builder runs for one local owner from an injected EntitySource; no hosted entrypoint, tenant partition, or shared resource is defined. GraphAPISource (authenticated remote client) stays in brainbase-unson.",
           "multi_tenancy_contract_created": false
         }
+      },
+      {
+        "story_id": "story-mcp-queue-task-tools-v1",
+        "title": "公開MCPでTask queueの仕事を進める",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-ledger-record-kind-screen-v1"
+    "current_story_id": "story-mcp-queue-task-tools-v1"
   }
 }
