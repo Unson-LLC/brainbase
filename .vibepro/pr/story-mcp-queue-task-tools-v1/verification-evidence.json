@@ -1,10 +1,10 @@
 {
   "schema_version": "0.1.0",
   "story_id": "story-mcp-queue-task-tools-v1",
-  "updated_at": "2026-11-01T05:36:13.674Z",
+  "updated_at": "2026-11-01T10:46:36.522Z",
   "runtime_identity": {
     "schema_version": "0.2.0",
-    "collected_at": "2026-11-01T05:36:13.634Z",
+    "collected_at": "2026-11-01T10:46:36.483Z",
     "mode": "normal",
     "source_kind": "npm_package",
     "test_context": null,
@@ -67,6 +67,271 @@
     }
   ],
   "commands": [
+    {
+      "kind": "unit",
+      "status": "pass",
+      "command": "npm test -- --maxWorkers=4",
+      "summary": "pass",
+      "artifact": null,
+      "artifact_check": {
+        "status": "missing",
+        "format": null,
+        "artifact_outcome": null,
+        "reason": "no machine-readable artifact was provided for a passing claim"
+      },
+      "artifact_observed_values": {},
+      "observation": {
+        "targets": [
+          "src/queue-task-tools.ts",
+          "src/testing/queue-task-tools-contract.ts",
+          "src/testing/queue-task-reference-backend.ts"
+        ],
+        "scenarios": [],
+        "values": {
+          "tests_passed": "3027",
+          "test_files_passed": "255"
+        }
+      },
+      "observation_check": {
+        "status": "recorded",
+        "reason": "observation states the inspected targets and what was observed"
+      },
+      "evidence_source": "self_reported",
+      "executed_at": "2026-11-01T10:46:36.522Z",
+      "git_context": {
+        "head_sha": "6652f838150d3d8897cfc5368968f84515518567",
+        "current_branch": "feat/bigdev-q1-queue-task-tools",
+        "dirty": false,
+        "raw_dirty": true,
+        "status_fingerprint_hash": "14bd126df0e4772742da72d35b2dbd62e732e7f1ebddddd73aca98ca3a9a3c94",
+        "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+        "fingerprint_scope": {
+          "user_excludes": [
+            ".vibepro/",
+            ".worktrees/vibepro/"
+          ]
+        },
+        "recorded_at": "2026-11-01T10:46:36.511Z"
+      },
+      "content_binding": {
+        "schema_version": "0.1.0",
+        "model": "vibepro-content-scoped-evidence-freshness-v1",
+        "mode": "content_surface",
+        "status": "recorded",
+        "reason": "content surface recorded for 3 file(s)",
+        "recorded_head_sha": "6652f838150d3d8897cfc5368968f84515518567",
+        "surface_files": [
+          {
+            "path": "src/queue-task-tools.ts",
+            "sha256": "fd1d2237fada2ba1816ae521242b2f7ed2535caeade75ad679c73797f495e29b",
+            "size": 16569
+          },
+          {
+            "path": "src/testing/queue-task-reference-backend.ts",
+            "sha256": "d7fa9b25090c4baef805292c392e217becbbd14e8127ef1d916429f517d21ebc",
+            "size": 9183
+          },
+          {
+            "path": "src/testing/queue-task-tools-contract.ts",
+            "sha256": "7a14c34094d0068b051036e587ceb545e250f04e9005756058e3c1615401abfc",
+            "size": 27449
+          }
+        ],
+        "missing_files": [],
+        "surface_hash": "f0b6894649272e839056c60fc606d0caea11b454d9680fcfaee4ee9ed6680323"
+      },
+      "runtime_identity": {
+        "schema_version": "0.2.0",
+        "collected_at": "2026-11-01T10:46:36.483Z",
+        "mode": "normal",
+        "source_kind": "npm_package",
+        "test_context": null,
+        "package": {
+          "name": "vibepro",
+          "version": "0.2.0-beta.34",
+          "exact_version": "0.2.0-beta.34",
+          "root": "/home/box/.local/lib/node_modules/vibepro"
+        },
+        "cli": {
+          "entrypoint": "/home/box/.local/lib/node_modules/vibepro/bin/vibepro.js",
+          "invoked_as": "/home/box/.local/bin/vibepro",
+          "runtime_module": "/home/box/.local/lib/node_modules/vibepro/src/runtime-info.js"
+        },
+        "release_manifest": {
+          "status": "valid",
+          "manifest": {
+            "schema_version": "0.1.0",
+            "package": {
+              "name": "vibepro",
+              "version": "0.2.0-beta.34",
+              "package_json_sha256": "63f42ef6e7ed01f31ad569eb59a7a25dc30a4c84d2713b8f3e279ebf40a7d8ff",
+              "entrypoint": "bin/vibepro.js"
+            },
+            "source_git": {
+              "commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+              "origin_url": "https://github.com/Unson-LLC/vibepro",
+              "origin_main_commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+              "origin_main_relation": "same",
+              "dirty": false
+            }
+          },
+          "errors": []
+        },
+        "source_git": {
+          "is_git_repo": false,
+          "commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+          "branch": null,
+          "origin_url": "https://github.com/Unson-LLC/vibepro",
+          "origin_main_commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+          "origin_main_relation": "published",
+          "dirty": false,
+          "dirty_summary": []
+        },
+        "identity_digest": "b44cefd5f8c3cc7e5283c6aeb1499732b647653b36c3bf98664a2c0f2926a484",
+        "integrity": {
+          "status": "trusted",
+          "code": null,
+          "purpose": "evidence_generation",
+          "reasons": [
+            "manifested immutable npm runtime"
+          ]
+        }
+      },
+      "managed_worktree_context": null,
+      "warnings": []
+    },
+    {
+      "kind": "typecheck",
+      "status": "pass",
+      "command": "npx tsc -p tsconfig.json --noEmit",
+      "summary": "pass",
+      "artifact": null,
+      "artifact_check": {
+        "status": "missing",
+        "format": null,
+        "artifact_outcome": null,
+        "reason": "no machine-readable artifact was provided for a passing claim"
+      },
+      "artifact_observed_values": {},
+      "observation": {
+        "targets": [
+          "src/queue-task-tools.ts",
+          "src/testing/queue-task-tools-contract.ts",
+          "src/testing/queue-task-reference-backend.ts"
+        ],
+        "scenarios": [],
+        "values": {
+          "exit_code": "0"
+        }
+      },
+      "observation_check": {
+        "status": "recorded",
+        "reason": "observation states the inspected targets and what was observed"
+      },
+      "evidence_source": "self_reported",
+      "executed_at": "2026-11-01T10:46:36.367Z",
+      "git_context": {
+        "head_sha": "6652f838150d3d8897cfc5368968f84515518567",
+        "current_branch": "feat/bigdev-q1-queue-task-tools",
+        "dirty": false,
+        "raw_dirty": true,
+        "status_fingerprint_hash": "bfe8f8bdc0148ad897560ac14274bd1d05d49c5b44905d13d290ca418b7e7872",
+        "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+        "fingerprint_scope": {
+          "user_excludes": [
+            ".vibepro/",
+            ".worktrees/vibepro/"
+          ]
+        },
+        "recorded_at": "2026-11-01T10:46:36.356Z"
+      },
+      "content_binding": {
+        "schema_version": "0.1.0",
+        "model": "vibepro-content-scoped-evidence-freshness-v1",
+        "mode": "content_surface",
+        "status": "recorded",
+        "reason": "content surface recorded for 3 file(s)",
+        "recorded_head_sha": "6652f838150d3d8897cfc5368968f84515518567",
+        "surface_files": [
+          {
+            "path": "src/queue-task-tools.ts",
+            "sha256": "fd1d2237fada2ba1816ae521242b2f7ed2535caeade75ad679c73797f495e29b",
+            "size": 16569
+          },
+          {
+            "path": "src/testing/queue-task-reference-backend.ts",
+            "sha256": "d7fa9b25090c4baef805292c392e217becbbd14e8127ef1d916429f517d21ebc",
+            "size": 9183
+          },
+          {
+            "path": "src/testing/queue-task-tools-contract.ts",
+            "sha256": "7a14c34094d0068b051036e587ceb545e250f04e9005756058e3c1615401abfc",
+            "size": 27449
+          }
+        ],
+        "missing_files": [],
+        "surface_hash": "f0b6894649272e839056c60fc606d0caea11b454d9680fcfaee4ee9ed6680323"
+      },
+      "runtime_identity": {
+        "schema_version": "0.2.0",
+        "collected_at": "2026-11-01T10:46:36.328Z",
+        "mode": "normal",
+        "source_kind": "npm_package",
+        "test_context": null,
+        "package": {
+          "name": "vibepro",
+          "version": "0.2.0-beta.34",
+          "exact_version": "0.2.0-beta.34",
+          "root": "/home/box/.local/lib/node_modules/vibepro"
+        },
+        "cli": {
+          "entrypoint": "/home/box/.local/lib/node_modules/vibepro/bin/vibepro.js",
+          "invoked_as": "/home/box/.local/bin/vibepro",
+          "runtime_module": "/home/box/.local/lib/node_modules/vibepro/src/runtime-info.js"
+        },
+        "release_manifest": {
+          "status": "valid",
+          "manifest": {
+            "schema_version": "0.1.0",
+            "package": {
+              "name": "vibepro",
+              "version": "0.2.0-beta.34",
+              "package_json_sha256": "63f42ef6e7ed01f31ad569eb59a7a25dc30a4c84d2713b8f3e279ebf40a7d8ff",
+              "entrypoint": "bin/vibepro.js"
+            },
+            "source_git": {
+              "commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+              "origin_url": "https://github.com/Unson-LLC/vibepro",
+              "origin_main_commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+              "origin_main_relation": "same",
+              "dirty": false
+            }
+          },
+          "errors": []
+        },
+        "source_git": {
+          "is_git_repo": false,
+          "commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+          "branch": null,
+          "origin_url": "https://github.com/Unson-LLC/vibepro",
+          "origin_main_commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+          "origin_main_relation": "published",
+          "dirty": false,
+          "dirty_summary": []
+        },
+        "identity_digest": "b44cefd5f8c3cc7e5283c6aeb1499732b647653b36c3bf98664a2c0f2926a484",
+        "integrity": {
+          "status": "trusted",
+          "code": null,
+          "purpose": "evidence_generation",
+          "reasons": [
+            "manifested immutable npm runtime"
+          ]
+        }
+      },
+      "managed_worktree_context": null,
+      "warnings": []
+    },
     {
       "kind": "build",
       "status": "pass",
@@ -182,111 +447,6 @@
           "reason": "passing build claim was recorded without observation targets, scenarios, or observed values; add --target/--scenario/--observed so the evidence states what was observed, not only what was run"
         }
       ]
-    },
-    {
-      "kind": "unit",
-      "status": "fail",
-      "command": "git diff --no-index --check /dev/null docs/stories/story-mcp-queue-task-tools-v1.md && git diff --no-index --check /dev/null docs/specs/mcp-queue-task-tools-v1.md",
-      "summary": "fail",
-      "artifact": null,
-      "artifact_check": null,
-      "artifact_observed_values": {},
-      "observation": {
-        "targets": [],
-        "scenarios": [],
-        "values": {}
-      },
-      "observation_check": {
-        "status": "not_applicable",
-        "reason": "failing claim recorded without observation; observation is audited for passing claims"
-      },
-      "evidence_source": "self_reported",
-      "executed_at": "2026-11-01T05:21:55.085Z",
-      "git_context": {
-        "head_sha": "40d9a9d07acf5fa04dc79d5e5930c23e79e210a4",
-        "current_branch": "docs/bigdev-q1-queue-task-tools-spec",
-        "dirty": true,
-        "raw_dirty": true,
-        "status_fingerprint_hash": "326de373dfdb405a7ada046ddb27b887cbfbeefff9f6231db74d6b70b7690b94",
-        "user_status_fingerprint_hash": "7ea219b5cffd20d92abbee3775330560bd855c93752da39c7ac6c2f52455477a",
-        "fingerprint_scope": {
-          "user_excludes": [
-            ".vibepro/",
-            ".worktrees/vibepro/"
-          ]
-        },
-        "recorded_at": "2026-11-01T05:21:55.080Z"
-      },
-      "content_binding": {
-        "schema_version": "0.1.0",
-        "model": "vibepro-content-scoped-evidence-freshness-v1",
-        "mode": "content_surface",
-        "status": "unbound",
-        "reason": "no content surface file could be derived from evidence targets, artifacts, or inspection inputs",
-        "recorded_head_sha": "40d9a9d07acf5fa04dc79d5e5930c23e79e210a4",
-        "surface_files": [],
-        "missing_files": [],
-        "surface_hash": null
-      },
-      "runtime_identity": {
-        "schema_version": "0.2.0",
-        "collected_at": "2026-11-01T05:21:54.737Z",
-        "mode": "normal",
-        "source_kind": "npm_package",
-        "test_context": null,
-        "package": {
-          "name": "vibepro",
-          "version": "0.2.0-beta.34",
-          "exact_version": "0.2.0-beta.34",
-          "root": "/home/box/.local/lib/node_modules/vibepro"
-        },
-        "cli": {
-          "entrypoint": "/home/box/.local/lib/node_modules/vibepro/bin/vibepro.js",
-          "invoked_as": "/home/box/.local/bin/vibepro",
-          "runtime_module": "/home/box/.local/lib/node_modules/vibepro/src/runtime-info.js"
-        },
-        "release_manifest": {
-          "status": "valid",
-          "manifest": {
-            "schema_version": "0.1.0",
-            "package": {
-              "name": "vibepro",
-              "version": "0.2.0-beta.34",
-              "package_json_sha256": "63f42ef6e7ed01f31ad569eb59a7a25dc30a4c84d2713b8f3e279ebf40a7d8ff",
-              "entrypoint": "bin/vibepro.js"
-            },
-            "source_git": {
-              "commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
-              "origin_url": "https://github.com/Unson-LLC/vibepro",
-              "origin_main_commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
-              "origin_main_relation": "same",
-              "dirty": false
-            }
-          },
-          "errors": []
-        },
-        "source_git": {
-          "is_git_repo": false,
-          "commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
-          "branch": null,
-          "origin_url": "https://github.com/Unson-LLC/vibepro",
-          "origin_main_commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
-          "origin_main_relation": "published",
-          "dirty": false,
-          "dirty_summary": []
-        },
-        "identity_digest": "b44cefd5f8c3cc7e5283c6aeb1499732b647653b36c3bf98664a2c0f2926a484",
-        "integrity": {
-          "status": "trusted",
-          "code": null,
-          "purpose": "evidence_generation",
-          "reasons": [
-            "manifested immutable npm runtime"
-          ]
-        }
-      },
-      "managed_worktree_context": null,
-      "warnings": []
     }
   ]
 }
