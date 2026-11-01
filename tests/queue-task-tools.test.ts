@@ -1,3 +1,4 @@
+import publicContract from '../contracts/brainbase-public-contract.v1.json';
 import { it, expect } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -26,7 +27,8 @@ it('AC-1 registers approved queue tools only when a backend is injected', async 
             await server.close();
         }
     }
-    expect(toolDefinitions).toHaveLength(18);
+    const localNames = publicContract.mcp.toolGroups.find(group => group.id === 'local')!.tools!.map(tool => tool.name);
+    expect(toolDefinitions.map(tool => tool.name).sort()).toEqual(localNames);
     const server = createServer();
     const [a, b] = InMemoryTransport.createLinkedPair();
     const client = new Client({ name: 'test', version: '0' });
@@ -34,7 +36,7 @@ it('AC-1 registers approved queue tools only when a backend is injected', async 
         await server.connect(a);
         await client.connect(b);
         const local = (await client.listTools()).tools;
-        expect(local).toHaveLength(18);
+        expect(local.map(tool => tool.name).sort()).toEqual(localNames);
         expect(local.some(t => QUEUE_TASK_TOOL_NAMES.includes(t.name as any))).toBe(false);
     }
     finally {

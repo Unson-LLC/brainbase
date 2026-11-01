@@ -203,6 +203,48 @@
               "to_status"
             ]
           }
+        ],
+        "releaseStatus": "unreleased"
+      }
+    ],
+    "internalTools": [
+      {
+        "name": "foundation_adopt",
+        "requiredInput": [
+          "digest",
+          "id",
+          "revision",
+          "scope_id",
+          "type"
+        ]
+      },
+      {
+        "name": "foundation_describe",
+        "requiredInput": [
+          "scope_id"
+        ]
+      },
+      {
+        "name": "foundation_read",
+        "requiredInput": [
+          "id",
+          "revision",
+          "scope_id",
+          "type"
+        ]
+      },
+      {
+        "name": "foundation_validate_problem",
+        "requiredInput": [
+          "scope_id",
+          "snapshot"
+        ]
+      },
+      {
+        "name": "foundation_validate_reference",
+        "requiredInput": [
+          "reference",
+          "scope_id"
         ]
       }
     ]
