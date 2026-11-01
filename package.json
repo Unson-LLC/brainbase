@@ -548,7 +548,8 @@
     "./testing/queue-task-tools-contract": {
       "types": "./dist/testing/queue-task-tools-contract.d.ts",
       "import": "./dist/testing/queue-task-tools-contract.js"
-    }
+    },
+    "./contracts/brainbase-public-contract.v1.json": "./contracts/brainbase-public-contract.v1.json"
   },
   "bin": {
     "brainbase-mcp": "dist/index.js",

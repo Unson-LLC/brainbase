@@ -3,7 +3,7 @@
 Story ID: `story-oss-public-contract-fixture-v1`
 親Story: [OSSの公開契約をfixtureで固定する](../stories/story-oss-public-contract-fixture-v1.md)
 
-状態: Planned / docs only（fixture とテストは未実装。実装PRで追加する）
+状態: Develop（fixture・テスト実装済み。2026-11-01 Director 決定を反映。release 未確認）
 
 基準: origin/develop e5f0db5e（#930 merge 後）。旧Draft #476（`codex/oss-public-contract-fixtures`）は MCP tool 15件・CLI 23件・bin 2つを前提にしていたが、現行の公開面はそれより広い。下の事実はすべて基準commitのソースから確かめた。
 
@@ -13,7 +13,7 @@ Story ID: `story-oss-public-contract-fixture-v1`
   - 既定（`BRAINBASE_PERSONAL_KNOWLEDGE_MODE` / `BRAINBASE_PERSONAL_KG_STORAGE_MODE` が未設定か `local`）: 18件。
   - `managed_cloud`: `personal_knowledge_context` / `personal_knowledge_register` / `personal_knowledge_search` の3件だけ。foundation 接続は無視される。
   - local で `createServer({ foundation })`: 18件に `foundationPublicToolDefinitions`（`src/foundation-public-provider.ts`）の4件を足した22件。
-- queue（`src/queue-task-tools.ts`、#930）: `createQueueTaskTools({ backend, resolveAgent })` に backend を渡したときだけ7件を返す。`createServer()` には登録されない。subpath `@unson/brainbase-mcp/queue-task-tools` で公開済み。名前は `QUEUE_TASK_TOOL_NAMES`、定義は `queueTaskToolDefinitions`。
+- queue（`src/queue-task-tools.ts`、#930）: `createQueueTaskTools({ backend, resolveAgent })` に backend を渡したときだけ7件を返す。`createServer()` には登録されない。subpath `@unson/brainbase-mcp/queue-task-tools` を定義済みだが未release。名前は `QUEUE_TASK_TOOL_NAMES`、定義は `queueTaskToolDefinitions`。
 - host 用の組み立て部品（`src/foundation-authenticated-tools.ts`）: `foundationPublicTools`（上の4件に必須の `scope_id` を足した版）と `foundationAdoptionTools`（`foundation_adopt`、「gm以上」という組織の役割を前提にする）。OSSの `createServer()` は登録しない。
 - CLI（`src/cli.ts` の `runCli`）: `switch (parsed.command)` の case は29個。うち `review:serve` は `web:serve` と同じ処理に落ちる別名（コメントで明記）なので、正規の command は28個。`--help` は switch より前で usage を返し、usage は29個すべてを `brainbase <command>` の形で載せている。未知の command は usage を出して1を返す。
 - package（`package.json`）: name `@unson/brainbase-mcp`、main `dist/index.js`、types `dist/index.d.ts`、bin `brainbase-mcp` → `dist/index.js`、`brainbase` → `dist/cli.js`。2つの入口の src（`src/index.ts` / `src/cli.ts`）は `#!/usr/bin/env node` で始まる。`files` には既に `contracts` が入り、`exports` には `./package.json` があり、`contracts/judgment-dag/*.json` などは個別に export されている。version は 0.49.0。
@@ -24,7 +24,7 @@ Story ID: `story-oss-public-contract-fixture-v1`
 ## 決定
 
 - 日時: 2026-11-01
-- 決定者: claude-code（OCO scope）。根拠は Director 指示 2026-11-01 18:42 JST（brainbase#505: #476 だけを作り直す）。owner の承認が要る点は「未確認事項」に分けた。
+- 決定者: claude-code（OCO scope）。根拠は Director 指示 2026-11-01 18:42 JST（brainbase#505: #476 だけを作り直す）。追加判断は末尾の「Director 決定事項」に記録する。
 
 ### D-1 ファイル名と形
 
@@ -35,11 +35,9 @@ Story ID: `story-oss-public-contract-fixture-v1`
 - 退けた案: `contracts/public-contract/fixture.json` + `schema.json`（judgment-dag と同じ置き方）。JSON Schema を別ファイルで持つと、照合するものが1つ増えるだけで、テストの strict な形チェック（AC-6）と役割が重なる。
 - 退けた案: 旧Draft の平らな `mcpTools` 配列。条件で変わる tool 群を表せない。
 
-### D-2 `exports` には足さない
+### D-2 fixture を package exports で公開する
 
-`./package.json` が export されているので、consumer は `@unson/brainbase-mcp/package.json` を解決すれば同じディレクトリの `contracts/brainbase-public-contract.v1.json` を読める。`exports` を増やすと公開APIが1つ増え、それ自体が fixture で固めるべき面になるうえ、consumer（組織版）はこのStoryの対象外である。consumer の Story で必要になったら、そこで足す（足すのは追加なので後からでも壊れない）。
-
-- 退けた案: judgment-dag にならって `./contracts/brainbase-public-contract.v1.json` を export する。上の理由で、consumer が無いうちに公開APIを増やさない。
+2026-11-01 Director 決定: `./contracts/brainbase-public-contract.v1.json` を同名ファイルへ export する。組織版 consumer は package 内の配置探索に依存せず subpath を解決できる。
 
 ### D-3 MCP tool は「出る条件ごとの群」で記録する
 
@@ -55,7 +53,7 @@ Story ID: `story-oss-public-contract-fixture-v1`
 - tools/list を通すのは、`configuredToolDefinitions` の絞り込みまで含めて、クライアントに実際に見える面を src を変えずに照合するためである。`toolDefinitions` を直接読むだけでは managed_cloud の絞り込みを確かめられない。
 - tools/list は provider を呼ばないので、`foundation_connected` は `{ provider, resolveContext: () => null }` の型を合わせた stub で足りる（作る前に `createServer` を読んで、今もそうであることを確かめる）。
 - env は群ごとに `vi.stubEnv` で `BRAINBASE_PERSONAL_KNOWLEDGE_MODE` と `BRAINBASE_PERSONAL_KG_STORAGE_MODE` の両方を固定し、終わったら戻す。開発者の環境変数で結果が変わらないようにする。
-- `foundationPublicTools`（`scope_id` 付き）と `foundation_adopt` は記録しない。前者は記録済みの4件から機械的に作られる host 側の派生物で、後者は組織の役割を前提にする。どちらも OSS の server は登録しない。記録するかは owner に残す（未確認事項2）。
+- `foundationPublicTools`（`scope_id` 付き）と `foundation_adopt` は `mcp.internalTools` に名前と必須入力を記録する。公開群の対象外で、OSS server は登録しない。同名の公開foundation版とは必須入力で区別する。
 - 退けた案: 既定の18件だけ（旧Draft と同じ）。上のとおり、条件つきの面の変化を取りこぼす。
 - 退けた案: 群ごとに見えている全件を重ねて記録する。local に1件足すだけで3群の差分になり、レビューで読みにくい。差分（`extends`）と選択（`selectsFrom`）で書けば、1つの変更は1か所にしか出ない。
 
@@ -97,11 +95,11 @@ AC-4 のテストは `scripts/npm-release.mjs` の `packFilesInIsolation(repoRoo
 
 新しいテストは件数を書かない。fixture の entry が契約そのもので、tool や command を足すときは fixture の差分がレビューに乗ること自体が目的である。件数を書くと、追加のたびに fixture とテストの2か所を直すことになり、差分の意味がぼやける。代わりに、各群・commands が空でないこと（AC-6）と、実装との集合一致（AC-1 / AC-2）で、「両方が空で一致」という素通りを防ぐ。
 
-既存の C-6（18件の順番つき一覧）と queue AC-1（`toHaveLength(18)`）は、このStoryでは触らない。重複した見張りになるが、別のStoryの検収条件であり、外すかは未確認事項3に残す。
+既存の mcp-contract C-6 と queue AC-1 の固定一覧・件数assertを fixture の local 群との集合比較へ置き換える。他の入力schema検証とqueue非漏出の検証は維持する。
 
 ### D-8 振る舞い・version・lockfile は変えない
 
-実装PRは fixture 1つとテストファイル1つを足すだけで、`src/`、`package.json`、`package-lock.json`、`tsconfig.json`、既存テストを変えない。fixture は package version を持たない（release のたびに変わり、公開面の変化ではないため）。fixture の形の version は `schemaVersion: "1.0.0"` とファイル名の `v1` で表す。
+Director 決定の反映では fixture・テスト・package exports・文書を変更する。`src/` の挙動、package version、`package-lock.json`、`tsconfig.json` は変えない。fixture は package version を持たない（release のたびに変わり、公開面の変化ではないため）。fixture の形の version は `schemaVersion: "1.0.0"` とファイル名の `v1` で表す。
 
 ## fixture の形
 
@@ -115,11 +113,12 @@ AC-4 のテストは `scripts/npm-release.mjs` の `packFilesInIsolation(repoRoo
     "bin": { "brainbase": "dist/cli.js", "brainbase-mcp": "dist/index.js" }
   },
   "mcp": {
+    "internalTools": [{ "name": "foundation_adopt", "requiredInput": ["digest", "id", "revision", "scope_id", "type"] }],
     "toolGroups": [
       { "id": "local", "condition": "...", "tools": [{ "name": "get_context", "requiredInput": [] }] },
       { "id": "managed_cloud", "condition": "...", "selectsFrom": "local", "toolNames": ["personal_knowledge_context"] },
       { "id": "foundation_connected", "condition": "...", "extends": "local", "tools": [{ "name": "foundation_read", "requiredInput": ["id", "revision", "type"] }] },
-      { "id": "queue_task_tools", "condition": "...", "tools": [{ "name": "claim_next", "requiredInput": [] }] }
+      { "id": "queue_task_tools", "condition": "...", "releaseStatus": "unreleased", "tools": [{ "name": "claim_next", "requiredInput": [] }] }
     ]
   },
   "cli": {
@@ -133,6 +132,7 @@ AC-4 のテストは `scripts/npm-release.mjs` の `packFilesInIsolation(repoRoo
 （`...` と各配列は省略。全件は下の「基準commitでの初期値」）
 
 - トップレベルのキーは `schemaVersion` / `package` / `mcp` / `cli` だけ。各 object も上に書いたキーだけを持つ。
+- `internalTools` は公開対象外のvariantを名前と必須入力で記録する。空・重複・未知キーは拒否する。queue 群は必須の `releaseStatus: "unreleased"` を持つ。
 - `toolGroups` の id は上の4つちょうど。テストは id ごとに取り方を知っており、知らない id があれば失敗する。
 - `condition` は人が読むための1行の説明で、テストは空でない文字列であることだけを見る。
 - `tools` は `name` 順、`requiredInput` と `toolNames` と `commands` はコード単位順、重複なし。`bin` と `aliases` のキーも同じ順に並べる（JSON の比較は順に依存しないが、差分を読みやすくするため）。
@@ -185,27 +185,34 @@ fixture そのものが壊れている（JSON として読めない、未知の�
 | AC-5 | fixture の文字列に `://`、`bb.unson.jp`、`lightsail`、`infisical`（大文字小文字を問わず）、`/Users/`、`/home/`、`~/`、Windows のドライブパス、メールアドレスの形が無い。`package` のパスはすべて `dist/` で始まる相対パス | `AC-5 contains only public OSS surface` |
 | AC-6 | `schemaVersion` が `1.0.0`。各 object は決められたキーだけを持つ。群 id は4つちょうど。各配列は並び済み・重複なし・空でない。`selectsFrom` / `extends` は `local` を指す | `AC-6 rejects a malformed fixture` |
 
+| AC-7 | package exports と実際のsubpath解決でfixtureを読める | `AC-7 exposes the fixture through package exports` |
+| AC-8 | internal定義が実装と一致し、公開群・OSS tools/listにinternal variantがない | `AC-8 keeps internal foundation tools out of the public contract` |
+| AC-9 | 既存C-6とqueue AC-1がfixtureを参照し固定件数を持たない | `AC-9 existing contract tests use the fixture as the single source of truth` |
+| AC-10 | queue群のreleaseStatusが必須でunreleased | `AC-10 marks queue task tools as unreleased` |
+
 AC-1 と AC-2 は、fixture の1件を消した場合と1件足した場合に失敗することを、実装時にローカルで一度確かめ、PR本文に書く（そのための壊れた fixture をリポジトリには置かない）。
 
 ## PR の分け方
 
 1. 本PR（docs）: Story、Spec、`.vibepro/pr/story-oss-public-contract-fixture-v1/`。コードは書かない。
-2. 実装PR（1本）: `contracts/brainbase-public-contract.v1.json` と `tests/public-contract-fixture.test.ts` の2ファイルを足すだけ。`npm run build` の後に `npx vitest run tests/public-contract-fixture.test.ts`、`tests/repo-hygiene.test.ts`、`npm run docs:check` を通す。e2e の mcp-only acceptance は変えないが、走らせて結果を PR に書く。
+2. 実装PR（1本）: fixture と検証テストを追加する。Director 決定の反映で package exports、既存契約テスト、リリース方針も更新する。`npm run build` の後に `npx vitest run tests/public-contract-fixture.test.ts`、`tests/repo-hygiene.test.ts`、`npm run docs:check` を通す。e2e の mcp-only acceptance は変えないが、走らせて結果を PR に書く。
 
 群ごとや AC ごとに PR を分けない。fixture は1つのファイルで、途中の状態（例: MCP だけ記録）を出すと、そのあいだ記録していない面の変更が素通りになるため。
 
 ## version の扱い
 
 - 本PRも実装PRも、`package.json` の version と `package-lock.json` を変えない。
-- fixture が tarball に入るのは追加なので、次の release で minor 相当の追加として release note に書く。実際の version は release 時に決める。CHANGELOG ファイルは無いので、実装PRの本文と release PR に書く。
-- fixture の差分のうち、tool / command / bin の削除・名前変更、必須入力の追加は既存の利用者を壊す変更である。0.x の間にこれをどの bump で出すかは未確認事項4。
+- fixture が tarball に入るのは追加なので、0.x の次の release では patch として release note に書く。実際の version は release 時に決める。CHANGELOG ファイルは無いので、実装PRの本文と release PR に書く。
+- fixture の差分のうち、tool / command / bin の削除・名前変更、必須入力の追加は既存の利用者を壊す変更である。0.x の間は minor bump で出し、追加変更は patch とする（npm release Spec の方針に従う）。
 - fixture の形を互換なく変えるときは `contracts/brainbase-public-contract.v2.json` を新しく作り、`schemaVersion` を `2.0.0` にする。v1 を同じ名前のまま書き換えない。
 
-## 未確認事項（owner / Director へ）
+## Director 決定事項
 
-1. 組織版の consumer が `@unson/brainbase-mcp/package.json` を解決してファイルを読む方式で足りるか、`exports` への追加が要るか。consumer の Story で決める（D-2）。
-2. `foundationPublicTools`（`scope_id` 付き）と `foundation_adopt` を OSS の公開契約に入れるか。今は組織の役割を前提にするため入れていない（D-3）。
-3. 既存の件数assert（mcp-contract C-6、queue-task-tools AC-1）を、この fixture ができた後も残すか。残すと tool 追加のたびに3か所を直すことになる（D-7）。
-4. 0.x の間に、公開面を壊す変更（削除・名前変更・必須入力の追加・bin 変更）をどの version bump で出すか。
-5. queue の7件は develop にあり、まだ release されていない（#930）。fixture は同じ tarball のコードと一緒に出るので食い違わないが、Released ではない面を契約に含めることを owner が良しとするか。
-6. MCP result payload とエラーの形の固定は、後方互換の方針を別Storyで決めてから広げる（旧Draft の対象外を引き継ぐ）。
+決定日: 2026-11-01。決定者: Director。
+
+1. fixture の package exports entry を追加する（D-2、AC-7）。
+2. scope_id付き foundationPublicTools と foundation_adopt は internal として明記し、公開契約の対象外とする（AC-8）。
+3. mcp-contract C-6 と queue AC-1 の固定一覧・件数assertは fixture 比較へ置き換える（AC-9）。
+4. 0.x の公開面の破壊的変更は minor、追加変更は patch。リリース方針は [npm release Spec](story-brainbase-oss-npm-release.md) に記録する。
+5. queue 7件は契約に残し、群に releaseStatus: unreleased を必須で記録する（AC-10）。
+6. MCP result payload とエラーの形の固定は別Storyへ延期する。本変更では実装しない。

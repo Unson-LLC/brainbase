@@ -1,3 +1,5 @@
+import { createRequire } from 'node:module';
+import { foundationPublicTools, foundationAdoptionTools } from '../src/foundation-authenticated-tools.js';
 import { readFile, access } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -22,11 +24,11 @@ const base = { condition: text };
 const fixtureSchema = z.strictObject({
   schemaVersion: z.literal('1.0.0'),
   package: z.strictObject({ name: text, main: text, types: text, bin: z.record(text, text).refine(bin => Object.keys(bin).length > 0, 'package.bin must not be empty') }),
-  mcp: z.strictObject({ toolGroups: z.array(z.discriminatedUnion('id', [
+  mcp: z.strictObject({ internalTools: z.array(tool).nonempty(), toolGroups: z.array(z.discriminatedUnion('id', [
     z.strictObject({ ...base, id: z.literal('local'), tools: z.array(tool).nonempty() }),
     z.strictObject({ ...base, id: z.literal('managed_cloud'), selectsFrom: z.literal('local'), toolNames: strings.nonempty() }),
     z.strictObject({ ...base, id: z.literal('foundation_connected'), extends: z.literal('local'), tools: z.array(tool).nonempty() }),
-    z.strictObject({ ...base, id: z.literal('queue_task_tools'), tools: z.array(tool).nonempty() }),
+    z.strictObject({ ...base, id: z.literal('queue_task_tools'), releaseStatus: z.literal('unreleased'), tools: z.array(tool).nonempty() }),
   ])).nonempty() }),
   cli: z.strictObject({ bin: text, commands: strings.nonempty(), aliases: z.record(text, text) }),
 });
@@ -207,6 +209,8 @@ describe('OSS public contract fixture', () => {
           for (const tool of group.tools) sortedUnique(tool.requiredInput, `${group.id}.${tool.name}.requiredInput`, true);
         } else sortedUnique(group.toolNames, `${group.id}.toolNames`);
       }
+      sortedUnique(fixture.mcp.internalTools.map(t => t.name), 'internalTools');
+      for (const entry of fixture.mcp.internalTools) sortedUnique(entry.requiredInput, entry.name);
       sortedUnique(fixture.cli.commands, 'cli.commands');
       sortedUnique(Object.keys(fixture.cli.aliases), 'cli.aliases', true);
       sortedUnique(Object.keys(fixture.package.bin), 'package.bin');
@@ -229,6 +233,12 @@ describe('OSS public contract fixture', () => {
       ['non-local selectsFrom', copy => ({ ...copy, mcp: { toolGroups: copy.mcp.toolGroups.map(g => g.id === 'managed_cloud' ? { ...g, selectsFrom: 'queue_task_tools' } : g) } })],
       ['non-local extends', copy => ({ ...copy, mcp: { toolGroups: copy.mcp.toolGroups.map(g => g.id === 'foundation_connected' ? { ...g, extends: 'queue_task_tools' } : g) } })],
       ['untrimmed command', copy => { copy.cli.commands[0] = ` ${copy.cli.commands[0]}`; return copy; }],
+      ['missing internal tools', copy => { const { internalTools, ...mcp } = copy.mcp; return { ...copy, mcp }; }],
+      ['empty internal tools', copy => ({ ...copy, mcp: { ...copy.mcp, internalTools: [] } })],
+      ['duplicate internal tool', copy => { copy.mcp.internalTools.push(copy.mcp.internalTools[0]); return copy; }],
+      ['unknown internal field', copy => ({ ...copy, mcp: { ...copy.mcp, internalTools: [{ ...copy.mcp.internalTools[0], unknown: true }] } })],
+      ['missing release status', copy => ({ ...copy, mcp: { ...copy.mcp, toolGroups: copy.mcp.toolGroups.map(g => { if (g.id !== 'queue_task_tools') return g; const { releaseStatus, ...rest } = g; return rest; }) } })],
+      ['invalid release status', copy => ({ ...copy, mcp: { ...copy.mcp, toolGroups: copy.mcp.toolGroups.map(g => g.id === 'queue_task_tools' ? { ...g, releaseStatus: 'released' } : g) } })],
       ['empty bin', copy => { copy.package.bin = {}; return copy; }],
     ];
     for (const [label, corrupt] of malformedCases) {
@@ -239,4 +249,48 @@ describe('OSS public contract fixture', () => {
     }
     validate({ ...fixture, cli: { ...fixture.cli, aliases: {} } });
   });
+  it('AC-7 exposes the fixture through package exports', async () => {
+    const manifest = JSON.parse(await readFile(resolve(repoRoot, 'package.json'), 'utf8'));
+    expect(manifest.exports['./' + fixturePath]).toBe('./' + fixturePath);
+    const exported = createRequire(import.meta.url).resolve('@unson/brainbase-mcp/' + fixturePath);
+    expect(JSON.parse(await readFile(exported, 'utf8'))).toEqual(await readFixture());
+  });
+
+  it('AC-8 keeps internal foundation tools out of the public contract', async () => {
+    const fixture = await readFixture();
+    matchesTools(normalize([...foundationPublicTools, ...foundationAdoptionTools]), fixture.mcp.internalTools, 'internal');
+    const publicTools = fixture.mcp.toolGroups.flatMap(g => 'tools' in g ? g.tools : []);
+    for (const entry of fixture.mcp.internalTools) {
+      expect(publicTools).not.toContainEqual(entry);
+    }
+    const unexpectedCall = vi.fn(() => { throw new Error('unexpected foundation call'); });
+    const foundation = {
+      provider: { describe: unexpectedCall, read: unexpectedCall, validate: unexpectedCall, validateProblem: unexpectedCall },
+      resolveContext: () => null,
+    } satisfies FoundationPublicConnection;
+    try {
+      for (const mode of ['local', 'managed_cloud'] as const) {
+        for (const connection of [undefined, foundation]) {
+          const observed = await listTools(mode, connection);
+          expect(observed.map(t => t.name)).not.toContain('foundation_adopt');
+          for (const entry of observed) expect(entry.requiredInput).not.toContain('scope_id');
+        }
+      }
+    } finally { vi.unstubAllEnvs(); }
+  });
+
+  it('AC-9 existing contract tests use the fixture as the single source of truth', async () => {
+    for (const path of ['tests/mcp-contract.test.ts', 'tests/queue-task-tools.test.ts']) {
+      const source = await readFile(resolve(repoRoot, path), 'utf8');
+      expect(source).toContain("import publicContract from '../contracts/brainbase-public-contract.v1.json'");
+      expect(source).toContain("publicContract.mcp.toolGroups.find(group => group.id === 'local')");
+      expect(source).not.toMatch(/toHaveLength\(18\)/);
+    }
+  });
+
+  it('AC-10 marks queue task tools as unreleased', async () => {
+    const fixture = await readFixture();
+    expect(fixture.mcp.toolGroups.find(g => g.id === 'queue_task_tools')).toMatchObject({ releaseStatus: 'unreleased' });
+  });
+
 });
