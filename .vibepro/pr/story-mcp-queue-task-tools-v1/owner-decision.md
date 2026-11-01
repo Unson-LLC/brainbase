@@ -11,7 +11,10 @@ Story ID: `story-mcp-queue-task-tools-v1`
 - 公開queue toolsは7つ: `list_my_tasks` / `get_task` / `claim_task` / `claim_next` / `renew_claim` / `attach_evidence` / `update_status`。
 - backend注入時に7 toolsを登録する（AC-1）。
 - 追加テスト`AC-2 reads an approved task by id`と`AC-4 claims an approved task by id without duplicates`は必ず追加する。
-- read / writeを1つの実装PRにまとめてよい。
+
+## workerの判断（ownerの決定ではない）
+
+- read / writeを1つの実装PRにまとめる。上の原文はこの点に触れていない。
 
 ## 未確認のまま残ること
 
