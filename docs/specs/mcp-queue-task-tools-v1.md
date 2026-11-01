@@ -5,6 +5,14 @@ Story ID: `story-mcp-queue-task-tools-v1`
 
 状態: Planned / Unreleased。本PRは文書のみ。以下の「規定」は実装候補の契約であり、Releasedの機能ではない。
 
+## 決定
+
+- 日時: 2026-11-01 18:19 JST
+- 決定者: owner
+- 原文: 「brainbase#929 は get_task と claim_task を足した7つで進めてよい」
+
+これにより公開queue toolsは`get_task` / `claim_task`を含む7 toolsで確定した（owner承認済み、2026-11-01）。2 toolsのサーバー側専用APIの形は未確認のままで、host adapterの契約として扱う。実装は未着手。
+
 ## 根拠と所有境界
 
 確認した公開実装:
@@ -20,7 +28,7 @@ operator overlayの固定snapshotからtool定義・handler・tests・server登�
 
 公開packageはschema、結果検証、tool登録、`QueueTaskBackend` interfaceを所有する。hostはbackendと検証済みagent contextを注入する。HTTP route、URL、credential、認証更新、HTTP body / headerへの変換はhost adapterだけが所有し、公開packageに特定サービス向けHTTP clientを含めない。有効化とはbackend注入を意味し、別の有効化flagは設けない。backend未注入ならqueue toolsを登録せず、既存local-first動作にhosted serviceを要求しない。
 
-`QueueTaskBackend`の規定案は`list(context, input)`、`get(context, input)`、`claim(context, {mode: "next" | "by_id", ...input})`、`renew(context, input)`、`evidence(context, input)`、`status(context, input)`。すべてPromiseで下記の成功queueまたは構造化エラーを返す。contextはhostが検証したagent identityを持ち、MCP入力とは分離する。inputは下表のschemaに従い、writeは解決済みidempotency keyを含む。get / by_idはowner承認後のみ有効にする。backendは認可・atomic claim・CAS・冪等性を保証し、公開handlerは成功shapeを検証する。ローカルのin-memory reference backendを契約テストfixtureとして用意し、外部サービスなしで全scenarioを実行する。これは永続queueの提供を意味しない。
+`QueueTaskBackend`の規定案は`list(context, input)`、`get(context, input)`、`claim(context, {mode: "next" | "by_id", ...input})`、`renew(context, input)`、`evidence(context, input)`、`status(context, input)`。すべてPromiseで下記の成功queueまたは構造化エラーを返す。contextはhostが検証したagent identityを持ち、MCP入力とは分離する。inputは下表のschemaに従い、writeは解決済みidempotency keyを含む。get / by_idはowner承認済み（2026-11-01）のため、他のqueue toolsと同じく有効にする。backendは認可・atomic claim・CAS・冪等性を保証し、公開handlerは成功shapeを検証する。ローカルのin-memory reference backendを契約テストfixtureとして用意し、外部サービスなしで全scenarioを実行する。これは永続queueの提供を意味しない。
 
 ## tool一覧とcanonical operationへの対応
 
@@ -29,8 +37,8 @@ operator overlayの固定snapshotからtool定義・handler・tests・server登�
 | MCP名 | 入力JSON shape | canonical operation / API要求 | 確認区分 |
 | --- | --- | --- | --- |
 | `list_my_tasks` | `{"statuses"?: Status[], "limit"?: integer, "cursor"?: string}` | agent queue list。`listTasks`相当のreadだがagent限定backendを使う | 確認済み |
-| `get_task` | `{"task_id": string}` | agent限定get。`getTask`相当 | 公開規定案。専用APIは未確認 |
-| `claim_task` | `{"task_id": string, "idempotency_key"?: string}` | 指定Taskをagentとしてatomic claim | 公開規定案。operation / APIは未確認 |
+| `get_task` | `{"task_id": string}` | agent限定get。`getTask`相当 | owner承認済み（2026-11-01）。専用APIは未確認 |
+| `claim_task` | `{"task_id": string, "idempotency_key"?: string}` | 指定Taskをagentとしてatomic claim | owner承認済み（2026-11-01）。operation / APIは未確認 |
 | `claim_next` | `{"idempotency_key"?: string}` | backend claim (mode: next)へ同じoperation keyを渡す | 確認済み |
 | `renew_claim` | `{"task_id": string, "idempotency_key"?: string}` | backend renew | 確認済み |
 | `attach_evidence` | `{"task_id": string, "expected_version": integer, "kind": EvidenceKind, "ref": object, "idempotency_key"?: string}` | backend evidence | 確認済み |
@@ -173,13 +181,13 @@ writeはキー省略時に別操作になるため、無条件のidempotentHint�
 
 ## 受け入れ条件と追加するテスト
 
-get_task / claim_taskはowner承認待ちの候補であり、承認前は登録しない。get / by_idの非登録はAC-1でassertする。承認時のみ、同じtransport別describe内へ追加の`it`を登録する。getは`AC-2 reads an approved task by id`、by_idは`AC-4 claims an approved task by id without duplicates`。不採用ならこの2テストは追加しない。
+get_task / claim_taskはowner承認済み（2026-11-01）であり、backend注入時に他の5 toolsと同じく登録する。AC-1は7 toolsの登録をassertする。同じtransport別describe内へ次の2つの`it`を必ず追加する。getは`AC-2 reads an approved task by id`、by_idは`AC-4 claims an approved task by id without duplicates`。2 toolsの専用APIは未確認のため、これらはhost adapter契約に従うfixture backendで検証する。
 
 以下は実装時に追加する正確なファイルと`it`名。共通scenarioはAC-2〜AC-9を両transportへ適用する。`tests/queue-task-tools-transport.test.ts`はAC-2〜AC-9だけを`describe.each(["stdio", "http"])`内へ下表と完全一致する`it`名で登録する。AC-10とAC-11は同じファイルのtop-level `it`とし、AC-10は両transportを比較、AC-11はHTTPだけを検証する。srcの共通scenario自体はtest discovery対象にしない。これらは現時点では未実装である。
 
 | AC | 検証する条件 | テストファイル | 正確なテスト名 |
 | --- | --- | --- | --- |
-| AC-1 | 承認済み5 tools、owner承認時のみget / by_idの2 tools追加、既存local surface維持 | `tests/queue-task-tools.test.ts` | `AC-1 registers approved queue tools only when a backend is injected` |
+| AC-1 | backend注入時にowner承認済みの7 toolsを登録、未注入時は登録しない、既存local surface維持 | `tests/queue-task-tools.test.ts` | `AC-1 registers approved queue tools only when a backend is injected` |
 | AC-2 | listの1ページ応答、空queue、opaque cursorの転送・次cursorと終端の保持 | `tests/queue-task-tools-transport.test.ts` | `AC-2 reads only visible tasks and forwards opaque cursors one page per call` |
 | AC-3 | agent認証必須、共有token fallback禁止、他agent / wildcard拒否、replay再認可 | `tests/queue-task-tools-transport.test.ts` | `AC-3 binds every call and replay to the authenticated agent` |
 | AC-4 | next claimの再送、競合、空結果、lease更新 | `tests/queue-task-tools-transport.test.ts` | `AC-4 claims next and renews without duplicate claims` |
@@ -196,8 +204,10 @@ AC-3〜AC-6はin-process API fixtureで認可・永続再送の効果をassert�
 
 ## PR単位の実装順とversion
 
-1. read tools PR: 共通DI / schema / result / errors、`list_my_tasks` / `get_task`、agent binding、read用contract runnerとstdio / HTTP fixture。AC-1はlistの1 toolと承認済みならgetを追加、AC-2 / AC-3 / AC-7〜AC-12はreadの範囲を先に満たす。詳細read APIが未確定ならその決定を先行させる。
-2. write tools PR: `claim_task` / `claim_next` / `renew_claim` / `attach_evidence` / `update_status`とキー転送、CAS、再送。AC-1を承認済み5 toolsと承認時のみ2 tools追加へ拡張し、全ACを通す。ID指定claim / 応答shape / APIの冪等性が未確認のまま完了扱いにしない。server変更が必要なら別Storyへ分ける。
+7 toolsはowner承認済みのため、read（`list_my_tasks` / `get_task`）とwrite（`claim_task` / `claim_next` / `renew_claim` / `attach_evidence` / `update_status`）を1つの実装PRにまとめてよい。分ける場合はreadを先に出す。段階公開するかは未確認事項5で判断する。
+
+- 範囲: 共通DI / schema / result / errors、agent binding、キー転送、CAS、再送、contract runnerとstdio / HTTP fixture。AC-1で7 toolsの登録を確認し、全ACを通す。
+- ID指定claim / 詳細read / 応答shape / APIの冪等性が未確認のまま完了扱いにしない。server変更が必要なら別Storyへ分ける。
 
 各実装PRでは`npm run build`の後、対応するVitestファイルと外部consumer検証を実行する。docs PRではdocs checkとdiff確認を実行し、未実装ACの成功を記録しない。
 
@@ -205,7 +215,7 @@ changelogは実装PRでUnreleasedに「agent限定queue toolsと共通stdio / St
 
 ## owner / Directorへの未確認事項
 
-1. ID指定claimとagent限定詳細readの正式API・認可範囲。自身に未割当だがassignableなTaskをlistに含めるか。利用側の実要件に照らし7 toolsを承認するか。
+1. 7 toolsを承認するかは決着済み（owner、2026-11-01）。残りは、ID指定claimとagent限定詳細readの正式API・認可範囲、自身に未割当だがassignableなTaskをlistに含めるか。
 2. Page / get / evidence / renew / statusの実応答schema、queue状態とcanonical状態の対応、kind別refの必須項目。公開規定案との差をどちらで吸収するか。
 3. 同一キーのdurable replay、agent namespace、key保持期間、lease失効後のreplay、evidenceのキー順同一視、別キー既完了の正確なエラーcode。APIが満たさない場合の別Storyのowner。
 4. agent principalのhost bindingとsession identity保護の責任境界。機密を含むAPI error bodyのredaction範囲。

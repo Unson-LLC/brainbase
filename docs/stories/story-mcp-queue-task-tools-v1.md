@@ -11,7 +11,7 @@ Task queueで働くAI member / agentとして、公開`@unson/brainbase-mcp`のM
 ## 受け入れ条件の概要
 
 - AC-1〜AC-3: 公開tool定義、一覧・詳細・ページング、認証済みagentに限定した認可が揃う。
-- AC-4〜AC-6: owner承認時のID指定claim / claim next、lease更新、evidence追加、完了を含む状態更新がhost注入のQueueTaskBackendへ届く。
+- AC-4〜AC-6: ID指定claim（owner承認済み）/ claim next、lease更新、evidence追加、完了を含む状態更新がhost注入のQueueTaskBackendへ届く。
 - AC-7〜AC-9: 再送・競合・不正入力・API障害が構造化結果となり、annotationsが副作用を正しく示す。
 - AC-10〜AC-12: stdio / HTTPとoperator overlayが同じ契約テストを実行でき、公開subpathを外部consumerから利用できる。
 
@@ -26,6 +26,6 @@ Task queueで働くAI member / agentとして、公開`@unson/brainbase-mcp`のM
 
 ## 残る判断
 
-ID指定claimとagent限定詳細取得のAPI、応答schema、完了再送の保証範囲は未確認。owner / DirectorがSpecの未確認事項を決めてから対応するwrite実装へ進む。local-firstの既存18 toolsに組織サービスを必須化しない。
+ownerが2026-11-01に7 tools（確認済み5 tools + `get_task` / `claim_task`）での進行を承認した。ID指定claimとagent限定詳細取得の正式API、応答schema、完了再送の保証範囲は未確認のまま残り、Specの未確認事項で扱う。local-firstの既存18 toolsに組織サービスを必須化しない。
 
-queue toolsはhost注入のQueueTaskBackendに依存し、特定hosted APIを必須にしない。確認済み5 toolsを基準とし、get_task / claim_taskの2候補はowner承認まで登録しない。
+queue toolsはhost注入のQueueTaskBackendに依存し、特定hosted APIを必須にしない。backend注入時はowner承認済みの7 toolsを登録する。

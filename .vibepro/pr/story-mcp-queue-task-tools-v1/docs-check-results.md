@@ -2,6 +2,8 @@
 
 Story ID: `story-mcp-queue-task-tools-v1`
 
+追記（2026-11-01）: ownerの決定（2026-11-01 18:19 JST「brainbase#929 は get_task と claim_task を足した7つで進めてよい」）を受け、Story / Specを7 toolsで確定する変更を加えた。条件付きの文を確定の文に直し、Specへ「## 決定」節、PR artifactsへ`owner-decision.md`を追加した。状態はPlanned / Unreleasedのまま。この変更後の検証結果は別途追記する。以下は変更前の記録。
+
 最終レビュー5件の修正後の検証。実装AC-1〜AC-12は未実装・未実行。本変更はStory / Specと検証証跡のみ。
 
 | 正確な検証コマンド | 結果 |
@@ -53,3 +55,11 @@ vibepro verify record . --id story-mcp-queue-task-tools-v1 --kind build --status
 3. Low: 401は業務拒否ではなく認証済みagentとして利用できない状態なのでunavailableとする理由を追記した。
 4. Low: host HTTPテストのファイル・名前は別repositoryへの契約であり、本PRと公開CIでは存在・実行結果を検証できないと明記した。
 5. Low: PR artifactsのhelperを削除し、今回の検査は/tmpで実行した。記録を実際のコマンド・失敗・再実行結果に合わせた。
+
+## 7 tools確定後の検証（2026-11-01）
+
+| 正確な検証コマンド | 結果 |
+| --- | --- |
+| `npm run docs:check` | pass |
+| `npm run docs:build` | pass |
+| `git diff --cached --check` | pass |
