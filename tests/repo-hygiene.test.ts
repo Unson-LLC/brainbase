@@ -24,7 +24,8 @@ const allowedWorkflowFiles = new Set([
   '.github/workflows/npm-publish.yml',
   '.github/workflows/docs-cloudflare-pages.yml',
   '.github/workflows/public-message-promotion.yml',
-  '.github/workflows/test.yml'
+  '.github/workflows/test.yml',
+  '.github/workflows/pr-brainbase-line.yml'
 ]);
 
 async function exists(path: string): Promise<boolean> {
@@ -75,12 +76,13 @@ describe('MCP-only repository hygiene', () => {
     expect(forbiddenMatches(trackedFiles)).toEqual([]);
   });
 
-  it('AP-1 limits workflow exceptions to the three approved publication workflows and the PR test workflow', () => {
+  it('AP-1 limits workflow exceptions to the three approved publication workflows, the PR test workflow, and the PR Brainbase line check', () => {
     expect(forbiddenMatches([
       '.github/workflows/npm-publish.yml',
       '.github/workflows/docs-cloudflare-pages.yml',
       '.github/workflows/public-message-promotion.yml',
-      '.github/workflows/test.yml'
+      '.github/workflows/test.yml',
+      '.github/workflows/pr-brainbase-line.yml'
     ])).toEqual([]);
     expect(forbiddenMatches(['.github/workflows/xterm.yml'])).toEqual([
       '.github/workflows/xterm.yml'
