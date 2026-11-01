@@ -205,7 +205,7 @@ AC-3〜AC-6はin-process API fixtureで認可・永続再送の効果をassert�
 
 ## PR単位の実装順とversion
 
-7 toolsはowner承認済みのため、read（`list_my_tasks` / `get_task`）とwrite（`claim_task` / `claim_next` / `renew_claim` / `attach_evidence` / `update_status`）を1つの実装PRにまとめてよい。分ける場合はreadを先に出す。段階公開するかは未確認事項5で判断する。
+read（`list_my_tasks` / `get_task`）とwrite（`claim_task` / `claim_next` / `renew_claim` / `attach_evidence` / `update_status`）を1つの実装PRにまとめる。これはworkerの判断で、owner決定（2026-11-01 18:19 JSTの7 tools承認）には含まれない。分ける場合はreadを先に出す。段階公開するかは未確認事項5で判断する。
 
 - 範囲: 共通DI / schema / result / errors、agent binding、キー転送、CAS、再送、contract runnerとstdio / HTTP fixture。AC-1で7 toolsの登録を確認し、全ACを通す。
 - ID指定claim / 詳細read / 応答shape / APIの冪等性が未確認のまま完了扱いにしない。server変更が必要なら別Storyへ分ける。
