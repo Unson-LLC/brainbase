@@ -1,0 +1,246 @@
+{
+  "schemaVersion": "1.0.0",
+  "package": {
+    "name": "@unson/brainbase-mcp",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "bin": {
+      "brainbase": "dist/cli.js",
+      "brainbase-mcp": "dist/index.js"
+    }
+  },
+  "mcp": {
+    "toolGroups": [
+      {
+        "id": "local",
+        "condition": "createServer() with both personal knowledge modes set to local",
+        "tools": [
+          {
+            "name": "audit_ontology",
+            "requiredInput": []
+          },
+          {
+            "name": "brainbase_onboarding_first_value",
+            "requiredInput": [
+              "action",
+              "runId"
+            ]
+          },
+          {
+            "name": "brainbase_onboarding_get",
+            "requiredInput": [
+              "runId"
+            ]
+          },
+          {
+            "name": "brainbase_onboarding_ingest",
+            "requiredInput": [
+              "candidates",
+              "runId",
+              "source"
+            ]
+          },
+          {
+            "name": "brainbase_onboarding_review",
+            "requiredInput": [
+              "actions",
+              "runId"
+            ]
+          },
+          {
+            "name": "brainbase_onboarding_start",
+            "requiredInput": [
+              "sources",
+              "valueTarget"
+            ]
+          },
+          {
+            "name": "get_context",
+            "requiredInput": []
+          },
+          {
+            "name": "get_ontology",
+            "requiredInput": []
+          },
+          {
+            "name": "infer_decisions",
+            "requiredInput": []
+          },
+          {
+            "name": "list_entities",
+            "requiredInput": []
+          },
+          {
+            "name": "onboarding_status",
+            "requiredInput": []
+          },
+          {
+            "name": "ontology_impact",
+            "requiredInput": []
+          },
+          {
+            "name": "personal_knowledge_context",
+            "requiredInput": []
+          },
+          {
+            "name": "personal_knowledge_register",
+            "requiredInput": [
+              "event"
+            ]
+          },
+          {
+            "name": "personal_knowledge_search",
+            "requiredInput": [
+              "query"
+            ]
+          },
+          {
+            "name": "resolve_entity",
+            "requiredInput": [
+              "asOf",
+              "text"
+            ]
+          },
+          {
+            "name": "search",
+            "requiredInput": [
+              "query"
+            ]
+          },
+          {
+            "name": "search_personal_kg",
+            "requiredInput": [
+              "query"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "managed_cloud",
+        "condition": "createServer() with both personal knowledge modes set to managed_cloud",
+        "selectsFrom": "local",
+        "toolNames": [
+          "personal_knowledge_context",
+          "personal_knowledge_register",
+          "personal_knowledge_search"
+        ]
+      },
+      {
+        "id": "foundation_connected",
+        "condition": "createServer({ foundation }) with both personal knowledge modes set to local",
+        "extends": "local",
+        "tools": [
+          {
+            "name": "foundation_describe",
+            "requiredInput": []
+          },
+          {
+            "name": "foundation_read",
+            "requiredInput": [
+              "id",
+              "revision",
+              "type"
+            ]
+          },
+          {
+            "name": "foundation_validate_problem",
+            "requiredInput": [
+              "snapshot"
+            ]
+          },
+          {
+            "name": "foundation_validate_reference",
+            "requiredInput": [
+              "reference"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "queue_task_tools",
+        "condition": "createQueueTaskTools({ backend, resolveAgent }) with the reference backend",
+        "tools": [
+          {
+            "name": "attach_evidence",
+            "requiredInput": [
+              "expected_version",
+              "kind",
+              "ref",
+              "task_id"
+            ]
+          },
+          {
+            "name": "claim_next",
+            "requiredInput": []
+          },
+          {
+            "name": "claim_task",
+            "requiredInput": [
+              "task_id"
+            ]
+          },
+          {
+            "name": "get_task",
+            "requiredInput": [
+              "task_id"
+            ]
+          },
+          {
+            "name": "list_my_tasks",
+            "requiredInput": []
+          },
+          {
+            "name": "renew_claim",
+            "requiredInput": [
+              "task_id"
+            ]
+          },
+          {
+            "name": "update_status",
+            "requiredInput": [
+              "expected_version",
+              "task_id",
+              "to_status"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "cli": {
+    "bin": "brainbase",
+    "commands": [
+      "doctor",
+      "graph:bundles",
+      "graph:upgrade",
+      "judgment:hook",
+      "judgment:install",
+      "mcp",
+      "memory:list",
+      "memory:register",
+      "onboard:agent",
+      "onboard:apply",
+      "onboard:candidates",
+      "onboard:demo",
+      "onboard:diagnose-sources",
+      "onboard:extract",
+      "onboard:import",
+      "onboard:init",
+      "onboard:install",
+      "onboard:plan",
+      "onboard:projects",
+      "onboard:recommend",
+      "onboard:routines",
+      "onboard:seed",
+      "onboard:skills",
+      "onboard:start",
+      "ontology:audit",
+      "ontology:migrate",
+      "ontology:show",
+      "web:serve"
+    ],
+    "aliases": {
+      "review:serve": "web:serve"
+    }
+  }
+}
