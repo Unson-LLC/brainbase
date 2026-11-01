@@ -1931,7 +1931,7 @@ export function createMeetingMinutesUI({
           title: title.input.value,
           ...(scheduledAt ? { scheduled_at: scheduledAt } : {}),
           participant_ids: participants.input.value.split(',').map((value) => value.trim()).filter(Boolean),
-          minutes_title: minutesTitle.input.value,
+          ...(minutesTitle.input.value.trim() ? { minutes_title: minutesTitle.input.value } : {}),
           initial_body: body.input.value,
         };
         const created = typeof createMeeting === 'function' && Array.isArray(projectOptions) ? await createMeeting(payload, projectCode) : await mutate('', payload);
