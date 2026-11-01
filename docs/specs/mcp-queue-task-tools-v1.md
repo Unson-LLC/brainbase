@@ -3,7 +3,7 @@
 Story ID: `story-mcp-queue-task-tools-v1`
 親Story: [公開MCPでTask queueの仕事を進める](../stories/story-mcp-queue-task-tools-v1.md)
 
-状態: Planned / Unreleased。本PRは文書のみ。以下の「規定」は実装候補の契約であり、Releasedの機能ではない。
+状態: Develop / Unreleased（実装PR。fixture で検証、実 API は未確認）
 
 ## 決定
 
@@ -11,7 +11,7 @@ Story ID: `story-mcp-queue-task-tools-v1`
 - 決定者: owner
 - 原文: 「brainbase#929 は get_task と claim_task を足した7つで進めてよい」
 
-これにより公開queue toolsは`get_task` / `claim_task`を含む7 toolsで確定した（owner承認済み、2026-11-01）。2 toolsのサーバー側専用APIの形は未確認のままで、host adapterの契約として扱う。実装は未着手。
+これにより公開queue toolsは`get_task` / `claim_task`を含む7 toolsで確定した（owner承認済み、2026-11-01）。2 toolsのサーバー側専用APIの形は未確認のままで、host adapterの契約として扱う。実装と契約テストを追加済み（Develop）。実APIとの接続検証は未完了。
 
 ## 根拠と所有境界
 
@@ -101,6 +101,7 @@ MCP `tools/call`は`content: [{type: "text", text: JSON.stringify(result)}]`。`
 ## 認証・認可
 
 principalは呼出し時に認証したagent自身であり、引数の値や共有service identityではない。hostは呼出しごとに検証済みidentityとagent専用credentialを結びつける。資格情報がない・空・更新失敗ならAPIへ送らず`task_auth_unavailable`。person credential / shared service tokenへのfallbackは禁止する。
+handlerのcredential漏洩検査は文字列credentialのみを対象とする部分文字列一致であり、非文字列credentialが結果に含まれないことはhostが保証する。
 
 一覧・詳細は自身に割当済み、またはAPI policyが自身にassignableと判定したTaskだけを返す。claimもその範囲に限る。evidence / 状態更新 / renewは有効な自分のclaim等、APIが要求する所有条件を満たす必要がある。全Task閲覧、他agentの代理、`*`によるscope拡大を認めない。不明なauthorityは拒否し、単なるlist filterを認可として扱わない。
 
@@ -183,7 +184,7 @@ writeはキー省略時に別操作になるため、無条件のidempotentHint�
 
 get_task / claim_taskはowner承認済み（2026-11-01）であり、backend注入時に他の5 toolsと同じく登録する。AC-1は7 toolsの登録をassertする。同じtransport別describe内へ次の2つの`it`を必ず追加する。getは`AC-2 reads an approved task by id`、by_idは`AC-4 claims an approved task by id without duplicates`。2 toolsの専用APIは未確認のため、これらはhost adapter契約に従うfixture backendで検証する。
 
-以下は実装時に追加する正確なファイルと`it`名。共通scenarioはAC-2〜AC-9を両transportへ適用する。`tests/queue-task-tools-transport.test.ts`はAC-2〜AC-9だけを`describe.each(["stdio", "http"])`内へ下表と完全一致する`it`名で登録する。AC-10とAC-11は同じファイルのtop-level `it`とし、AC-10は両transportを比較、AC-11はHTTPだけを検証する。srcの共通scenario自体はtest discovery対象にしない。これらは現時点では未実装である。
+以下は実装時に追加する正確なファイルと`it`名。共通scenarioはAC-2〜AC-9を両transportへ適用する。`tests/queue-task-tools-transport.test.ts`はAC-2〜AC-9だけを`describe.each(["stdio", "http"])`内へ下表と完全一致する`it`名で登録する。AC-10とAC-11は同じファイルのtop-level `it`とし、AC-10は両transportを比較、AC-11はHTTPだけを検証する。srcの共通scenario自体はtest discovery対象にしない。これらの契約テストは実装済み（Develop）である。
 
 | AC | 検証する条件 | テストファイル | 正確なテスト名 |
 | --- | --- | --- | --- |
