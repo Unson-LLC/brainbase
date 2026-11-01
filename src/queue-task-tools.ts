@@ -372,7 +372,7 @@ export function createQueueTaskTools(options: CreateQueueTaskToolsOptions): read
                     context.credential === undefined ||
                     (typeof context.credential === 'string' && !context.credential.trim())
                 )
-                    return encode(failure('unavailable', 'task_auth_unavailable'));
+                    return encode(failure('unavailable', 'task_auth_unavailable', config.write, 'not_sent'));
                 const input: any = { ...(parsed.data as Record<string, unknown>) };
                 if (config.write && input.idempotency_key === undefined) {
                     try {

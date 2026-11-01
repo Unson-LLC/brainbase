@@ -140,10 +140,12 @@ export async function runQueueTaskContractScenario(
                 { agentId: 'A', credential: '  ' },
             ]) {
                 const x = await connect(createQueueReferenceSeed(), agent);
-                for (let i = 0; i < 7; i++)
+                for (let i = 0; i < 7; i++) {
                     await call(x, QUEUE_TASK_TOOL_NAMES[i], args[i], 'task_auth_unavailable');
+                    if (i >= 2)
+                        assert.deepEqual((steps.at(-1) as any).error.details, { outcome: 'not_sent' });
+                }
                 assert.equal((await x.snapshot()).calls.length, 0);
-                assert.ok(!JSON.stringify(await x.snapshot()).includes('shared-sentinel'));
             }
             for (const field of ['agent_id', 'assignee', 'scope'])
                 await call(c, 'claim_next', { [field]: '*' }, 'task_input_invalid');

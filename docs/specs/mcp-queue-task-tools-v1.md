@@ -101,6 +101,7 @@ MCP `tools/call`は`content: [{type: "text", text: JSON.stringify(result)}]`。`
 ## 認証・認可
 
 principalは呼出し時に認証したagent自身であり、引数の値や共有service identityではない。hostは呼出しごとに検証済みidentityとagent専用credentialを結びつける。資格情報がない・空・更新失敗ならAPIへ送らず`task_auth_unavailable`。person credential / shared service tokenへのfallbackは禁止する。
+handlerのcredential漏洩検査は文字列credentialのみを対象とする部分文字列一致であり、非文字列credentialが結果に含まれないことはhostが保証する。
 
 一覧・詳細は自身に割当済み、またはAPI policyが自身にassignableと判定したTaskだけを返す。claimもその範囲に限る。evidence / 状態更新 / renewは有効な自分のclaim等、APIが要求する所有条件を満たす必要がある。全Task閲覧、他agentの代理、`*`によるscope拡大を認めない。不明なauthorityは拒否し、単なるlist filterを認可として扱わない。
 
