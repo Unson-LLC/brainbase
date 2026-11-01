@@ -58,6 +58,7 @@ function installTarball(tarballPath, consumerRoot, environment) {
   run('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', tarballPath], consumerRoot, installEnvironment);
 }
 
+// The consumer adapter is intentionally independent (overlay-style).
 const consumerAdapterSource = `import { createServer } from 'node:http';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -66,9 +67,12 @@ import { createStreamableHttpHandler } from '@unson/brainbase-mcp/streamable-htt
 import { createQueueTaskTools } from '@unson/brainbase-mcp/queue-task-tools';
 import { createQueueReferenceBackend } from '@unson/brainbase-mcp/testing/queue-task-tools-contract';
 export async function createQueueHttpFixture(options) {
-    const backend = createQueueReferenceBackend(options.state);
+    const backend = createQueueReferenceBackend(options.state, {
+        expectedAgentCredentials: options.agent ? { [options.agent.agentId]: options.agent.credential } : {}
+    });
     let created = 0;
     let closed = 0;
+    const hostCredentials = { agent: options.agent, sharedServiceToken: options.sharedServiceToken };
     let counter = 0;
     const tokens = new Map([['synthetic-A', { token: 'synthetic-A', clientId: 'A', scopes: [] }], ['synthetic-B', { token: 'synthetic-B', clientId: 'B', scopes: [] }]]);
     if (options.agent)
@@ -76,7 +80,7 @@ export async function createQueueHttpFixture(options) {
     const handler = createStreamableHttpHandler({ authenticate: req => tokens.get(req.headers.authorization?.replace(/^Bearer /, '') ?? '') ?? null, createServer: scope => {
             created++;
             const bound = scope.auth?.clientId;
-            const server = createLocalMcpServer({ name: 'queue-fixture', version: '0.0.0', tools: createQueueTaskTools({ backend, resolveAgent: extra => extra.authInfo?.clientId === bound && options.agent?.agentId === bound ? { kind: 'agent', ...options.agent } : null, generateKey: () => options.generatedKeys?.[counter++] ?? \`generated-\${counter}\` }) });
+            const server = createLocalMcpServer({ name: 'queue-fixture', version: '0.0.0', tools: createQueueTaskTools({ backend, resolveAgent: extra => extra.authInfo?.clientId === bound && hostCredentials.agent?.agentId === bound ? { kind: 'agent', ...hostCredentials.agent } : null, generateKey: () => options.generatedKeys?.[counter++] ?? \`generated-\${counter}\` }) });
             const close = server.close.bind(server);
             server.close = async () => { closed++; await close(); };
             return server;
