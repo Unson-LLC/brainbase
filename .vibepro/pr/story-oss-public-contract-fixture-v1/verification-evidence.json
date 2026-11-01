@@ -1,0 +1,187 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-oss-public-contract-fixture-v1",
+  "updated_at": "2026-11-01T12:21:12.264Z",
+  "runtime_identity": {
+    "schema_version": "0.2.0",
+    "collected_at": "2026-11-01T12:21:12.229Z",
+    "mode": "normal",
+    "source_kind": "npm_package",
+    "test_context": null,
+    "package": {
+      "name": "vibepro",
+      "version": "0.2.0-beta.34",
+      "exact_version": "0.2.0-beta.34",
+      "root": "/home/box/.local/lib/node_modules/vibepro"
+    },
+    "cli": {
+      "entrypoint": "/home/box/.local/lib/node_modules/vibepro/bin/vibepro.js",
+      "invoked_as": "/home/box/.local/bin/vibepro",
+      "runtime_module": "/home/box/.local/lib/node_modules/vibepro/src/runtime-info.js"
+    },
+    "release_manifest": {
+      "status": "valid",
+      "manifest": {
+        "schema_version": "0.1.0",
+        "package": {
+          "name": "vibepro",
+          "version": "0.2.0-beta.34",
+          "package_json_sha256": "63f42ef6e7ed01f31ad569eb59a7a25dc30a4c84d2713b8f3e279ebf40a7d8ff",
+          "entrypoint": "bin/vibepro.js"
+        },
+        "source_git": {
+          "commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+          "origin_url": "https://github.com/Unson-LLC/vibepro",
+          "origin_main_commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+          "origin_main_relation": "same",
+          "dirty": false
+        }
+      },
+      "errors": []
+    },
+    "source_git": {
+      "is_git_repo": false,
+      "commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro",
+      "origin_main_commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+      "origin_main_relation": "published",
+      "dirty": false,
+      "dirty_summary": []
+    },
+    "identity_digest": "b44cefd5f8c3cc7e5283c6aeb1499732b647653b36c3bf98664a2c0f2926a484",
+    "integrity": {
+      "status": "trusted",
+      "code": null,
+      "purpose": "evidence_generation",
+      "reasons": [
+        "manifested immutable npm runtime"
+      ]
+    }
+  },
+  "warnings": [
+    {
+      "id": "verification_observation_missing",
+      "command_name": "verify record",
+      "reason": "passing build claim was recorded without observation targets, scenarios, or observed values; add --target/--scenario/--observed so the evidence states what was observed, not only what was run"
+    }
+  ],
+  "commands": [
+    {
+      "kind": "build",
+      "status": "pass",
+      "command": "npm run docs:build",
+      "summary": "pass",
+      "artifact": null,
+      "artifact_check": {
+        "status": "missing",
+        "format": null,
+        "artifact_outcome": null,
+        "reason": "no machine-readable artifact was provided for a passing claim"
+      },
+      "artifact_observed_values": {},
+      "observation": {
+        "targets": [],
+        "scenarios": [],
+        "values": {}
+      },
+      "observation_check": {
+        "status": "missing",
+        "reason": "passing claim has no observation targets, scenarios, or observed values"
+      },
+      "evidence_source": "self_reported",
+      "executed_at": "2026-11-01T12:21:12.264Z",
+      "git_context": {
+        "head_sha": "e5f0db5e68ad9ab0d906c9e5941d03fe7709bd63",
+        "current_branch": "worker/476-public-contract-fixture",
+        "dirty": true,
+        "raw_dirty": true,
+        "status_fingerprint_hash": "0a4dfd5230b3e9014151d160bd91362fd10cec2817d180be05cff4ff6d16dc08",
+        "user_status_fingerprint_hash": "943290d632ecdff57d0ebd197ee117f252cd46ca8e37f24661cc379c085a292d",
+        "fingerprint_scope": {
+          "user_excludes": [
+            ".vibepro/",
+            ".worktrees/vibepro/"
+          ]
+        },
+        "recorded_at": "2026-11-01T12:21:12.261Z"
+      },
+      "content_binding": {
+        "schema_version": "0.1.0",
+        "model": "vibepro-content-scoped-evidence-freshness-v1",
+        "mode": "content_surface",
+        "status": "unbound",
+        "reason": "no content surface file could be derived from evidence targets, artifacts, or inspection inputs",
+        "recorded_head_sha": "e5f0db5e68ad9ab0d906c9e5941d03fe7709bd63",
+        "surface_files": [],
+        "missing_files": [],
+        "surface_hash": null
+      },
+      "runtime_identity": {
+        "schema_version": "0.2.0",
+        "collected_at": "2026-11-01T12:21:12.229Z",
+        "mode": "normal",
+        "source_kind": "npm_package",
+        "test_context": null,
+        "package": {
+          "name": "vibepro",
+          "version": "0.2.0-beta.34",
+          "exact_version": "0.2.0-beta.34",
+          "root": "/home/box/.local/lib/node_modules/vibepro"
+        },
+        "cli": {
+          "entrypoint": "/home/box/.local/lib/node_modules/vibepro/bin/vibepro.js",
+          "invoked_as": "/home/box/.local/bin/vibepro",
+          "runtime_module": "/home/box/.local/lib/node_modules/vibepro/src/runtime-info.js"
+        },
+        "release_manifest": {
+          "status": "valid",
+          "manifest": {
+            "schema_version": "0.1.0",
+            "package": {
+              "name": "vibepro",
+              "version": "0.2.0-beta.34",
+              "package_json_sha256": "63f42ef6e7ed01f31ad569eb59a7a25dc30a4c84d2713b8f3e279ebf40a7d8ff",
+              "entrypoint": "bin/vibepro.js"
+            },
+            "source_git": {
+              "commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+              "origin_url": "https://github.com/Unson-LLC/vibepro",
+              "origin_main_commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+              "origin_main_relation": "same",
+              "dirty": false
+            }
+          },
+          "errors": []
+        },
+        "source_git": {
+          "is_git_repo": false,
+          "commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+          "branch": null,
+          "origin_url": "https://github.com/Unson-LLC/vibepro",
+          "origin_main_commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+          "origin_main_relation": "published",
+          "dirty": false,
+          "dirty_summary": []
+        },
+        "identity_digest": "b44cefd5f8c3cc7e5283c6aeb1499732b647653b36c3bf98664a2c0f2926a484",
+        "integrity": {
+          "status": "trusted",
+          "code": null,
+          "purpose": "evidence_generation",
+          "reasons": [
+            "manifested immutable npm runtime"
+          ]
+        }
+      },
+      "managed_worktree_context": null,
+      "warnings": [
+        {
+          "id": "verification_observation_missing",
+          "command_name": "verify record",
+          "reason": "passing build claim was recorded without observation targets, scenarios, or observed values; add --target/--scenario/--observed so the evidence states what was observed, not only what was run"
+        }
+      ]
+    }
+  ]
+}
