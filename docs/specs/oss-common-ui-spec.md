@@ -110,3 +110,29 @@ Application must be explicit: do not style every `role=tablist` globally. Task l
 共通トークンの既定は紺の操作色とミントの補助面、Noto Sans JPです。本文はweight400、見出し・操作は500。余白・寸法・状態の意味は変えません。mintは小さい前景文字や白文字ボタンに使わず、操作前景は紺を使用します。警告・成功・失敗は既存の意味色を保持します。
 
 フォント本体の配信方法はホストが所有します。共通部品は `--bb-font-sans` と `--bb-font-weight-body` / `--bb-font-weight-medium` を読み、フォント取得不能でもシステム書体で機能を維持します。
+
+
+### Area navigation host presentation
+
+`createAreaNav` keeps its existing presentation when the following options are omitted. `sectionIconFor(section)` can return a decorative `Node` or `null` for a section heading link. The component wraps the icon in `.bb-area-section-icon[aria-hidden="true"]` and keeps the visible label separate; the label, destination, current state and hidden-screen fallback remain owned by the navigation. The icon is created once per section and retained across `show`, `setHidden`, `setCount` and `setLinks`. Plain headings do not display the icon. `sectionLinkClassName` adds a host class only to heading links, independently of `linkClassName` for area and supplied section links.
+
+Hosts set the following custom properties on their navigation container instead of overriding shared selectors. Every fallback preserves the existing appearance:
+
+| Custom property | Default |
+| --- | --- |
+| `--bb-area-nav-gap` | `2px` |
+| `--bb-area-section-gap` | `2px` |
+| `--bb-area-section-links-gap` | `2px` |
+| `--bb-area-section-margin-top` | `var(--bb-space-4)` |
+| `--bb-area-footer-margin-top` | `auto` |
+| `--bb-area-footer-padding-top` | `var(--bb-space-4)` |
+| `--bb-area-section-label-padding` | `0 10px 4px` |
+| `--bb-area-section-label-color` | `var(--bb-color-rail-muted, var(--bb-color-muted))` |
+| `--bb-area-section-label-font-size` | `11px` |
+| `--bb-area-section-label-font-weight` | `var(--bb-font-weight-medium)` |
+| `--bb-area-section-label-letter-spacing` | `.04em` |
+| `--bb-area-section-link-padding-top` | `4px` |
+| `--bb-area-section-link-gap` | `4px` |
+| `--bb-area-section-link-indicator-display` | `inline` (`none` hides the decorative chevron) |
+
+The heading link's padding-top token replaces the top edge of the label padding, as before. Presentation options do not change routing, remembered screens, section links, counts, keyboard focus or hidden-screen behavior. Hosts consume the published exact-pinned package for these options.
