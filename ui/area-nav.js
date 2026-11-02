@@ -97,6 +97,8 @@ export function resolveAreaTarget(area, { remembered = null, isShown = () => tru
  * @param {(screenId: string, event: Event) => void} [options.onSelect]
  * @param {(linkId: string, event: Event) => void} [options.onSelectLink] A link given by `setLinks`.
  * @param {(area: object) => Node|null} [options.iconFor] Icon in front of an area link.
+ * @param {(section: object) => Node|null} [options.sectionIconFor] Decorative icon in front of a section heading link.
+ * @param {string} [options.sectionLinkClassName] Extra class for section heading links.
  * @param {string} [options.linkClassName] Extra class for the area links (the host's look).
  */
 export function createAreaNav({
@@ -109,6 +111,8 @@ export function createAreaNav({
   onSelect,
   onSelectLink,
   iconFor,
+  sectionIconFor,
+  sectionLinkClassName = '',
   linkClassName = '',
   label = '画面',
 } = {}) {
@@ -194,7 +198,17 @@ export function createAreaNav({
       if (section) {
         // Both forms of the heading are made once; render shows one of them.
         group.headingText = makeElement(doc, 'div', { className: 'bb-area-section-label', text: section.label ?? '' });
-        group.headingLink = makeElement(doc, 'a', { className: 'bb-area-section-label bb-area-section-link', text: section.label ?? '' });
+        group.headingLink = makeElement(doc, 'a', {
+          className: ['bb-area-section-label bb-area-section-link', sectionLinkClassName].filter(Boolean).join(' '),
+          text: section.label ?? '',
+        });
+        const sectionIcon = sectionIconFor?.(section) ?? null;
+        if (sectionIcon) {
+          const decoration = makeElement(doc, 'span', { className: 'bb-area-section-icon', attrs: { 'aria-hidden': 'true' } });
+          decoration.append(sectionIcon);
+          group.headingLink.textContent = '';
+          group.headingLink.append(decoration, makeElement(doc, 'span', { className: 'bb-area-link-label', text: section.label ?? '' }));
+        }
         group.headingLink.addEventListener('click', (event) => {
           if (section.screenId) onSelect?.(section.screenId, event);
         });
