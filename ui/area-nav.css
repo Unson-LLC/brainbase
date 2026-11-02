@@ -9,45 +9,55 @@
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--bb-area-nav-gap, 2px);
 }
 
-.bb-area-section,
+.bb-area-section {
+  display: grid;
+  gap: var(--bb-area-section-gap, 2px);
+}
+
 .bb-area-section-links {
   display: grid;
-  gap: 2px;
+  gap: var(--bb-area-section-links-gap, 2px);
 }
 
 /* Space between the groups; the footer group sits at the bottom of the nav. */
 .bb-area-section + .bb-area-section {
-  margin-top: var(--bb-space-4);
+  margin-top: var(--bb-area-section-margin-top, var(--bb-space-4));
 }
 
 .bb-area-section.is-footer {
-  margin-top: auto;
-  padding-top: var(--bb-space-4);
+  margin-top: var(--bb-area-footer-margin-top, auto);
+  padding-top: var(--bb-area-footer-padding-top, var(--bb-space-4));
 }
 
 .bb-area-section-label {
-  padding: 0 10px 4px;
-  color: var(--bb-color-rail-muted, var(--bb-color-muted));
-  font-size: 11px;
-  font-weight: var(--bb-font-weight-medium);
-  letter-spacing: .04em;
+  padding: var(--bb-area-section-label-padding, 0 10px 4px);
+  color: var(--bb-area-section-label-color, var(--bb-color-rail-muted, var(--bb-color-muted)));
+  font-size: var(--bb-area-section-label-font-size, 11px);
+  font-weight: var(--bb-area-section-label-font-weight, var(--bb-font-weight-medium));
+  letter-spacing: var(--bb-area-section-label-letter-spacing, .04em);
 }
 
 .bb-area-section-link {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--bb-area-section-link-gap, 4px);
   border-radius: 6px;
-  padding-top: 4px;
+  padding-top: var(--bb-area-section-link-padding-top, 4px);
   text-decoration: none;
+}
+
+.bb-area-section-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
 }
 
 /* A heading that opens a screen says so with a chevron (not part of its name). */
 .bb-area-section-link::after {
   content: "›";
+  display: var(--bb-area-section-link-indicator-display, inline);
   font-size: 13px;
   line-height: 1;
 }
