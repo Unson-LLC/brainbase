@@ -4,6 +4,10 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
+## Candidate — v0.49.1（npm公開前）
+
+共通ナビゲーションの見出しリンクにホスト指定の装飾アイコンとクラスを渡し、グループの余白や見出しの文字組をCSS変数で調整できる候補です。指定しないホストの表示と既存のナビゲーション操作は変更しません。npm公開と利用ホストへの反映は、この候補記録だけでは確認できません。
+
 ## Candidate — v0.49.0（npm公開前）
 
 RQ-113のソースに依存しないentity index builderを、新しい公開subpath `@unson/brainbase-mcp/entity-indexer` に追加するminor更新候補です（#920）。`buildIndex`・`createEmptyIndex` と関連するhelper・型を提供し、既存の `createEntityIndexCache` のbuildとして利用できます。`GraphAPISource`・認証・evidence関数はホスト側に残します。npm公開・利用ホストの取り込みは、この候補記録だけでは確認できません。
