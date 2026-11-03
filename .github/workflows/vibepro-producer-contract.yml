@@ -24,7 +24,7 @@ jobs:
           package-manager-cache: false
       - name: Fetch public consumer without credentials
         env:
-          VIBEPRO_PIN: 2da2eb0ac4bdbb4ac3a46965345a46b7dae0b662
+          VIBEPRO_PIN: 203ddfeda6eeddb6c25c0e7bd65140e2ff1d0959
           GIT_CONFIG_GLOBAL: /dev/null
           GIT_CONFIG_SYSTEM: /dev/null
         run: |
