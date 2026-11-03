@@ -26,7 +26,8 @@ const allowedWorkflowFiles = new Set([
   '.github/workflows/public-message-promotion.yml',
   '.github/workflows/test.yml',
   '.github/workflows/pr-brainbase-line.yml',
-  '.github/workflows/vibepro-producer-contract.yml'
+  '.github/workflows/vibepro-producer-contract.yml',
+  '.github/workflows/adr-index.yml'
 ]);
 
 async function exists(path: string): Promise<boolean> {
@@ -84,7 +85,8 @@ describe('MCP-only repository hygiene', () => {
       '.github/workflows/public-message-promotion.yml',
       '.github/workflows/test.yml',
       '.github/workflows/pr-brainbase-line.yml',
-  '.github/workflows/vibepro-producer-contract.yml'
+  '.github/workflows/vibepro-producer-contract.yml',
+      '.github/workflows/adr-index.yml'
     ])).toEqual([]);
     expect(forbiddenMatches(['.github/workflows/xterm.yml'])).toEqual([
       '.github/workflows/xterm.yml'
