@@ -269,6 +269,53 @@ describe('meeting minutes UI loading states', () => {
 });
 
 describe('meeting minutes UI host extensions', () => {
+  describe.each(['mutate', 'createMeeting'])('create form via %s', (transport) => {
+    it.each([
+      ['empty', ''],
+      ['whitespace-only', ' \t\n '],
+    ])('omits minutes_title when the title is %s', async (_label, minutesTitle) => {
+      const payload = await submitWithTitle(minutesTitle);
+      expect(payload).not.toHaveProperty('minutes_title');
+    });
+
+    it('sends a non-empty minutes title unchanged', async () => {
+      const minutesTitle = '  初回の議事録  ';
+      const payload = await submitWithTitle(minutesTitle);
+      expect(payload.minutes_title).toBe(minutesTitle);
+    });
+
+    async function submitWithTitle(minutesTitle) {
+      const root = new FakeElement('div');
+      const payloads = [];
+      const view = createMeetingMinutesUI({
+        root,
+        document: new FakeDocument(),
+        ...(transport === 'createMeeting' ? {
+          createProjectOptions: () => [{ value: 'project-a', label: 'A' }],
+          createProjectValue: () => 'project-a',
+          createMeeting: async (payload) => { payloads.push(payload); return {}; },
+        } : {}),
+        fetcher: async (_path, init = {}) => {
+          if (init.method === 'POST') {
+            payloads.push(JSON.parse(init.body));
+            return jsonResponse(200, {});
+          }
+          return jsonResponse(200, meetingList());
+        },
+      });
+      await flush();
+      findAll(root, node => node.tagName === 'BUTTON' && node.textContent === '会議を作成')[0].listeners.get('click')();
+      const form = findAll(root, node => node.tagName === 'FORM' && node.className === 'bb-minutes-create-form')[0];
+      findAll(form, node => node.getAttribute('name') === 'title')[0].value = '週次定例';
+      findAll(form, node => node.getAttribute('name') === 'minutes_title')[0].value = minutesTitle;
+      await form.listeners.get('submit')({ preventDefault() {} });
+      expect(payloads).toHaveLength(1);
+      expect(payloads[0].title).toBe('週次定例');
+      view.destroy();
+      return payloads[0];
+    }
+  });
+
   it('keeps create available when optional host extensions are omitted', async () => {
     const root = new FakeElement('div');
     const view = createMeetingMinutesUI({

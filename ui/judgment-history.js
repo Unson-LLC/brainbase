@@ -1073,10 +1073,6 @@ function appendReferenceList(doc, references) {
   if (list.children?.length) wrap.append(list);
   if (bare.length) {
     wrap.append(makeWorkspaceElement(doc, 'p', { className: 'bb-jh-reference-kinds', text: referenceKindCounts(bare) }));
-    wrap.append(makeWorkspaceElement(doc, 'p', {
-      className: 'bb-jh-reference-note',
-      text: 'この記録には参照の名前が残っていません。どの記録かは「記録の詳細」のIDで確かめられます。',
-    }));
   }
   return wrap;
 }
@@ -1466,10 +1462,6 @@ function appendNormalRecordDetails(doc, record, { onCopyReference, open = false,
   ]));
   const handoff = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-handoff' });
   handoff.append(makeWorkspaceElement(doc, 'h4', { text: '次の判断に引き継ぐ' }));
-  handoff.append(makeWorkspaceElement(doc, 'p', {
-    className: 'bb-jh-reference-note',
-    text: 'この判断を別の判断の根拠として使うときに、AIへ渡す参照です。コピーしてAIとの会話に貼ります。',
-  }));
   handoff.append(appendNormalReferenceExport(doc, record, null, { onCopyReference }));
   for (const event of events) handoff.append(appendNormalReferenceExport(doc, record, event, { onCopyReference }));
   details.append(handoff);
@@ -1896,13 +1888,6 @@ function summaryLine(doc, aggregate, { loading = false } = {}) {
   if (aggregate?.mode !== 'normal') return line;
   line.append(makeWorkspaceElement(doc, 'span', { text: '　・　結果を確かめた判断 ' }));
   line.append(makeWorkspaceElement(doc, Number.isInteger(confirmed) ? 'strong' : 'span', { text: Number.isInteger(confirmed) ? `${confirmed}件` : '数えられません' }));
-  // Results are never recorded automatically; say how a person adds one.
-  if (Number.isInteger(confirmed) && confirmed < retrieved) {
-    line.append(makeWorkspaceElement(doc, 'span', {
-      className: 'bb-jh-summary-note',
-      text: '　結果は自動では記録されません。判断を開いて「良かったか」を記録すると数えられます。',
-    }));
-  }
   return line;
 }
 

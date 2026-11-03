@@ -1,0 +1,273 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-oss-public-contract-fixture-v1",
+  "story_doc_path": null,
+  "source": "story_add",
+  "lifecycle": "declared_not_started",
+  "evidence": [],
+  "acceptance_criteria": [
+    {
+      "id": "AC-7",
+      "description": "package exports と実際のsubpath解決でfixtureを読める",
+      "test_refs": [
+        {
+          "file": "tests/public-contract-fixture.test.ts",
+          "name": "AC-7 exposes the fixture through package exports"
+        }
+      ]
+    },
+    {
+      "id": "AC-8",
+      "description": "internal定義が実装と一致し、公開群・OSS tools/listにinternal variantがない",
+      "test_refs": [
+        {
+          "file": "tests/public-contract-fixture.test.ts",
+          "name": "AC-8 keeps internal foundation tools out of the public contract"
+        }
+      ]
+    },
+    {
+      "id": "AC-9",
+      "description": "既存C-6とqueue AC-1がfixtureを参照し固定件数を持たない",
+      "test_refs": [
+        {
+          "file": "tests/public-contract-fixture.test.ts",
+          "name": "AC-9 existing contract tests use the fixture as the single source of truth"
+        }
+      ]
+    },
+    {
+      "id": "AC-10",
+      "description": "queue群のreleaseStatusが必須でunreleased",
+      "test_refs": [
+        {
+          "file": "tests/public-contract-fixture.test.ts",
+          "name": "AC-10 marks queue task tools as unreleased"
+        }
+      ]
+    }
+  ],
+  "scenario_clauses": [],
+  "scenario_lineage": null,
+  "accepted_spec_lineage": null,
+  "semantic_assessment": {
+    "status": "unavailable",
+    "semantic_contract_status": "missing",
+    "semantic_contract_present": false,
+    "answer_status": "unavailable",
+    "answer_resolution": "unavailable",
+    "automatic_continuation": false,
+    "unresolved_behavior": {
+      "action": "ask_once",
+      "max_questions": 1,
+      "automatic_continuation": false
+    },
+    "counterexample": {
+      "status": "unavailable",
+      "declared": false,
+      "verified": false,
+      "happy_path_resolutions": []
+    },
+    "clause_assessments": [],
+    "outcome_coverage": {
+      "status": "unknown",
+      "internal_output": {
+        "status": "unknown",
+        "declared_count": 0,
+        "answer_resolved_count": 0,
+        "answer_unresolved_count": 0,
+        "invalid_count": 0,
+        "verification_status": "unknown",
+        "clause_ids": []
+      },
+      "downstream_outcome": {
+        "status": "unknown",
+        "declared_count": 0,
+        "answer_resolved_count": 0,
+        "answer_unresolved_count": 0,
+        "invalid_count": 0,
+        "verification_status": "unknown",
+        "clause_ids": []
+      },
+      "canonical_readback": {
+        "status": "unknown",
+        "declared_count": 0,
+        "answer_resolved_count": 0,
+        "answer_unresolved_count": 0,
+        "invalid_count": 0,
+        "verification_status": "unknown",
+        "clause_ids": []
+      },
+      "unknown": {
+        "status": "unknown",
+        "declared_count": 0,
+        "answer_resolved_count": 0,
+        "answer_unresolved_count": 0,
+        "invalid_count": 0,
+        "verification_status": "unknown",
+        "clause_ids": []
+      }
+    },
+    "reason_codes": [
+      "semantic_contract_missing"
+    ],
+    "errors": [],
+    "warnings": []
+  },
+  "semantic_assessments": [],
+  "outcome_coverage": {
+    "status": "unknown",
+    "internal_output": {
+      "status": "unknown",
+      "declared_count": 0,
+      "answer_resolved_count": 0,
+      "answer_unresolved_count": 0,
+      "invalid_count": 0,
+      "verification_status": "unknown",
+      "clause_ids": []
+    },
+    "downstream_outcome": {
+      "status": "unknown",
+      "declared_count": 0,
+      "answer_resolved_count": 0,
+      "answer_unresolved_count": 0,
+      "invalid_count": 0,
+      "verification_status": "unknown",
+      "clause_ids": []
+    },
+    "canonical_readback": {
+      "status": "unknown",
+      "declared_count": 0,
+      "answer_resolved_count": 0,
+      "answer_unresolved_count": 0,
+      "invalid_count": 0,
+      "verification_status": "unknown",
+      "clause_ids": []
+    },
+    "unknown": {
+      "status": "unknown",
+      "declared_count": 0,
+      "answer_resolved_count": 0,
+      "answer_unresolved_count": 0,
+      "invalid_count": 0,
+      "verification_status": "unknown",
+      "clause_ids": []
+    }
+  },
+  "coverage_summary": {
+    "clause_count": 0,
+    "acceptance_criteria_count": 4,
+    "scenario_clause_count": 0,
+    "mapped_count": 4,
+    "weakly_mapped_count": 0,
+    "unmapped_count": 0,
+    "semantic_assessment": {
+      "status": "unavailable",
+      "semantic_contract_status": "missing",
+      "semantic_contract_present": false,
+      "answer_status": "unavailable",
+      "answer_resolution": "unavailable",
+      "automatic_continuation": false,
+      "unresolved_behavior": {
+        "action": "ask_once",
+        "max_questions": 1,
+        "automatic_continuation": false
+      },
+      "counterexample": {
+        "status": "unavailable",
+        "declared": false,
+        "verified": false,
+        "happy_path_resolutions": []
+      },
+      "clause_assessments": [],
+      "outcome_coverage": {
+        "status": "unknown",
+        "internal_output": {
+          "status": "unknown",
+          "declared_count": 0,
+          "answer_resolved_count": 0,
+          "answer_unresolved_count": 0,
+          "invalid_count": 0,
+          "verification_status": "unknown",
+          "clause_ids": []
+        },
+        "downstream_outcome": {
+          "status": "unknown",
+          "declared_count": 0,
+          "answer_resolved_count": 0,
+          "answer_unresolved_count": 0,
+          "invalid_count": 0,
+          "verification_status": "unknown",
+          "clause_ids": []
+        },
+        "canonical_readback": {
+          "status": "unknown",
+          "declared_count": 0,
+          "answer_resolved_count": 0,
+          "answer_unresolved_count": 0,
+          "invalid_count": 0,
+          "verification_status": "unknown",
+          "clause_ids": []
+        },
+        "unknown": {
+          "status": "unknown",
+          "declared_count": 0,
+          "answer_resolved_count": 0,
+          "answer_unresolved_count": 0,
+          "invalid_count": 0,
+          "verification_status": "unknown",
+          "clause_ids": []
+        }
+      },
+      "reason_codes": [
+        "semantic_contract_missing"
+      ],
+      "errors": [],
+      "warnings": []
+    },
+    "semantic_assessments": [],
+    "outcome_coverage": {
+      "status": "unknown",
+      "internal_output": {
+        "status": "unknown",
+        "declared_count": 0,
+        "answer_resolved_count": 0,
+        "answer_unresolved_count": 0,
+        "invalid_count": 0,
+        "verification_status": "unknown",
+        "clause_ids": []
+      },
+      "downstream_outcome": {
+        "status": "unknown",
+        "declared_count": 0,
+        "answer_resolved_count": 0,
+        "answer_unresolved_count": 0,
+        "invalid_count": 0,
+        "verification_status": "unknown",
+        "clause_ids": []
+      },
+      "canonical_readback": {
+        "status": "unknown",
+        "declared_count": 0,
+        "answer_resolved_count": 0,
+        "answer_unresolved_count": 0,
+        "invalid_count": 0,
+        "verification_status": "unknown",
+        "clause_ids": []
+      },
+      "unknown": {
+        "status": "unknown",
+        "declared_count": 0,
+        "answer_resolved_count": 0,
+        "answer_unresolved_count": 0,
+        "invalid_count": 0,
+        "verification_status": "unknown",
+        "clause_ids": []
+      }
+    },
+    "scenario_lineage": null,
+    "examples": []
+  },
+  "created_at": "2026-11-01T12:20:56.678Z",
+  "updated_at": "2026-11-01T12:20:56.678Z"
+}

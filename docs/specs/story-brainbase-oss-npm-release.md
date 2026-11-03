@@ -1,5 +1,9 @@
 # Brainbase OSS npm Release Spec
 
+## Public surface version policy
+
+2026-11-01 Director 決定: 0.x の間、公開面の破壊的変更（削除・名前変更・必須入力追加・bin変更）は minor bump、追加変更は patch bump で出す。
+
 ## Release flow
 
 ```mermaid

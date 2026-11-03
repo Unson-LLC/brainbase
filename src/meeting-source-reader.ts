@@ -83,8 +83,21 @@ export interface MeetingSourceProviderSummary {
   text: string;
 }
 
+/**
+ * `ready`: a usable summary is present. `generating`: the provider is still
+ * producing it (Tactiq), so it should be saved as unfinished and re-read later.
+ * `empty`: the provider has no summary for this meeting.
+ */
+export type MeetingSourceSummaryState = 'ready' | 'generating' | 'empty';
+
 export type MeetingSourceSummaryResult =
-  | { status: 'ok'; summary: MeetingSourceProviderSummary | null }
+  | {
+      status: 'ok';
+      state: MeetingSourceSummaryState;
+      summary: MeetingSourceProviderSummary | null;
+      /** Tactiq generation job id while `state` is `generating`; `null` otherwise. */
+      jobId: string | null;
+    }
   | { status: 'unavailable'; failure: MeetingSourceFailure };
 
 export interface TactiqTranscriptRead {
@@ -224,12 +237,19 @@ export async function readProviderSummary(input: {
   try {
     if (input.provider === 'plaud') {
       const payload = await invoke(input.callTool, 'get_note', { file_id: input.meetingId });
-      return { status: 'ok', summary: toSummary(extractText(payload)) };
+      const summary = toSummary(extractText(payload));
+      return { status: 'ok', state: summary ? 'ready' : 'empty', summary, jobId: null };
     }
     const payload = asRecord(await invoke(input.callTool, 'get_meeting', { meetingId: input.meetingId }));
     const detailed = asRecord(payload?.detailedSummary);
-    if (!detailed || detailed.status !== 'ready') return { status: 'ok', summary: null };
-    return { status: 'ok', summary: toSummary(extractText(detailed.content)) };
+    // A summary still being produced is saved as unfinished so it can be
+    // re-read with its jobId; it is never returned as a finished summary.
+    if (detailed?.status === 'generating') {
+      return { status: 'ok', state: 'generating', summary: null, jobId: stringValue(detailed.jobId) };
+    }
+    if (!detailed || detailed.status !== 'ready') return { status: 'ok', state: 'empty', summary: null, jobId: null };
+    const summary = toSummary(extractText(detailed.content));
+    return { status: 'ok', state: summary ? 'ready' : 'empty', summary, jobId: null };
   } catch (error) {
     return { status: 'unavailable', failure: await classifyFailure(error, input.provider, input.callTool, 'meeting', now()) };
   }
