@@ -713,6 +713,8 @@ export function createMeetingMinutesUI({
     minutesId: null,
     versionId: null,
     loading: false,
+    nextCursor: null,
+    moreError: null,
     listError: null,
     detailError: null,
     filters: { ...EMPTY_FILTERS },
@@ -727,6 +729,7 @@ export function createMeetingMinutesUI({
   };
   let disposed = false;
   let listRequestGeneration = 0;
+  let seenListCursors = new Set();
   let detailRequestGeneration = 0;
   let createReasonSequence = 0;
   let connectionsSlot = null;
@@ -1450,6 +1453,16 @@ export function createMeetingMinutesUI({
     return item;
   }
 
+  function appendMore(parent) {
+    if (!state.nextCursor) return;
+    if (state.moreError) parent.append(makeElement(doc, 'p', {
+      className: 'bb-minutes-error', textContent: state.moreError, attrs: { role: 'alert' },
+    }));
+    parent.append(button(doc, state.loading ? '読み込んでいます。' : 'もっと見る', () => loadMeetings({ append: true }), {
+      disabled: state.loading,
+    }));
+  }
+
   function renderList() {
     clear(listPane);
     const head = makeElement(doc, 'div', { className: 'bb-minutes-pane-head' });
@@ -1464,7 +1477,7 @@ export function createMeetingMinutesUI({
     const narrowed = clientFiltersActive();
     head.append(makeElement(doc, 'p', {
       className: 'bb-minutes-sort-note',
-      textContent: narrowed ? `${meetings.length}件中${visible.length}件` : `${meetings.length}件`,
+      textContent: `${narrowed ? `${meetings.length}件中${visible.length}件` : `${meetings.length}件`}${state.nextCursor ? '（続きあり・絞り込みは読込済みの会議が対象）' : ''}`,
     }));
     if (compactToolbar) {
       const create = head.querySelector('button');
@@ -1489,17 +1502,20 @@ export function createMeetingMinutesUI({
           : 'まだ議事録はありません。会議を取り込むと、ここに新しい順で並びます。',
       }));
       if (filtersActive() && !compact) listPane.append(button(doc, '条件を外す', () => clearFilters()));
+      appendMore(listPane);
       return;
     }
     if (visible.length === 0) {
-      listPane.append(makeElement(doc, 'p', { className: 'bb-minutes-empty', textContent: '条件に合う会議はありません。' }));
+      listPane.append(makeElement(doc, 'p', { className: 'bb-minutes-empty', textContent: state.nextCursor ? '読み込んだ会議に条件に合うものはありません。' : '条件に合う会議はありません。' }));
       if (!compact) listPane.append(button(doc, '条件を外す', () => clearFilters()));
+      appendMore(listPane);
       return;
     }
     const list = makeElement(doc, 'div', { className: 'bb-minutes-meeting-list' });
     if (state.sort === 'updated-desc' && !compact) {
       for (const entry of visible) list.append(renderMeetingRow(entry, { flat: true }));
       listPane.append(list);
+      appendMore(listPane);
       return;
     }
     const updatedOrder = compact && state.sort === 'updated-desc';
@@ -1528,6 +1544,7 @@ export function createMeetingMinutesUI({
       for (const entry of unregistered) list.append(renderMeetingRow(entry));
     }
     listPane.append(list);
+    appendMore(listPane);
   }
 
   function renderRail(version, documentRecord, meeting) {
@@ -1950,33 +1967,32 @@ export function createMeetingMinutesUI({
     detailPane.append(form);
   }
 
-  async function loadMeetings({ restoreFocus = false, quiet = false } = {}) {
+  async function loadMeetings({ restoreFocus = false, quiet = false, append = false } = {}) {
+    if (append && (state.loading || !state.nextCursor)) return state.meetings;
     const requestGeneration = ++listRequestGeneration;
     const isCurrentRequest = () => !disposed && requestGeneration === listRequestGeneration;
     state.loading = true;
+    state.moreError = null;
+    if (append) renderList();
     if (!quiet) setStatus('会議一覧を読み込んでいます。');
     try {
-      // The list carries no version body and the host caps each page, so even a long
-      // history reads as a run of small responses instead of one large one. The cursor
-      // walks the append-only meetings to the end and every page is gathered, so the
-      // screen still shows every meeting (UNS-264). The first page keeps the bare path
-      // so a host without paging keeps answering the single request it always has.
-      const collected = [];
-      let cursor = null;
-      for (let page = 0; ; page += 1) {
-        const payload = await call(cursor === null ? '' : `?cursor=${encodeURIComponent(cursor)}`);
-        if (!isCurrentRequest()) return state.meetings;
-        if (!isRecord(payload) || !Array.isArray(payload.meetings) || payload.absence_confirmed !== true) throw new Error('会議一覧の形式を確認できません。');
-        for (const entry of payload.meetings) collected.push(entry);
-        const next = typeof payload.next_cursor === 'string' ? payload.next_cursor.trim() : '';
-        if (!next || next === cursor || page >= 10000) break;
-        cursor = next;
-      }
-      state.meetings = sortMeetings(collected);
+      const cursor = append ? state.nextCursor : null;
+      const payload = await call(`?limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`);
+      if (!isCurrentRequest()) return state.meetings;
+      if (!isRecord(payload) || !Array.isArray(payload.meetings) || payload.absence_confirmed !== true) throw new Error('会議一覧の形式を確認できません。');
+      if (payload.next_cursor != null && (typeof payload.next_cursor !== 'string' || !payload.next_cursor.trim())) throw new Error('会議一覧の続きの形式を確認できません。');
+      const next = payload.next_cursor ?? null;
+      if (next && (next === cursor || (append && seenListCursors.has(next)))) throw new Error('会議一覧の続きが進みません。再読み込みしてください。');
+      const entries = append ? [...state.meetings, ...payload.meetings] : payload.meetings;
+      const unique = new Map(entries.map(entry => [entry?.meeting?.meeting_id, entry]));
+      state.meetings = sortMeetings([...unique.values()]);
+      state.nextCursor = next;
+      if (!append) seenListCursors = new Set();
+      if (next) seenListCursors.add(next);
       state.listError = null;
       const selectedMeetingStillListed = state.meetingId !== null
         && state.meetings.some((entry) => entry?.meeting?.meeting_id === state.meetingId);
-      if (state.meetingId !== null && !selectedMeetingStillListed) {
+      if (state.meetingId !== null && !selectedMeetingStillListed && !append) {
         detailRequestGeneration += 1;
         state.detail = null;
         state.meetingId = null;
@@ -1995,10 +2011,17 @@ export function createMeetingMinutesUI({
     } catch (error) {
       if (!isCurrentRequest()) return state.meetings;
       state.listError = loadErrorMessage(error, '会議一覧を読み込めませんでした。');
+      if (append && !isAccessDenied(error)) {
+        state.moreError = loadErrorMessage(error, '続きの会議を読み込めませんでした。');
+        state.listError = null;
+        setStatus(state.moreError, 'error');
+        return state.meetings;
+      }
       const preserve = preserveLoadedStateOnFailure(error);
       const hadDetail = Boolean(state.detail) || state.meetingId !== null;
       if (!preserve) {
         state.meetings = [];
+        state.nextCursor = null;
         if (hadDetail) {
           detailRequestGeneration += 1;
           state.detail = null;
@@ -2012,7 +2035,7 @@ export function createMeetingMinutesUI({
       if (!preserve && hadDetail) renderDetail(null);
       setStatus(state.listError, 'error');
     } finally {
-      if (isCurrentRequest()) state.loading = false;
+      if (isCurrentRequest()) { state.loading = false; renderList(); }
     }
     return state.meetings;
   }

@@ -188,7 +188,7 @@ describe('meeting minutes UI loading states', () => {
       root,
       document: new FakeDocument(),
       fetcher: async (path) => {
-        if (path === '/api/meeting-minutes') return jsonResponse(200, meetingList());
+        if (path === '/api/meeting-minutes?limit=50') return jsonResponse(200, meetingList());
         detailAttempts += 1;
         if (detailAttempts === 2) return jsonResponse(503, { error: { code: 'storage_unavailable', message: '一時的な詳細障害' } });
         if (detailAttempts === 4) return jsonResponse(403, { error: { code: 'authorization_denied', message: 'この会議を読む権限がありません' } });
@@ -220,7 +220,7 @@ describe('meeting minutes UI loading states', () => {
       root,
       document: new FakeDocument(),
       fetcher: async (path) => {
-        if (path === '/api/meeting-minutes') {
+        if (path === '/api/meeting-minutes?limit=50') {
           listAttempts += 1;
           return listAttempts === 1
             ? jsonResponse(200, meetingList())
@@ -246,7 +246,7 @@ describe('meeting minutes UI loading states', () => {
       root,
       document: new FakeDocument(),
       fetcher: async (path) => {
-        if (path === '/api/meeting-minutes') {
+        if (path === '/api/meeting-minutes?limit=50') {
           listAttempts += 1;
           return listAttempts === 1
             ? jsonResponse(200, meetingList())
@@ -338,7 +338,7 @@ describe('meeting minutes UI host extensions', () => {
     const view = createMeetingMinutesUI({
       root,
       document: new FakeDocument(),
-      fetcher: async (path) => path === '/api/meeting-minutes'
+      fetcher: async (path) => path === '/api/meeting-minutes?limit=50'
         ? jsonResponse(200, meetingList())
         : jsonResponse(200, meetingDetail()),
       meetingLabel: (meeting) => {
@@ -424,7 +424,7 @@ describe('meeting minutes UI request generations', () => {
       root,
       document: new FakeDocument(),
       fetcher: async (path) => {
-        if (path !== '/api/meeting-minutes') return jsonResponse(404, {});
+        if (path !== '/api/meeting-minutes?limit=50') return jsonResponse(404, {});
         listCalls += 1;
         if (listCalls === 1) return jsonResponse(200, meetingList());
         const request = deferred();
@@ -458,7 +458,7 @@ describe('meeting minutes UI request generations', () => {
       root,
       document: new FakeDocument(),
       fetcher: async (path) => {
-        if (path === '/api/meeting-minutes') return jsonResponse(200, meetingListFor(meetingOne, meetingTwo));
+        if (path === '/api/meeting-minutes?limit=50') return jsonResponse(200, meetingListFor(meetingOne, meetingTwo));
         const request = deferred();
         detailRequests.push({ path, request });
         return request.promise;
@@ -491,7 +491,7 @@ describe('meeting minutes UI request generations', () => {
       root,
       document: new FakeDocument(),
       fetcher: async (path) => {
-        if (path === '/api/meeting-minutes') {
+        if (path === '/api/meeting-minutes?limit=50') {
           listCalls += 1;
           if (listCalls === 1) return jsonResponse(200, meetingListFor(meeting));
           listRefresh = deferred();
@@ -530,7 +530,7 @@ describe('meeting minutes UI request generations', () => {
       root,
       document: new FakeDocument(),
       fetcher: async (path) => {
-        if (path === '/api/meeting-minutes') {
+        if (path === '/api/meeting-minutes?limit=50') {
           listCalls += 1;
           if (listCalls === 1) return jsonResponse(200, meetingListFor(meeting));
           listRefresh = deferred();
@@ -562,7 +562,7 @@ describe('meeting minutes UI editing guard', () => {
     const view = createMeetingMinutesUI({
       root,
       document: new FakeDocument(),
-      fetcher: async (path) => path === '/api/meeting-minutes'
+      fetcher: async (path) => path === '/api/meeting-minutes?limit=50'
         ? jsonResponse(200, meetingList())
         : jsonResponse(200, meetingDetail()),
       canEditMinutes: false,
@@ -587,7 +587,7 @@ describe('meeting minutes UI editing guard', () => {
       document: new FakeDocument(),
       fetcher: async (path, init = {}) => {
         methods.push(init.method ?? 'GET');
-        return path === '/api/meeting-minutes'
+        return path === '/api/meeting-minutes?limit=50'
           ? jsonResponse(200, meetingList())
           : jsonResponse(200, meetingDetail());
       },
@@ -659,7 +659,7 @@ describe('meeting minutes page review', () => {
       ...(createUnavailableReason === undefined ? {} : { createUnavailableReason }),
       ...(hostFilters === undefined ? {} : { hostFilters }),
       fetcher: async (path) => {
-        if (path === '/api/meeting-minutes') return jsonResponse(200, { absence_confirmed: true, meetings });
+        if (path === '/api/meeting-minutes?limit=50') return jsonResponse(200, { absence_confirmed: true, meetings });
         const id = decodeURIComponent(path.split('/').pop());
         return jsonResponse(200, detailFor(id));
       },
@@ -1287,7 +1287,7 @@ describe('editing and withdrawing minutes', () => {
       ...options,
       fetcher: async (path, init = {}) => {
         calls.push({ path, method: init.method ?? 'GET', body: init.body ? JSON.parse(init.body) : undefined });
-        if (path === '/api/meeting-minutes') return jsonResponse(200, meetingList());
+        if (path === '/api/meeting-minutes?limit=50') return jsonResponse(200, meetingList());
         if (init.method === 'POST') {
           current = options.afterPost ? options.afterPost(current, path) : current;
           return jsonResponse(200, current);
@@ -1394,7 +1394,7 @@ describe('editing and withdrawing minutes', () => {
     const post = calls.find((call) => call.method === 'POST');
     expect(post.path).toBe('/api/meeting-minutes/meeting-1/minutes/minutes-1/withdraw');
     expect(post.body).toEqual({ expected_revision: 1 });
-    expect(calls.filter((call) => call.path === '/api/meeting-minutes').length).toBeGreaterThanOrEqual(2);
+    expect(calls.filter((call) => call.path === '/api/meeting-minutes?limit=50').length).toBeGreaterThanOrEqual(2);
     expect(collectText(root)).toContain('取り下げ済み');
   });
 
@@ -1449,7 +1449,7 @@ describe('meeting minutes connections', () => {
       root,
       rail,
       document: new FakeDocument(),
-      fetcher: options.fetcher ?? (async (path) => path === '/api/meeting-minutes'
+      fetcher: options.fetcher ?? (async (path) => path === '/api/meeting-minutes?limit=50'
         ? jsonResponse(200, meetingList())
         : jsonResponse(200, meetingDetail())),
       meetingConnections,
@@ -1561,7 +1561,7 @@ describe('meeting minutes connections', () => {
     const meetings = meetingListFor(meetingRecord('meeting-a', 'A会議'), meetingRecord('meeting-b', 'B会議'));
     const { root, view } = mountWith(() => pending.shift().promise, {
       fetcher: async (path) => {
-        if (path === '/api/meeting-minutes') return jsonResponse(200, meetings);
+        if (path === '/api/meeting-minutes?limit=50') return jsonResponse(200, meetings);
         const id = decodeURIComponent(path.split('/').pop());
         const meeting = meetings.meetings.find((entry) => entry.meeting.meeting_id === id).meeting;
         return jsonResponse(200, meetingDetailFor(meeting, `${id}の本文`));
@@ -1589,7 +1589,7 @@ describe('meeting minutes connections', () => {
       calls += 1;
       return { tasks: { status: 'recorded', items: [{ label: '資料を直す' }] } };
     }, {
-      fetcher: async (path) => path === '/api/meeting-minutes'
+      fetcher: async (path) => path === '/api/meeting-minutes?limit=50'
         ? jsonResponse(200, meetingList())
         : jsonResponse(200, detail),
     });
@@ -1639,7 +1639,7 @@ describe('explicit creation project', () => {
     findAll(form, node => node.getAttribute?.('name') === 'title')[0].value = '会議B';
     await form.listeners.get('submit')({ preventDefault() {} });
     expect(creations).toEqual([{ payload: expect.objectContaining({ title: '会議B' }), projectCode: 'project-b' }]);
-    expect(requests).toEqual(['/api/meeting-minutes', '/api/meeting-minutes']);
+    expect(requests).toEqual(['/api/meeting-minutes?limit=50', '/api/meeting-minutes?limit=50']);
     expect(scope.values).toEqual(['project-a']);
     expect(findAll(root, node => node.className.includes('bb-minutes-status'))[0].textContent).toBe('会議を保存しました。');
     view.destroy();
@@ -1647,19 +1647,20 @@ describe('explicit creation project', () => {
 });
 
 describe('meeting minutes UI pagination', () => {
-  it('follows next_cursor so every page of a bounded list is shown (UNS-264)', async () => {
+  const buttonNamed = (root, label) => findAll(root, node => node.tagName === 'BUTTON' && node.textContent === label);
+  it('renders the first page immediately and reads each next page only on demand (UNS-333)', async () => {
     const pages = {
-      '': {
+      '?limit=50': {
         absence_confirmed: true,
         next_cursor: 'meeting-2',
         meetings: [{ meeting: meetingRecord('meeting-1', '第1回'), minutes: [] }],
       },
-      '?cursor=meeting-2': {
+      '?limit=50&cursor=meeting-2': {
         absence_confirmed: true,
         next_cursor: 'meeting-3',
         meetings: [{ meeting: meetingRecord('meeting-2', '第2回'), minutes: [] }],
       },
-      '?cursor=meeting-3': {
+      '?limit=50&cursor=meeting-3': {
         absence_confirmed: true,
         meetings: [{ meeting: meetingRecord('meeting-3', '第3回'), minutes: [] }],
       },
@@ -1678,10 +1679,103 @@ describe('meeting minutes UI pagination', () => {
       },
     });
     await flush();
-    // The first page keeps the bare path; later pages carry the cursor the host returned.
-    expect(requests).toEqual(['', '?cursor=meeting-2', '?cursor=meeting-3']);
+    expect(requests).toEqual(['?limit=50']);
+    expect(view.state.meetings).toHaveLength(1);
+    expect(view.state.loading).toBe(false);
+    expect(collectText(root)).toContain('続きあり');
+    await buttonNamed(root, 'もっと見る')[0].listeners.get('click')();
+    expect(requests).toEqual(['?limit=50', '?limit=50&cursor=meeting-2']);
+    expect(view.state.meetings).toHaveLength(2);
+    await buttonNamed(root, 'もっと見る')[0].listeners.get('click')();
+    expect(requests).toEqual(['?limit=50', '?limit=50&cursor=meeting-2', '?limit=50&cursor=meeting-3']);
+    expect(buttonNamed(root, 'もっと見る')).toHaveLength(0);
     expect(view.state.meetings.map((entry) => entry.meeting.meeting_id)).toEqual(['meeting-1', 'meeting-2', 'meeting-3']);
     expect(collectText(root)).toContain('3件の会議を読み込みました。');
+    view.destroy();
+  });
+
+  it('keeps loaded rows and detail on a failed continuation and retries the same opaque cursor', async () => {
+    const root = new FakeElement('div');
+    const requests = [];
+    let fail = true;
+    const view = createMeetingMinutesUI({ root, document: new FakeDocument(), fetcher: async path => {
+      requests.push(path);
+      if (path === '/api/meeting-minutes/meeting-1') return jsonResponse(200, meetingDetail());
+      if (path === '/api/meeting-minutes?limit=50') return jsonResponse(200, { ...meetingList(), next_cursor: 'opaque +/=' });
+      if (fail) return jsonResponse(503, { error: { message: '続きが一時的に利用できません' } });
+      return jsonResponse(200, { absence_confirmed: true, meetings: [meetingList().meetings[0], { meeting: meetingRecord('meeting-2', '古い会議'), minutes: [] }] });
+    } });
+    await flush();
+    await view.openMeeting('meeting-1');
+    await buttonNamed(root, 'もっと見る')[0].listeners.get('click')();
+    expect(view.state.meetings).toHaveLength(1);
+    expect(view.state.detail.meeting.meeting_id).toBe('meeting-1');
+    expect(collectText(root)).toContain('続きが一時的に利用できません');
+    fail = false;
+    await buttonNamed(root, 'もっと見る')[0].listeners.get('click')();
+    expect(requests.slice(-2)).toEqual(Array(2).fill('/api/meeting-minutes?limit=50&cursor=opaque%20%2B%2F%3D'));
+    expect(view.state.meetings).toHaveLength(2);
+    expect(view.state.moreError).toBeNull();
+    expect(view.state.detail.meeting.meeting_id).toBe('meeting-1');
+    view.destroy();
+  });
+
+  it('ignores duplicate continuation clicks and a stale response after refresh', async () => {
+    const root = new FakeElement('div');
+    const requests = [];
+    let resolveMore;
+    const view = createMeetingMinutesUI({ root, document: new FakeDocument(), fetcher: async path => {
+      requests.push(path);
+      if (path.includes('&cursor=')) return new Promise(resolve => { resolveMore = resolve; });
+      return jsonResponse(200, { ...meetingList(), next_cursor: 'older' });
+    } });
+    await flush();
+    const click = buttonNamed(root, 'もっと見る')[0].listeners.get('click');
+    const pending = click();
+    await click();
+    expect(requests).toHaveLength(2);
+    expect(buttonNamed(root, '読み込んでいます。')[0].disabled).toBe(true);
+    await view.refresh();
+    resolveMore(jsonResponse(200, { absence_confirmed: true, meetings: [{ meeting: meetingRecord('stale', '古い応答'), minutes: [] }] }));
+    await pending;
+    expect(view.state.meetings.map(entry => entry.meeting.meeting_id)).toEqual(['meeting-1']);
+    expect(view.state.nextCursor).toBe('older');
+    expect(view.state.loading).toBe(false);
+    view.destroy();
+  });
+
+  it('retains continuation when the loaded page has no filter matches', async () => {
+    const root = new FakeElement('div');
+    const view = createMeetingMinutesUI({ root, document: new FakeDocument(), fetcher: async () => jsonResponse(200, { ...meetingList(), next_cursor: 'older' }) });
+    await flush();
+    const query = findAll(root, node => node.className.includes('bb-minutes-filter-keyword'))[0];
+    query.value = 'まだ読み込んでいない会議'; query.listeners.get('input')();
+    expect(collectText(root)).toContain('読み込んだ会議に条件に合うものはありません。');
+    expect(buttonNamed(root, 'もっと見る')).toHaveLength(1);
+    view.destroy();
+  });
+
+  it('rejects repeated cursors without treating the archive as complete', async () => {
+    const root = new FakeElement('div');
+    const view = createMeetingMinutesUI({ root, document: new FakeDocument(), fetcher: async () => jsonResponse(200, { ...meetingList(), next_cursor: 'same' }) });
+    await flush();
+    await buttonNamed(root, 'もっと見る')[0].listeners.get('click')();
+    expect(view.state.meetings).toHaveLength(1);
+    expect(view.state.nextCursor).toBe('same');
+    expect(collectText(root)).toContain('会議一覧の続きが進みません。');
+    view.destroy();
+  });
+
+  it('clears loaded data when access is denied on continuation', async () => {
+    const root = new FakeElement('div');
+    const view = createMeetingMinutesUI({ root, document: new FakeDocument(), fetcher: async path => path.includes('&cursor=')
+      ? jsonResponse(403, { error: { message: '権限がありません' } })
+      : jsonResponse(200, { ...meetingList(), next_cursor: 'older' }) });
+    await flush();
+    await buttonNamed(root, 'もっと見る')[0].listeners.get('click')();
+    expect(view.state.meetings).toHaveLength(0);
+    expect(view.state.nextCursor).toBeNull();
+    expect(collectText(root)).toContain('権限がありません');
     view.destroy();
   });
 
@@ -1697,7 +1791,7 @@ describe('meeting minutes UI pagination', () => {
       },
     });
     await flush();
-    expect(requests).toEqual(['/api/meeting-minutes']);
+    expect(requests).toEqual(['/api/meeting-minutes?limit=50']);
     expect(view.state.meetings).toHaveLength(1);
     view.destroy();
   });

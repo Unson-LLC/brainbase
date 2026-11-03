@@ -209,7 +209,8 @@ export interface MeetingMinutesListOptions {
 }
 
 /**
- * One listing page. `meetings` carries meeting and minutes-document summaries
+ * One listing page, ordered by scheduled_at descending, then undated imports
+ * by created_at descending (meeting_id breaks ties). `meetings` carries meeting and minutes-document summaries
  * only — never a minutes version body. The body is read through get_meeting /
  * the detail endpoint. `next_cursor` is present only while more readable
  * meetings follow the page.
@@ -1055,10 +1056,14 @@ export function createMeetingMinutesStore(options: MeetingMinutesStoreOptions): 
   async function listMeetingsPage(context: MeetingMinutesRequestContext, options: MeetingMinutesListOptions): Promise<MeetingMinutesListPage> {
     const { limit, startAfter } = normalizeListOptions(options);
     const snapshot = await readSnapshot();
-    const meetings = snapshot.meetings;
-    // Meetings are only ever appended, so their stored order is stable and a
-    // cursor can resume after a known meeting_id. An unknown cursor cannot be
-    // resumed safely, so it is rejected rather than silently restarted.
+    // Page the newest meeting dates first; undated imports follow by creation
+    // time. The ID tie-breaker keeps equal timestamps deterministic. Resume by
+    // ID so newly inserted meetings before the cursor cannot shift later pages.
+    const meetings = [...snapshot.meetings].sort((left, right) => {
+      if (Boolean(left.scheduled_at) !== Boolean(right.scheduled_at)) return left.scheduled_at ? -1 : 1;
+      const byDate = Date.parse(right.scheduled_at ?? right.created_at) - Date.parse(left.scheduled_at ?? left.created_at);
+      return byDate || right.meeting_id.localeCompare(left.meeting_id);
+    });
     let index = 0;
     if (startAfter !== undefined) {
       const found = meetings.findIndex((meeting) => meeting.meeting_id === startAfter);

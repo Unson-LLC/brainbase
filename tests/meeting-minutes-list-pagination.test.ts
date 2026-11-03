@@ -59,7 +59,7 @@ describe('meeting list is body-free and paginated (UNS-264)', () => {
     const { store } = await openStore();
     const ids = await createMeetings(store, 3);
     const page = await store.list_meetings(OWNER, {});
-    expect(page.meetings.map((entry) => entry.meeting.meeting_id)).toEqual(ids);
+    expect(page.meetings.map((entry) => entry.meeting.meeting_id)).toEqual([...ids].reverse());
     for (const entry of page.meetings) {
       expect(Object.keys(entry).sort()).toEqual(['meeting', 'minutes']);
       expect(entry.minutes).toHaveLength(1);
@@ -87,8 +87,28 @@ describe('meeting list is body-free and paginated (UNS-264)', () => {
       pages += 1;
       expect(pages).toBeLessThanOrEqual(5); // guard against a non-terminating cursor
     } while (cursor !== undefined);
-    expect(seen).toEqual(ids);
+    expect(seen).toEqual([...ids].reverse());
     expect(new Set(seen).size).toBe(ids.length);
+  });
+
+  it('returns the newest 50 meeting dates and keeps older pages stable when a new meeting is inserted', async () => {
+    const { store } = await openStore();
+    const older = await store.create_meeting({ title: 'Older', scheduled_at: '2026-10-01T00:00:00Z' }, OWNER);
+    const ids: string[] = [];
+    for (let index = 0; index < 51; index += 1) {
+      const created = await store.create_meeting({ title: `Recent ${index}`, scheduled_at: new Date(Date.UTC(2026, 10, index + 1)).toISOString() }, OWNER);
+      ids.push(created.meeting.meeting_id);
+    }
+    // An older import created last must not displace the newest meeting dates.
+    await store.create_meeting({ title: 'Undated import' }, OWNER);
+    const first = await store.list_meetings(OWNER, { limit: 50 });
+    expect(first.meetings.map(entry => entry.meeting.meeting_id)).toEqual([...ids].reverse().slice(0, 50));
+    await store.create_meeting({ title: 'Newest', scheduled_at: '2027-01-01T00:00:00Z' }, OWNER);
+    const second = await store.list_meetings(OWNER, { limit: 50, cursor: first.next_cursor });
+    expect(second.meetings.slice(0, 2).map(entry => entry.meeting.meeting_id)).toEqual([ids[0], older.meeting.meeting_id]);
+    expect(second.meetings).toHaveLength(3);
+    expect(second.meetings[2].meeting.title).toBe('Undated import');
+    expect(second.next_cursor).toBeUndefined();
   });
 
   it('omits next_cursor on the last (or only) page and defaults to a bounded limit', async () => {
@@ -106,7 +126,7 @@ describe('meeting list is body-free and paginated (UNS-264)', () => {
     const { store, denyTitles } = await openStore();
     const ids = await createMeetings(store, 6); // 会議0..会議5
     for (const index of [0, 2, 4]) denyTitles.add(`会議${index}`);
-    const readable = [ids[1], ids[3], ids[5]];
+    const readable = [ids[5], ids[3], ids[1]];
     const seen: string[] = [];
     let cursor: string | undefined;
     do {
@@ -121,7 +141,7 @@ describe('meeting list is body-free and paginated (UNS-264)', () => {
     const { store } = await openStore();
     const ids = await createMeetings(store, 3);
     const page = await store.list_meetings(OWNER, { limit: MEETING_MINUTES_LIST_MAX_LIMIT + 1000 });
-    expect(page.meetings.map((entry) => entry.meeting.meeting_id)).toEqual(ids);
+    expect(page.meetings.map((entry) => entry.meeting.meeting_id)).toEqual([...ids].reverse());
     expect(page.next_cursor).toBeUndefined();
   });
 
@@ -210,7 +230,7 @@ describe('meeting list HTTP endpoint honours limit and cursor (UNS-264)', () => 
       guard += 1;
       expect(guard).toBeLessThanOrEqual(5);
     } while (cursor !== undefined);
-    expect(seen).toEqual(ids);
+    expect(seen).toEqual([...ids].reverse());
   });
 
   it('rejects an invalid limit or cursor with 422', async () => {
