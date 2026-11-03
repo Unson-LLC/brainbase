@@ -549,7 +549,11 @@
       "types": "./dist/testing/queue-task-tools-contract.d.ts",
       "import": "./dist/testing/queue-task-tools-contract.js"
     },
-    "./contracts/brainbase-public-contract.v1.json": "./contracts/brainbase-public-contract.v1.json"
+    "./contracts/brainbase-public-contract.v1.json": "./contracts/brainbase-public-contract.v1.json",
+    "./ownership-survey": {
+      "types": "./dist/ownership-survey.d.ts",
+      "import": "./dist/ownership-survey.js"
+    }
   },
   "bin": {
     "brainbase-mcp": "dist/index.js",
