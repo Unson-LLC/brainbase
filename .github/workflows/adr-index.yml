@@ -1,0 +1,31 @@
+name: ADR index
+
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'scripts/check-adr-index*'
+      - '.github/workflows/adr-index.yml'
+  push:
+    branches: [main, develop]
+    paths:
+      - 'docs/**'
+      - 'scripts/check-adr-index*'
+      - '.github/workflows/adr-index.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  adr-index:
+    runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/check-adr-index.mjs
+      - run: node --test scripts/check-adr-index.test.mjs
