@@ -13,4 +13,4 @@ Impact: `ui/meeting-minutes.js`, core `listMeetingsPage`, HTTP adapters passing 
 
 Delivery: upstream PR only. npm publication and host version-pin rollout require a separate approved release; the production vendor is not changed by this PR.
 
-Verification: `npm run build` passed; `npx vitest run tests/meeting-minutes*.test.ts tests/ui/meeting-minutes*.test.mjs --maxWorkers=4` passed (18 files, 155 tests), covering bounded paging, newest-first membership, insertion between pages, ACL filtering, first-page render, on-demand continuation, retry, duplicate-click suppression, stale responses, filtered emptiness, cursor repetition and access denial.
+Verification: `npm run build` passed; `npx vitest run tests/meeting-minutes*.test.ts tests/ui/meeting-minutes*.test.mjs --maxWorkers=4` passed (18 files, 156 tests), covering bounded paging, newest-first membership, insertion between pages, ACL filtering, first-page render, on-demand continuation, retry, duplicate-click suppression, stale responses, filtered emptiness, cursor repetition and access denial, malformed entries and invalid-cursor recovery.

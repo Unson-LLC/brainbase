@@ -1763,6 +1763,33 @@ describe('meeting minutes UI pagination', () => {
     expect(view.state.meetings).toHaveLength(1);
     expect(view.state.nextCursor).toBe('same');
     expect(collectText(root)).toContain('会議一覧の続きが進みません。');
+    expect(buttonNamed(root, '一覧を再読み込み')).toHaveLength(1);
+    await buttonNamed(root, '一覧を再読み込み')[0].listeners.get('click')();
+    expect(view.state.moreError).toBeNull();
+    expect(view.state.meetings).toHaveLength(1);
+    view.destroy();
+  });
+
+  it('rejects entries without IDs and can restart after an invalid continuation cursor', async () => {
+    const root = new FakeElement('div');
+    const requests = [];
+    let invalid = false;
+    const view = createMeetingMinutesUI({ root, document: new FakeDocument(), fetcher: async path => {
+      requests.push(path);
+      if (!path.includes('&cursor=')) return jsonResponse(200, { ...meetingList(), next_cursor: 'removed-boundary' });
+      return invalid ? jsonResponse(422, { error: { code: 'invalid_input', message: 'cursor is invalid' } })
+        : jsonResponse(200, { absence_confirmed: true, meetings: [{ meeting: { title: 'Missing ID' }, minutes: [] }] });
+    } });
+    await flush();
+    await buttonNamed(root, 'もっと見る')[0].listeners.get('click')();
+    expect(collectText(root)).toContain('会議一覧の形式を確認できません。');
+    expect(view.state.meetings).toHaveLength(1);
+    invalid = true;
+    await buttonNamed(root, 'もっと見る')[0].listeners.get('click')();
+    expect(collectText(root)).toContain('cursor is invalid');
+    await buttonNamed(root, '一覧を再読み込み')[0].listeners.get('click')();
+    expect(requests.at(-1)).toBe('/api/meeting-minutes?limit=50');
+    expect(view.state.moreError).toBeNull();
     view.destroy();
   });
 

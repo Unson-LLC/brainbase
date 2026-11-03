@@ -20,6 +20,8 @@ export const MEETING_MINUTES_UI_CONTRACT_VERSION = 'brainbase.meeting-minutes-ui
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 const TOKYO = 'Asia/Tokyo';
+// The screen chooses 50; the core's independent default remains 100.
+const LIST_PAGE_SIZE = 50;
 const SORTS = Object.freeze([
   { value: 'scheduled-desc', label: '会議の日時が新しい順' },
   { value: 'scheduled-asc', label: '会議の日時が古い順' },
@@ -1455,9 +1457,12 @@ export function createMeetingMinutesUI({
 
   function appendMore(parent) {
     if (!state.nextCursor) return;
-    if (state.moreError) parent.append(makeElement(doc, 'p', {
-      className: 'bb-minutes-error', textContent: state.moreError, attrs: { role: 'alert' },
-    }));
+    if (state.moreError) {
+      parent.append(makeElement(doc, 'p', {
+        className: 'bb-minutes-error', textContent: state.moreError, attrs: { role: 'alert' },
+      }));
+      parent.append(button(doc, '一覧を再読み込み', () => loadMeetings({ restoreFocus: true })));
+    }
     parent.append(button(doc, state.loading ? '読み込んでいます。' : 'もっと見る', () => loadMeetings({ append: true }), {
       disabled: state.loading,
     }));
@@ -1977,9 +1982,10 @@ export function createMeetingMinutesUI({
     if (!quiet) setStatus('会議一覧を読み込んでいます。');
     try {
       const cursor = append ? state.nextCursor : null;
-      const payload = await call(`?limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`);
+      const payload = await call(`?limit=${LIST_PAGE_SIZE}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`);
       if (!isCurrentRequest()) return state.meetings;
       if (!isRecord(payload) || !Array.isArray(payload.meetings) || payload.absence_confirmed !== true) throw new Error('会議一覧の形式を確認できません。');
+      if (payload.meetings.some(entry => !isRecord(entry?.meeting) || typeof entry.meeting.meeting_id !== 'string' || !entry.meeting.meeting_id.trim())) throw new Error('会議一覧の形式を確認できません。');
       if (payload.next_cursor != null && (typeof payload.next_cursor !== 'string' || !payload.next_cursor.trim())) throw new Error('会議一覧の続きの形式を確認できません。');
       const next = payload.next_cursor ?? null;
       if (next && (next === cursor || (append && seenListCursors.has(next)))) throw new Error('会議一覧の続きが進みません。再読み込みしてください。');
