@@ -28,4 +28,4 @@ jobs:
         with:
           node-version: 22
       - run: node scripts/check-adr-index.mjs
-      - run: node --test scripts/check-adr-index.test.mjs
+      - run: node --test scripts/check-adr-index.node-test.mjs
