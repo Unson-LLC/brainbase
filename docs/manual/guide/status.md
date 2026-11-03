@@ -4,6 +4,10 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
+## Candidate — v0.50.1（npm公開前）
+
+`develop` a62bf3c5 までをまとめるpatch更新候補です。議事録一覧（`list_meetings` と `GET /api/meeting-minutes`）に件数の上限（既定100、最大500）と `next_cursor` によるページ分けを足し、共通の議事録画面が続きのページを辿って全件を表示します（#939）。VibePro producer の公開契約テストをCIで実行します（#937）。npm公開と利用ホストへの反映は、この候補記録だけでは確認できません。
+
 ## Candidate — v0.50.0（npm公開前）
 
 `develop` 8d1449bc までをまとめるminor更新候補です。所有権サーベイの検証のOSS化（#936）、agent限定のTask queueの道具と共通契約テスト（#930）、OSS公開契約のfixture（#931〜#933）、議事録名とbuildの修正（#926・#927）を含みます。npm公開と利用ホストへの反映は、この候補記録だけでは確認できません。

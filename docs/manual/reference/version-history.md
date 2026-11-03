@@ -2,6 +2,13 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
+## 0.50.1 candidate — npm公開前
+
+- `develop` a62bf3c5 までをまとめて公開するpatch更新候補。
+- UNS-264: 議事録一覧に `limit`（既定100、最大500）と `cursor` を足し、続きがあるときだけ `next_cursor` を返す。返す形 `{ state, meetings, absence_confirmed }` は維持し、一覧に版の本文は入れない。不正な `limit`・`cursor` は422。共通の議事録画面は `next_cursor` を辿って全件を表示する（#939）。
+- UNS-36: VibePro producer の公開契約4つをCIで実行する（#937）。
+- これは公開候補の記録。npm公開と利用ホストの本番反映は、別の検証で確認する。
+
 ## 0.50.0 candidate — npm公開前
 
 - `develop` 8d1449bc までをまとめて公開するminor更新候補。
