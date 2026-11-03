@@ -264,7 +264,13 @@ export interface MeetingMinutesExternalSourceHook {
 }
 
 export interface MeetingMinutesStore {
-  list_meetings(context: MeetingMinutesRequestContext, options?: MeetingMinutesListOptions): Promise<MeetingMinutesListPage>;
+  /**
+   * Without options the store returns every readable summary as an array, the
+   * shape every caller before 0.50.1 depends on. Passing options (even `{}`)
+   * opts into one bounded page with an optional `next_cursor`.
+   */
+  list_meetings(context: MeetingMinutesRequestContext): Promise<readonly MeetingMinutesSummary[]>;
+  list_meetings(context: MeetingMinutesRequestContext, options: MeetingMinutesListOptions): Promise<MeetingMinutesListPage>;
   create_meeting(input: MeetingCreateInput, context: MeetingMinutesRequestContext): Promise<MeetingMinutesDetail>;
   create_minutes(meeting_id: MeetingId, input: CreateMinutesInput, context: MeetingMinutesRequestContext): Promise<MeetingMinutesDetail>;
   get_meeting(meeting_id: MeetingId, context: MeetingMinutesRequestContext): Promise<MeetingMinutesDetail>;
@@ -1022,8 +1028,31 @@ export function createMeetingMinutesStore(options: MeetingMinutesStoreOptions): 
     }
   }
 
-  async function list_meetings(context: MeetingMinutesRequestContext, options: MeetingMinutesListOptions = {}): Promise<MeetingMinutesListPage> {
+  function list_meetings(context: MeetingMinutesRequestContext): Promise<readonly MeetingMinutesSummary[]>;
+  function list_meetings(context: MeetingMinutesRequestContext, options: MeetingMinutesListOptions): Promise<MeetingMinutesListPage>;
+  async function list_meetings(
+    context: MeetingMinutesRequestContext,
+    options?: MeetingMinutesListOptions
+  ): Promise<readonly MeetingMinutesSummary[] | MeetingMinutesListPage> {
     assertPrincipal(context);
+    if (options === undefined) return listAllMeetings(context);
+    return listMeetingsPage(context, options);
+  }
+
+  // The array form callers relied on before paging existed (organization
+  // server-parts read it with Array.isArray). It stays unbounded on purpose:
+  // callers that need bounded responses pass options and get a page.
+  async function listAllMeetings(context: MeetingMinutesRequestContext): Promise<readonly MeetingMinutesSummary[]> {
+    const snapshot = await readSnapshot();
+    const output: MeetingMinutesSummary[] = [];
+    for (const meeting of snapshot.meetings) {
+      if (!(await canReadMeeting(snapshot, meeting, context))) continue;
+      output.push(summary(snapshot, meeting));
+    }
+    return freezeClone(output);
+  }
+
+  async function listMeetingsPage(context: MeetingMinutesRequestContext, options: MeetingMinutesListOptions): Promise<MeetingMinutesListPage> {
     const { limit, startAfter } = normalizeListOptions(options);
     const snapshot = await readSnapshot();
     const meetings = snapshot.meetings;

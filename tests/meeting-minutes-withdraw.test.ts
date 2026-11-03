@@ -38,7 +38,7 @@ describe('withdrawing a minutes document (story-meeting-minutes-withdraw-v1)', (
     const saved = withdrawn.minutes.find((entry) => entry.minutes_id === document.minutes_id);
     expect(saved?.withdrawal).toEqual({ actor_id: 'per_owner', withdrawn_at: expect.any(String) });
     expect(withdrawn.versions.map((version) => version.body)).toEqual(['議事録の本文']);
-    const { meetings: [listed] } = await store.list_meetings(OWNER);
+    const [listed] = await store.list_meetings(OWNER);
     expect(listed.meeting.meeting_id).toBe(meetingId);
     expect(listed.minutes).toEqual([]);
     const detail = await store.get_meeting(meetingId, OWNER);

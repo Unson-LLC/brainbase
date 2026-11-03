@@ -58,7 +58,7 @@ describe('meeting list is body-free and paginated (UNS-264)', () => {
   it('returns meeting and minutes-document summaries without any version body', async () => {
     const { store } = await openStore();
     const ids = await createMeetings(store, 3);
-    const page = await store.list_meetings(OWNER);
+    const page = await store.list_meetings(OWNER, {});
     expect(page.meetings.map((entry) => entry.meeting.meeting_id)).toEqual(ids);
     for (const entry of page.meetings) {
       expect(Object.keys(entry).sort()).toEqual(['meeting', 'minutes']);
@@ -94,7 +94,7 @@ describe('meeting list is body-free and paginated (UNS-264)', () => {
   it('omits next_cursor on the last (or only) page and defaults to a bounded limit', async () => {
     const { store } = await openStore();
     await createMeetings(store, 3);
-    const page = await store.list_meetings(OWNER);
+    const page = await store.list_meetings(OWNER, {});
     expect(page.next_cursor).toBeUndefined();
     expect(page.meetings.length).toBeLessThanOrEqual(MEETING_MINUTES_LIST_DEFAULT_LIMIT);
     expect(MEETING_MINUTES_LIST_DEFAULT_LIMIT).toBeLessThanOrEqual(MEETING_MINUTES_LIST_MAX_LIMIT);
@@ -124,6 +124,31 @@ describe('meeting list is body-free and paginated (UNS-264)', () => {
     expect(page.meetings.map((entry) => entry.meeting.meeting_id)).toEqual(ids);
     expect(page.next_cursor).toBeUndefined();
   });
+
+  it('keeps the pre-paging array shape when called without options', async () => {
+    // Organization server-parts and other 0.47-0.50.0 callers read
+    // list_meetings(context) with Array.isArray, so the bare call must keep
+    // returning every readable summary as a plain array, never a page object.
+    const { store, denyTitles } = await openStore();
+    const ids = await createMeetings(store, 4);
+    denyTitles.add('会議1');
+    const listed = await store.list_meetings(OWNER);
+    expect(Array.isArray(listed)).toBe(true);
+    expect(listed).not.toHaveProperty('next_cursor');
+    expect(listed.map((entry) => entry.meeting.meeting_id)).toEqual([ids[0], ids[2], ids[3]]);
+    expect(JSON.stringify(listed)).not.toContain('本文の中身');
+  });
+
+  it('does not truncate the array form at the page default limit', async () => {
+    const { store } = await openStore();
+    const ids = await createMeetings(store, MEETING_MINUTES_LIST_DEFAULT_LIMIT + 1);
+    const listed = await store.list_meetings(OWNER);
+    expect(Array.isArray(listed)).toBe(true);
+    expect(listed.map((entry) => entry.meeting.meeting_id)).toEqual(ids);
+    const page = await store.list_meetings(OWNER, {});
+    expect(page.meetings).toHaveLength(MEETING_MINUTES_LIST_DEFAULT_LIMIT);
+    expect(typeof page.next_cursor).toBe('string');
+  }, 60_000);
 
   it('rejects a non-positive limit and an unresolvable cursor', async () => {
     const { store } = await openStore();
