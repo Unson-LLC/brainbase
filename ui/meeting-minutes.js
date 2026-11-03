@@ -1956,10 +1956,23 @@ export function createMeetingMinutesUI({
     state.loading = true;
     if (!quiet) setStatus('会議一覧を読み込んでいます。');
     try {
-      const payload = await call('');
-      if (!isCurrentRequest()) return state.meetings;
-      if (!isRecord(payload) || !Array.isArray(payload.meetings) || payload.absence_confirmed !== true) throw new Error('会議一覧の形式を確認できません。');
-      state.meetings = sortMeetings(payload.meetings);
+      // The list carries no version body and the host caps each page, so even a long
+      // history reads as a run of small responses instead of one large one. The cursor
+      // walks the append-only meetings to the end and every page is gathered, so the
+      // screen still shows every meeting (UNS-264). The first page keeps the bare path
+      // so a host without paging keeps answering the single request it always has.
+      const collected = [];
+      let cursor = null;
+      for (let page = 0; ; page += 1) {
+        const payload = await call(cursor === null ? '' : `?cursor=${encodeURIComponent(cursor)}`);
+        if (!isCurrentRequest()) return state.meetings;
+        if (!isRecord(payload) || !Array.isArray(payload.meetings) || payload.absence_confirmed !== true) throw new Error('会議一覧の形式を確認できません。');
+        for (const entry of payload.meetings) collected.push(entry);
+        const next = typeof payload.next_cursor === 'string' ? payload.next_cursor.trim() : '';
+        if (!next || next === cursor || page >= 10000) break;
+        cursor = next;
+      }
+      state.meetings = sortMeetings(collected);
       state.listError = null;
       const selectedMeetingStillListed = state.meetingId !== null
         && state.meetings.some((entry) => entry?.meeting?.meeting_id === state.meetingId);

@@ -1645,3 +1645,60 @@ describe('explicit creation project', () => {
     view.destroy();
   });
 });
+
+describe('meeting minutes UI pagination', () => {
+  it('follows next_cursor so every page of a bounded list is shown (UNS-264)', async () => {
+    const pages = {
+      '': {
+        absence_confirmed: true,
+        next_cursor: 'meeting-2',
+        meetings: [{ meeting: meetingRecord('meeting-1', '第1回'), minutes: [] }],
+      },
+      '?cursor=meeting-2': {
+        absence_confirmed: true,
+        next_cursor: 'meeting-3',
+        meetings: [{ meeting: meetingRecord('meeting-2', '第2回'), minutes: [] }],
+      },
+      '?cursor=meeting-3': {
+        absence_confirmed: true,
+        meetings: [{ meeting: meetingRecord('meeting-3', '第3回'), minutes: [] }],
+      },
+    };
+    const requests = [];
+    const root = new FakeElement('div');
+    const view = createMeetingMinutesUI({
+      root,
+      document: new FakeDocument(),
+      fetcher: async (path) => {
+        const query = path.startsWith('/api/meeting-minutes') ? path.slice('/api/meeting-minutes'.length) : path;
+        requests.push(query);
+        const page = pages[query];
+        if (!page) throw new Error(`unexpected list request: ${path}`);
+        return jsonResponse(200, page);
+      },
+    });
+    await flush();
+    // The first page keeps the bare path; later pages carry the cursor the host returned.
+    expect(requests).toEqual(['', '?cursor=meeting-2', '?cursor=meeting-3']);
+    expect(view.state.meetings.map((entry) => entry.meeting.meeting_id)).toEqual(['meeting-1', 'meeting-2', 'meeting-3']);
+    expect(collectText(root)).toContain('3件の会議を読み込みました。');
+    view.destroy();
+  });
+
+  it('stops after one page when the host returns no next_cursor', async () => {
+    const requests = [];
+    const root = new FakeElement('div');
+    const view = createMeetingMinutesUI({
+      root,
+      document: new FakeDocument(),
+      fetcher: async (path) => {
+        requests.push(path);
+        return jsonResponse(200, meetingListFor(meetingRecord('meeting-1', '第1回')));
+      },
+    });
+    await flush();
+    expect(requests).toEqual(['/api/meeting-minutes']);
+    expect(view.state.meetings).toHaveLength(1);
+    view.destroy();
+  });
+});
