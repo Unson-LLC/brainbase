@@ -6,7 +6,7 @@
 
 ## Candidate — v0.50.1（npm公開前）
 
-`develop` fd6f24a7 までをまとめるpatch更新候補です。議事録一覧（`list_meetings` と `GET /api/meeting-minutes`）に件数の上限（既定100、最大500）と `next_cursor` によるページ分けを足し、共通の議事録画面が続きのページを辿って全件を表示します（#939）。引数なしの `list_meetings(context)` は今までどおり配列を返し、options を渡したときだけページで返します（#943）。judgment DAG を外部レビューagentに合わせます（#940）。VibePro producer の公開契約テストをCIで実行します（#937）。npm公開と利用ホストへの反映は、この候補記録だけでは確認できません。
+`develop` bb2a2fa4 までをまとめるpatch更新候補です。議事録一覧（`list_meetings` と `GET /api/meeting-minutes`）に件数の上限（既定100、最大500）と `next_cursor` によるページ分けを足し、共通の議事録画面が続きのページを辿って全件を表示します（#939）。引数なしの `list_meetings(context)` は今までどおり配列を返し、options を渡したときだけページで返します（#943）。judgment DAG を外部レビューagentに合わせ、契約のハッシュを更新します（#940, #944）。VibePro producer の公開契約テストをCIで実行します（#937）。npm公開と利用ホストへの反映は、この候補記録だけでは確認できません。
 
 ## Candidate — v0.50.0（npm公開前）
 

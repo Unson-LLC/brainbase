@@ -4,10 +4,10 @@
 
 ## 0.50.1 candidate — npm公開前
 
-- `develop` fd6f24a7 までをまとめて公開するpatch更新候補。
+- `develop` bb2a2fa4 までをまとめて公開するpatch更新候補。
 - UNS-264: 議事録一覧に `limit`（既定100、最大500）と `cursor` を足し、続きがあるときだけ `next_cursor` を返す。返す形 `{ state, meetings, absence_confirmed }` は維持し、一覧に版の本文は入れない。不正な `limit`・`cursor` は422。共通の議事録画面は `next_cursor` を辿って全件を表示する（#939）。
 - UNS-264: 引数なしの `list_meetings(context)` は今までどおり全件の配列を返し、options を渡したときだけ `{ meetings, next_cursor }` を返す（#943）。
-- UNS-291: judgment DAG を外部レビューagentに合わせる（#940）。
+- UNS-291: judgment DAG を外部レビューagentに合わせ、契約ファイルのハッシュを更新する（#940, #944）。
 - UNS-36: VibePro producer の公開契約4つをCIで実行する（#937）。
 - これは公開候補の記録。npm公開と利用ホストの本番反映は、別の検証で確認する。
 
