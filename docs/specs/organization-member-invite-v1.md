@@ -34,7 +34,7 @@ provider を知らない。
 
 ## 公開契約
 
-- `OrganizationMemberInviteService`: `createInvite`, `acceptInvite`, `revokeInvite`, `resendInvite`, `readInvite`
+- `OrganizationMemberInviteService`: `createInvite`, `acceptInvite`, `revokeInvite`, `resendInvite`, `reissue`, `readInvite`
 - `OrganizationMemberInviteRepository`: 招待 record の保存、atomic な `reserveForAccept`・`finalizeAccept`・
   `releaseReservation`・`revoke`・`reissue`、`get`、`findPendingByEmail`
 - `OrganizationMemberInvitePolicy`: 発行・受諾・取り消し・参照・再送の組織固有認可（誰が・どの tenant で・
@@ -72,11 +72,14 @@ provider を知らない。
 
 受諾は「予約（atomic）→ binding → 確定/解放」の二段で行い、`acceptBinding` 失敗から復旧できるようにする。
 
-1. `reserveForAccept(stateHash, now)`: `pending` かつ未失効・未取り消しのときだけ、atomic に `accepting` へ
+1. `reserveForAccept(tokenHash, now)`: `pending` かつ未失効・未取り消しのときだけ、atomic に `accepting` へ
    遷移し record を返す。missing・expired・revoked・replayed（既に `accepting`/`accepted`）・consumed を区別する。
 2. `acceptBinding`: 認証済み person を role 付きで tenant に結び付ける。
    - 成功 → `finalizeAccept` で `accepted` へ遷移し `acceptedByPersonId`・`acceptedAt` を記録。
-   - 失敗 → `releaseReservation` で `pending` へ戻し（TTL 内なら再試行可能）、安定エラーを返す。
+   - 副作用なしと確定した失敗 → `releaseReservation` で `pending` へ戻し（TTL 内なら再試行可能）、安定エラーを返す。
+   - timeout・プロセス停止など結果不明時、または binding 成功後の確定失敗時は `accepting` を保持する。
+     binding は inviteId を冪等キーとし、同じ person/role への再試行・結果照会と確定再試行で復旧する。
+     他 person に予約を渡さず、予約所有者だけが確定/解放できる。自動 TTL 解放で結果不明の予約を再利用しない。
 3. 監査は `finalizeAccept` の後に best-effort で記録する。監査失敗は受諾結果（`accepted`）を覆さず、
    監査失敗自体を別途記録する（不変条件 11）。
 
@@ -90,8 +93,9 @@ provider を知らない。
    `acceptInvite` に渡された認証済み person を role 付きで tenant に結び付ける。
 4. `expiresAt` を過ぎた招待の受諾・再送は `expired` として拒否する。既定 TTL は利用側が注入（推奨 7 日）。
    期限切れからの再開は再送ではなく `reissue`（新 token 発行＋旧 record 無効化、不変条件 7）で行う。
-5. `revokeInvite` 後の受諾は `revoked` として拒否する。取り消しは `pending`/`accepting` のみに効き、
-   `accepted` は変えない。`accepting` を取り消した場合、進行中の `finalizeAccept` は `revoked` で失敗する。
+5. `revokeInvite` は `pending` のみ atomic に `revoked` にし、以後の受諾を拒否する。
+   `accepting` への取り消し・再発行は `accept_in_progress` として拒否する。予約と取り消しの競合では
+   一方のみ成功し、取り消し済みなのに binding だけ成功する状態を防ぐ。`accepted` は変えない。
 6. 発行・受諾・取り消し・参照（`readInvite`）・再送（`resendInvite`/`reissue`）は policy が認可する。policy は
    操作者・対象 tenant・付与/操作する role を判断し、拒否したら provider 呼び出しも binding も行わない。
    すべての操作は tenant 分離を満たし、他 tenant の招待を参照・操作できない。
@@ -116,8 +120,8 @@ provider を知らない。
    `OrganizationMemberInviteDelivery` に envelope（宛先・受諾 URL・発行者表示名・失効時刻・role 名）を渡す。
 2. 招待された人が受諾 URL を開く → **利用側**が組織の選ばれたログイン方法でログインさせ、認証済み person を得る。
 3. `acceptInvite(rawToken, authenticatedPerson)` → 本人確認を満たしたうえで `reserveForAccept`（atomic）→
-   `acceptBinding` → 成功なら `finalizeAccept`（`accepted`）、失敗なら `releaseReservation`（`pending` に戻す）。
-4. 管理者が未受諾の招待を取り消すとき `revokeInvite` → `pending`/`accepting` を `revoked` にし、以後の受諾を拒否。
+   `acceptBinding` → 成功なら `finalizeAccept`（`accepted`）、副作用なしの失敗なら `releaseReservation`（`pending` に戻す）。結果不明・確定失敗は予約を保持して冪等復旧する。
+4. 管理者が未受諾の招待を取り消すとき `revokeInvite` → `pending` を `revoked` にし（`accepting` は `accept_in_progress` 拒否）、、以後の受諾を拒否。
 5. 再送: 手元に raw token があり招待が `pending` なら `resendInvite` で同じリンクを再送する。期限切れ・手元に
    token が無いときは `reissue` で新 token を発行し、旧 record を `superseded` にして新リンクを送る。
 
@@ -130,23 +134,26 @@ provider を知らない。
   成功時に `finalizeAccept` で person を role 付きで結び付ける。
 - AC-04 本人確認: 既定では認証済み person の検証済みメールが `inviteeEmail` と一致しないと `email_mismatch` 拒否。
   policy が許すときだけリンク所持者受諾を認める。
-- AC-05 復旧: `acceptBinding` 失敗時は `releaseReservation` で `pending` に戻り、TTL 内で再受諾できる。
+- AC-05 復旧: `acceptBinding` の副作用なしと確定した失敗時のみ `releaseReservation` で `pending` に戻り、TTL 内で再受諾できる。
+  結果不明・確定失敗では予約を保持し、同じ person/role の冪等 binding と確定再試行で復旧する。
   `finalizeAccept` 後の監査失敗は `accepted` を覆さない。
 - AC-06 期限切れ: `expiresAt` 超過で受諾・再送を `expired` 拒否。期限切れからの再開は `reissue`。
-- AC-07 取り消し: `revokeInvite` は `pending`/`accepting` に効き、以後の受諾を `revoked` 拒否。`accepted` は不変。
+- AC-07 取り消し: `revokeInvite` は `pending` に効き、以後の受諾を `revoked` 拒否。
+  `accepting` の取り消し・再発行は `accept_in_progress` 拒否。予約との競合では一方のみ成功する。`accepted` は不変。
 - AC-08 二重受諾: 同じ token の2回目の受諾は `replayed`/`consumed` として拒否され、binding は1回だけ起こる。
 - AC-09 再送/再発行: `resendInvite` は raw token が手元にある `pending` のみ。`reissue` は新 token を atomic に
   発行し旧 record を `superseded`（`supersededByInviteId` 設定）にして旧リンクを無効化する。
 - AC-10 権限と tenant 分離: 発行・受諾・取り消し・参照・再送を policy が認可し、他 tenant の招待を参照・操作できない。
-- AC-11 delivery: envelope に credential・生 token・生メール以外の秘密を含めない。送信失敗は安定エラーへ正規化。
+- AC-11 delivery: envelope の秘密値は受諾 URL 内の token のみ（宛先メールは必要な PII として許可）。
+  生 token 単独の field や他の credential を含めず、delivery は URL と宛先をログに出さない。送信失敗は安定エラーへ正規化。
 - AC-12 可視性: `readInvite` は認可された同 tenant 呼び出し元に record（`inviteeEmail` 含む）を返すが、
   token hash・予約マーカーは返さない。ログ・監査・エラーには生 token・生 inviteeEmail を出さない。
 - AC-13 DI: repository・policy・delivery・acceptBinding・audit・clock は利用側から注入できる。
 
 ## 検証
 
-- `tests/organization-member-invite.test.ts`: 発行、TTL/期限切れ、取り消し（`pending`/`accepting`）、
-  予約→binding→確定、binding 失敗からの release と再受諾、one-time replay（二重受諾）、本人確認（メール一致/不一致）、
+- `tests/organization-member-invite.test.ts`: 発行、TTL/期限切れ、取り消し（`pending` 成功・`accepting` 拒否・予約との競合）、
+  予約→binding→確定、副作用なしの binding 失敗からの release と再受諾、結果不明・確定失敗・停止後の冪等復旧、one-time replay（二重受諾）、本人確認（メール一致/不一致）、
   tenant 分離と role 付与、policy 委譲、delivery 失敗、`reissue` による旧リンク無効化、重複メール検知、
   safe readback、監査 best-effort（確定後の監査失敗が受諾を覆さない）。
 - `scripts/npm-consumer-smoke.mjs`: 公開 tarball を fresh consumer から subpath import し、
