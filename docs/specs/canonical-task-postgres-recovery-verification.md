@@ -7,7 +7,7 @@ historical customer implementation or replace the missing historical evidence.
 
 | Scenario | Expected persisted result |
 | --- | --- |
-| Two updates target version 1 with distinct operation keys | One succeeds, one returns `version_conflict` (409); row is version 2 with the winner's title; one update audit entry |
+| Two updates target version 1 with distinct operation keys | One succeeds, one returns 409 (`version_conflict` at the row check or `idempotency_conflict` at the durable version claim); row is version 2 with the winner's title; one update audit entry |
 | Update commits, then nontransactional audit sink fails | Caller receives `task_audit_unavailable` (503); row retains the update at version 2 |
 | Reconstruct Service, PostgreSQL repository and coordinator; retry the failed-audit command twice | Same task ID, title and version 2; deterministic audit ID produces one logical audit entry |
 | Reuse that command's key with different content and stale version | 409; no additional mutation |

@@ -527,7 +527,10 @@ describe.skipIf(!postgresIntegrationEnabled)('Canonical Task PostgreSQL adapter 
     const losers = results.filter((result) => result.status === 'rejected');
     expect(winners).toHaveLength(1);
     expect(losers).toHaveLength(1);
-    expect(losers[0]).toMatchObject({ reason: { code: 'version_conflict', status: 409 } });
+    expect(losers[0]).toMatchObject({ reason: { status: 409 } });
+    // The durable version claim can reject before the stale-row check runs.
+    expect(['version_conflict', 'idempotency_conflict'])
+      .toContain((losers[0] as PromiseRejectedResult).reason.code);
     const winner = (winners[0] as PromiseFulfilledResult<CanonicalTaskRecord>).value;
     expect(await service.getTask(task.id, createServiceContext('person-a')))
       .toMatchObject({ id: task.id, title: winner.title, version: 2 });
