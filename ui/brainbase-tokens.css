@@ -89,6 +89,21 @@
   --bb-font-weight-body: 400;
   --bb-font-weight-medium: 500;
   --bb-color-mint: #6fc4b5;
+  /* Approved compact Inbox presentation; scoped by the opt-in cards layout. */
+  --bb-inbox-approval-stripe: #d97706;
+  --bb-inbox-task-stripe: #2563eb;
+  --bb-inbox-border-subtle: #ebf0f2;
+  --bb-inbox-tab-hover: rgb(255 255 255 / 50%);
+  --bb-inbox-card-hover-border: #c4d0d5;
+  --bb-inbox-meta-label: var(--bb-color-muted);
+  --bb-inbox-badge-border: #bce4dc;
+  --bb-inbox-urgent-ink: #b91c1c;
+  --bb-inbox-urgent-surface: #fef2f2;
+  --bb-inbox-urgent-border: #fecaca;
+  --bb-inbox-context-surface: #edf1f7;
+  --bb-inbox-card-shadow: 0 1px 2px rgb(15 23 42 / 4%);
+  --bb-inbox-card-hover-shadow: 0 4px 12px rgb(15 23 42 / 7%), 0 1px 3px rgb(15 23 42 / 5%);
+  --bb-inbox-action-shadow: 0 1px 2px rgb(36 50 75 / 20%);
   --bb-color-mint-strong: #4fa999;
   --bb-color-interaction-hover: #eaf6f3;
   --bb-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
