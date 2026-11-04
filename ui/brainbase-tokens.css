@@ -133,7 +133,13 @@
   --bb-search-band-chevron-width: 10px;
   --bb-search-band-chevron-height: 6px;
   --bb-search-band-chevron-stroke: 1.2;
-  --bb-search-band-header-height: 44px;
+  --bb-page-title-font-size: 20px;
+  --bb-page-title-line-height: 28px;
+  --bb-page-title-font-weight: 600;
+  --bb-page-header-padding-top: var(--bb-space-3);
+  --bb-page-header-padding-bottom: var(--bb-space-4);
+  --bb-page-header-height: calc(var(--bb-page-title-line-height) + var(--bb-page-header-padding-top) + var(--bb-page-header-padding-bottom));
+  --bb-search-band-header-height: var(--bb-page-header-height);
   --bb-search-band-scope-padding: 13px;
   --bb-search-band-scope-viewport-reserve: 192px;
   --bb-search-band-scope-popup-width: 260px;
