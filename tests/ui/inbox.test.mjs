@@ -1108,3 +1108,37 @@ describe('cards preserve exceptional source states and focus', () => {
     expect(document.activeElement.textContent).toBe('確認');
   });
 });
+
+
+describe('cards retain keyboard position and unknown counts', () => {
+  it('keeps focus on toggled details, hold controls and selected tabs', async () => {
+    const document = new FakeDocument();
+    document.createElement = tag => { const node = new FakeElement(tag); node.focus = () => { document.activeElement = node; }; return node; };
+    const root = document.createElement('div');
+    let view;
+    view = createInboxUI({ root, document, layout: 'cards', port: fakePort(), now: () => NOW, onRouteChange: route => view.applyRoute(route) });
+    await view.load();
+    const row = () => rowsOf(root).find(n => n.attributes['data-inbox-item'] === 'task-a');
+    buttonIn(row(), '確認').dispatch('click'); buttonIn(row(), '確認').dispatch('click');
+    expect(document.activeElement).toBe(buttonIn(row(), '確認'));
+    buttonIn(row(), '保留').dispatch('click'); buttonIn(row(), '保留').dispatch('click');
+    expect(document.activeElement).toBe(buttonIn(row(), '保留'));
+    findAll(root, n => n.attributes?.role === 'tab')[2].dispatch('click');
+    expect(document.activeElement).toBe(findAll(root, n => n.attributes?.role === 'tab')[2]);
+  });
+  it('preserves the legacy unknown count when every source is unavailable', async () => {
+    const result = okResult({ items: [], sources: SOURCES.map(source => ({ ...source, status: 'unavailable' })) });
+    const expected = countInboxWaiting(result, NOW);
+    const { counts } = await mount({ layout: 'cards', port: fakePort({ readInbox: vi.fn(async () => result) }) });
+    expect(counts.at(-1)).toEqual(expected);
+    expect(counts.at(-1).unreadable).toEqual(SOURCES.map(source => source.label));
+  });
+});
+
+
+it('cards preserve a wholly unreadable inbox count as unknown', async () => {
+  const result = { status: 'unavailable', reason: 'forbidden' };
+  const { counts } = await mount({ layout: 'cards', port: fakePort({ readInbox: vi.fn(async () => result) }) });
+  expect(counts.at(-1)).toEqual(countInboxWaiting(result, NOW));
+  expect(counts.at(-1).count).toBeNull();
+});
