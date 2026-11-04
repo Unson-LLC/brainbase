@@ -391,7 +391,7 @@ export function createInboxUI({
     if (!state.result) return { count: null, unreadable: [] };
     const current = readNow();
     const base = countInboxWaiting({ ...state.result, dispositions: [...state.dispositions.values()] }, current);
-    if (cards) base.count = cardItems().filter(item => !activeDisposition(item, state.dispositions, current)).reduce((sum, item) => sum + unitsOf(item), 0);
+    if (cards && base.count !== null) base.count = cardItems().filter(item => !activeDisposition(item, state.dispositions, current)).reduce((sum, item) => sum + unitsOf(item), 0);
     // Rows waiting to be sent, sent, or showing their result are not waiting any more.
     const gone = new Set([...state.pending.keys(), ...state.sent, ...state.done.keys()]);
     if (gone.size === 0 || base.count === null) return base;
@@ -682,7 +682,7 @@ export function createInboxUI({
     state.confirming = action && textOf(action.confirm)
       ? { itemId: item.id, actionId: action.id, revision: item.revision ?? null }
       : null;
-    state.focus = { itemId: item.id, target: action && textOf(action.confirm) ? 'confirm' : 'detail' };
+    state.focus = { itemId: item.id, target: !state.expanded ? opener : action && textOf(action.confirm) ? 'confirm' : 'detail' };
     render();
   }
 
@@ -704,7 +704,8 @@ export function createInboxUI({
       const count = id === 'notices' ? state.notices?.phase === 'ok' ? state.notices.items.length : null
         : shown ? shown[id].filter(item => !state.done.has(item.id)).reduce((sum, item) => sum + unitsOf(item), 0) : null;
       if (count !== null) tab.append(el(doc, 'span', { className: 'bb-inbox-count bb-ws-tab-count', text: `${count}${id !== 'notices' && unreadable ? '+' : ''}` }));
-      tab.addEventListener('click', () => { state.filter = 'all'; state.expanded = null; go(route); });
+      tab.addEventListener('click', () => { state.filter = 'all'; state.expanded = null; state.focus = { target: 'tab', id }; go(route); });
+      if (state.focus?.target === 'tab' && state.focus.id === id) focusTarget = tab;
       tablist.append(tab);
     }
     bar.append(tablist);
@@ -759,7 +760,9 @@ export function createInboxUI({
           if (state.focus?.itemId === item.id && state.focus.target === 'row-deny') focusTarget = denyButton;
           controls.append(denyButton);
         }
-        controls.append(workspaceButton(doc, { text: '保留', variant: 'quiet', disabled: running, attrs: { 'aria-expanded': String(state.laterOpen === item.id) }, onClick: () => { state.laterOpen = state.laterOpen === item.id ? null : item.id; render(); } }),
+        const laterButton = workspaceButton(doc, { text: '保留', variant: 'quiet', disabled: running, attrs: { 'aria-expanded': String(state.laterOpen === item.id) }, onClick: () => { state.laterOpen = state.laterOpen === item.id ? null : item.id; state.focus = { itemId: item.id, target: 'row-later' }; render(); } });
+        if (state.focus?.itemId === item.id && state.focus.target === 'row-later') focusTarget = laterButton;
+        controls.append(laterButton,
           workspaceButton(doc, { text: '対応済', variant: 'quiet', disabled: running, onClick: () => void dispose(item, { state: 'cleared', revision: item.revision ?? null }, '対応済にできませんでした') }));
       } else controls.append(workspaceButton(doc, { text: '再開', variant: 'quiet', onClick: () => void dispose(item, { state: 'open' }, '対応待ちに戻せませんでした') }));
     }
