@@ -346,6 +346,9 @@ describe('MCP contract', () => {
     }
   });
 
+  // Includes a real server process and multiple disk-backed tool round trips.
+  // The shared Node 20 CI runner exceeded 5s (5433ms); allow contention here
+  // without relaxing the timeout for the rest of the contract suite.
   it('connected-world onboarding completes start through first-value review over stdio', async () => {
     const dataDir = await fixtureDir();
     const { client, transport } = createClient(dataDir);
@@ -388,7 +391,7 @@ describe('MCP contract', () => {
     } finally {
       await client.close();
     }
-  });
+  }, 15_000);
 
   it('S-8 fails loudly through stdio when canonical SSOT is malformed', async () => {
     const dataDir = await fixtureDir();
