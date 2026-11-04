@@ -31,7 +31,7 @@ Mana委任UI（`ui/outcome-mana`、そのCSSと`ui/icons/mana`）は、0.8.0の�
 
 ### ページヘッダー
 
-- `workspaceTopbar(document, { title })` はタイトルだけの共通バー。高さ44px、文字14px/20px・weight500、左右16px。スクロール領域の上端へsticky固定し、本文やfocus対象を隠さない。
+- `workspaceTopbar(document, { title })` はタイトルだけの共通バー。本文と同じcanvas背景、文字20px/28px・weight600、上12px・下16px・左右32px（高さ56px）。下線・装飾は付けない。寸法は `--bb-page-header-*` / `--bb-page-title-*` を参照する。スクロール領域の上端へsticky固定し、本文やfocus対象を隠さない。ホストはバーの直下に追加の上余白を入れない。
 - 件数、追加ボタン、画面固有のフィルターは本文の操作帯に置く。全ページ共通の用途が定義されていない3点メニューは追加しない。
 - 世界のような没入型キャンバスはヘッダーを出さず、画面上端から内容を表示する。
 - `workspacePageHeader` は本文の説明・出典・操作を組み立てる既存部品。共通バーを使うホストは `.bb-ws-has-topbar` で重複タイトルを省き、固有の操作や説明を保持する。
@@ -85,7 +85,7 @@ Application must be explicit: do not style every `role=tablist` globally. Task l
 
 `workspaceSearchBand(document, { root, query, filters, sort, reset, onResetSort })` は共通の検索帯を組み立てる。左は `primary`、右は文字検索 → `scopeSlot` → フィルターアイコン → 並べ替えアイコン。ホストが渡したinput、各条件、comboboxとhandlerの所有は変えない。`destroy()`で追加listenerとpopoverを破棄する。既存 `workspaceCompactToolbar` と各画面の既定表示は変更しない。
 
-- 本文のスクロール領域で共通ヘッダー直下44pxに固定。高さ56px、操作高さ32px、上下12px、下線とその下12px。スクロール領域と本文外枠の配置はホストが所有する。
+- 本文のスクロール領域で共通ヘッダー直下に固定（`--bb-search-band-header-height` は共通ヘッダー高に追従）。高さ56px、操作高さ32px、上下12px、下線とその下12px。スクロール領域と本文外枠の配置はホストが所有する。
 - 検索は180px上限の薄灰・枠なし楕円。入力があると選択面へ変わる。scope選択は内容幅で伸縮し、複数時は「N件選択中」の選択面を使う。色・寸法は `--bb-search-band-*` で定義する。
 - 右の操作は24px幅のアイコンで、互いの間は4px。適用時は選択面と太い線、名前にも「適用中」を含める。解除操作は各popoverの内部に置き、フィルター解除は左右中央。queryとscopeはフィルター解除で変えない。
 - `workspaceDropdownChevron(document)` は10×6px、線幅1.2、丸端の浅いV字SVG。装飾として `aria-hidden`、クリック・focus・名前は親triggerが所有する。画面ごとの文字グリフ・上下位置補正を増やさない。
