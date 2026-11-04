@@ -2,6 +2,25 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
+## 0.50.1 candidate — npm公開前
+
+- `develop` bb2a2fa4 までをまとめて公開するpatch更新候補。
+- UNS-264: 議事録一覧に `limit`（既定100、最大500）と `cursor` を足し、続きがあるときだけ `next_cursor` を返す。返す形 `{ state, meetings, absence_confirmed }` は維持し、一覧に版の本文は入れない。不正な `limit`・`cursor` は422。共通の議事録画面は `next_cursor` を辿って全件を表示する（#939）。
+- UNS-264: 引数なしの `list_meetings(context)` は今までどおり全件の配列を返し、options を渡したときだけ `{ meetings, next_cursor }` を返す（#943）。
+- UNS-291: judgment DAG を外部レビューagentに合わせ、契約ファイルのハッシュを更新する（#940, #944）。
+- UNS-36: VibePro producer の公開契約4つをCIで実行する（#937）。
+- これは公開候補の記録。npm公開と利用ホストの本番反映は、別の検証で確認する。
+
+## 0.50.0 candidate — npm公開前
+
+- `develop` 8d1449bc までをまとめて公開するminor更新候補。
+- UNS-59: 所有権サーベイの検証を `src/ownership-survey.ts` としてOSSへ移す（#936）。
+- 公開MCPにagent限定のTask queueの7つの道具と共通契約テストを追加する（#930）。ホストが `QueueTaskBackend` を注入したときだけ登録し、既存の道具は変えない。
+- OSS公開契約のfixtureと照合テストを追加する（#931・#932・#933）。
+- 議事録名が空のときは `minutes_title` を送らず既定名にする（#926）。stage3bのbundleでEXDEV時に同じディレクトリへのcopyとrenameへ戻す（#927）。
+- Growin UIの要望 RQ-151・152・153（#897）、会議要約の取り込み（#906）、開発依存の更新（#928）、PR本文のBrainbase行のCI（#925）。
+- これは公開候補の記録。npm公開と利用ホストの本番反映は、別の検証で確認する。
+
 ## 0.49.1 candidate — npm公開前
 
 - 共通ナビゲーションに、ホストが見出しリンクのアイコン・クラスとグループの余白を指定できる後方互換の設定を追加する。未指定時の表示、行き先、選択状態、権限による非表示は維持する。

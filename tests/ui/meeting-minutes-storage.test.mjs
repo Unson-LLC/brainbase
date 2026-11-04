@@ -213,7 +213,7 @@ test('renders only the selected external version body in the shared core content
     root,
     document: new FakeDocument(),
     fetcher: async (path) => {
-      if (path === '/api/meeting-minutes') {
+      if (path === '/api/meeting-minutes?limit=50') {
         return { ok: true, status: 200, json: async () => ({ absence_confirmed: true, meetings: [{ meeting: detail.meeting, minutes: detail.minutes }] }) };
       }
       if (path === '/api/meeting-minutes/meeting-1') {
