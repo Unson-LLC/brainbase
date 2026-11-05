@@ -25,6 +25,7 @@ import {
   workspaceMetrics,
   workspaceNotice,
   workspacePageHeader,
+  workspaceHelp,
   workspaceRailBlock,
   workspaceRailHead,
 } from './workspace-kit.js';
@@ -982,12 +983,12 @@ function renderStoryLinks(root, state, callbacks) {
 export function renderObjectiveEditor(root, state, callbacks = {}) {
   clear(root);
   const wrapper = makeElement('div', { className: 'objective-editor-root', attrs: { 'data-contract-version': OBJECTIVE_EDITOR_CONTRACT_VERSION, 'data-view': state.view ?? 'list' } });
-  const header = makeElement('header', { className: 'objective-editor-header' });
-  const copy = makeElement('div', { className: 'objective-editor-header-copy' });
+  const header = makeElement('header', { className: 'objective-editor-header bb-ws-page-head' });
+  const copy = makeElement('div', { className: 'objective-editor-header-copy bb-ws-page-copy' });
   append(copy,
-    makeElement('div', { className: 'objective-editor-eyebrow', text: 'BRAINBASE / OBJECTIVES' }),
     makeElement('h1', { text: '目的と評価基準' }),
-    makeElement('p', { text: '目指す状態と評価基準を、版つきで編集・確認します。現状の理解（観測や仮説）とは分けて扱います。' }),
+    makeElement('p', { text: '目指す状態と評価基準を、版つきで編集・確認します。' }),
+    workspaceHelp(getDocument(), { label: '目的と評価基準', text: '現状の理解（観測や仮説）とは分けて扱います。' }),
   );
   const headerStatus = state.save.state !== 'idle' ? state.save.state : state.objectives.state;
   header.append(copy, statusBadge(headerStatus));
