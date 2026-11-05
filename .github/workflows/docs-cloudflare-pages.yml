@@ -14,6 +14,8 @@ on:
       - docs/**
       - scripts/**
       - tests/public-message-promotion.test.ts
+      - tests/release-notes.test.mjs
+      - .github/PULL_REQUEST_TEMPLATE.md
       - tests/repo-hygiene.test.ts
       - .github/workflows/docs-cloudflare-pages.yml
       - .github/workflows/public-message-promotion.yml
@@ -77,6 +79,9 @@ jobs:
 
       - name: Run publication contract tests
         run: npx vitest run tests/public-message-promotion.test.ts tests/repo-hygiene.test.ts
+
+      - name: Test release-note contracts
+        run: node --test tests/release-notes.test.mjs
 
       - name: Build VitePress site
         run: npm run docs:build

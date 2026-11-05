@@ -4,7 +4,10 @@ import { dirname, extname, join, resolve } from 'node:path';
 import { syncPublicMessage, validatePublicMessage } from './lib/public-message.mjs';
 import { parsePublicReleaseState } from './lib/public-release-state.mjs';
 
+import { checkReleaseNotes } from './lib/release-notes.mjs';
+
 const root = resolve(process.cwd());
+await checkReleaseNotes(root);
 
 async function read(relativePath) {
   return readFile(join(root, relativePath), 'utf8');
