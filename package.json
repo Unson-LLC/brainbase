@@ -411,7 +411,39 @@
       "import": "./dist/private-philosophy-graph.js"
     },
     "./ui/native-scrollbars": "./ui/native-scrollbars.js",
-    "./ui/native-scrollbars.css": "./ui/native-scrollbars.css"
+    "./ui/native-scrollbars.css": "./ui/native-scrollbars.css",
+    "./entity-indexer": {
+      "types": "./dist/entity-indexer.d.ts",
+      "import": "./dist/entity-indexer.js"
+    },
+    "./entity-types": {
+      "types": "./dist/entity-types.d.ts",
+      "import": "./dist/entity-types.js"
+    },
+    "./entity-ontology": {
+      "types": "./dist/entity-ontology.d.ts",
+      "import": "./dist/entity-ontology.js"
+    },
+    "./entity-source": {
+      "types": "./dist/entity-source.d.ts",
+      "import": "./dist/entity-source.js"
+    },
+    "./graph-api-source": {
+      "types": "./dist/graph-api-source.d.ts",
+      "import": "./dist/graph-api-source.js"
+    },
+    "./graph-evidence": {
+      "types": "./dist/graph-evidence.d.ts",
+      "import": "./dist/graph-evidence.js"
+    },
+    "./graph-token-provider": {
+      "types": "./dist/graph-token-provider.d.ts",
+      "import": "./dist/graph-token-provider.js"
+    },
+    "./entity-index-cache": {
+      "types": "./dist/entity-index-cache.d.ts",
+      "import": "./dist/entity-index-cache.js"
+    }
   },
   "bin": {
     "brainbase-mcp": "dist/index.js",
