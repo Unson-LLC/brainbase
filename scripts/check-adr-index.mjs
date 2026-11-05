@@ -9,12 +9,17 @@ export const config = {
   "directory": "docs/architecture",
   "legacy": {
     "docs/architecture/ADR-story-brainbase-local-ssot-atomic-commit.md": 1,
-    "docs/architecture/ADR-story-brainbase-oss-npm-release.md": 2
+    "docs/architecture/ADR-story-brainbase-oss-npm-release.md": 2,
+    "docs/architecture/oss-organization-ui-ownership.md": 3,
+    "docs/architecture/story-company-os-decision-adapter-v1.md": 4
   },
-  "baselineMax": 2,
+  "baselineMax": 4,
+  "retiredNumbers": [],
   "baseline": [
     "docs/architecture/ADR-story-brainbase-local-ssot-atomic-commit.md",
-    "docs/architecture/ADR-story-brainbase-oss-npm-release.md"
+    "docs/architecture/ADR-story-brainbase-oss-npm-release.md",
+    "docs/architecture/oss-organization-ui-ownership.md",
+    "docs/architecture/story-company-os-decision-adapter-v1.md"
   ]
 };
 
@@ -24,16 +29,19 @@ function adrFiles(root) {
     if (!fs.existsSync(directory)) return;
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
       // Audit copies and distributed templates are not this repository's decisions.
-      if (['audit-artifacts', 'playbooks'].includes(entry.name)) continue;
+      if (['.git', 'node_modules', 'dist', '.vitepress', 'audit-artifacts', 'playbooks'].includes(entry.name)) continue;
       const full = path.join(directory, entry.name);
       if (entry.isDirectory()) walk(full);
-      else if (entry.isFile() && /^adr[-_].*\.md$/i.test(entry.name)
-        && entry.name !== 'adr-authoring.md') {
+      else if (entry.isFile() && /\.md$/i.test(entry.name)
+        && !['adr-authoring.md', 'adr-review.instructions.md'].includes(entry.name)
+        && (/^adr[-_]/i.test(entry.name)
+          || /^#{1,6}\s+ADR\s*[:：-]/im.test(fs.readFileSync(full, 'utf8'))
+          || /^---\r?\n[\s\S]*?^type:\s*["']?adr["']?\s*$/im.test(fs.readFileSync(full, 'utf8')))) {
         files.push(path.relative(root, full).split(path.sep).join('/'));
       }
     }
   }
-  walk(path.join(root, 'docs'));
+  walk(root);
   return files.sort();
 }
 
@@ -64,7 +72,7 @@ export function checkAdrIndex(root, policy = config) {
     if (seenFiles.has(target)) errors.push(`Duplicate ADR file: ${target}`);
     seenFiles.add(target);
     if (!discovered.has(target)) errors.push(`Missing or non-ADR target: ${target}`);
-    if (!policy.baseline.includes(target) && number <= policy.baselineMax) {
+    if ((policy.retiredNumbers ?? []).includes(number) || (!policy.baseline.includes(target) && number <= policy.baselineMax)) {
       errors.push(`Reserved historical number: ${row[1]}`);
     }
     const legacyNumber = policy.legacy[target];

@@ -2,29 +2,22 @@ name: ADR index
 
 on:
   pull_request:
-    paths:
-      - 'docs/**'
-      - 'scripts/check-adr-index*'
-      - '.github/workflows/adr-index.yml'
   push:
     branches: [main, develop]
-    paths:
-      - 'docs/**'
-      - 'scripts/check-adr-index*'
-      - '.github/workflows/adr-index.yml'
 
 permissions:
   contents: read
 
 jobs:
   adr-index:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
       - run: node scripts/check-adr-index.mjs

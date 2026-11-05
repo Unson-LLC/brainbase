@@ -77,3 +77,20 @@ test('does not reuse reserved historical gaps', () => {
   const root = fixture(['docs/architecture/ADR-003-three.md'], [row('003', 'ADR-003-three.md')]);
   assert.match(checkAdrIndex(root, { ...policy, baselineMax: 35 }).join('\n'), /Reserved historical number/);
 });
+
+test('detects ADR headings and frontmatter regardless of filename or directory', () => {
+  for (const [file, content] of [
+    ['docs/architecture/story-new.md', '# ADR: New decision\n'],
+    ['decisions/choice.md', '# ADR: Outside docs\n'],
+    ['docs/architecture/choice.md', '---\ntype: adr\n---\n# Choice\n'],
+  ]) {
+    const root = fixture([file], []);
+    fs.writeFileSync(path.join(root, file), content);
+    assert.match(checkAdrIndex(root, policy).join('\n'), /ADR missing from index/);
+  }
+});
+test('rejects retired numbers above the initial baseline while allowing the next number', () => {
+  const root = fixture(['docs/architecture/ADR-009-nine.md'], [row('009', 'ADR-009-nine.md')]);
+  assert.match(checkAdrIndex(root, { ...policy, retiredNumbers: [9] }).join('\n'), /Reserved historical number/);
+  assert.deepEqual(checkAdrIndex(root, { ...policy, retiredNumbers: [8] }), []);
+});
