@@ -52,12 +52,12 @@ describe('workspace kit (the organization edition screen pattern)', () => {
     expect(byClass(page, 'bb-ws-source')[0].textContent).toBe('手元のGraph');
   });
 
-  it('labels a notice and marks warnings as alerts', () => {
+  it('labels a notice and marks warnings as status', () => {
     const info = workspaceNotice(doc, { label: '出典', text: 'このMacのGraph' });
     expect(info.className).toBe('bb-ws-notice is-info');
     expect(info.attributes.role).toBeUndefined();
     expect(text(info)).toBe('出典このMacのGraph');
-    expect(workspaceNotice(doc, { label: '移行', text: '必要', tone: 'warning' }).attributes.role).toBe('alert');
+    expect(workspaceNotice(doc, { label: '移行', text: '必要', tone: 'warning' }).attributes.role).toBe('status');
   });
 
   it('shows an unknown metric as 未確認, never as zero', () => {
