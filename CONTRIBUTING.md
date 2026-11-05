@@ -62,3 +62,7 @@ fix: emit target-specific MCP install config
 test: cover onboarding status gaps
 docs: clarify local-only backend scope
 ```
+
+## Release notes
+
+PR 本文は `.github/PULL_REQUEST_TEMPLATE.md` の「## リリースノート」を記入する。下書きの作成・照合は [リリースノートの手順](docs/releases/README.md) に従う。
