@@ -9,7 +9,7 @@
 - `vitest run tests/ui/judgment-history.test.mjs`: 57件成功。inline・focus維持・検索・部分取得の件数の確実性を含む。
 - 組織版のローカルpreviewと本ブランチの `/oss/` 資材をブラウザのrouteで合成し、1440×900 / 390×844、reduced motionで確認。
 - 全期間16件 → 次のページで24件 → プロジェクト sample-b で8件。横スクロール、console/page error、壊れた画像なし（report.json）。
-- after-* は全期間、before-* は変更前UIの既定期間。スクリーンショットでモバイルの折返しと操作の常時表示を確認。件数行のmuted色 #6b7280 はcanvas #f6f8faに対し約4.55:1、白に対し約4.83:1。
+- after-* は全期間、before-* は変更前UIの既定期間。スクリーンショットでモバイルの折返しと操作の常時表示を確認。件数行のmuted色 #6b7280 はcanvas #f6f8faに対し約4.54:1、白に対し約4.83:1。
 - プロジェクト・判断したAIの選択肢はnormalモード限定を維持。legacyは既存の期間・検索のクライアント集計を保持する。サンプルはnormal形式。
 
 ## ローカル再確認
