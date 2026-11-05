@@ -15,7 +15,6 @@ const {
   makeWorkspaceElement,
   workspaceButton,
   workspaceDialog,
-  workspaceFilterPopover,
   workspaceErrorCard,
   workspaceCombobox,
   workspaceDefinition,
@@ -1872,15 +1871,23 @@ function loadingLine(doc) {
   });
 }
 
-function summaryLine(doc, aggregate, { loading = false } = {}) {
-  const retrieved = Number.isInteger(aggregate?.retrievedCount) ? aggregate.retrievedCount : (aggregate?.rows?.length ?? 0);
-  const complete = aggregate?.countComplete === true && Number.isInteger(aggregate?.totalCount);
-  const showCount = complete || retrieved > 0;
-  if (loading && !showCount) return loadingLine(doc);
-  const line = makeWorkspaceElement(doc, 'p', { className: 'bb-jh-summary' });
-  line.append(makeWorkspaceElement(doc, 'strong', { text: `${complete ? aggregate.totalCount : retrieved}件` }));
-  line.append(makeWorkspaceElement(doc, 'span', { text: loading ? ' 届きました（続きを読み込んでいます…）' : ' 取得済み' }));
-  if (loading) return line;
+function summaryLine(doc, aggregate, { loading = false, retrievedCount } = {}) {
+  const retrieved = retrievedCount ?? aggregate?.retrievedCount ?? aggregate?.rows?.length ?? 0;
+  const normal = aggregate?.mode === 'normal';
+  const complete = normal
+    ? aggregate?.totalCount !== null && Number.isInteger(aggregate?.totalCount)
+    : aggregate?.status === 'available';
+  if (loading && retrieved === 0) return loadingLine(doc);
+  const visible = aggregate?.rows?.length ?? 0;
+  const line = makeWorkspaceElement(doc, 'p', { className: 'bb-jh-summary', attrs: { 'aria-live': 'polite' } });
+  const total = complete ? `${aggregate.totalCount}件${aggregate.query ? '（検索前）' : ''}` : '未確認';
+  line.append(makeWorkspaceElement(doc, 'span', {
+    text: `取得済み ${retrieved}件 · 条件一致 ${visible}件${aggregate.query && normal ? '（取得済みの範囲）' : ''} · 表示 ${visible ? `1–${visible}` : '0'}件 · 総数 ${total}`,
+  }));
+  if (loading) {
+    line.append(makeWorkspaceElement(doc, 'span', { text: ' 届きました（続きを読み込んでいます…）' }));
+    return line;
+  }
   const references = aggregate?.stats?.referenceCount ?? aggregate?.stats?.references;
   const confirmed = aggregate?.stats?.confirmedOutcomes ?? aggregate?.stats?.outcomes;
   line.append(makeWorkspaceElement(doc, 'span', { text: '　・　使った参照 ' }));
@@ -1983,11 +1990,9 @@ export function createJudgmentHistoryUI({
     personalMemories: new Map(),
   };
 
-  let filterPopover = null;
   let filterComboboxes = [];
   // The record details stay open across redraws of the same screen.
   let recordDetailsOpen = false;
-  let filterExpanded = false;
   let drawer = null;
   let drawerContent = null;
   let drawerKey = null;
@@ -2399,14 +2404,11 @@ export function createJudgmentHistoryUI({
       root.replaceChildren(pending);
       return;
     }
-    const focusedFilter = filterExpanded && filterPopover
-      ? findFirst(filterPopover.panel, node => node === doc.activeElement) : null;
+    const focusedFilter = findFirst(root, node => node === doc.activeElement && (attributeValue(node, 'data-filter') || attributeValue(node, 'data-period')));
     const filterFocus = focusedFilter && {
       filter: attributeValue(focusedFilter, 'data-filter'),
       label: attributeValue(focusedFilter, 'aria-label'), period: attributeValue(focusedFilter, 'data-period'),
     };
-    filterPopover?.destroy();
-    filterPopover = null;
     for (const combobox of filterComboboxes) combobox.destroy();
     filterComboboxes = [];
     const previousSearchInput = findFirst(root, isSearchInput);
@@ -2445,7 +2447,7 @@ export function createJudgmentHistoryUI({
       if (!nativeDrawer) renderRail(doc, rail, null, null);
       return;
     }
-    const controls = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-controls' });
+    const controls = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-controls', attrs: { role: 'group', 'aria-label': '判断の履歴の絞り込み' } });
     const filterFields = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-filter-fields' });
     filterFields.append(periodButtons(doc, state.period, (period) => {
       state.period = period;
@@ -2471,11 +2473,7 @@ export function createJudgmentHistoryUI({
       if (searchable) state.aggregate = aggregateJudgmentHistory(searchable, { now: readNow(), period: state.period, query: state.query });
       render();
     }));
-    filterPopover = workspaceFilterPopover(doc, {
-      content: filterFields, open: filterExpanded,
-      onToggle: value => { filterExpanded = value; },
-    });
-    controls.append(filterPopover.root);
+    controls.append(filterFields);
     const toolbarStatus = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-toolbar-status' });
     if (state.checkedAt) {
       const stamp = formatCheckedAt(state.checkedAt);
@@ -2504,7 +2502,9 @@ export function createJudgmentHistoryUI({
     toolbarStatus.append(reloadButton);
     controls.append(toolbarStatus);
     wrapper.append(controls);
-    wrapper.append(summaryLine(doc, aggregate, { loading }));
+    wrapper.append(summaryLine(doc, aggregate, {
+      loading, retrievedCount: (sourceHome?.mode === 'normal' ? sourceHome.records : sourceHome?.items)?.length ?? 0,
+    }));
     const emptyText = loading ? '' : state.home?.status === 'partial' || (normalMode() && !aggregate.countComplete)
       ? 'この期間に取得できた判断履歴はありません。全件数が未確認のため0件とは確認できません。'
       : 'この期間の判断履歴はありません。';
@@ -2539,8 +2539,8 @@ export function createJudgmentHistoryUI({
       replaceNode(nextSearchInput, previousSearchInput);
     }
     root.replaceChildren(wrapper);
-    if (filterExpanded && filterFocus) {
-      const field = findFirst(filterPopover.panel, node => (filterFocus.filter
+    if (filterFocus) {
+      const field = findFirst(controls, node => (filterFocus.filter
         ? attributeValue(node, 'data-filter') === filterFocus.filter
         : filterFocus.label
           ? attributeValue(node, 'aria-label') === filterFocus.label
@@ -2731,7 +2731,6 @@ export function createJudgmentHistoryUI({
     state.disposed = true;
     state.generation += 1;
     clearLoadTimers();
-    filterPopover?.destroy();
     for (const combobox of filterComboboxes) combobox.destroy();
     notifications.remove?.();
     disposeDrawer();

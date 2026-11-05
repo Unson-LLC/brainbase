@@ -1483,7 +1483,31 @@ describe('judgment history shared drawer and filter lifecycle', () => {
     } finally { view.dispose(); vi.useRealTimers(); }
   });
 
-  it('keeps advanced search open and the selected filter focused after reload, without stealing external search focus', async () => {
+  it('reports retrieved, matching and total counts without treating partial coverage as a confirmed zero', async () => {
+    for (const partial of [false, true]) {
+      const doc = new DialogDocument(); const root = doc.createElement('main'); doc.body.append(root);
+      const view = createJudgmentHistoryUI({
+        root, document: doc, autoLoad: false, now: OWNER_NOW,
+        fetcher: async () => ({ ok: true, json: async () => normalHome([normalRecord()], {
+          status: partial ? 'partial' : 'available',
+          coverage: { complete: !partial, total: partial ? null : 24 },
+          pagination: { next_cursor: 'next', limit: 1 },
+        }) }),
+      });
+      await view.load();
+      const summary = () => collectText(findAll(root, node => node.className === 'bb-jh-summary')[0]);
+      expect(summary()).toContain('取得済み 1件 · 条件一致 1件 · 表示 1–1件');
+      expect(summary()).toContain(partial ? '総数 未確認' : '総数 24件');
+      const search = findAll(root, node => node.tagName === 'INPUT')[0];
+      search.value = 'no matching judgment'; search.listeners.get('input')({ target: search });
+      expect(summary()).toContain('取得済み 1件 · 条件一致 0件（取得済みの範囲） · 表示 0件');
+      expect(summary()).toContain(partial ? '総数 未確認' : '総数 24件（検索前）');
+      expect(collectText(root)).toContain('0件とは確認できません');
+      view.dispose();
+    }
+  });
+
+  it('keeps filters inline and the selected filter focused after reload, without stealing search focus', async () => {
     const doc = new DialogDocument(); const root = doc.createElement('main'); doc.body.append(root);
     const requests = [];
     const view = createJudgmentHistoryUI({
@@ -1491,11 +1515,12 @@ describe('judgment history shared drawer and filter lifecycle', () => {
       fetcher: async path => { requests.push(path); return { ok: true, json: async () => normalHome([normalRecord()]) }; },
     });
     await view.load();
-    findAll(root, node => node.tagName === 'BUTTON' && node.textContent === '詳細検索')[0].listeners.get('click')();
+    expect(findAll(root, node => node.tagName === 'BUTTON' && node.textContent === '詳細検索')).toHaveLength(0);
+    expect(findAll(root, node => node.attributes['aria-label'] === '判断の履歴の絞り込み')).toHaveLength(1);
     chooseFilter(root, 'project', 'project-atlas');
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(requests.at(-1)).toContain('project=project-atlas');
-    expect(findAll(root, node => node.attributes.role === 'region')[0].hidden).toBe(false);
+    expect(findAll(root, node => node.attributes['data-filter'] === 'project')).toHaveLength(1);
     expect(doc.activeElement.attributes['data-filter']).toBe('project');
     expect(doc.activeElement.attributes['aria-label']).toBe('プロジェクト: Atlas');
     const search = findAll(root, node => node.tagName === 'INPUT')[0]; search.focus();
