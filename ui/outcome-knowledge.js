@@ -1,4 +1,4 @@
-import { workspaceDetailDrawer, workspaceButton } from './workspace-kit.js';
+import { workspaceDetailDrawer, workspaceButton, workspaceHelp } from './workspace-kit.js';
 import { knowledgeDirectoryToolbar, knowledgeRegistrationChooser } from './knowledge-directory.js';
 
 /*
@@ -1582,15 +1582,18 @@ export function createKnowledgeOverviewController(options = {}) {
     clear(root);
     const shell = makeElement('div', { className: 'knowledge-outcome knowledge-overview' });
     if (options.presentation === 'directory') shell.classList.add('knowledge-directory');
-    const header = makeElement('header', { className: 'knowledge-outcome-head' });
-    const headerMain = makeElement('div', { className: 'knowledge-header-main' });
+    const header = makeElement('header', { className: 'knowledge-outcome-head bb-ws-page-head' });
+    const headerMain = makeElement('div', { className: 'knowledge-header-main bb-ws-page-copy' });
     append(headerMain,
-      makeElement('span', { className: 'knowledge-eyebrow', text: 'Brainbase Outcome' }),
-      makeElement('h2', { text: '知識・判断' }),
-      makeElement('p', { text: '見られるすべてのプロジェクトと組織共通の知識・判断を一覧にします。登録や改訂は、プロジェクトを選ぶとできます。' }),
+      makeElement('h1', { text: '知識・判断' }),
+      makeElement('p', { text: '見られる範囲の知識・判断を一覧にします。' }),
     );
     const headerMeta = makeElement('div', { className: 'knowledge-header-meta' });
+    const guide = workspaceHelp(getDocument(), { label: '知識・判断', text: '見られるすべてのプロジェクトと組織共通の知識・判断を一覧にします。登録や改訂は、プロジェクトを選ぶとできます。' });
+    guide.className += ' is-page-guide';
+    guide.children[0].textContent = '?';
     renderKnowledgeProjectFilter(headerMeta, { projects: options.projects, selected: null }, { onChange: (code) => openProject(code, { reason: 'filter' }) });
+    headerMeta.append(guide);
     append(header, headerMain, headerMeta);
     if (options.presentation !== 'directory') shell.append(header);
     const body = makeElement('div', { className: 'knowledge-outcome-body knowledge-workspace', attrs: { 'data-view': 'discovery' } });
@@ -1793,11 +1796,10 @@ export function createKnowledgeOutcomeController(options = {}) {
     clear(root);
     const shell = makeElement('div', { className: 'knowledge-outcome' });
     if (options.presentation === 'directory') shell.classList.add('knowledge-directory');
-    const header = makeElement('header', { className: 'knowledge-outcome-head' });
-    const headerMain = makeElement('div', { className: 'knowledge-header-main' });
+    const header = makeElement('header', { className: 'knowledge-outcome-head bb-ws-page-head' });
+    const headerMain = makeElement('div', { className: 'knowledge-header-main bb-ws-page-copy' });
     append(headerMain,
-      makeElement('span', { className: 'knowledge-eyebrow', text: 'Brainbase Outcome' }),
-      makeElement('h2', { text: '知識・判断を成果へつなぐ' }),
+      makeElement('h1', { text: '知識・判断を成果へつなぐ' }),
       makeElement('p', { text: '正本を探し、由来と状態を確認して、必要なときだけ更新します。' }),
     );
     const headerMeta = makeElement('div', { className: 'knowledge-header-meta' });

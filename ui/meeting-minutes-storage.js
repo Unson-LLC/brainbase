@@ -149,14 +149,14 @@ function render(model, { document: explicitDocument, onRetry, onPlacementChange 
       'aria-label': '議事録の保存先',
     },
   });
-  const heading = makeElement(doc, 'h2', { className: 'bb-mms-title', text: '議事録の保存先' });
+  const heading = makeElement(doc, 'h1', { className: 'bb-mms-title', text: '議事録の保存先' });
   const status = makeElement(doc, 'p', {
     className: 'bb-mms-status',
     attrs: { 'data-source-status': model.sourceStatus },
     text: model.sourceStatusLabel,
   });
-  const header = makeElement(doc, 'header', { className: 'bb-mms-header' });
-  append(header, makeElement(doc, 'div', { className: 'bb-mms-header-copy' }), status);
+  const header = makeElement(doc, 'header', { className: 'bb-mms-header bb-ws-page-head' });
+  append(header, makeElement(doc, 'div', { className: 'bb-mms-header-copy bb-ws-page-copy' }), status);
   header.children[0].append(heading);
 
   const placementLabel = makeElement(doc, 'dt', { text: '本文の正本' });

@@ -23,8 +23,9 @@
 
 .bb-mms-title {
   margin: 0;
-  font-size: 1.2rem;
-  line-height: 1.35;
+  font-size: var(--bb-page-title-font-size);
+  font-weight: var(--bb-page-title-font-weight);
+  line-height: var(--bb-page-title-line-height);
 }
 
 .bb-mms-status {
