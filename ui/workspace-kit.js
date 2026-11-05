@@ -50,7 +50,7 @@ function appendContent(parent, doc, content) {
 }
 
 /** Breadcrumb, h1, lead, source label and actions, as on the organization screens. */
-export function workspacePageHeader(doc, { crumbs = [], title, lead, source, actions = [] } = {}) {
+export function workspacePageHeader(doc, { crumbs = [], title, lead, help, source, actions = [] } = {}) {
   const wrap = el(doc, 'div', { className: 'bb-ws-page' });
   if (crumbs.length > 0) {
     const breadcrumb = el(doc, 'nav', { className: 'bb-ws-breadcrumb', attrs: { 'aria-label': 'パンくず' } });
@@ -63,7 +63,10 @@ export function workspacePageHeader(doc, { crumbs = [], title, lead, source, act
   const head = el(doc, 'header', { className: 'bb-ws-page-head' });
   const copy = el(doc, 'div', { className: 'bb-ws-page-copy' });
   copy.append(el(doc, 'h1', { text: title }));
-  if (lead) copy.append(el(doc, 'p', { className: 'bb-ws-lead', text: lead }));
+  const longLead = typeof lead === 'string' && (Array.from(lead).length > 60 || (lead.match(/[。！？]/g) ?? []).length > 1);
+  if (lead && !longLead) copy.append(el(doc, 'p', { className: 'bb-ws-lead', text: lead }));
+  const explanation = [longLead ? lead : null, help].filter(Boolean).join('\n');
+  if (explanation) copy.append(workspaceHelp(doc, { label: title, text: explanation, symbol: '?', placement: 'below-start' }));
   head.append(copy);
   const side = el(doc, 'div', { className: 'bb-ws-page-side' });
   if (source) side.append(el(doc, 'span', { className: 'bb-ws-source', text: source }));
@@ -303,9 +306,9 @@ function nextWorkspaceSequence() {
   return workspaceIdScope ? `${encodeURIComponent(workspaceIdScope)}-${next}` : next;
 }
 /** Shared explanatory help: hover/focus above the control, click for touch. */
-export function workspaceHelp(doc, { text, label } = {}) {
-  const wrap = el(doc, 'span', { className: 'bb-ws-help' });
-  const control = workspaceButton(doc, { text: 'i', attrs: { 'aria-label': `${label}の説明`, 'aria-expanded': 'false' } });
+export function workspaceHelp(doc, { text, label, symbol = 'i', placement = 'above' } = {}) {
+  const wrap = el(doc, 'span', { className: `bb-ws-help${placement === 'below-start' ? ' is-below-start' : ''}` });
+  const control = workspaceButton(doc, { text: symbol, attrs: { 'aria-label': `${label}の説明`, 'aria-expanded': 'false' } });
   control.className = 'bb-ws-help-button';
   const bubble = el(doc, 'span', { className: 'bb-ws-help-bubble', text, attrs: { id: `bb-ws-help-${nextWorkspaceSequence()}`, role: 'tooltip' } });
   control.setAttribute('aria-describedby', bubble.id || bubble.getAttribute?.('id') || bubble.attributes?.id);

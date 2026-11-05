@@ -73,7 +73,8 @@
   margin: 0;
 }
 
-.bb-minutes-heading h1,
+.bb-minutes-heading h1 { margin: 0; font-size: var(--bb-page-title-font-size, 20px); font-weight: var(--bb-page-title-font-weight, 600); line-height: var(--bb-page-title-line-height, 28px); letter-spacing: normal; }
+
 .bb-minutes-detail-head h2 {
   font-size: 20px;
   font-weight: var(--bb-font-weight-medium);

@@ -25,9 +25,7 @@
   gap: 8px 20px;
 }
 
-.bb-gp > .bb-ws-page .bb-ws-page-head h1 {
-  font-size: clamp(28px, 3vw, 36px);
-}
+.bb-gp > .bb-ws-page .bb-ws-page-head h1 { margin: 0; font-size: var(--bb-page-title-font-size, 20px); font-weight: var(--bb-page-title-font-weight, 600); line-height: var(--bb-page-title-line-height, 28px); letter-spacing: normal; }
 
 .bb-gp > .bb-ws-page .bb-ws-lead {
   margin-top: 6px;

@@ -9,11 +9,7 @@
   gap: 4px;
 }
 
-.bb-mml-title {
-  margin: 0;
-  color: var(--bb-color-ink, #17202a);
-  font-size: 18px;
-}
+.bb-mml-title { margin: 0; font-size: var(--bb-page-title-font-size, 20px); font-weight: var(--bb-page-title-font-weight, 600); line-height: var(--bb-page-title-line-height, 28px); letter-spacing: normal; }
 
 .bb-mml-evidence,
 .bb-mml-notice,

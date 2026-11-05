@@ -67,12 +67,7 @@
   margin-top: 0;
 }
 
-.judgment-view h1 {
-  margin: 4px 0 8px;
-  font-size: clamp(1.45rem, 3vw, 2rem);
-  line-height: 1.25;
-  letter-spacing: -.02em;
-}
+.judgment-view h1 { margin: 0; font-size: var(--bb-page-title-font-size, 20px); font-weight: var(--bb-page-title-font-weight, 600); line-height: var(--bb-page-title-line-height, 28px); letter-spacing: normal; }
 
 .judgment-view h2 {
   margin-bottom: 14px;

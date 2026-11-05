@@ -1,0 +1,22 @@
+[
+  {
+    "width": 1440,
+    "size": "20px",
+    "weight": "600",
+    "expanded": "true",
+    "helpVisible": "visible",
+    "bubbleInViewport": true,
+    "overflow": false,
+    "dismissed": true
+  },
+  {
+    "width": 390,
+    "size": "20px",
+    "weight": "600",
+    "expanded": "true",
+    "helpVisible": "visible",
+    "bubbleInViewport": true,
+    "overflow": false,
+    "dismissed": true
+  }
+]

@@ -101,8 +101,8 @@ describe('情報の種類とつながり方', () => {
     expect(relationText).toContain('所有プロジェクト → 組織（が所有）');
     expect(text).toContain('新しく加えられる関係: 参加・責任・所属');
     expect(text).toContain('（最新）');
-    // Read-only: no change proposal, no button or form.
-    expect(findAll(root, (node) => node.tagName === 'BUTTON' || node.tagName === 'FORM')).toEqual([]);
+    // Read-only: explanatory help may open, but there are no mutation controls.
+    expect(findAll(root, (node) => (node.tagName === 'BUTTON' && node.className !== 'bb-ws-help-button') || node.tagName === 'FORM')).toEqual([]);
     expect(text).not.toContain('提案');
     // Relation ids are only in the details.
     for (const id of ['participates_in', 'owned_by', 'member_of']) expect(text, id).not.toContain(id);

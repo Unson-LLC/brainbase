@@ -359,3 +359,25 @@ describe('shared dismissal motion', () => {
     });
   }
 });
+
+
+describe('page explanations', () => {
+  it('keeps lengthy explanations available through accessible help without a visible lead', () => {
+    const lead = '事業を都市、案件を区画として描いています。見るための画面で、ここからは何も書き換えません。';
+    const page = workspacePageHeader(doc, { title: '世界', lead });
+    expect(byClass(page, 'bb-ws-lead')).toHaveLength(0);
+    const button = byClass(page, 'bb-ws-help-button')[0];
+    const bubble = byClass(page, 'bb-ws-help-bubble')[0];
+    expect(button.textContent).toBe('?');
+    expect(button.attributes['aria-label']).toBe('世界の説明');
+    expect(button.attributes['aria-describedby']).toBe(bubble.attributes.id);
+    expect(bubble.textContent).toBe(lead);
+  });
+
+  it('retains a short lead and explicit help without duplicating a title', () => {
+    const page = workspacePageHeader(doc, { title: '目的', lead: '目的を確認します。', help: '観測と仮説とは分けて扱います。' });
+    expect(byClass(page, 'bb-ws-lead')[0].textContent).toBe('目的を確認します。');
+    expect(byClass(page, 'bb-ws-help-bubble')[0].textContent).toBe('観測と仮説とは分けて扱います。');
+    expect(findAll(page, node => node.tagName === 'H1')).toHaveLength(1);
+  });
+});
