@@ -199,6 +199,19 @@ function port(overrides: Partial<JudgmentViewReadPort> = {}) {
 }
 
 describe('historical judgment view', () => {
+  it('reads criteria without Variable references without looking up a fabricated Variable', async () => {
+    const record = objectiveRecord();
+    const { variableRef: _unused, ...criterion } = record.definition.criteria[0];
+    const readFoundationReference = vi.fn(() => ({ status: 'resolved' as const, value: {
+      ...record, definition: { ...record.definition, criteria: [criterion] }
+    } }));
+    const { source } = port({ readFoundationReference });
+    const document = await createJudgmentViewService(source).read({ runId, access });
+    expect(document.objective.status).toBe('resolved');
+    expect(document.objective.value?.criteria.items).toEqual([criterion]);
+    expect(readFoundationReference).toHaveBeenCalledTimes(1);
+  });
+
   it('traces a conclusion to the exact Problem, Objective, variable, child runs, and separate evaluations', async () => {
     const { source, requests } = port();
     const document = await createJudgmentViewService(source).read({ runId, access });

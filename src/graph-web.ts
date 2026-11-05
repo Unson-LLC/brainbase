@@ -288,7 +288,7 @@ export interface GraphObjectiveView {
   adoptionState: FoundationAdoptionState;
   evaluationPeriod: { from: string; until: string };
   criteria: Array<{
-    variable: { id: string; revision: string; meaning: string | null; unit: string | null };
+    variable: { id: string; revision: string; meaning: string | null; unit: string | null } | null;
     operator: FoundationOperator;
     target: string | number | boolean | null;
   }>;
@@ -840,9 +840,9 @@ function objectiveListOf<S extends GraphWebAnySource>(graph: GraphFileV2, source
         adoptionState: definition.adoptionState,
         evaluationPeriod: { from: definition.evaluationPeriod.from, until: definition.evaluationPeriod.until },
         criteria: definition.criteria.map((criterion) => {
-          const variable = findFoundationRecord(catalog, criterion.variableRef)?.definition as VariableDefinition | undefined;
+          const variable = criterion.variableRef ? findFoundationRecord(catalog, criterion.variableRef)?.definition as VariableDefinition | undefined : undefined;
           return {
-            variable: { id: criterion.variableRef.id, revision: criterion.variableRef.revision, meaning: variable?.meaning ?? null, unit: variable?.unit ?? null },
+            variable: criterion.variableRef ? { id: criterion.variableRef.id, revision: criterion.variableRef.revision, meaning: variable?.meaning ?? null, unit: variable?.unit ?? null } : null,
             operator: criterion.operator,
             target: criterion.target ?? null
           };

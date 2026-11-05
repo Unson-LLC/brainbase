@@ -87,6 +87,20 @@ afterEach(() => {
 });
 
 describe('judgment view UI contract', () => {
+  it('renders an unbound criterion and rejects malformed supplied references', () => {
+    const document = view();
+    const criterion = { operator: 'equals', target: true };
+    document.objective.value.criteria.items = [criterion];
+    expect(normalizeJudgmentView(document).objective.value.criteria.items).toEqual([criterion]);
+    const root = new FakeElement('main');
+    renderJudgmentView(root, document, { document: new FakeDocument() });
+    expect(collectText(root)).toContain('変数の参照なし');
+    for (const variableRef of [null, {}, { id: 'x', type: 'model', revision: '1' }]) {
+      document.objective.value.criteria.items = [{ ...criterion, variableRef }];
+      expect(normalizeJudgmentView(document).objective.status).toBe('unknown');
+    }
+  });
+
   it('does not turn an unconfirmed empty collection into an empty success', () => {
     const normalized = normalizeJudgmentView(view({
       evidence: { status: 'resolved', items: [], absence_confirmed: false },

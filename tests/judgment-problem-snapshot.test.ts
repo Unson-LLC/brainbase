@@ -472,6 +472,20 @@ describe('JudgmentProblem snapshot contract', () => {
     }]);
   });
 
+  it('resolves an unbound Objective without requiring a Variable migration', async () => {
+    const dataDir = await mkdtemp(path.join(tmpdir(), 'brainbase-jp-unbound-'));
+    roots.push(dataDir);
+    await initializePersonalOs(dataDir);
+    const store = createFoundationRevisionStore({ dataDir });
+    const definition = { ...foundationObjective('unused'), criteria: [{ operator: 'equals' as const, target: true }] };
+    const saved = await store.create(definition, { principal: 'alice' });
+    const foundationProvider = createJudgmentProblemFoundationReferenceProvider({ store });
+    await expect(foundationProvider.resolve({
+      reference: { ...reference('objective', 31), id: saved.id, revision: saved.revision, digest: saved.digest as `sha256:${string}`, valid_to: '2026-12-31T00:00:00.000Z' },
+      phase: 'read', context: { principal: 'alice' }
+    })).resolves.toMatchObject({ status: 'resolved' });
+  });
+
   it('fails closed when Objective or Model dependencies are missing', async () => {
     const dataDir = await mkdtemp(path.join(tmpdir(), 'brainbase-jp-missing-foundation-'));
     roots.push(dataDir);

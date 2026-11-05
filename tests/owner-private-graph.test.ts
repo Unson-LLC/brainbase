@@ -104,6 +104,12 @@ describe('openOwnerPrivateGraph', () => {
     expect(graph.readEntity('project-atlas', read)).not.toHaveProperty('decisionRecord');
   });
 
+  it('lists an unbound Objective without inventing a Variable', () => {
+    const definition = { ...objectiveDefinition(), criteria: [{ operator: 'equals', target: true }] } as ReturnType<typeof objectiveDefinition>;
+    const graph = openOwnerPrivateGraph(ownerPrivateBundle({ foundation: foundationCatalog([definition]) }), owner);
+    expect(graph.listObjectives().objectives[0].criteria).toEqual([{ variable: null, operator: 'equals', target: true }]);
+  });
+
   it('lists the latest revision of each objective with the people it names', () => {
     const catalog = foundationCatalog([VARIABLE, objectiveDefinition('1', '古い目的'), objectiveDefinition('2')]);
     const objectives = openOwnerPrivateGraph(ownerPrivateBundle({ foundation: catalog }), owner).listObjectives();

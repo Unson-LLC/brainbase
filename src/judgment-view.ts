@@ -208,10 +208,10 @@ export interface JudgmentViewProblemReference {
 }
 
 export interface JudgmentViewCriterion {
-  readonly variableRef: FoundationRef;
+  readonly variableRef?: FoundationRef;
   readonly operator: FoundationOperator;
   readonly target?: string | number | boolean;
-  readonly variable: {
+  readonly variable?: {
     readonly meaning: string;
     readonly subject: string;
     readonly valueKind: VariableDefinition['valueKind'];
@@ -499,10 +499,10 @@ function isVariableDefinition(value: FoundationDefinition): value is VariableDef
 
 function validObjectiveCriterion(value: unknown): value is ObjectiveCriterion {
   return isRecord(value)
-    && isRecord(value.variableRef)
-    && value.variableRef.type === 'variable'
-    && nonEmptyString(value.variableRef.id)
-    && nonEmptyString(value.variableRef.revision)
+    && (value.variableRef === undefined || (isRecord(value.variableRef)
+      && value.variableRef.type === 'variable'
+      && nonEmptyString(value.variableRef.id)
+      && nonEmptyString(value.variableRef.revision)))
     && ['at_least', 'at_most', 'equals'].includes(String(value.operator))
     && (value.target === undefined || typeof value.target === 'string' || typeof value.target === 'number' || typeof value.target === 'boolean');
 }
@@ -641,6 +641,10 @@ async function buildObjectiveView(
   const criteria: JudgmentViewCriterion[] = [];
   for (const criterion of objective.criteria) {
     const variableReference = criterion.variableRef;
+    if (variableReference === undefined) {
+      criteria.push({ operator: criterion.operator, ...(criterion.target === undefined ? {} : { target: criterion.target }) });
+      continue;
+    }
     const matches = variableReferences.filter((reference) => (
       reference.id === variableReference.id && reference.revision === variableReference.revision
     ));
