@@ -93,7 +93,8 @@ export interface FoundationDefinitionBase {
 }
 
 export interface ObjectiveCriterion {
-  variableRef: FoundationRevision;
+  /** Optional for judgment; quantitative evaluation still requires a pinned Variable. */
+  variableRef?: FoundationRevision;
   operator: FoundationOperator;
   target?: string | number | boolean;
 }
@@ -1098,6 +1099,13 @@ function validateTypeSpecificDefinition(
       if (!isNonEmptyString(definition.desiredState)) issues.push(missing('desiredState'));
       if (isEmptyRequiredArray(definition.criteria)) issues.push(missing('criteria'));
       validatePeriod(definition.evaluationPeriod, 'evaluationPeriod', issues);
+      if ((use === 'evaluation' || use === 'execution') && Array.isArray(definition.criteria)) {
+        forEachArrayEntry(definition.criteria, (criterion, index) => {
+          if (isRecord(criterion) && criterion.variableRef === undefined) {
+            issues.push({ code: 'MISSING_FIELD', path: `criteria[${index}].variableRef`, message: 'Quantitative evaluation requires a versioned Variable reference.' });
+          }
+        });
+      }
       break;
     case 'variable':
       if (!isNonEmptyString(definition.subject)) issues.push(missing('subject'));
@@ -1207,11 +1215,7 @@ function validateCriterion(
     issues.push({ code: 'INVALID_FIELD', path, message: 'Objective criteria must be objects.' });
     return;
   }
-  if (criterion.variableRef === undefined) {
-    if (requireTarget) {
-      issues.push({ code: 'MISSING_FIELD', path: `${path}.variableRef`, message: 'Objective criteria require a versioned Variable reference.' });
-    }
-  } else {
+  if (criterion.variableRef !== undefined) {
     validateRevisionValue(criterion.variableRef, 'variable', `${path}.variableRef`, issues);
   }
   if (criterion.operator === undefined) {

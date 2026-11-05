@@ -212,6 +212,24 @@ describe('judgment foundation ontology extension', () => {
     );
   });
 
+  it('supports unbound judgment criteria while retaining quantitative evaluation requirements', () => {
+    const definition = objective({ criteria: [{ operator: 'at_most', target: 120 }] });
+    expect(validateFoundationDefinition(definition, { use: 'draft' }).valid).toBe(true);
+    expect(validateFoundationDefinition(definition, { use: 'judgment' }).valid).toBe(true);
+    expect(validateFoundationDefinition(definition, { use: 'evaluation' }).issues).toContainEqual(
+      expect.objectContaining({ path: 'criteria[0].variableRef', code: 'MISSING_FIELD' })
+    );
+    for (const variableRef of [null, {}, { id: 'x', type: 'model', revision: '1' }]) {
+      const malformed = { ...definition, criteria: [{ ...definition.criteria[0], variableRef }] };
+      expect(validateFoundationDefinition(malformed, { use: 'judgment' }).valid).toBe(false);
+    }
+    const legacy = objective();
+    const before = JSON.stringify(legacy);
+    expect(validateFoundationDefinition(legacy, { use: 'judgment' }).valid).toBe(true);
+    expect(validateFoundationDefinition(legacy, { use: 'evaluation' }).valid).toBe(true);
+    expect(JSON.stringify(legacy)).toBe(before);
+  });
+
   it('reports concrete definition, unit, aggregation, granularity, scope, and period mismatches', () => {
     const definition = variable();
     const actual: FoundationEvaluationDescriptor = {

@@ -214,10 +214,12 @@ function normalizeVariableRef(value) {
 function normalizeCriterion(value) {
   const object = objectValue(value);
   if (!object) return null;
-  const variableRef = normalizeVariableRef(firstValue(object, 'variableRef', 'variable_ref', 'variable'));
+  const referenceKey = ['variableRef', 'variable_ref', 'variable'].find((key) => Object.hasOwn(object, key));
+  const rawVariableRef = referenceKey === undefined ? undefined : object[referenceKey];
+  const variableRef = normalizeVariableRef(rawVariableRef);
   const operator = nonEmptyText(firstValue(object, 'operator', 'comparison'));
-  if (!variableRef || !operator) return null;
-  const criterion = { variableRef, operator };
+  if ((rawVariableRef !== undefined && !variableRef) || !operator) return null;
+  const criterion = { ...(variableRef ? { variableRef } : {}), operator };
   if (Object.hasOwn(object, 'target')) criterion.target = object.target;
   return criterion;
 }
@@ -796,12 +798,12 @@ function renderCriteria(root, draft, callbacks) {
   const fieldset = makeElement('fieldset', { className: 'objective-editor-criteria' });
   fieldset.append(makeElement('legend', { text: '評価基準' }));
   const criteria = Array.isArray(draft.criteria) ? draft.criteria : [];
-  if (!criteria.length) fieldset.append(makeElement('p', { className: 'objective-editor-muted', text: '評価基準はまだありません。判断に使うには、測る変数の参照が必要です。' }));
+  if (!criteria.length) fieldset.append(makeElement('p', { className: 'objective-editor-muted', text: '評価基準はまだありません。' }));
   criteria.forEach((criterion, index) => {
     const row = makeElement('div', { className: 'objective-editor-criterion-row' });
     const variableRef = criterion?.variableRef ?? {};
-    const variableId = field('変数ID', `criteria.${index}.variable_id`, variableRef.id ?? '', { attrs: { required: true } });
-    const variableRevision = field('変数の版', `criteria.${index}.variable_revision`, variableRef.revision ?? '', { attrs: { required: true } });
+    const variableId = field('変数ID（任意）', `criteria.${index}.variable_id`, variableRef.id ?? '', {});
+    const variableRevision = field('変数の版（任意）', `criteria.${index}.variable_revision`, variableRef.revision ?? '', {});
     const operator = field('比較', `criteria.${index}.operator`, criterion?.operator ?? 'equals', { options: [
       { value: 'at_least', label: '以上' },
       { value: 'at_most', label: '以下' },
@@ -816,7 +818,7 @@ function renderCriteria(root, draft, callbacks) {
   return fieldset;
 }
 
-function collectDefinition(form, baseDraft, { keepEmptyCriteria = false } = {}) {
+function collectDefinition(form, baseDraft) {
   const draft = JSON.parse(JSON.stringify(baseDraft ?? {}));
   const value = (name) => findField(form, name)?.value ?? '';
   draft.id = optionalText(value('id')).trim();
@@ -837,9 +839,8 @@ function collectDefinition(form, baseDraft, { keepEmptyCriteria = false } = {}) 
     const variableRevision = value(`criteria.${index}.variable_revision`).trim();
     const operator = value(`criteria.${index}.operator`) || 'equals';
     const target = parseTarget(value(`criteria.${index}.target`));
-    if (!keepEmptyCriteria && !variableIdInput.value.trim() && !variableRevision) continue;
     const criterion = {
-      variableRef: { id: variableIdInput.value.trim(), type: 'variable', revision: variableRevision },
+      ...(variableIdInput.value.trim() || variableRevision ? { variableRef: { id: variableIdInput.value.trim(), type: 'variable', revision: variableRevision } } : {}),
       operator,
     };
     if (target !== undefined) criterion.target = target;
@@ -909,7 +910,7 @@ function buildObjectiveForm(state, callbacks, { workspace = false } = {}) {
     { value: 'retired', label: '終了' },
   ] }).label);
   form.append(governance);
-  const captureDraft = () => callbacks.onDraftChange?.(collectDefinition(form, draft, { keepEmptyCriteria: true }));
+  const captureDraft = () => callbacks.onDraftChange?.(collectDefinition(form, draft));
   form.append(renderCriteria(form, draft, {
     ...callbacks,
     onAddCriterion: () => { captureDraft(); callbacks.onAddCriterion?.(); },
@@ -1171,14 +1172,14 @@ export function renderObjectiveWorkspace(root, rail, state, callbacks = {}, page
 
 function criteriaContent(doc, criteria) {
   if (criteria === null || criteria === undefined) return makeElement('p', { className: 'is-unrecorded', text: '評価基準を確認できません。' });
-  if (!criteria.length) return makeElement('p', { text: '評価基準はまだありません。判断に使うには、測る変数の参照が必要です。' });
+  if (!criteria.length) return makeElement('p', { text: '評価基準はまだありません。' });
   const list = makeElement('ul', { className: 'bb-objective-list' });
   for (const criterion of criteria) {
     const item = makeElement('li');
     const operator = OPERATOR_LABELS[criterion.operator] ?? criterion.operator;
     const target = criterion.target === undefined ? null : optionalText(criterion.target);
     item.append(
-      makeElement('code', { text: `${criterion.variableRef.id}@${criterion.variableRef.revision}` }),
+      makeElement('code', { text: criterion.variableRef ? `${criterion.variableRef.id}@${criterion.variableRef.revision}` : '変数の参照なし' }),
       makeElement('span', { text: target === null ? `基準値なし（${operator}）` : criterion.operator === 'equals' ? `${target} と一致` : `${target} ${operator}` }),
     );
     list.append(item);

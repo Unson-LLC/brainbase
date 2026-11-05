@@ -98,6 +98,19 @@ function storyRevision(
 }
 
 describe('GraphFoundationRevisionStore', () => {
+  it('persists unbound criteria beside unchanged legacy revisions without a migration', async () => {
+    const dataDir = await makeDataDir();
+    const store = createFoundationRevisionStore({ dataDir });
+    const variableRef = await store.create(variableDefinition(), { principal: 'owner-1' });
+    const legacyRef = await store.create(objectiveDefinition(), { principal: 'owner-1' });
+    const unbound = { ...objectiveDefinition(), id: 'objective-unbound', criteria: [{ operator: 'equals' as const, target: true }] };
+    const newRef = await store.create(unbound, { principal: 'owner-1' });
+    const reopened = createFoundationRevisionStore({ dataDir });
+    expect((await reopened.read(newRef, { principal: 'owner-1' }))?.definition).toEqual(unbound);
+    expect(await reopened.read(legacyRef, { principal: 'owner-1' })).toMatchObject({ definition: objectiveDefinition(), digest: legacyRef.digest });
+    expect(await reopened.read(variableRef, { principal: 'owner-1' })).toMatchObject({ definition: variableDefinition(), digest: variableRef.digest });
+  });
+
   it('persists objective and variable revisions in Graph SSOT and reads them back', async () => {
     const dataDir = await makeDataDir();
     const firstStore = createFoundationRevisionStore({ dataDir });
