@@ -34,6 +34,8 @@ Mana委任UI（`ui/outcome-mana`、そのCSSと`ui/icons/mana`）は、0.8.0の�
 - `workspaceTopbar(document, { title })` はタイトルだけの共通バー。本文と同じcanvas背景、文字20px/28px・weight600、上12px・下16px・左右32px（高さ56px）。下線・装飾は付けない。寸法は `--bb-page-header-*` / `--bb-page-title-*` を参照する。スクロール領域の上端へsticky固定し、本文やfocus対象を隠さない。ホストはバーの直下に追加の上余白を入れない。
 - 件数、追加ボタン、画面固有のフィルターは本文の操作帯に置く。全ページ共通の用途が定義されていない3点メニューは追加しない。
 - 世界のような没入型キャンバスはヘッダーを出さず、画面上端から内容を表示する。
+- 単独ページの本文見出しもH1とし、`--bb-page-title-font-size` / `--bb-page-title-line-height` / `--bb-page-title-font-weight` を参照する。画面・viewportごとのサイズを定義しない。
+- `workspacePageHeader` のleadは60字以内・1文までを表示し、それを超える全文は既存 `workspaceHelp` の「？」へ置く。`help` で明示の補足も渡せる。状態・権限・失敗・出典は説明と分けて維持する。
 - `workspacePageHeader` は本文の説明・出典・操作を組み立てる既存部品。共通バーを使うホストは `.bb-ws-has-topbar` で重複タイトルを省き、固有の操作や説明を保持する。
 
 ### 文字の濃さと主ボタン・失敗のカード
