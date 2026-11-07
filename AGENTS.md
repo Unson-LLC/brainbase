@@ -53,3 +53,7 @@ When a user asks to onboard Brainbase from Codex, Claude Code, or CodeCode, trea
 利用できるUIカタログや既存画面は任意の参考資料です。用途に合う部品の再利用を推奨しますが、カタログの参照・取得・部品利用は必須ではありません。合う部品がない・見つからない・不適合なら、画面固有の部品を作って進めて構いません。カタログへの追加やデザイン確定を機能開発の前提にせず、後から共通化すると便利なものだけ整理します。参照権限がない資料の取得を待たず、手元の既存ソースを使って継続できます。
 
 正本は本体の実装と正式な共通部品で、カタログは見本です。採用時は対象版との差を確認してください。共通部品そのものを変えて他画面へ影響させる場合の影響確認・所有境界・既存の承認手順は引き続き適用します。
+
+## ADR
+
+ADR を書く・変更する・レビューする際は、[共通ADR規約案](https://github.com/Unson-LLC/brainbase-project/blob/main/docs/architecture/adr-authoring.md)を参照する。採用前は[提案中の版](https://github.com/Unson-LLC/brainbase-project/blob/docs/uns-294-adr-conventions/docs/architecture/adr-authoring.md)を参照する。
