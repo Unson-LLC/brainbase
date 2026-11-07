@@ -185,3 +185,55 @@ describe('World canvas source integration', () => {
     expect(app.rail.textContent).not.toBe('Host rail stays untouched');
   });
 });
+
+
+describe('RQ-151 standard World help', () => {
+  it('starts closed, preserves all information, and synchronizes visibility, aria and focus', async () => {
+    const app = mount({ presentation: 'standard' });
+    const toggle = app.root.querySelector('.bb-world-legend-toggle');
+    const panel = app.root.querySelector('.bb-world-legend-panel');
+    expect(toggle.tagName).toBe('BUTTON'); // Native Enter/Space activation; no custom keyboard emulation.
+    expect(toggle.getAttribute('type')).toBe('button');
+    expect(toggle.textContent).toBe('？');
+    expect(toggle.getAttribute('aria-controls')).toBe(panel.id);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(panel.hidden).toBe(true);
+    expect(panel.inert).toBe(true);
+    expect(panel.getAttribute('aria-hidden')).toBe('true');
+    expect(app.root.querySelector('.bb-ws-page').textContent).not.toContain('事業を都市');
+    toggle.click();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(panel.hidden).toBe(false);
+    expect(panel.inert).toBe(false);
+    expect(panel.getAttribute('aria-hidden')).toBe('false');
+    expect(app.doc.activeElement).toBe(panel);
+    expect(panel.textContent).toContain('事業を都市');
+    expect(panel.querySelectorAll('.bb-world-chip').map((chip) => chip.textContent)).toEqual([
+      '任せている', '確かめ中', '戻している', '赤い旗＝任せたのに訂正・取り消し',
+      '待ち（記録上）', '進行中（記録上）', '未着手（記録上）',
+      '？の札＝把握できていないことがある', '破線の輪＝本文に人物（担当欄は未接続）', '実線＝記録された関係・破線＝推定',
+    ]);
+    expect(panel.querySelector('.is-work').hidden).toBe(false);
+    toggle.click();
+    expect(panel.hidden).toBe(true);
+    expect(panel.inert).toBe(true);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(app.doc.activeElement).toBe(toggle);
+    toggle.click();
+    const escape = panel.dispatch('keydown', { key: 'Escape' });
+    expect(escape.defaultPrevented).toBe(true);
+    expect(panel.hidden).toBe(true);
+    expect(app.doc.activeElement).toBe(toggle);
+    await waitFor(() => app.root.querySelector('.bb-world-fallback'));
+    expect(app.root.querySelector('.bb-world-stage').hidden).not.toBe(true);
+  });
+
+  it('does not share ids across instances or add standard help to canvas presentation', () => {
+    const first = mount({ presentation: 'standard' });
+    const second = mount({ presentation: 'standard' });
+    expect(first.root.querySelector('.bb-world-legend-panel').id).not.toBe(second.root.querySelector('.bb-world-legend-panel').id);
+    const canvas = mount();
+    expect(canvas.root.querySelector('.bb-world-legend-toggle')).toBeNull();
+    expect(canvas.root.querySelector('.bb-world-canvas-help-button')).not.toBeNull();
+  });
+});
