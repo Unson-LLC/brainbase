@@ -400,22 +400,18 @@ describe('Company OS evaluation contract', () => {
     expect(converted.actuals[1]?.conversion?.provenance.id).toBe('conversion-quality-percentage-to-ratio-v1');
   });
 
-  it('fails closed when OutcomeCase source conditions are not JSON values', async () => {
-    class ConditionInstance {
+  // Give each independently persisted fixture its own test deadline.
+  it.each([
+    ['Date', () => new Date('2026-09-23T00:00:00.000Z')],
+    ['Map', () => new Map([['kind', 'map']])],
+    ['Set', () => new Set(['set'])],
+    ['class instance', () => new (class ConditionInstance {
       readonly value = 'class-instance';
-    }
-    const invalidConditions: readonly unknown[] = [
-      new Date('2026-09-23T00:00:00.000Z'),
-      new Map([['kind', 'map']]),
-      new Set(['set']),
-      new ConditionInstance()
-    ];
-
-    for (const conditions of invalidConditions) {
-      const harness = await makeHarness(conditions);
-      await expect(harness.evaluation.evaluate(requestFor(harness)))
-        .rejects.toMatchObject({ code: 'integrity_mismatch' });
-    }
+    })()]
+  ])('fails closed when OutcomeCase source conditions contain a %s', async (_name, makeConditions) => {
+    const harness = await makeHarness(makeConditions());
+    await expect(harness.evaluation.evaluate(requestFor(harness)))
+      .rejects.toMatchObject({ code: 'integrity_mismatch' });
   });
 
   it('rechecks current ACL and trusted scope when reading historical evaluation inputs', async () => {
