@@ -1040,15 +1040,18 @@ function periodText(period, { compact = false } = {}) {
   return `${ledgerDate(period?.from) ?? '未設定'}〜${ledgerDate(period?.until, startYear) ?? '未設定'}`;
 }
 
-/** A state as a kit notice: failures are alerts, and never read as zero items. */
+/** Recoverable states are warnings; blocked operations are errors, never zero items. */
 function workspaceStatusNotice(doc, value, { label, onRetry, retryLabel = '再試行' } = {}) {
   const normalized = typeof value === 'string' ? { state: value } : value ?? {};
   const status = normalizeState(normalized.state);
   const tone = status === 'verified' ? 'info'
-    : ['unknown', 'saved_unverified'].includes(status) ? 'warning'
+    : ['unknown', 'saved_unverified', 'error_retryable'].includes(status) ? 'warning'
       : 'danger';
   const body = makeElement('div', { className: 'bb-objective-notice-body' });
   body.append(makeElement('p', { text: `${STATUS_LABELS[status] ?? STATUS_LABELS.unknown}：${normalized.message ?? STATUS_LABELS[status] ?? '状態を確認できません。'}` }));
+  if (['unknown', 'error_retryable'].includes(status)) {
+    body.append(makeElement('p', { text: 'データが0件とは確認できていません。再読込して確かめてください。' }));
+  }
   if (status === 'conflict' && normalized.currentRevision) {
     body.append(makeElement('p', { text: `現在の版: ${normalized.currentRevision}。入力は残しています。現在の版を確かめてから直してください。` }));
   }
@@ -1361,7 +1364,7 @@ function portMethod(port, name) {
  * Host options used only in the workspace layout (when `rail` is given); the
  * tabs layout without `rail` ignores them:
  * - `title` / `lead`: replace the page head's 目的と現状 and its lead.
- * - `sourceNotice: { label, text }`: a notice right after the page head
+ * - `sourceNotice: { label, text, tone? }`: a notice right after the page head
  *   (`text` is a string or an element).  Default: none.
  * - `pageActions: [{ text, variant, onClick, disabled }]`: host-owned buttons in
  *   the page head after 再読込 / 新しい目的.
