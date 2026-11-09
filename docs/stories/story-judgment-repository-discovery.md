@@ -10,6 +10,14 @@ A Git executable must be available for automatic repository discovery. If Git
 cannot identify a working tree, discovery returns no binding; an explicit
 `BRAINBASE_JUDGMENT_PROJECT_CODE` still takes precedence.
 
+Discovery runs once per request, with a two-second timeout shared by project
+and instruction binding. Git's ownership checks remain enabled: repositories
+owned by another user stay projectless unless the owner has explicitly trusted
+them in Git's protected `safe.directory` configuration. The Host never sets
+`safe.directory=*`. Ownership rejection and timeout emit a structured stderr
+diagnostic (`judgment_repository_discovery_failed`, with reason
+`unsafe_repository` or `timeout`) so the missing binding can be explained.
+
 Acceptance criteria:
 
 - Empty `.git` directories/files and invalid gitfiles leave the request
@@ -17,6 +25,10 @@ Acceptance criteria:
 - Inherited Git directory/work-tree overrides do not select a different project.
 - Real repositories and linked worktrees bind instructions from root to cwd.
 - Explicit project configuration remains available outside a repository.
+- Ownership rejection preserves the projectless result and emits a diagnostic.
+- A stalled Git process times out, emits a diagnostic, and leaves no bindings.
+- Each request invokes Git only once for both project and instruction binding.
+- Linked-worktree test setup ignores inherited commit signing settings.
 
 Verify: `npx vitest run tests/judgment-host.test.ts tests/judgment-autonomy.test.ts --maxWorkers=2`
 and `npm run build`.
