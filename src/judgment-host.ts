@@ -520,16 +520,22 @@ function findRepoRoot(start: string): string | null {
     const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
     return execFileSync('git', ['-C', resolve(start), 'rev-parse', '--show-toplevel'], {
       encoding: 'utf8',
-      env,
-      stdio: ['ignore', 'pipe', 'ignore']
+      env: { ...env, LC_ALL: 'C' },
+      timeout: 2000,
+      stdio: ['ignore', 'pipe', 'pipe']
     }).replace(/\r?\n$/u, '') || null;
-  } catch {
+  } catch (error) {
+    const stderr = error instanceof Error && 'stderr' in error ? String(error.stderr) : '';
+    const reason = stderr.includes('dubious ownership') ? 'unsafe_repository'
+      : error instanceof Error && 'code' in error && error.code === 'ETIMEDOUT' ? 'timeout' : null;
+    if (reason) {
+      process.stderr.write(`${JSON.stringify({ event: 'judgment_repository_discovery_failed', reason })}\n`);
+    }
     return null;
   }
 }
 
-function instructionBindings(cwd: string): Array<{ scope: string; source_ref: string; digest: string }> {
-  const discoveredRoot = findRepoRoot(cwd);
+function instructionBindings(cwd: string, discoveredRoot: string | null): Array<{ scope: string; source_ref: string; digest: string }> {
   if (!discoveredRoot) return [];
   const root = realpathSync(discoveredRoot);
   const workingDirectory = realpathSync(resolve(cwd));
@@ -725,7 +731,7 @@ export function buildJudgmentRequest(
       permission_mode: typeof payload.permission_mode === 'string' && payload.permission_mode ? payload.permission_mode : null,
       project_binding: projectBinding
     },
-    instruction_bindings: instructionBindings(cwd),
+    instruction_bindings: instructionBindings(cwd, repoRoot),
     completeness: transcript.complete ? 'complete' as const : 'partial' as const
   };
   return {
