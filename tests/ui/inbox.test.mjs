@@ -215,6 +215,7 @@ describe('対応待ち', () => {
   it('タブを2つ出し、することごとの区画を決まった順に並べ、行の無い区画を出さない', async () => {
     const { root } = await mount();
     const tabs = findAll(root, (node) => node.attributes?.role === 'tab').map(collectText);
+    expect(findAll(root, node => node.attributes?.role === 'tablist')[0].className.split(' ')).not.toContain('bb-ws-tabs--prominent');
     expect(tabs[0]).toMatch(/^対応待ち/u);
     expect(tabs[1]).toBe('お知らせ');
     expect(sections(root).map((node) => node.attributes['data-group'])).toEqual(['triage', 'task']);
@@ -1022,6 +1023,7 @@ describe('opt-in compact inbox cards', () => {
     const { root, routes } = await mount({ layout: 'cards' });
     const tabs = () => findAll(root, n => n.attributes?.role === 'tab');
     expect(tabs().map(n => n.textContent)).toEqual(['対応待ち', 'お知らせ', '保留', '対応済']);
+    expect(findAll(root, n => n.attributes?.role === 'tablist')[0].className.split(' ')).toContain('bb-ws-tabs--prominent');
     tabs()[2].dispatch('click'); expect(routes.at(-1)).toEqual({ tab: 'waiting', view: 'later' });
     tabs()[3].dispatch('click'); expect(routes.at(-1)).toEqual({ tab: 'waiting', view: 'cleared' });
     tabs()[1].dispatch('click'); expect(text(root)).toContain('お知らせはまだ集めていません');
