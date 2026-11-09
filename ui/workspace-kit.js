@@ -804,8 +804,9 @@ const isSelectedTab = node => node?.getAttribute?.('aria-selected') === 'true' |
  * that redraw the strip as new nodes pass the same `memoryKey`; hosts that keep
  * the root and replace its children call `update()` after drawing.
  */
-export function workspaceTabStrip(root, { memoryKey } = {}) {
+export function workspaceTabStrip(root, { memoryKey, appearance } = {}) {
   workspaceTabList(root);
+  if (appearance === 'prominent') toggleWorkspaceClass(root, 'bb-ws-tabs--prominent', true);
   if (tabStrips.has(root)) return tabStrips.get(root);
   const doc = root.ownerDocument;
   const view = doc?.defaultView;
