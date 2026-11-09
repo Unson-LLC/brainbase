@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -776,10 +777,83 @@ describe('portable Judgment Resolver Host contract', () => {
     expect(recorded.systemMessage).not.toContain('input-must-not-be-used');
   });
 
+  it.each(['empty directory', 'empty file', 'invalid gitfile'])('does not bind a project from an ancestor with an %s as .git', async (kind) => {
+    const root = await tempDir();
+    const fixture = join(root, 'projectless');
+    await mkdir(fixture);
+    if (kind === 'empty directory') await mkdir(join(root, '.git'));
+    else await writeFile(join(root, '.git'), kind === 'empty file' ? '' : 'gitdir: missing-directory\n');
+    await writeFile(join(root, 'AGENTS.md'), 'unrelated ancestor instructions');
+    const request = buildJudgmentRequest({
+      prompt: 'Explain this', session_id: 'projectless-session', turn_id: 'turn-1', cwd: fixture
+    }, {
+      env: { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') },
+      trustedConversationMessages: []
+    });
+    expect(request.project_code).toBeUndefined();
+    expect(request.conversation_context.runtime.project_binding).toBeNull();
+    expect(request.conversation_context.instruction_bindings).toEqual([]);
+  });
+
+  it('does not discover a repository supplied through inherited Git environment variables', async () => {
+    const root = await tempDir();
+    const repository = join(root, 'repository');
+    const fixture = join(root, 'projectless');
+    execFileSync('git', ['init', repository]);
+    await mkdir(fixture);
+    await mkdir(join(root, '.git'));
+    vi.stubEnv('GIT_DIR', join(repository, '.git'));
+    vi.stubEnv('GIT_WORK_TREE', repository);
+    const request = buildJudgmentRequest({
+      prompt: 'Explain this', session_id: 'git-env-session', turn_id: 'turn-1', cwd: fixture
+    }, {
+      env: { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') },
+      trustedConversationMessages: []
+    });
+    expect(request.project_code).toBeUndefined();
+    expect(request.conversation_context.runtime.project_binding).toBeNull();
+    expect(request.conversation_context.instruction_bindings).toEqual([]);
+  });
+
+  it('keeps an explicit project binding outside a Git repository', async () => {
+    const root = await tempDir();
+    await mkdir(join(root, '.git'));
+    const request = buildJudgmentRequest({
+      prompt: 'Explain this', session_id: 'explicit-session', turn_id: 'turn-1', cwd: root
+    }, {
+      env: { BRAINBASE_JUDGMENT_PROJECT_CODE: 'explicit-project', BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') },
+      trustedConversationMessages: []
+    });
+    expect(request.project_code).toBe('explicit-project');
+    expect(request.conversation_context.runtime.project_binding).toBe('explicit-project');
+    expect(request.conversation_context.instruction_bindings).toEqual([]);
+  });
+
+  it('discovers a linked worktree with a gitfile from its nested directory', async () => {
+    const root = await tempDir();
+    const repository = join(root, 'repository');
+    const worktree = join(root, 'linked-worktree');
+    execFileSync('git', ['init', repository]);
+    execFileSync('git', ['-C', repository, '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '--allow-empty', '-m', 'fixture']);
+    execFileSync('git', ['-C', repository, 'worktree', 'add', '--detach', worktree]);
+    const nested = join(worktree, 'nested');
+    await mkdir(nested);
+    await writeFile(join(worktree, 'AGENTS.md'), 'worktree instructions');
+    const request = buildJudgmentRequest({
+      prompt: 'Explain this', session_id: 'worktree-session', turn_id: 'turn-1', cwd: nested
+    }, {
+      env: { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') },
+      trustedConversationMessages: []
+    });
+    expect(request.project_code).toBe('linked-worktree');
+    expect(request.conversation_context.runtime.project_binding).toBe('linked-worktree');
+    expect(request.conversation_context.instruction_bindings.map((binding) => binding.source_ref)).toEqual(['AGENTS.md']);
+  });
+
   it('binds every applicable AGENTS.md from repository root to cwd', async () => {
     const root = await tempDir();
     const nested = join(root, 'a', 'b');
-    await mkdir(join(root, '.git'));
+    execFileSync('git', ['init', root]);
     await mkdir(nested, { recursive: true });
     await writeFile(join(root, 'AGENTS.md'), 'root instructions');
     await writeFile(join(root, 'a', 'AGENTS.md'), 'a instructions');
