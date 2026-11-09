@@ -860,6 +860,24 @@
 }
 .bb-ws-tabs.is-indicator-instant::after { transition: none; }
 @media (prefers-reduced-motion: reduce) { .bb-ws-tabs.is-indicator-ready::after { transition: none; } }
+/* Explicit prominent appearance, shared by card inbox and host tab strips. */
+.bb-ws-tabs.bb-ws-tabs--prominent { gap: 4px; min-height: 43px; box-shadow: none; }
+.bb-ws-tabs--prominent > :is([role="tab"], a, button) { gap: 8px; height: 43px; min-height: 43px; padding: 10px 16px; font-size: 14px; font-weight: 500; }
+.bb-ws-tabs--prominent > :is([role="tab"], a, button):is([aria-selected="true"], [aria-current="page"], [aria-pressed="true"]) { font-weight: 600; color: var(--bb-tab-prominent-ink, var(--bb-color-accent)); }
+.bb-ws-tabs--prominent > :is([role="tab"], a, button):is([aria-selected="true"], [aria-current="page"], [aria-pressed="true"]),
+.bb-ws-tabs--prominent > :is([role="tab"], a, button):is([aria-selected="true"], [aria-current="page"], [aria-pressed="true"]):hover { box-shadow: inset 0 -2px 0 var(--bb-tab-prominent-ink, var(--bb-color-accent)); }
+.bb-ws-tabs--prominent.is-indicator-ready > :is([role="tab"], a, button):is([aria-selected="true"], [aria-current="page"], [aria-pressed="true"]),
+.bb-ws-tabs--prominent.is-indicator-ready > :is([role="tab"], a, button):is([aria-selected="true"], [aria-current="page"], [aria-pressed="true"]):hover { box-shadow: none; }
+.bb-ws-tabs--prominent.is-indicator-ready::after { background: var(--bb-tab-prominent-ink, var(--bb-color-accent)); height: 2px; }
+.bb-ws-tabs.bb-ws-tabs--prominent > :is([role="tab"], a, button):hover { color: var(--bb-tab-prominent-ink, var(--bb-color-accent)); background: var(--bb-tab-prominent-hover, var(--bb-inbox-tab-hover)); }
+@media (max-width: 768px) {
+  .bb-ws-tabs.bb-ws-tabs--prominent { gap: 0; flex-wrap: wrap; overflow: visible; }
+  .bb-ws-tabs--prominent > :is([role="tab"], a, button) { padding-inline: 10px; gap: 5px; }
+  .bb-ws-tabs--prominent.is-indicator-ready::after { display: none; }
+  .bb-ws-tabs--prominent.is-indicator-ready > :is([role="tab"], a, button):is([aria-selected="true"], [aria-current="page"], [aria-pressed="true"]),
+  .bb-ws-tabs--prominent.is-indicator-ready > :is([role="tab"], a, button):is([aria-selected="true"], [aria-current="page"], [aria-pressed="true"]):hover { box-shadow: inset 0 -2px 0 var(--bb-tab-prominent-ink, var(--bb-color-accent)); }
+}
+
 .bb-ws-tabs::-webkit-scrollbar { display: none; }
 .bb-ws-tabs[hidden],
 .bb-ws-tabs > [hidden] { display: none; }
