@@ -689,7 +689,7 @@ export function createInboxUI({
   function renderCardTabs(shown) {
     const bar = el(doc, 'div', { className: 'bb-inbox-card-toolbar' });
     const tablist = el(doc, 'div', { className: 'bb-inbox-tabs', attrs: { role: 'tablist', 'aria-label': '受信箱' } });
-    workspaceTabStrip(tablist, { memoryKey: `${instanceId}-tabs` });
+    workspaceTabStrip(tablist, { memoryKey: `${instanceId}-tabs`, appearance: 'prominent' });
     const definitions = [
       ['waiting', '対応待ち', { tab: 'waiting', view: 'waiting' }],
       ['notices', 'お知らせ', { tab: 'notices', view: 'waiting' }],
@@ -712,9 +712,15 @@ export function createInboxUI({
     if (state.route.tab !== 'notices') {
       const filters = el(doc, 'div', { className: 'bb-inbox-card-filters', attrs: { role: 'group', 'aria-label': '種類で絞り込む' } });
       for (const [id, label] of [['all', 'すべて'], ['approve', '承認'], ['answer', '会議振り分け'], ['triage', '記憶・取り込み'], ['task', 'タスク']]) {
-        const button = workspaceButton(doc, { text: label, variant: 'quiet', attrs: { 'aria-pressed': String(state.filter === id) },
+        const button = workspaceButton(doc, { text: label, variant: 'quiet', attrs: { 'aria-pressed': String(state.filter === id), 'aria-label': label },
           onClick: () => { state.filter = id; state.expanded = null; state.focus = { target: 'filter', filter: id }; render(); } });
         if (state.focus?.target === 'filter' && state.focus.filter === id) focusTarget = button;
+        if (id !== 'all' && shown) {
+          const count = shown[state.route.view].filter(item => !state.done.has(item.id) && matchesCardFilter(item, id)).length;
+          const incomplete = (state.result?.sources ?? []).some(source => matchesCardFilter(source, id) && cardSourceProblem(source));
+          button.setAttribute('aria-label', `${label}、${count}件${incomplete ? '以上、一部取得できません' : ''}`);
+          button.append(el(doc, 'span', { className: 'bb-inbox-card-filter-count', text: ` (${count}${incomplete ? '+' : ''})`, attrs: { 'aria-hidden': 'true' } }));
+        }
         filters.append(button);
       }
       bar.append(filters);
@@ -727,24 +733,31 @@ export function createInboxUI({
     const done = state.done.get(item.id);
     const expanded = state.expanded === item.id;
     const actions = cardActions(item);
-    const card = el(doc, 'article', { className: `bb-inbox-card${expanded ? ' is-expanded' : ''}`, attrs: { role: 'listitem', 'data-inbox-item': item.id, 'aria-busy': String(running) } });
+    const card = el(doc, 'article', { className: `bb-inbox-card${expanded ? ' is-expanded' : ''}`, attrs: { role: 'listitem', 'data-inbox-item': item.id, 'data-group': item.group, 'data-kind': item.kind, 'aria-busy': String(running) } });
     const summary = el(doc, 'div', { className: 'bb-inbox-card-summary' });
     const main = el(doc, 'div', { className: 'bb-inbox-row-main' });
+    const due = inboxDueLabel(item.dueAt, readNow());
+    const category = item.kind === 'meeting_triage' ? item.group === 'answer' ? 'プロジェクト振り分け' : actions.some(action => action.id === 'publish-suggested') ? '会議の一括公開' : '会議の振り分け'
+      : ({ agent_connection_requests: '利用申請', memory_candidates: 'ナレッジ蓄積', assigned_task: '個別タスク', waiting_task: '判断待ち' })[item.kind]
+        ?? INBOX_GROUP_LABELS[item.group] ?? 'その他';
+    const urgent = due && ['expired', 'soon'].includes(due.state);
+    main.append(el(doc, 'span', { className: `bb-inbox-card-badge${urgent ? ' is-urgent' : ''}`, text: urgent ? `${category}・${due.state === 'expired' ? '期限切れ' : '期限迫る'}` : category }));
     if (item.blocking) main.append(el(doc, 'span', { className: 'bb-inbox-blocking', text: '対応が必要' }));
     const opener = workspaceButton(doc, { text: item.title, variant: 'quiet', attrs: { class: 'bb-inbox-card-title', 'aria-expanded': String(expanded), 'aria-controls': `${instanceId}-detail-${item.id}` }, onClick: () => selectCard(item) });
     if (state.focus?.itemId === item.id && state.focus.target === 'opener') focusTarget = opener;
     const cardHeading = el(doc, 'h3', { className: 'bb-inbox-card-heading' });
     cardHeading.append(opener); main.append(cardHeading);
     const facts = factsOf(item);
-    if (facts.length) main.append(renderFacts(facts));
+    const metadata = el(doc, 'div', { className: 'bb-inbox-card-metadata' });
+    if (facts.length) metadata.append(renderFacts(facts));
     const meta = el(doc, 'div', { className: 'bb-inbox-meta' });
-    const due = inboxDueLabel(item.dueAt, readNow());
     if (due) meta.append(el(doc, 'span', { className: `bb-inbox-due${due.state === 'later' ? '' : ` is-${due.state}`}`, text: due.text }));
     const received = relativeTime(item.receivedAt, readNow());
     if (received) meta.append(el(doc, 'span', { text: received }));
     const disposition = state.dispositions.get(item.id);
     if (view === 'later' && disposition?.until) meta.append(el(doc, 'span', { text: `${formatShort(disposition.until)}まで保留` }));
-    if (meta.children.length) main.append(meta);
+    if (meta.children.length) metadata.append(meta);
+    if (metadata.children.length) main.append(metadata);
     summary.append(main);
     const controls = el(doc, 'div', { className: 'bb-inbox-row-actions' });
     if (done) controls.append(el(doc, 'span', { className: 'bb-inbox-done', text: done }));
@@ -801,11 +814,11 @@ export function createInboxUI({
     return card;
   }
 
-  function matchesCardFilter(item) {
-    if (state.filter === 'all') return true;
-    if (state.filter === 'approve') return item.group === 'approve';
-    if (state.filter === 'answer') return item.kind === 'meeting_triage';
-    if (state.filter === 'triage') return item.kind === 'memory_candidates';
+  function matchesCardFilter(item, filter = state.filter) {
+    if (filter === 'all') return true;
+    if (filter === 'approve') return item.group === 'approve';
+    if (filter === 'answer') return item.kind === 'meeting_triage';
+    if (filter === 'triage') return item.kind === 'memory_candidates';
     return ['assigned_task', 'waiting_task'].includes(item.kind);
   }
 
@@ -882,7 +895,7 @@ export function createInboxUI({
   function renderFacts(facts) {
     const list = el(doc, 'dl', { className: 'bb-inbox-facts' });
     for (const fact of facts) {
-      const pair = el(doc, 'div', { className: 'bb-inbox-fact' });
+      const pair = el(doc, 'div', { className: 'bb-inbox-fact', attrs: { 'data-fact-label': fact.label } });
       pair.append(el(doc, 'dt', { text: fact.label }), el(doc, 'dd', { text: fact.value }));
       list.append(pair);
     }

@@ -85,7 +85,7 @@ const text = (root) => collectText(root);
 const sections = (root) => findAll(root, (node) => node.tagName === 'SECTION' && node.attributes?.['data-group']);
 const todaySections = (root) => findAll(root, (node) => node.tagName === 'SECTION' && node.attributes?.['data-section']);
 const rowsOf = (node) => findAll(node, (child) => child.attributes?.['data-inbox-item']);
-const buttonIn = (node, label) => findAll(node, (child) => child.tagName === 'BUTTON' && collectText(child) === label)[0];
+const buttonIn = (node, label) => findAll(node, (child) => child.tagName === 'BUTTON' && (child.attributes?.['aria-label'] === label || child.textContent === label || collectText(child) === label))[0];
 const linkIn = (node) => findAll(node, (child) => child.tagName === 'A')[0];
 
 function fakeTimers() {
@@ -215,6 +215,7 @@ describe('対応待ち', () => {
   it('タブを2つ出し、することごとの区画を決まった順に並べ、行の無い区画を出さない', async () => {
     const { root } = await mount();
     const tabs = findAll(root, (node) => node.attributes?.role === 'tab').map(collectText);
+    expect(findAll(root, node => node.attributes?.role === 'tablist')[0].className.split(' ')).not.toContain('bb-ws-tabs--prominent');
     expect(tabs[0]).toMatch(/^対応待ち/u);
     expect(tabs[1]).toBe('お知らせ');
     expect(sections(root).map((node) => node.attributes['data-group'])).toEqual(['triage', 'task']);
@@ -1022,6 +1023,7 @@ describe('opt-in compact inbox cards', () => {
     const { root, routes } = await mount({ layout: 'cards' });
     const tabs = () => findAll(root, n => n.attributes?.role === 'tab');
     expect(tabs().map(n => n.textContent)).toEqual(['対応待ち', 'お知らせ', '保留', '対応済']);
+    expect(findAll(root, n => n.attributes?.role === 'tablist')[0].className.split(' ')).toContain('bb-ws-tabs--prominent');
     tabs()[2].dispatch('click'); expect(routes.at(-1)).toEqual({ tab: 'waiting', view: 'later' });
     tabs()[3].dispatch('click'); expect(routes.at(-1)).toEqual({ tab: 'waiting', view: 'cleared' });
     tabs()[1].dispatch('click'); expect(text(root)).toContain('お知らせはまだ集めていません');
@@ -1101,7 +1103,7 @@ describe('cards preserve exceptional source states and focus', () => {
     const root = document.createElement('div');
     const view = createInboxUI({ root, document, layout: 'cards', port: fakePort(), now: () => NOW });
     await view.load();
-    buttonIn(root, 'タスク').dispatch('click'); expect(document.activeElement.textContent).toBe('タスク');
+    buttonIn(root, 'タスク').dispatch('click'); expect(document.activeElement.attributes['aria-label']).toMatch(/^タスク、/);
     const row = () => rowsOf(root).find(n => n.attributes['data-inbox-item'] === 'task-a');
     buttonIn(row(), '確認').dispatch('click');
     findAll(row(), n => n.className === 'bb-inbox-card-detail')[0].dispatch('keydown', { key: 'Escape' });
@@ -1138,7 +1140,45 @@ describe('cards retain keyboard position and unknown counts', () => {
 
 it('cards preserve a wholly unreadable inbox count as unknown', async () => {
   const result = { status: 'unavailable', reason: 'forbidden' };
-  const { counts } = await mount({ layout: 'cards', port: fakePort({ readInbox: vi.fn(async () => result) }) });
+  const { root, counts } = await mount({ layout: 'cards', port: fakePort({ readInbox: vi.fn(async () => result) }) });
+  for (const label of ['承認', '会議振り分け', '記憶・取り込み', 'タスク']) {
+    expect(collectText(buttonIn(root, label))).not.toMatch(/\(0\)/);
+    expect(buttonIn(root, label).attributes['aria-label']).toBe(label);
+  }
   expect(counts.at(-1)).toEqual(countInboxWaiting(result, NOW));
   expect(counts.at(-1).count).toBeNull();
+});
+
+
+describe('adopted card presentation', () => {
+  it('keeps category and contextual facts together without changing the title or actions', async () => {
+    const entry = item('request-card', { kind: 'agent_connection_requests', group: 'approve', facts: [{ label: '対象', value: 'sample-project' }] });
+    const { root } = await mount({ layout: 'cards', port: fakePort({ readInbox: vi.fn(async () => okResult({ items: [entry], sources: [{ kind: entry.kind, group: entry.group, status: 'ok' }] })) }) });
+    const row = rowsOf(root)[0];
+    expect(row.attributes['data-group']).toBe('approve');
+    expect(findAll(row, n => n.className === 'bb-inbox-card-badge')[0].textContent).toBe('利用申請');
+    const metadata = findAll(row, n => n.className === 'bb-inbox-card-metadata')[0];
+    expect(text(metadata)).toContain('sample-project');
+    expect(buttonIn(row, '確認')).toBeDefined();
+  });
+  it('qualifies a filter count when that kind cannot be read', async () => {
+    const { root } = await mount({ layout: 'cards', port: fakePort({ readInbox: vi.fn(async () => okResult({ items: [], sources: [{ kind: 'meeting_triage', group: 'answer', label: '会議', status: 'unavailable' }] })) }) });
+    expect(collectText(buttonIn(root, '会議振り分け'))).toContain('(0+)');
+    expect(buttonIn(root, '会議振り分け').attributes['aria-label']).toBe('会議振り分け、0件以上、一部取得できません');
+    expect(collectText(buttonIn(root, 'タスク'))).not.toContain('+');
+  });
+});
+
+it('cards do not promise publication without an available publication action', async () => {
+  const { root } = await mount({ layout: 'cards' });
+  const row = rowsOf(root).find(node => node.attributes['data-inbox-item'] === 'triage');
+  expect(text(row)).toContain('会議の振り分け');
+  expect(text(row)).not.toContain('会議の一括公開');
+});
+
+it('cards retain the kind in the urgent badge as well as the deadline warning', async () => {
+  const entry = item('urgent-request', { kind: 'agent_connection_requests', group: 'approve', dueAt: new Date(NOW.getTime() - 1000).toISOString() });
+  const { root } = await mount({ layout: 'cards', port: fakePort({ readInbox: vi.fn(async () => okResult({ items: [entry], sources: [{ kind: entry.kind, group: entry.group, status: 'ok' }] })) }) });
+  const badge = findAll(rowsOf(root)[0], node => node.className === 'bb-inbox-card-badge is-urgent')[0];
+  expect(badge.textContent).toBe('利用申請・期限切れ');
 });
