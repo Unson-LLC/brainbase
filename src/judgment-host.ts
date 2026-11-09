@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import {
   closeSync,
   constants as fsConstants,
@@ -515,16 +516,15 @@ function readCanonicalTranscript(
 }
 
 function findRepoRoot(start: string): string | null {
-  let current = resolve(start);
-  for (;;) {
-    try {
-      statSync(join(current, '.git'));
-      return current;
-    } catch {
-      const parent = dirname(current);
-      if (parent === current) return null;
-      current = parent;
-    }
+  try {
+    const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
+    return execFileSync('git', ['-C', resolve(start), 'rev-parse', '--show-toplevel'], {
+      encoding: 'utf8',
+      env,
+      stdio: ['ignore', 'pipe', 'ignore']
+    }).replace(/\r?\n$/u, '') || null;
+  } catch {
+    return null;
   }
 }
 
