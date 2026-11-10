@@ -30,7 +30,7 @@ delivery は記録用 fake を用い、実メールの送信・送信設定・�
 | AC-06 | fake clock を期限前・期限超過に進め受諾と再送 | 期限超過は expired で binding/delivery なし。再開は reissue。期限ちょうどの扱いも実装で明示して固定時刻で試験する |
 | AC-07 | pending の取り消し後に受諾。予約と取り消しを両順序で競合させる | 取り消しが先なら binding なし。予約が先なら取り消し・再発行は accept_in_progress。accepted は不変 |
 | AC-08 | 同じリンクで逐次・同時に2回受諾 | 二重受諾を拒否し、別 person の binding が起こらない。復旧時の binding 再呼び出しも同一冪等キーで副作用は1回 |
-| AC-09 | raw token のある pending の再送、token のない再発行、期限切れの再発行、受諾との競合 | 再送は同じリンク。再発行は旧リンクを無効にしてから新リンクを delivery に渡す。旧 record は revoked 相当で supersededByInviteId を持ち、競合で両方有効にならない |
+| AC-09 | raw token のある pending の再送、token のない再発行、期限切れの再発行、受諾との競合 | 再送は同じリンク。再発行は新 token 発行と旧 record の `superseded` 化（`supersededByInviteId` に新招待 ID を設定）・旧リンク無効化を atomic に行い、その後で新リンクを delivery に渡す。受諾・取り消しとの競合も同じ record で直列化し、両方のリンクが有効にならない |
 | AC-10 | 全公開操作について権限なし・別 tenant・許可されない role を試す | 読み出しも拒否。拒否後に delivery/binding を呼ばず、他 tenant の内容を公開しない |
 | AC-11 | delivery 成功・例外を注入し envelope と公開エラーを観測 | 宛先 PII と URL 内 token 以外の秘密値なし。例外の raw message を公開しない。URL と宛先をログに残さない |
 | AC-12 | 許可された readback とログ・監査・エラーを収集 | 管理者にはメールと状態が見えるが hash/予約は見えない。ログ等に生メール・token がない |
