@@ -59,12 +59,12 @@ function press(target, key, extra = {}) {
  * A host like the inbox: each selection redraws the strip as new nodes and
  * puts them in place of the old strip.
  */
-function redrawingHost(doc, { labels = ['対応待ち', 'お知らせ', '片付けた'], memoryKey = 'test-inbox', hidden = [] } = {}) {
+function redrawingHost(doc, { labels = ['対応待ち', 'お知らせ', '片付けた'], memoryKey = 'test-inbox', hidden = [], appearance } = {}) {
   const host = { selected: 0, strip: null, clicks: [] };
   const draw = () => {
     const strip = doc.createElement('div');
     strip.setAttribute('role', 'tablist');
-    workspaceTabStrip(strip, { memoryKey });
+    workspaceTabStrip(strip, { memoryKey, appearance });
     labels.forEach((label, index) => {
       const tab = doc.createElement('button');
       tab.setAttribute('role', 'tab');
@@ -93,7 +93,33 @@ describe('workspaceTabStrip', () => {
     const first = workspaceTabStrip(strip);
     expect(workspaceTabStrip(strip)).toBe(first);
     expect(strip.className.split(' ')).toEqual(['existing', 'bb-ws-tabs']);
+    expect(strip.className.split(' ')).not.toContain('bb-ws-tabs--prominent');
     expect(strip.listeners.get('keydown')).toHaveLength(1);
+  });
+
+  it('opts into prominent appearance while preserving host selection, keys and controller identity', async () => {
+    const doc = new FakeDocument();
+    const host = redrawingHost(doc, { appearance: 'prominent', memoryKey: 'prominent-redraw' });
+    await flush();
+    expect(host.strip.className.split(' ')).toContain('bb-ws-tabs--prominent');
+    host.tab(0).focus();
+    press(host.tab(0), 'End');
+    await flush();
+    expect(host.clicks).toEqual(['片付けた']);
+    expect(doc.activeElement).toBe(host.tab(2));
+    expect(host.strip.className.split(' ')).toContain('bb-ws-tabs--prominent');
+    expect(workspaceTabStrip(host.strip, { appearance: 'prominent' })).toBe(workspaceTabStrip(host.strip));
+    expect(host.strip.listeners.get('keydown')).toHaveLength(1);
+  });
+
+  it('opts into segmented tabs while preserving redraw focus and the host selection handler', async () => {
+    const doc = new FakeDocument(); const host = redrawingHost(doc, { appearance: 'segmented', memoryKey: 'segmented-redraw' }); await flush();
+    expect(host.strip.className.split(' ')).toContain('bb-ws-tabs--segmented');
+    expect(host.strip.className.split(' ')).not.toContain('bb-ws-tabs--prominent');
+    host.tab(0).focus(); press(host.tab(0), 'ArrowRight'); await flush();
+    expect(host.clicks).toEqual(['お知らせ']); expect(doc.activeElement).toBe(host.tab(1));
+    expect(host.tab(1).getAttribute('aria-selected')).toBe('true');
+    expect(workspaceTabStrip(host.strip, { appearance: 'segmented' })).toBe(workspaceTabStrip(host.strip));
   });
 
   it('moves with the arrow keys through the host click handler, wrapping at both ends', async () => {
