@@ -32,6 +32,12 @@ describe('public release state', () => {
       .toThrow('docs/manual/guide/status.md');
   });
 
+  it('rejects a package version that matches only a later candidate heading', () => {
+    const status = '## Released — v0.6.0\n## Candidate — v0.6.1（npm公開前）\n## Candidate — v0.7.0（npm公開前）';
+    expect(() => parsePublicReleaseState(status, '0.7.0'))
+      .toThrow('must match either the Released version or the Candidate version');
+  });
+
   it('rejects a version history that omits the package version heading', () => {
     const state = parsePublicReleaseState('## Released — v0.6.0\n## Candidate — v0.7.0（npm公開前）', '0.7.0');
     expect(() => assertVersionHistoryDocuments([{ level: 2, title: 'Unreleased — develop' }], state, '0.7.0'))

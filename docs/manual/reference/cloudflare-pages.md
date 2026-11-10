@@ -32,7 +32,7 @@ pull requestからはdeployしません。
 - 状態ページとMCP referenceが取得できる
 - 配信HTMLにmerge commitの短縮SHAが含まれる
 
-Cloudflare Pages project `brainbase`のproduction branchは`main`でなければなりません。workflowはdeploy前にCloudflare APIで`production_branch`を読み、`main`でなければdeployせずに止まります。`develop`のままだと`main`からのdeployはpreview（`main.brainbase.pages.dev`）になり、`https://brainbase.pages.dev`は更新されません。
+workflowはCloudflare APIから読んだ`production_branch`へdeployします。`production_branch`が`main`であることは求めません。
 
 ## GitHub Secrets
 

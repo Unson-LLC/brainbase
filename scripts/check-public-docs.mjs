@@ -219,7 +219,9 @@ if (candidateSchema.properties?.source?.properties?.type?.const !== 'brainbase_g
 }
 requireText(docsWorkflow, 'npm run docs:check', '.github/workflows/docs-cloudflare-pages.yml');
 requireText(docsWorkflow, 'pages deploy docs/.vitepress/dist', '.github/workflows/docs-cloudflare-pages.yml');
-requireText(await read('scripts/cloudflare-pages-production.mjs'), '/pages/projects/${PROJECT}', 'scripts/cloudflare-pages-production.mjs');
+const pagesProductionScript = await read('scripts/cloudflare-pages-production.mjs');
+requireText(pagesProductionScript, "const PROJECT = 'brainbase';", 'scripts/cloudflare-pages-production.mjs');
+requireText(pagesProductionScript, '/pages/projects/${PROJECT}', 'scripts/cloudflare-pages-production.mjs');
 requireText(docsWorkflow, 'production_branch', '.github/workflows/docs-cloudflare-pages.yml');
 requireText(docsWorkflow, 'npm run docs:verify-public', '.github/workflows/docs-cloudflare-pages.yml');
 requireText(docsWorkflow, '  pull_request:\n    branches:\n      - develop\n      - main\n', '.github/workflows/docs-cloudflare-pages.yml');
