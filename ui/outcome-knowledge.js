@@ -895,7 +895,7 @@ export function renderKnowledgeList(root, model = {}, callbacks = {}) {
         main.replaceChildren(makeElement('span', { className: 'knowledge-row-title', text: title }), makeElement('span', { className: 'knowledge-row-summary', text: item.summary || '' }));
         if (item.lifecycle.status && item.lifecycle.status !== 'active') main.append(makeElement('span', { className: 'knowledge-row-state', text: lifecycleStatusLabel(item.lifecycle.status) }));
         row.replaceChildren(
-          makeElement('span', { className: 'knowledge-row-type', text: item.type === 'document' ? '知識' : item.type ? typeLabel(item.type) : UNKNOWN }), main,
+          makeElement('span', { className: 'knowledge-row-type', text: item.type === 'document' ? '知識' : item.type ? typeLabel(item.type) : UNKNOWN, attrs: { 'data-record-type': ({ judgment: 'decision', document: 'knowledge' })[optionalText(item.type).trim().toLowerCase()] || optionalText(item.type).trim().toLowerCase() || 'unknown' } }), main,
           makeElement('span', { className: 'knowledge-row-project', text: knowledgeItemProjectLabel(item, callbacks.projectLabel) }),
           makeElement('span', { className: 'knowledge-row-updated', text: item.updated_at && !Number.isNaN(Date.parse(item.updated_at)) ? new Date(item.updated_at).toLocaleDateString('ja-JP', { ...(new Date(item.updated_at).getFullYear() !== new Date().getFullYear() ? { year: 'numeric' } : {}), month: 'numeric', day: 'numeric' }) : UNKNOWN, attrs: { title: displayDateTime(item.updated_at) } }),
         );

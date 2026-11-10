@@ -432,6 +432,23 @@ export function workspaceDialog(doc, { title, content, opener, presentation = 'c
   return dialog;
 }
 
+/** Applied condition with an explicit, individually removable value. */
+export function workspaceFilterChip(doc, { label, onRemove, attrs = {} } = {}) {
+  const chip = workspaceButton(doc, { text: `${label} ×`, attrs: { 'aria-label': `${label}を解除`, ...attrs }, onClick: onRemove });
+  chip.className += ' bb-ws-filter-chip';
+  return chip;
+}
+
+/** One filter choice; callers retain selection and lifecycle ownership. */
+export function workspaceFilterOption(doc, { label, count, checked = false, disabled = false, role = 'radio', attrs = {}, onClick } = {}) {
+  const button = workspaceButton(doc, { attrs: { ...attrs, role, 'aria-checked': String(checked) }, disabled, onClick });
+  button.className += ' bb-ws-filter-option';
+  const check = el(doc, 'span', { className: 'bb-ws-filter-option-check', attrs: { 'aria-hidden': 'true' } });
+  button.append(check, el(doc, 'span', { className: 'bb-ws-filter-option-label', text: `${label}${count === undefined || count === null ? '' : ' '}` }));
+  if (count !== undefined && count !== null) button.append(el(doc, 'span', { className: 'bb-ws-filter-option-count', text: count }));
+  return button;
+}
+
 /** Anchored advanced search. Hosts destroy it before replacing its controls. */
 export function workspaceFilterPopover(doc, { content, open = false, onToggle, trigger, panel: suppliedPanel, initialFocus, appearance } = {}) {
   const root = el(doc, 'span', { className: 'bb-ws-filter-anchor' });
@@ -488,9 +505,14 @@ export function workspaceFilterPopover(doc, { content, open = false, onToggle, t
     if (event.key !== 'Escape') return;
     event.preventDefault(); event.stopPropagation(); setOpen(false); control.focus();
   };
+  const pointerFocus = () => root.setAttribute('data-pointer-focus', 'true');
+  const keyboardFocus = () => root.removeAttribute?.('data-pointer-focus');
+  root.addEventListener('pointerdown', pointerFocus);
+  root.addEventListener('keydown', keyboardFocus);
   const toggle = () => setOpen(!isOpen, true);
   control.addEventListener('click', toggle); setOpen(open);
   return { root, control, panel, setOpen, get isOpen() { return isOpen === true; }, destroy() {
+    root.removeEventListener?.('pointerdown', pointerFocus); root.removeEventListener?.('keydown', keyboardFocus);
     destroyed = true; isOpen = false; removeListeners(); cancelExit(); control.removeEventListener?.('click', toggle);
     panel.hidden = true; panel.inert = true; panel.setAttribute('inert', ''); panel.setAttribute('aria-hidden', 'true'); control.setAttribute('aria-expanded', 'false');
   } };
