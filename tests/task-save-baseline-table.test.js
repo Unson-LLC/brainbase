@@ -71,6 +71,10 @@ describe('build-task-save-baseline-table', () => {
         expect(table.acquiredCount).toBe(0);
         expect(table.acquiredTotal).toBe(REQUIRED_EVIDENCE.length);
         expectNeverConfirmed(table);
+        const markdown = renderMarkdown(table);
+        expect(markdown.split('\n')[0]).toBe('# Task 保存 新旧比較表（未確定）');
+        expect(markdown).not.toContain('固定SHA確定');
+        expect(markdown).toContain('| fileSha256 |');
         for (const artifact of table.evidence) {
             expect(artifact.acquired).toBe(false);
             expect(artifact.fileSha256).toBe(UNACQUIRED);
@@ -166,7 +170,8 @@ describe('build-task-save-baseline-table', () => {
     it('renders markdown with the acquisition inventory and explicit 未確認 columns', async () => {
         const bodies = await writeFullBundle(root);
         const markdown = renderMarkdown(buildTable(root));
-        expect(markdown).toContain('Task 保存 新旧比較表');
+        expect(markdown.split('\n')[0]).toBe('# Task 保存 新旧比較表（未確定）');
+        expect(markdown).not.toContain('固定SHA確定');
         expect(markdown).toContain('取得目録');
         expect(markdown).toContain('OSS 正式 0.44.1');
         expect(markdown).toContain('監査 (audit)');
