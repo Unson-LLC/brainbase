@@ -1,5 +1,6 @@
+import { knowledgeDirectoryToolbar } from '../../ui/knowledge-directory.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { workspaceCompactToolbar, workspaceCombobox, workspaceDetailDrawer, workspaceTopbar, workspaceApplyDrawer, workspaceCloseDrawer, workspaceDialog, workspaceFilterPopover, workspaceLoadingCard, workspaceDismissNotification } from '../../ui/workspace-kit.js';
+import { workspaceCompactToolbar, workspaceCombobox, workspaceDetailDrawer, workspaceTopbar, workspaceSearchControl, workspaceApplyDrawer, workspaceCloseDrawer, workspaceDialog, workspaceFilterPopover, workspaceLoadingCard, workspaceDismissNotification } from '../../ui/workspace-kit.js';
 
 // A native-dialog lifecycle model: focus remains inside until close dispatches.
 class Events {
@@ -95,15 +96,34 @@ describe('shared drawer lifecycle', () => {
 
 describe('shared anchored filters', () => {
   it('focuses fields, closes outside or with Escape, restores trigger focus and disposes document listeners', () => {
-    const doc = new Document(); const field = doc.createElement('input'); const toggles = [];
+    vi.useFakeTimers(); const doc = new Document(); const field = doc.createElement('input'); const toggles = [];
     const popover = workspaceFilterPopover(doc, { content: field, onToggle: open => toggles.push(open) }); doc.body.append(popover.root);
     expect(popover.panel.hidden).toBe(true); expect(doc.count('keydown')).toBe(0);
     popover.control.dispatch('click'); expect(doc.activeElement).toBe(field); expect(popover.panel.hidden).toBe(false);
     doc.dispatch('pointerdown', { target: field }); expect(popover.panel.hidden).toBe(false);
-    doc.dispatch('keydown', { key: 'Escape' }); expect(popover.panel.hidden).toBe(true); expect(doc.activeElement).toBe(popover.control);
-    popover.control.dispatch('click'); doc.dispatch('pointerdown', { target: doc.body }); expect(popover.panel.hidden).toBe(true);
+    doc.dispatch('keydown', { key: 'Escape' }); expect(popover.isOpen).toBe(false); expect(popover.panel.inert).toBe(true); vi.runAllTimers(); expect(popover.panel.hidden).toBe(true); expect(doc.activeElement).toBe(popover.control);
+    popover.control.dispatch('click'); doc.dispatch('pointerdown', { target: doc.body }); expect(popover.isOpen).toBe(false); vi.runAllTimers(); expect(popover.panel.hidden).toBe(true);
     popover.control.dispatch('click'); popover.destroy(); expect(doc.count('keydown')).toBe(0); expect(doc.count('pointerdown')).toBe(0);
     expect(popover.panel.hidden).toBe(true); expect(toggles).toEqual([false, true, false, true, false, true]);
+  });
+  it('cancels exit on reopen, ignores child animation events and clears its fallback on destroy', () => {
+    vi.useFakeTimers(); const doc = new Document(); const field = doc.createElement('input');
+    const popover = workspaceFilterPopover(doc, { content: field, appearance: 'icon' }); doc.body.append(popover.root);
+    popover.setOpen(true, true); popover.setOpen(false);
+    expect(popover.control.getAttribute('aria-expanded')).toBe('false'); expect(popover.panel.hidden).toBe(false);
+    expect(popover.panel.inert).toBe(true); expect(popover.panel.getAttribute('aria-hidden')).toBe('true');
+    popover.panel.dispatch('animationend', { target: field, animationName: 'bb-ws-filter-exit' }); expect(popover.panel.hidden).toBe(false);
+    popover.control.click(); vi.runAllTimers(); expect(popover.isOpen).toBe(true); expect(popover.panel.hidden).toBe(false);
+    expect(popover.panel.inert).toBe(false); expect(popover.panel.getAttribute('aria-hidden')).toBe(null);
+    popover.setOpen(false); popover.panel.dispatch('animationend', { animationName: 'bb-ws-filter-exit' });
+    expect(popover.panel.hidden).toBe(true); expect(vi.getTimerCount()).toBe(0);
+    popover.setOpen(true); popover.setOpen(false); popover.destroy(); vi.runAllTimers();
+    expect(popover.panel.hidden).toBe(true); expect(popover.panel.count('animationend')).toBe(0); expect(vi.getTimerCount()).toBe(0);
+    expect(doc.count('keydown')).toBe(0); expect(doc.count('pointerdown')).toBe(0);
+  });
+  it('closes synchronously for reduced motion without adding an exit timer', () => {
+    vi.useFakeTimers(); const doc = new Document(true); const popover = workspaceFilterPopover(doc); doc.body.append(popover.root);
+    popover.setOpen(true); popover.setOpen(false); expect(popover.panel.hidden).toBe(true); expect(vi.getTimerCount()).toBe(0); popover.destroy();
   });
   it('adapts existing task trigger and panel without recreating controls', () => {
     const doc = new Document(); const trigger = doc.createElement('button'); const panel = doc.createElement('div'); const field = doc.createElement('select'); panel.append(field);
@@ -141,6 +161,18 @@ describe('shared page chrome and persistent inspectors', () => {
     expect(header.children[0].tagName).toBe('H1');
     expect(header.children[0].textContent).toBe('一覧');
   });
+  it('keeps a caller-owned search input and can remove or replace it without changing the title', () => {
+    const doc = new Document(); const input = doc.createElement('input'); input.value = 'needle'; input.setAttribute('aria-label', '検索');
+    const changed = vi.fn(); input.addEventListener('input', changed);
+    const header = workspaceTopbar(doc, { title: '一覧', query: input });
+    expect(header.children[0].tagName).toBe('H1'); expect(header.children[1].className).toBe('bb-ws-search-control');
+    expect(header.children[1].children[1]).toBe(input); expect(input.value).toBe('needle');
+    input.dispatch('input'); expect(changed).toHaveBeenCalledTimes(1);
+    const wrapper = header.children[1]; header.setQuery(input); expect(header.children[1]).toBe(wrapper);
+    header.setQuery(null); expect(header.children).toHaveLength(1); expect(header.children[0].textContent).toBe('一覧');
+    const other = doc.createElement('input'); header.setQuery(other); expect(header.children[1].children[1]).toBe(other);
+    expect(workspaceSearchControl(doc, { input }).children[1]).toBe(input);
+  });
   it('updates content without reopening a dismissed drawer and restores a replaced row', () => {
     vi.useFakeTimers(); const doc = new Document(); let opener = doc.createElement('button'); doc.body.append(opener);
     const closed = vi.fn(); const inspector = workspaceDetailDrawer(doc, { opener: () => opener, onClose: closed });
@@ -162,7 +194,7 @@ describe('shared page chrome and persistent inspectors', () => {
 
 describe('compact list controls', () => {
   it('uses one caret trigger, clears with focus restoration, and excludes filter on keyboard sort opening', () => {
-    const doc = new Document(); const root = doc.createElement('div'); doc.body.append(root);
+    vi.useFakeTimers(); const doc = new Document(); const root = doc.createElement('div'); doc.body.append(root);
     const query = doc.createElement('input'); const filters = doc.createElement('div'); filters.append(doc.createElement('input'));
     const reset = doc.createElement('button'); const clear = vi.fn(); reset.addEventListener('click', clear);
     const sort = workspaceCombobox(doc, { label: '並べ替え', options: [{ value: 'new', label: '新しい順' }, { value: 'old', label: '古い順' }], value: 'new' });
@@ -170,12 +202,32 @@ describe('compact list controls', () => {
     expect(toolbar.filter.control.children.at(-1).tagName).toBe('SPAN');
     toolbar.filter.control.click(); expect(toolbar.filter.panel.hidden).toBe(false);
     sort.trigger.dispatch('keydown', { key: 'ArrowDown' });
-    expect(sort.popup.hidden).toBe(false); expect(toolbar.filter.panel.hidden).toBe(true);
+    expect(sort.popup.hidden).toBe(false); expect(toolbar.filter.isOpen).toBe(false); expect(toolbar.filter.panel.inert).toBe(true);
     toolbar.filter.control.click();
     expect(sort.popup.hidden).toBe(true); expect(toolbar.filter.panel.hidden).toBe(false);
     toolbar.setFiltered(true); reset.click();
-    expect(clear).toHaveBeenCalledTimes(1); expect(toolbar.filter.panel.hidden).toBe(true); expect(doc.activeElement).toBe(toolbar.filter.control);
+    expect(clear).toHaveBeenCalledTimes(1); expect(toolbar.filter.isOpen).toBe(false); expect(doc.activeElement).toBe(toolbar.filter.control);
     toolbar.destroy(); sort.destroy();
     expect(doc.count('pointerdown')).toBe(0); expect(doc.count('keydown')).toBe(0);
+  });
+});
+
+
+describe('knowledge directory Japanese search input', () => {
+  it('waits for compositionend, ignores composing Enter, and cleans up the existing input', () => {
+    const doc = new Document(); const changes = [];
+    const toolbar = knowledgeDirectoryToolbar(doc, { filters: { q: '', scope: 'all', status: 'active' }, onChange: value => changes.push(value), onProject() {}, onRegister() {} });
+    doc.body.append(toolbar.root);
+    const query = toolbar.query;
+    query.dispatch('compositionstart'); query.value = '日本語';
+    query.dispatch('input', { isComposing: true });
+    query.dispatch('keydown', { key: 'Enter', isComposing: true });
+    expect(toolbar.isComposing).toBe(true); expect(changes).toEqual([]);
+    query.dispatch('compositionend');
+    expect(changes).toEqual([{ q: '日本語', scope: 'all', status: 'active' }]);
+    toolbar.destroy(); query.value = '後着'; query.dispatch('input');
+    expect(changes).toHaveLength(1);
+    const next = knowledgeDirectoryToolbar(doc, { queryInput: query, filters: { q: '日本語', scope: 'all', status: 'active' }, onChange() {}, onProject() {}, onRegister() {} });
+    expect(next.query).toBe(query); next.destroy();
   });
 });

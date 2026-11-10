@@ -169,3 +169,9 @@ AffectUI の Decision Inbox（MIT）の動きを参考に、共通UIで次を守
 - 時間が過ぎたら `runAction(itemId, actionId)` を1回呼ぶ。成功なら `load()`、失敗なら行を戻して理由を出す。
 - `destroy()` のとき残っている操作は、タイマーを止めてすぐ送る（結果は描かない）。
 - `undoWindowMs` が0のときは、従来どおり結果を待って読み直す。
+
+## Compact card presentation
+
+A host may opt into `createInboxUI({ layout: 'cards', ... })`. This changes presentation only: the existing `waiting`/`notices` routes and `waiting`/`later`/`cleared` dispositions remain the contract. Four visible tabs are 対応待ち・お知らせ・保留・対応済. Category filters operate on already-readable rows; source failures and uncollected kinds remain explicit. A `+` on a count means some sources could not be read.
+
+The title and row action first expand an inline detail, without calling the business operation. The detail contains the supplied facts and description, an original source link, and the existing actions. The close control is at the upper right; Escape closes the detail and restores the title's focus. The source link is left of the footer actions. No generated facts, fake approvals, task completions, or notices are added. Existing confirmations, action failures, revision checks and local disposition persistence remain unchanged. The shared title bar owns the space above the sticky tab/filter row; the host adds no extra top gap.

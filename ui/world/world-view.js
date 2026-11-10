@@ -44,11 +44,11 @@ import {
   workspaceButton,
 } from '../../workspace-kit.js';
 
-let worldLegendSequence = 0;
-
 export const WORLD_VIEW_CONTRACT_VERSION = 'brainbase.world-view.v0';
 /** Optional full-canvas presentation; the standard host contract remains unchanged. */
 export const WORLD_CANVAS_PRESENTATION_VERSION = 'brainbase.world-canvas.v1';
+
+let legendPanelSequence = 0;
 
 const STATE_LABELS = Object.freeze({ delegated: '任せている', verifying: '確かめ中', returned: '戻している' });
 const STATE_COLORS = Object.freeze({ delegated: 0x087d62, verifying: 0xc99a3a, returned: 0xd92335 });
@@ -1677,7 +1677,6 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
   const header = workspacePageHeader(doc, {
     crumbs: page?.crumbs ?? ['あなたのBrainbase', '世界'],
     title: '世界',
-    lead: '事業を都市、案件を区画、判断の種類を広場の建物として描いています。都市を選ぶとその事業の区画に入り、仕事（タスク）が通りに面した現場として建ち、記録から把握できていないことが街の様子で見えます。見るための画面で、ここからは何も書き換えません。',
     source: page?.source ?? null,
     actions: [
       skyButton,
@@ -1742,23 +1741,32 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     if (page?.source) help.append(el(doc, 'p', { text: page.source }));
     canvasUI.setHelp([help]);
   } else {
-    // The legend is no longer a permanent overlay (RQ-003); it folds into a small
-    // "？" disclosure, closed by default, with the same keyboard and aria-expanded
-    // behaviour as the canvas help button. The information is kept, just tucked away.
-    const legendPanel = el(doc, 'div', { className: 'bb-world-legend-panel', attrs: { id: `bb-world-legend-${++worldLegendSequence}` } });
-    legendPanel.hidden = true;
-    legendPanel.append(legend, workLegend);
-    const legendToggle = workspaceButton(doc, {
-      text: '？',
-      variant: 'quiet',
-      attrs: { 'aria-label': '世界の見方と凡例', title: '世界の見方と凡例', 'aria-controls': legendPanel.id, 'aria-expanded': 'false' },
-      onClick: () => {
-        const open = legendPanel.hidden;
-        legendPanel.hidden = !open;
-        legendToggle.setAttribute('aria-expanded', String(open));
-      },
+    const panelId = `bb-world-legend-${++legendPanelSequence}`;
+    const legendPanel = el(doc, 'section', {
+      className: 'bb-world-legend-panel',
+      attrs: { id: panelId, 'aria-label': '世界の見方と凡例', tabindex: '-1' },
     });
-    legendToggle.classList.add('bb-world-legend-toggle');
+    legendPanel.hidden = true;
+    legendPanel.inert = true;
+    workLegend.hidden = false;
+    legendPanel.append(el(doc, 'p', { text: '事業を都市、案件を区画、判断の種類を広場の建物として描いています。都市を選ぶとその事業の区画に入り、仕事（タスク）が通りに面した現場として建ち、記録から把握できていないことが街の様子で見えます。見るための画面で、ここからは何も書き換えません。' }), legend, workLegend);
+    const legendToggle = el(doc, 'button', {
+      className: 'bb-world-legend-toggle', text: '？',
+      attrs: { type: 'button', title: '世界の見方と凡例', 'aria-label': '世界の見方と凡例', 'aria-controls': panelId, 'aria-expanded': 'false' },
+    });
+    const setLegendOpen = (open) => {
+      legendPanel.hidden = !open;
+      legendPanel.inert = !open;
+      legendToggle.setAttribute('aria-expanded', String(open));
+      (open ? legendPanel : legendToggle).focus?.({ preventScroll: true });
+    };
+    legendToggle.addEventListener('click', () => setLegendOpen(legendPanel.hidden));
+    legendPanel.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setLegendOpen(false);
+    });
     stage.append(notices, legendToggle, legendPanel);
     wrap.append(header, stage);
   }
@@ -2692,8 +2700,8 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
         restoreSelection();
         void loadWorkSummary(note);
       } else {
-        stage.hidden = true;
-        renderFallbackList(doc, wrap, businesses, rows, exitSlot);
+        stage.classList.add('is-fallback');
+        renderFallbackList(doc, stage, businesses, rows, exitSlot);
       }
       for (const business of exitsEnabled ? businesses : []) loadExits(business);
       return;

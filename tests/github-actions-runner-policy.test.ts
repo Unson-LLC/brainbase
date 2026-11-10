@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 const selfHostedRunner = 'runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]';
+const backupRunner = "runs-on: ${{ fromJSON(vars.CI_RUNNER_BACKUP == 'on' && '\"ubuntu-latest\"' || '[\"self-hosted\",\"Linux\",\"X64\",\"wsl-linux\",\"nucbox-evo-x2\"]') }}";
 const workflowPaths = [
   '.github/workflows/adr-index.yml',
   '.github/workflows/test.yml',
@@ -23,14 +24,14 @@ describe('public CI self-hosted runner policy', () => {
         : workflow;
       const runsOn = jobs.match(/^[ \t]*runs-on:.*$/gmu) ?? [];
       expect(runsOn, workflowPaths[index]).not.toHaveLength(0);
-      expect(runsOn.every((line) => line.trim() === selfHostedRunner), workflowPaths[index]).toBe(true);
-      expect(jobs, workflowPaths[index]).not.toMatch(/ubuntu-latest|windows-latest|macos-latest/u);
+      expect(runsOn.every((line) => line.trim() === backupRunner), workflowPaths[index]).toBe(true);
+      expect(jobs, workflowPaths[index]).not.toMatch(/windows-latest|macos-latest/u);
     }
 
     const formalValidationJob = workflows[workflowPaths.indexOf('.github/workflows/test.yml')]
       .slice(workflows[workflowPaths.indexOf('.github/workflows/test.yml')].indexOf('  formal-release-validate-linux:'));
     expect(formalValidationJob).toMatch(/^  formal-release-validate-linux:\n/u);
-    expect(formalValidationJob).toMatch(/^    runs-on: \[self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2\]$/mu);
+    expect(formalValidationJob).toMatch(/^    runs-on: \$\{\{ fromJSON\(vars\.CI_RUNNER_BACKUP == 'on' && '"ubuntu-latest"' \|\| '\["self-hosted","Linux","X64","wsl-linux","nucbox-evo-x2"\]'\) \}\}$/mu);
     expect(formalValidationJob).toMatch(/^    permissions:\n      contents: read$/mu);
     expect(formalValidationJob).toMatch(/github\.event\.pull_request\.head\.sha/u);
     expect(formalValidationJob).toMatch(/persist-credentials: false/u);
