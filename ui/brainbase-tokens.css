@@ -116,6 +116,24 @@
   --bb-space-4: 16px;
   --bb-space-5: 24px;
   --bb-space-6: 32px;
+  /* Shared search, segmented tabs and anchored-filter presentation. */
+  --bb-list-control-height: 36px;
+  --bb-list-search-width: 240px;
+  --bb-list-search-gap: 10px;
+  --bb-list-control-radius: 8px;
+  --bb-filter-width: 280px;
+  --bb-filter-radius: 12px;
+  --bb-filter-enter-duration: 240ms;
+  --bb-filter-exit-duration: 180ms;
+  --bb-filter-enter-distance: -10px;
+  --bb-filter-exit-distance: -8px;
+  --bb-filter-enter-ease: cubic-bezier(.2, .8, .2, 1);
+  --bb-segmented-height: 36px;
+  --bb-segmented-padding: 3px;
+  --bb-segmented-radius: 8px;
+  --bb-segmented-tab-radius: 6px;
+  --bb-segmented-surface: #e8edf0;
+  --bb-segmented-shadow: 0 1px 2px rgb(15 23 42 / 8%);
   /* Additive tokens for opt-in compact list controls. */
   --bb-control-compact-height: 32px;
   --bb-toolbar-height: 44px;
