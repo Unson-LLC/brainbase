@@ -146,3 +146,11 @@ The heading link's padding-top token replaces the top edge of the label padding,
 - `workspaceFilterPopover` は幅280px・余白16px・角丸12pxの共通surfaceを持つ。`appearance: 'icon'` は36pxの絞り込みアイコンボタン。既存文字triggerは省略時のまま。条件やmenu semanticsは所有元が保持する。
 - `setOpen(value, focus = false)` と `isOpen` が論理的な開閉の正本。閉じるとすぐaria-expandedをfalse、panelをinert/aria-hiddenにして非操作にし、180msで上へ8px移動しながら消したあとhiddenにする。開く動きは240ms。閉じる途中のhiddenを開閉判定に使わない。
 - 再openは終了待ちを取り消す。`destroy()` は即時非表示・timer/listener清掃。Escapeはtriggerへfocusを戻し、reduced motionでは終了を待たずに非表示にする。DOM監視や見本専用のghostコピーは本体へ持ち込まない。
+
+### Directory filter choices and applied conditions
+
+`workspaceFilterOption(document, { label, count, checked, disabled, role, attrs, onClick })` returns a button with separate check, label and count cells. `count` may be an unknown/partial description and is never inferred as zero. Selection is expressed by `aria-checked` and a check, with a neutral background; only hover paints the row. Callers retain condition changes, dismissal and focus.
+
+`workspaceFilterChip(document, { label, onRemove, attrs })` provides the shared mint applied-condition surface and individual remove action. The host retains removal and focus behavior. Search-bearing topbars use `--bb-page-header-inline-end` (default `--bb-space-5`) to align the search edge with the host content gutter.
+
+The shared review orange is `--bb-color-review`; the inbox approval stripe aliases this token. Knowledge directory type labels use explicit type tokens and retain their text. `judgment`/`decision` and `document`/`knowledge` aliases share their respective type color; missing or unrecognized types retain the neutral label.
