@@ -991,10 +991,11 @@ export function renderObjectiveEditor(root, state, callbacks = {}) {
   append(copy,
     makeElement('h1', { text: '目的と評価基準' }),
     makeElement('p', { text: '目指す状態と評価基準を、版つきで編集・確認します。' }),
-    guide,
   );
+  const side = makeElement('div', { className: 'bb-ws-page-side' });
   const headerStatus = state.save.state !== 'idle' ? state.save.state : state.objectives.state;
-  header.append(copy, statusBadge(headerStatus));
+  side.append(statusBadge(headerStatus), guide);
+  header.append(copy, side);
   wrapper.append(header);
   const toolbar = makeElement('div', { className: 'objective-editor-toolbar' });
   const tabs = [
