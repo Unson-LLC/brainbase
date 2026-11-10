@@ -12,9 +12,10 @@
   border-radius: 999px;
   padding: 0 6px;
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   color: var(--bb-color-accent);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 18px;
   text-align: center;
 }
@@ -24,6 +25,7 @@
   margin: 0 0 10px;
   overflow: hidden;
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   color: transparent;
   font-size: 0;
 }
@@ -36,14 +38,14 @@
   margin: 0 0 var(--bb-space-2);
   color: var(--bb-color-muted);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-inbox.is-today .bb-inbox-today-count {
   margin: 0 0 var(--bb-space-4);
   color: var(--bb-color-ink);
   font-size: 15px;
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-inbox.is-today .bb-inbox-today-count.is-unreadable {
@@ -61,7 +63,7 @@
 
 .bb-inbox-wait.is-long {
   color: var(--bb-color-warning);
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-inbox-undo {
@@ -73,6 +75,7 @@
   border-radius: var(--bb-radius-md);
   padding: var(--bb-space-2) var(--bb-space-3);
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   color: var(--bb-color-ink);
   font-size: 13px;
 }
@@ -104,7 +107,7 @@
 .bb-inbox-title {
   color: var(--bb-color-ink);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
   text-decoration: none;
   overflow-wrap: anywhere;
 }
@@ -135,7 +138,7 @@ a.bb-inbox-title:focus-visible {
   padding: 0 8px;
   background: var(--bb-color-warning-soft);
   color: var(--bb-color-warning);
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-inbox-due {
@@ -144,15 +147,15 @@ a.bb-inbox-title:focus-visible {
 
 .bb-inbox-due.is-soon {
   color: var(--bb-color-warning);
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-inbox-due.is-expired {
   border-radius: 999px;
   padding: 0 8px;
   background: var(--bb-color-danger-soft);
-  color: var(--bb-color-danger);
-  font-weight: 600;
+  color: var(--bb-color-inline-error);
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-inbox-facts {
@@ -190,7 +193,7 @@ a.bb-inbox-title:focus-visible {
 .bb-inbox-done {
   color: var(--bb-color-success);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-inbox-confirm {
@@ -209,7 +212,7 @@ a.bb-inbox-title:focus-visible {
   margin: 0;
   color: var(--bb-color-ink);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-inbox-row-actions {
@@ -270,3 +273,93 @@ a.bb-inbox-title:focus-visible {
 }
 
 .bb-inbox-tabs { margin: 0 0 var(--bb-space-4); }
+
+/* Opt-in compact cards. Business state and actions still belong to the host port. */
+.bb-inbox.is-cards { min-width: 0; }
+.bb-inbox.is-cards .bb-inbox-card-toolbar { position: sticky; top: var(--bb-page-header-height); z-index: 17; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--bb-space-2) var(--bb-space-4); margin-bottom: 20px; background: var(--bb-color-canvas); border-bottom: 1px solid var(--bb-color-border); }
+.bb-inbox.is-cards .bb-inbox-tabs { min-width: 0; margin: 0; flex-shrink: 0; }
+.bb-inbox-card-filters { display: flex; flex-wrap: wrap; gap: var(--bb-space-1); padding-bottom: var(--bb-space-1); }
+.bb-inbox-card-filters .bb-ws-button { min-height: var(--bb-control-small-height); padding: var(--bb-space-1) var(--bb-space-2); border: 1px solid var(--bb-color-border); border-radius: var(--bb-radius-pill); background: var(--bb-color-panel); font-size: 12px; }
+.bb-inbox-card-filters .bb-ws-button[aria-pressed="true"] { background: var(--bb-color-accent); color: var(--bb-color-action-text); border-color: var(--bb-color-accent); }
+.bb-inbox-card-group-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; padding-bottom: 6px; }
+.bb-inbox.is-cards .bb-inbox-group-title { margin: 0; font-size: 15px; font-weight: 700; color: var(--bb-color-accent); }
+.bb-inbox-group-count { font-size: 12.5px; font-weight: 500; color: var(--bb-color-muted); }
+.bb-inbox.is-cards .bb-inbox-list { display: grid; gap: var(--bb-space-3); }
+.bb-inbox-card { position: relative; min-width: 0; padding: 16px 20px; background: var(--bb-color-panel); border: 1px solid var(--bb-color-border); border-radius: 12px; box-shadow: var(--bb-inbox-card-shadow); }
+.bb-inbox-card-summary { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.bb-inbox-card .bb-inbox-row-main { flex: 1; min-width: 0; }
+.bb-inbox-card-heading { margin: 0 0 6px; font-size: 14.5px; line-height: 1.45; letter-spacing: -0.2px; }
+.bb-inbox-card-title { margin: 0; padding: 0; border: 0; background: transparent; color: var(--bb-color-ink); font: inherit; font-weight: 600; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.bb-inbox-card :is(.bb-inbox-facts, .bb-inbox-meta) { margin: 0; }
+.bb-inbox-card .bb-inbox-row-actions { flex-wrap: wrap; justify-content: flex-end; flex-shrink: 0; gap: 8px; padding-top: 2px; }
+.bb-inbox-card .bb-ws-button { min-height: 32px; height: 32px; padding: 0 13px; border-radius: 6px; font-size: 12.5px; font-weight: 500; line-height: normal; white-space: nowrap; }
+.bb-inbox-card .bb-inbox-card-detail { margin-top: 16px; padding: 16px; border: 1px solid var(--bb-color-border); border-radius: 8px; background: var(--bb-color-canvas); }
+.bb-inbox-card-detail[hidden] { display: none; }
+.bb-inbox-card-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--bb-space-3); margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--bb-color-border); }
+.bb-inbox-card-detail-head h4 { margin: 0; font-size: 13px; font-weight: 600; color: var(--bb-color-accent); }
+.bb-inbox-card-detail p { font-size: 12.5px; line-height: 1.6; overflow-wrap: anywhere; }
+.bb-inbox-card-detail-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--bb-color-border); }
+.bb-inbox-source-link { color: var(--bb-color-action); font-size: 12px; text-underline-offset: 3px; margin-right: auto; }
+.bb-inbox-card :is(.bb-inbox-fact dd, .bb-inbox-meta) { overflow-wrap: anywhere; }
+.bb-inbox-card .bb-inbox-confirm { margin: 0; flex: 1; min-width: 0; }
+.bb-inbox-card .bb-inbox-later-menu { display: flex; flex-wrap: wrap; gap: var(--bb-space-2); margin-top: var(--bb-space-3); }
+.bb-inbox.is-cards .bb-inbox-group { scroll-margin-top: calc(var(--bb-page-header-height) + var(--bb-tab-height)); }
+.bb-inbox-card :is(button, a):focus-visible { outline: 2px solid var(--bb-color-focus); outline-offset: 3px; }
+@media (max-width: 900px) {
+  .bb-inbox.is-cards .bb-inbox-card-toolbar { gap: var(--bb-space-2); }
+  .bb-inbox.is-cards .bb-inbox-tabs { flex-shrink: 1; width: 100%; }
+  .bb-inbox-card-summary { flex-direction: column; align-items: stretch; gap: 14px; }
+  .bb-inbox-card-summary > .bb-inbox-row-actions { justify-content: flex-start; width: 100%; border-top: 1px solid var(--bb-inbox-border-subtle); padding-top: 12px; }
+  .bb-inbox-card-detail-footer .bb-inbox-row-actions { justify-content: flex-end; margin-left: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bb-inbox.is-cards *, .bb-inbox.is-cards *::after { transition: none; animation: none; }
+}
+.bb-inbox.is-cards .bb-inbox-list { border: 0; border-radius: 0; overflow: visible; background: transparent; }
+.bb-inbox-card .bb-inbox-facts { display: flex; flex-wrap: wrap; gap: var(--bb-space-2) var(--bb-space-4); }
+.bb-inbox-card .bb-inbox-fact { display: flex; align-items: baseline; gap: 5px; }
+.bb-inbox-card .bb-inbox-fact :is(dt, dd) { margin: 0; font-size: 12px; }
+.bb-inbox-card .bb-inbox-meta { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: center; }
+.bb-inbox-card-detail-footer > .bb-inbox-row-actions { width: auto; flex: 0 1 auto; }
+.bb-inbox.is-cards :is(.bb-inbox-card, button, a, [tabindex]) { scroll-margin-top: calc(var(--bb-page-header-height) + var(--bb-inbox-toolbar-height, var(--bb-tab-height)) + var(--bb-space-2)); }
+
+/* Preserve the adopted reference's visual hierarchy within cards only. */
+.bb-inbox.is-cards .bb-inbox-group { margin-bottom: 28px; }
+.bb-inbox-card:hover { border-color: var(--bb-inbox-card-hover-border); box-shadow: var(--bb-inbox-card-hover-shadow); }
+.bb-inbox-card::before { content: ""; position: absolute; top: 12px; bottom: 12px; left: 0; width: 3.5px; border-radius: 0 3px 3px 0; background: var(--bb-color-border); }
+.bb-inbox-card[data-group="approve"]::before { background: var(--bb-inbox-approval-stripe); }
+.bb-inbox-card[data-group="answer"]::before { background: var(--bb-color-accent); }
+.bb-inbox-card[data-group="triage"]::before { background: var(--bb-color-mint); }
+.bb-inbox-card[data-group="task"]::before { background: var(--bb-inbox-task-stripe); }
+.bb-inbox-card-badge { display: inline-flex; align-items: center; margin-bottom: 6px; padding: 2px 7px; border: 1px solid var(--bb-inbox-badge-border); border-radius: 4px; color: var(--bb-color-accent); background: var(--bb-color-accent-soft); font-size: 11px; font-weight: 700; line-height: 1.5; }
+.bb-inbox-card-badge.is-urgent { color: var(--bb-inbox-urgent-ink); background: var(--bb-inbox-urgent-surface); border-color: var(--bb-inbox-urgent-border); }
+.bb-inbox-card-metadata { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 16px; }
+.bb-inbox-card .bb-inbox-fact dt { color: var(--bb-inbox-meta-label); font-size: 11.5px; }
+.bb-inbox-card .bb-inbox-fact dd { font-weight: 500; }
+.bb-inbox-card .bb-inbox-fact[data-fact-label="対象"] dd { padding: 1px 7px; border-radius: 6px; font-size: 11px; background: var(--bb-inbox-context-surface); color: var(--bb-color-accent); }
+.bb-inbox-card .bb-ws-button.is-primary { box-shadow: var(--bb-inbox-action-shadow); }
+.bb-inbox-card .bb-ws-button.is-danger { background: var(--bb-color-panel); color: var(--bb-inbox-urgent-ink); border-color: var(--bb-inbox-urgent-border); }
+.bb-inbox.is-cards .bb-inbox-count { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 6px; border-radius: var(--bb-radius-pill); line-height: 18px; font-size: 11px; font-weight: 600; background: var(--bb-color-border); }
+.bb-inbox.is-cards .bb-inbox-tab.is-selected .bb-inbox-count { background: var(--bb-color-mint); color: var(--bb-color-accent); }
+.bb-inbox-card-filters { gap: 6px; padding-bottom: 6px; }
+.bb-inbox-card-filters .bb-ws-button { gap: 0; min-height: 28px; height: 28px; padding: 0 10px; font-weight: 500; color: var(--bb-color-muted); }
+.bb-inbox-card-filters .bb-ws-button[aria-pressed="true"] { color: var(--bb-color-action-text); }
+
+/* The approved inline preview shares its container with the summary. */
+.bb-inbox-card-detail .bb-inbox-facts { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 8px 12px; margin-bottom: 14px; }
+.bb-inbox-card-detail .bb-inbox-fact { display: contents; }
+.bb-inbox-card-detail .bb-inbox-fact dt { color: var(--bb-color-muted); font-size: 12px; }
+.bb-inbox-card-detail .bb-inbox-fact dd { font-size: 12.5px; }
+.bb-inbox-card-detail .bb-inbox-fact[data-fact-label="対象"] dd { padding: 0; border-radius: 0; background: transparent; color: var(--bb-color-ink); font-size: 12.5px; }
+.bb-inbox-card-metadata { font-size: 12px; line-height: 1.5; }
+.bb-inbox-card-metadata > .bb-inbox-meta { display: contents; }
+.bb-inbox-card[data-kind="memory_candidates"] .bb-inbox-card-summary .is-primary { background: var(--bb-color-mint); border-color: var(--bb-color-mint); color: var(--bb-color-accent); font-weight: 600; box-shadow: none; }
+.bb-inbox.is-cards .bb-inbox-tabs { margin-bottom: -1px; }
+.bb-inbox.is-cards .bb-inbox-count { color: var(--bb-color-ink); }
+@media (min-width: 1251px) {
+  .bb-inbox.is-cards .bb-inbox-card-toolbar { flex-wrap: nowrap; }
+}
+@media (max-width: 768px) {
+  .bb-inbox-card { padding-inline: 14px; }
+  .bb-inbox.is-cards .bb-inbox-tabs { width: auto; }
+}

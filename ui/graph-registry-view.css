@@ -59,7 +59,7 @@
 .bb-gr-filters-label {
   color: var(--bb-color-muted);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-gr-filter-chip {
@@ -71,6 +71,7 @@
   border-radius: 999px;
   padding: 3px 6px 3px 10px;
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   color: var(--bb-color-ink);
   font: inherit;
   font-size: 12px;
@@ -171,7 +172,7 @@
   margin-bottom: 6px;
   color: var(--bb-color-accent);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-gr-detail-head h1 {
@@ -207,7 +208,7 @@
   margin: 0 0 6px;
   color: var(--bb-color-muted);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-gr-connection-list,

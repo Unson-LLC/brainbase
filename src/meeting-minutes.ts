@@ -8,6 +8,14 @@ export const MEETING_MINUTES_CONTRACT_VERSION = 'brainbase.meeting-minutes.v1' a
 export const MEETING_MINUTES_SNAPSHOT_VERSION = 1 as const;
 export const MEETING_MINUTES_SIDECAR = 'meeting-minutes.json' as const;
 export const MEETING_MINUTES_BODY_DIGEST_ALGORITHM = 'sha256' as const;
+/**
+ * A list page is bounded so one listing never has to serialize every meeting.
+ * The default applies when a caller asks for no limit, so an old caller that
+ * never paged keeps working while the response stays small; the maximum caps
+ * what a single page may request.
+ */
+export const MEETING_MINUTES_LIST_DEFAULT_LIMIT = 100 as const;
+export const MEETING_MINUTES_LIST_MAX_LIMIT = 500 as const;
 
 export type MeetingId = string;
 export type MinutesId = string;
@@ -192,6 +200,26 @@ export interface MeetingMinutesDetail extends MeetingMinutesSummary {
   readonly snapshot_revision: number;
 }
 
+/** Caller-supplied bounds for one listing page. Both fields are optional. */
+export interface MeetingMinutesListOptions {
+  /** Maximum summaries in the page. Defaults to MEETING_MINUTES_LIST_DEFAULT_LIMIT, capped at the maximum. */
+  readonly limit?: number;
+  /** Opaque continuation token from a previous page's next_cursor. */
+  readonly cursor?: string;
+}
+
+/**
+ * One listing page, ordered by scheduled_at descending, then undated imports
+ * by created_at descending (meeting_id breaks ties). `meetings` carries meeting and minutes-document summaries
+ * only — never a minutes version body. The body is read through get_meeting /
+ * the detail endpoint. `next_cursor` is present only while more readable
+ * meetings follow the page.
+ */
+export interface MeetingMinutesListPage {
+  readonly meetings: readonly MeetingMinutesSummary[];
+  readonly next_cursor?: string;
+}
+
 export type MeetingMinutesErrorCode =
   | 'invalid_input'
   | 'not_found'
@@ -237,7 +265,13 @@ export interface MeetingMinutesExternalSourceHook {
 }
 
 export interface MeetingMinutesStore {
+  /**
+   * Without options the store returns every readable summary as an array, the
+   * shape every caller before 0.50.1 depends on. Passing options (even `{}`)
+   * opts into one bounded page with an optional `next_cursor`.
+   */
   list_meetings(context: MeetingMinutesRequestContext): Promise<readonly MeetingMinutesSummary[]>;
+  list_meetings(context: MeetingMinutesRequestContext, options: MeetingMinutesListOptions): Promise<MeetingMinutesListPage>;
   create_meeting(input: MeetingCreateInput, context: MeetingMinutesRequestContext): Promise<MeetingMinutesDetail>;
   create_minutes(meeting_id: MeetingId, input: CreateMinutesInput, context: MeetingMinutesRequestContext): Promise<MeetingMinutesDetail>;
   get_meeting(meeting_id: MeetingId, context: MeetingMinutesRequestContext): Promise<MeetingMinutesDetail>;
@@ -903,6 +937,30 @@ function findExternalSourceIdentity(
   return { meeting_id: match.meeting_id, minutes_id: match.minutes_id, version_id: match.version_id };
 }
 
+function encodeListCursor(meetingId: string): string {
+  return Buffer.from(meetingId, 'utf8').toString('base64url');
+}
+
+function decodeListCursor(value: unknown): string {
+  const token = nonEmptyString(value, 'cursor');
+  const decoded = Buffer.from(token, 'base64url').toString('utf8');
+  if (decoded.trim() === '') throw invalid('cursor is invalid');
+  return decoded;
+}
+
+function normalizeListOptions(options: MeetingMinutesListOptions): { limit: number; startAfter?: string } {
+  if (!isRecord(options)) throw invalid('list options must be an object');
+  let limit = MEETING_MINUTES_LIST_DEFAULT_LIMIT as number;
+  if (options.limit !== undefined) {
+    if (typeof options.limit !== 'number' || !Number.isInteger(options.limit) || options.limit < 1) {
+      throw invalid('limit must be a positive integer');
+    }
+    limit = Math.min(options.limit, MEETING_MINUTES_LIST_MAX_LIMIT);
+  }
+  const startAfter = options.cursor === undefined ? undefined : decodeListCursor(options.cursor);
+  return { limit, startAfter };
+}
+
 export function createMeetingMinutesStore(options: MeetingMinutesStoreOptions): MeetingMinutesStore {
   const storage = defaultStorage(options);
   const now = options.now ?? (() => new Date());
@@ -971,8 +1029,21 @@ export function createMeetingMinutesStore(options: MeetingMinutesStoreOptions): 
     }
   }
 
-  async function list_meetings(context: MeetingMinutesRequestContext): Promise<readonly MeetingMinutesSummary[]> {
+  function list_meetings(context: MeetingMinutesRequestContext): Promise<readonly MeetingMinutesSummary[]>;
+  function list_meetings(context: MeetingMinutesRequestContext, options: MeetingMinutesListOptions): Promise<MeetingMinutesListPage>;
+  async function list_meetings(
+    context: MeetingMinutesRequestContext,
+    options?: MeetingMinutesListOptions
+  ): Promise<readonly MeetingMinutesSummary[] | MeetingMinutesListPage> {
     assertPrincipal(context);
+    if (options === undefined) return listAllMeetings(context);
+    return listMeetingsPage(context, options);
+  }
+
+  // The array form callers relied on before paging existed (organization
+  // server-parts read it with Array.isArray). It stays unbounded on purpose:
+  // callers that need bounded responses pass options and get a page.
+  async function listAllMeetings(context: MeetingMinutesRequestContext): Promise<readonly MeetingMinutesSummary[]> {
     const snapshot = await readSnapshot();
     const output: MeetingMinutesSummary[] = [];
     for (const meeting of snapshot.meetings) {
@@ -980,6 +1051,40 @@ export function createMeetingMinutesStore(options: MeetingMinutesStoreOptions): 
       output.push(summary(snapshot, meeting));
     }
     return freezeClone(output);
+  }
+
+  async function listMeetingsPage(context: MeetingMinutesRequestContext, options: MeetingMinutesListOptions): Promise<MeetingMinutesListPage> {
+    const { limit, startAfter } = normalizeListOptions(options);
+    const snapshot = await readSnapshot();
+    // Page the newest meeting dates first; undated imports follow by creation
+    // time. The ID tie-breaker keeps equal timestamps deterministic. Resume by
+    // ID so newly inserted meetings before the cursor cannot shift later pages.
+    const meetings = [...snapshot.meetings].sort((left, right) => {
+      if (Boolean(left.scheduled_at) !== Boolean(right.scheduled_at)) return left.scheduled_at ? -1 : 1;
+      const byDate = Date.parse(right.scheduled_at ?? right.created_at) - Date.parse(left.scheduled_at ?? left.created_at);
+      return byDate || right.meeting_id.localeCompare(left.meeting_id);
+    });
+    let index = 0;
+    if (startAfter !== undefined) {
+      const found = meetings.findIndex((meeting) => meeting.meeting_id === startAfter);
+      if (found === -1) throw invalid('cursor is invalid');
+      index = found + 1;
+    }
+    const output: MeetingMinutesSummary[] = [];
+    let next_cursor: string | undefined;
+    for (; index < meetings.length; index += 1) {
+      const meeting = meetings[index];
+      if (!(await canReadMeeting(snapshot, meeting, context))) continue;
+      if (output.length < limit) {
+        output.push(summary(snapshot, meeting));
+        continue;
+      }
+      // A full page has at least one more readable meeting after it, so the
+      // last returned meeting_id becomes the continuation token.
+      next_cursor = encodeListCursor(output[output.length - 1].meeting.meeting_id);
+      break;
+    }
+    return freezeClone({ meetings: output, ...(next_cursor === undefined ? {} : { next_cursor }) });
   }
 
   async function canReadMeeting(snapshot: MeetingMinutesSnapshot, meeting: MeetingRecord, context: MeetingMinutesRequestContext): Promise<boolean> {

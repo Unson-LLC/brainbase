@@ -517,6 +517,65 @@ describe.skipIf(!postgresIntegrationEnabled)('Canonical Task PostgreSQL adapter 
     ]));
   });
 
+  it('allows only one competing update of a persisted version', async () => {
+    const task = await service.createTask({ title: 'Before race', project_codes: ['project-112'] },
+      createServiceContext('person-a', undefined, 'race-create'));
+    const results = await Promise.allSettled(['First', 'Second'].map((title) =>
+      service.updateTask(task.id, { title }, 1,
+        createServiceContext('person-a', undefined, `race-${title}`))));
+    const winners = results.filter((result) => result.status === 'fulfilled');
+    const losers = results.filter((result) => result.status === 'rejected');
+    expect(winners).toHaveLength(1);
+    expect(losers).toHaveLength(1);
+    expect(losers[0]).toMatchObject({ reason: { status: 409 } });
+    // The durable version claim can reject before the stale-row check runs.
+    expect(['version_conflict', 'idempotency_conflict'])
+      .toContain((losers[0] as PromiseRejectedResult).reason.code);
+    const winner = (winners[0] as PromiseFulfilledResult<CanonicalTaskRecord>).value;
+    expect(await service.getTask(task.id, createServiceContext('person-a')))
+      .toMatchObject({ id: task.id, title: winner.title, version: 2 });
+    expect((await pool.query('SELECT title, version FROM canonical_tasks')).rows)
+      .toEqual([{ title: winner.title, version: 2 }]);
+    expect([...auditEntries.values()].filter((entry) => entry.action === 'canonical_task.updated'))
+      .toHaveLength(1);
+  });
+
+  it('recovers a committed update after audit failure using a reconstructed Service', async () => {
+    const task = await service.createTask({ title: 'Before failure', project_codes: ['project-112'] },
+      createServiceContext('person-a', undefined, 'recovery-create'));
+    const context = createServiceContext('person-a', undefined, 'recovery-update');
+    const failingService = new CanonicalTaskService({
+      repository, operationRepository: operations, readiness, policy,
+      auditRepository: { async upsertAuditLog() { throw new Error('audit unavailable'); } },
+    });
+    await expect(failingService.updateTask(task.id, { title: 'Committed' }, 1, context))
+      .rejects.toMatchObject({ code: 'task_audit_unavailable', status: 503 });
+    expect((await pool.query('SELECT title, version FROM canonical_tasks')).rows)
+      .toEqual([{ title: 'Committed', version: 2 }]);
+
+    // Reconstruct repository/coordinator too: no Service-local replay cache may
+    // supply the result. The same writer lease remains valid across this retry.
+    const restartedService = new CanonicalTaskService({
+      repository: new CanonicalTaskPostgresRepository({ pool, schemaVersion, idSecret: 'local-integration-only-secret' }),
+      operationRepository: new CanonicalTaskOperationRepository({
+        pool, writerToken: operations.writerToken, writerEnabled: true,
+        processIdentity: operations.processIdentity,
+      }),
+      readiness, policy,
+      auditRepository: { async upsertAuditLog(entry) { auditEntries.set(entry.id, entry); } },
+    });
+    for (let retry = 0; retry < 2; retry += 1) {
+      await expect(restartedService.updateTask(task.id, { title: 'Committed' }, 1, context))
+        .resolves.toMatchObject({ id: task.id, title: 'Committed', version: 2 });
+    }
+    expect((await pool.query('SELECT title, version FROM canonical_tasks')).rows)
+      .toEqual([{ title: 'Committed', version: 2 }]);
+    expect([...auditEntries.values()].filter((entry) => entry.action === 'canonical_task.updated'))
+      .toHaveLength(1);
+    await expect(restartedService.updateTask(task.id, { title: 'Different' }, 1, context))
+      .rejects.toMatchObject({ code: 'version_conflict', status: 409 });
+  });
+
   it('commits the Task with the audit writer and rolls back when that writer fails', async () => {
     let clientSeen: unknown = null;
     const atomicService = new CanonicalTaskService({

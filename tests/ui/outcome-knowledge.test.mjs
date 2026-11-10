@@ -699,7 +699,8 @@ describe('outcome knowledge UI contract', () => {
     const inspector = findAll(body, 'aside')[0];
     const discovery = findAll(primary, 'section').find((node) => node.className.includes('knowledge-discovery-view'));
 
-    expect(header.className).toBe('knowledge-outcome-head');
+    expect(header.className.split(' ')).toContain('bb-ws-page-head');
+    expect(findAll(header, 'h1')).toHaveLength(1);
     expect(findAll(header, 'nav')[0].className).toBe('knowledge-outcome-nav');
     expect(body.attributes['data-view']).toBe('discovery');
     expect(primary.className).toContain('knowledge-master');

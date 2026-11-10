@@ -1,6 +1,6 @@
 {
   "name": "@unson/brainbase-mcp",
-  "version": "0.47.2",
+  "version": "0.50.1",
   "description": "Local-first Brainbase judgment OS that lets supported AI agents reuse a user's approved goals, priorities, decisions, and judgment criteria.",
   "type": "module",
   "license": "MIT",
@@ -14,6 +14,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./entity-indexer": {
+      "types": "./dist/entity-indexer.d.ts",
+      "import": "./dist/entity-indexer.js"
+    },
+    "./entity-index-cache": {
+      "types": "./dist/entity-index-cache.d.ts",
+      "import": "./dist/entity-index-cache.js"
     },
     "./judgment-dag": {
       "types": "./dist/judgment-dag.d.ts",
@@ -532,7 +540,20 @@
       "import": "./dist/private-philosophy-graph.js"
     },
     "./ui/native-scrollbars": "./ui/native-scrollbars.js",
-    "./ui/native-scrollbars.css": "./ui/native-scrollbars.css"
+    "./ui/native-scrollbars.css": "./ui/native-scrollbars.css",
+    "./queue-task-tools": {
+      "types": "./dist/queue-task-tools.d.ts",
+      "import": "./dist/queue-task-tools.js"
+    },
+    "./testing/queue-task-tools-contract": {
+      "types": "./dist/testing/queue-task-tools-contract.d.ts",
+      "import": "./dist/testing/queue-task-tools-contract.js"
+    },
+    "./contracts/brainbase-public-contract.v1.json": "./contracts/brainbase-public-contract.v1.json",
+    "./ownership-survey": {
+      "types": "./dist/ownership-survey.d.ts",
+      "import": "./dist/ownership-survey.js"
+    }
   },
   "bin": {
     "brainbase-mcp": "dist/index.js",
@@ -594,7 +615,10 @@
     "zod": "^4.6.7"
   },
   "overrides": {
-    "ip-address": "^10.4.0"
+    "ip-address": "^10.4.0",
+    "vitepress": {
+      "vite": "^6.4.5"
+    }
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
@@ -606,7 +630,7 @@
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "vitepress": "^1.6.4",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.12"
   },
   "engines": {
     "node": ">=20"

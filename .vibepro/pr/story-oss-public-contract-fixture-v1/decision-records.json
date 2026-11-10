@@ -1,0 +1,40 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-decision-records-v1",
+  "story_id": "story-oss-public-contract-fixture-v1",
+  "updated_at": "2026-11-01T12:21:03.063Z",
+  "warnings": [],
+  "decisions": [
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1793535663063-f08d6e00",
+      "story_id": "story-oss-public-contract-fixture-v1",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": null,
+      "source_status": null,
+      "summary": "#476だけを現行developに合わせて作り直す: contracts/brainbase-public-contract.v1.json（MCP 4群 local/managed_cloud/foundation_connected/queue_task_tools、CLI 28 command+別名 review:serve、package name/main/types/bin）と tests/public-contract-fixture.test.ts の2ファイルを実装PRで足す。AC-1〜AC-6。src/package.json/lockfile/version/exports は変えず、件数はテストに書かない",
+      "reason": "OCO scope by claude-code; Director instruction 2026-11-01 18:42 JST (brainbase#505: rebuild #476 only). Rejected: exports追加 / local 18件だけの記録 / 群ごと全件の重ね書き / runCliで全command実行 / srcからcommand一覧をexport / npm pack直呼び / 件数の直書き",
+      "reviewer": "claude-code",
+      "artifact": "docs/specs/oss-public-contract-fixture-v1.md",
+      "verification_evidence_summary": {
+        "count": 0,
+        "entries": []
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [],
+      "git_context": {
+        "head_sha": "e5f0db5e68ad9ab0d906c9e5941d03fe7709bd63",
+        "current_branch": "worker/476-public-contract-fixture",
+        "dirty": true,
+        "status_fingerprint": "?? .vibepro/pr/story-oss-public-contract-fixture-v1/traceability.json\n?? docs/specs/oss-public-contract-fixture-v1.md\n?? docs/stories/story-oss-public-contract-fixture-v1.md\nM .vibepro/config.json",
+        "recorded_at": "2026-11-01T12:21:03.061Z"
+      },
+      "recorded_at": "2026-11-01T12:21:03.063Z"
+    }
+  ]
+}

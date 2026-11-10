@@ -64,7 +64,7 @@
 }
 
 .bb-mms-source-provider {
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-mms-source-locator,
@@ -128,7 +128,7 @@
   gap: 6px;
   color: var(--bb-color-muted);
   font-size: .78rem;
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-mms-placement-settings select {
@@ -157,7 +157,7 @@
   color: var(--bb-color-ink);
   cursor: pointer;
   font: inherit;
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-mms-retry:hover {

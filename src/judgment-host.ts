@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import {
   closeSync,
   constants as fsConstants,
@@ -27,6 +28,8 @@ import {
 } from './judgment-event-adapter.js';
 import type { JudgmentKnowledgeEventSink } from './judgment-event-outbox.js';
 import { canonicalJson } from './judgment-resolution-contract.js';
+
+import { taskProgressScopeSchema, taskProgressObservationSchema, type JudgmentTaskProgressAdapter } from './judgment-task-progress.js';
 
 type Environment = Record<string, string | undefined>;
 
@@ -147,6 +150,7 @@ export interface JudgmentHookOutput {
 
 export interface JudgmentHostOptions {
   env?: Environment;
+  taskProgress?: JudgmentTaskProgressAdapter;
   resolver?: (request: JudgmentRequest) => Promise<JudgmentReceipt>;
   /** Expected resolver binding; defaults to the built-in local adapter. */
   expectedHostBinding?: JudgmentHostBinding;
@@ -203,6 +207,7 @@ export interface JudgmentEpisode {
     zero_call_display_line: string | null;
     zero_call_display_line_digest: string | null;
   };
+  task_progress_scope?: ReturnType<typeof taskProgressScopeSchema.parse>;
   episode_digest: string;
 }
 
@@ -270,7 +275,7 @@ export interface JudgmentAutonomyReceipt {
 
 export interface JudgmentStopBlock {
   decision: 'block';
-  block_kind?: 'autonomy_continue' | 'audit_repair';
+  block_kind?: 'autonomy_continue' | 'audit_repair' | 'semantic_replan';
   reason: string;
 }
 
@@ -511,21 +516,26 @@ function readCanonicalTranscript(
 }
 
 function findRepoRoot(start: string): string | null {
-  let current = resolve(start);
-  for (;;) {
-    try {
-      statSync(join(current, '.git'));
-      return current;
-    } catch {
-      const parent = dirname(current);
-      if (parent === current) return null;
-      current = parent;
+  try {
+    const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
+    return execFileSync('git', ['-C', resolve(start), 'rev-parse', '--show-toplevel'], {
+      encoding: 'utf8',
+      env: { ...env, LC_ALL: 'C' },
+      timeout: 2000,
+      stdio: ['ignore', 'pipe', 'pipe']
+    }).replace(/\r?\n$/u, '') || null;
+  } catch (error) {
+    const stderr = error instanceof Error && 'stderr' in error ? String(error.stderr) : '';
+    const reason = stderr.includes('dubious ownership') ? 'unsafe_repository'
+      : error instanceof Error && 'code' in error && error.code === 'ETIMEDOUT' ? 'timeout' : null;
+    if (reason) {
+      process.stderr.write(`${JSON.stringify({ event: 'judgment_repository_discovery_failed', reason })}\n`);
     }
+    return null;
   }
 }
 
-function instructionBindings(cwd: string): Array<{ scope: string; source_ref: string; digest: string }> {
-  const discoveredRoot = findRepoRoot(cwd);
+function instructionBindings(cwd: string, discoveredRoot: string | null): Array<{ scope: string; source_ref: string; digest: string }> {
   if (!discoveredRoot) return [];
   const root = realpathSync(discoveredRoot);
   const workingDirectory = realpathSync(resolve(cwd));
@@ -721,7 +731,7 @@ export function buildJudgmentRequest(
       permission_mode: typeof payload.permission_mode === 'string' && payload.permission_mode ? payload.permission_mode : null,
       project_binding: projectBinding
     },
-    instruction_bindings: instructionBindings(cwd),
+    instruction_bindings: instructionBindings(cwd, repoRoot),
     completeness: transcript.complete ? 'complete' as const : 'partial' as const
   };
   return {
@@ -1489,6 +1499,7 @@ export async function runJudgmentHost(payload: JudgmentHookPayload, options: Jud
       request_text_digest: sha256(request.request),
       initial_receipt_digest: sha256(canonicalJson(adoption.receipt)),
       adoption,
+      ...(options.taskProgress ? { task_progress_scope: taskProgressScopeSchema.parse(options.taskProgress.scope) } : {}),
       audit_contract: {
         schema_version: 'brainbase-owner-audit-contract-v1' as const,
         repair_body_policy: 'preserve' as const,
@@ -1816,6 +1827,97 @@ async function autonomyStopSnapshot(
   });
 }
 
+async function evaluateTaskProgressStop(
+  payload: JudgmentHookPayload, env: Environment, options: JudgmentHostOptions
+): Promise<JudgmentStopBlock | null> {
+  const { sessionRef, turnId } = hookIdentity(payload);
+  const paths = journalPaths(sessionRef, turnId, env);
+  return withTurnLock(paths.lock, async () => {
+    let episode: JudgmentEpisode;
+    try { episode = readEpisode(paths.episode); } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        throw new Error('judgment_orphan_stop');
+      }
+      throw error;
+    }
+    verifyEpisodeAdoption(episode, paths.target, options.expectedHostBinding);
+    if (!episode.task_progress_scope) return null;
+    const scope = taskProgressScopeSchema.parse(episode.task_progress_scope);
+    const adapter = options.taskProgress;
+    if (!adapter || canonicalJson(taskProgressScopeSchema.parse(adapter.scope)) !== canonicalJson(scope)) {
+      throw new Error('judgment_task_progress_binding_changed');
+    }
+    try { readFinal(paths.final); return null; } catch (error) {
+      if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
+    }
+    const events = readEvents(paths.events);
+    const snapshot = {
+      episode_digest: episode.episode_digest,
+      event_set_digest: sha256(canonicalJson(events)),
+      request: episode.adoption.request.request,
+      events
+    };
+    const scopeRef = sha256(canonicalJson(scope));
+    const directory = join(journalRoot(env), 'task-progress', scopeRef);
+    return withTurnLock(`${directory}.lock`, async () => {
+      mkdirSync(directory, { recursive: true, mode: 0o700 });
+      const entries = readdirSync(directory).sort().map((name) => {
+        const entry = readJsonArtifact(join(directory, name));
+        if (entry.entry_digest !== artifactDigest(entry, 'entry_digest')) {
+          throw new Error('judgment_task_progress_journal_corrupt');
+        }
+        return entry;
+      });
+      let preparationCount = 0;
+      let previousDigest: unknown = null;
+      for (const entry of entries) {
+        if (entry.scope_ref !== scopeRef || entry.previous_digest !== previousDigest) {
+          throw new Error('judgment_task_progress_chain_corrupt');
+        }
+        const observation = taskProgressObservationSchema.parse(entry.observation);
+        if (observation.kind === 'preparation_only') preparationCount += 1;
+        if (observation.kind === 'verified_outcome') preparationCount = 0;
+        previousDigest = entry.entry_digest;
+      }
+      const snapshotRef = sha256(canonicalJson({ episode: snapshot.episode_digest, events: snapshot.event_set_digest }));
+      const replay = entries.find((entry) => entry.snapshot_ref === snapshotRef);
+      if (replay) {
+        if (replay.replan_required !== true) return null;
+        throw new Error('judgment_task_progress_replan_requires_new_evidence');
+      }
+      const successfulIds = new Set(events.filter((event) => event.success).map((event) => event.tool_use_id));
+      const observation = taskProgressObservationSchema.parse(await adapter.assess(snapshot));
+      if (observation.kind !== 'waiting'
+        && !observation.evidence_tool_use_ids.every((id) => successfulIds.has(id))) {
+        throw new Error('judgment_task_progress_evidence_not_in_episode');
+      }
+      if (observation.kind === 'verified_outcome') {
+        if (entries.some((entry) => {
+          const prior = taskProgressObservationSchema.parse(entry.observation);
+          return prior.kind === 'verified_outcome' && prior.verification_ref === observation.verification_ref;
+        })) throw new Error('judgment_task_progress_outcome_repeated');
+        if (!await adapter.verifyOutcome({ ...snapshot, observation })) {
+          throw new Error('judgment_task_progress_outcome_unverified');
+        }
+        preparationCount = 0;
+      }
+      if (observation.kind === 'preparation_only') preparationCount += 1;
+      const replanRequired = observation.kind === 'preparation_only' && preparationCount >= 2;
+      const entry = {
+        scope_ref: scopeRef, snapshot_ref: snapshotRef, previous_digest: previousDigest,
+        observation, replan_required: replanRequired
+      };
+      writeImmutableJson(join(directory, `${String(entries.length + 1).padStart(8, '0')}.json`), {
+        ...entry, entry_digest: sha256(canonicalJson(entry))
+      });
+      return replanRequired ? {
+        decision: 'block', block_kind: 'semantic_replan',
+        reason: '同じ完了条件について準備だけの反復を検出しました。資料を増やす継続を止め、業務成果または新しい否定結果を検証できる方針へ切り替えてください。完了・本人受入とは扱いません。'
+      } : null;
+    });
+  });
+}
+
 async function evaluateAutonomyStop(
   payload: JudgmentHookPayload,
   env: Environment,
@@ -2032,6 +2134,8 @@ export async function processJudgmentHook(
     return event ? { systemMessage: event.display_line } : {};
   }
   if (eventName === 'Stop') {
+    const progressBlock = await evaluateTaskProgressStop(payload, env, options);
+    if (progressBlock) return progressBlock;
     const autonomyBlock = await evaluateAutonomyStop(payload, env, options);
     if (autonomyBlock) return autonomyBlock;
     const output = await finalizeEpisode(payload, env, options.knowledgeEventSink, expectedHostBinding);

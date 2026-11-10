@@ -1,0 +1,51 @@
+{
+  "schema_version": "0.1.0",
+  "model": "vibepro-decision-records-v1",
+  "story_id": "story-mcp-queue-task-tools-v1",
+  "updated_at": "2026-11-01T09:45:29.644Z",
+  "warnings": [],
+  "decisions": [
+    {
+      "schema_version": "0.1.0",
+      "decision_id": "decision-1793526329644-293082a6",
+      "story_id": "story-mcp-queue-task-tools-v1",
+      "type": "needs_review",
+      "status": "accepted",
+      "source": null,
+      "source_status": null,
+      "summary": "7 queue task tools (list_my_tasks/get_task/claim_task/claim_next/renew_claim/attach_evidence/update_status) in one implementation PR with AC-1..AC-12 plus two approved-tool tests",
+      "reason": "OCO scope by claude-code; owner decision 2026-11-01 18:19 JST",
+      "reviewer": "claude-code",
+      "artifact": ".vibepro/pr/story-mcp-queue-task-tools-v1/owner-decision.md",
+      "verification_evidence_summary": {
+        "count": 2,
+        "entries": [
+          {
+            "path": ".vibepro/pr/story-mcp-queue-task-tools-v1/verification-evidence.json",
+            "type": "build",
+            "result": "pass"
+          },
+          {
+            "path": ".vibepro/pr/story-mcp-queue-task-tools-v1/verification-evidence.json",
+            "type": "unit",
+            "result": "fail"
+          }
+        ]
+      },
+      "secret_exposure": null,
+      "redaction": {
+        "applied": false,
+        "hit_count": 0
+      },
+      "warnings": [],
+      "git_context": {
+        "head_sha": "cee0311e2c1b6b898cff7e222e23daf9d3dd792c",
+        "current_branch": "feat/bigdev-q1-queue-task-tools",
+        "dirty": true,
+        "status_fingerprint": "?? .vibepro/pr/story-mcp-queue-task-tools-v1/q1-impl-scope.md\n?? .vibepro/pr/story-mcp-queue-task-tools-v1/traceability.json\nM .vibepro/config.json",
+        "recorded_at": "2026-11-01T09:45:29.642Z"
+      },
+      "recorded_at": "2026-11-01T09:45:29.644Z"
+    }
+  ]
+}

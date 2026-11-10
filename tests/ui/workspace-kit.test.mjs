@@ -1,7 +1,10 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   workspaceButton,
+  workspaceFilterOption,
+  workspaceCloseDrawer,
+  workspaceDismissNotification,
   workspaceTabList,
   workspaceDefinition,
   workspaceDetailEmpty,
@@ -48,6 +51,36 @@ describe('workspace kit (the organization edition screen pattern)', () => {
     expect(findAll(page, (node) => node.tagName === 'H1')[0].textContent).toBe('プロジェクトと関係者');
     expect(byClass(page, 'bb-ws-lead')[0].textContent).toBe('誰がどう関わるか');
     expect(byClass(page, 'bb-ws-source')[0].textContent).toBe('手元のGraph');
+  });
+
+  it('keeps a short lead and puts the complete explanation in existing help', () => {
+    const lead = '事業を都市として表示します。都市を選ぶと仕事と判断を確認できます。';
+    const page = workspacePageHeader(doc, { title: '世界', lead });
+    expect(byClass(page, 'bb-ws-lead')[0].textContent).toBe('事業を都市として表示します。');
+    expect(byClass(page, 'bb-ws-help-bubble')[0].textContent).toBe(lead);
+    expect(byClass(page, 'bb-ws-help-button')[0].textContent).toBe('？');
+    expect(byClass(page, 'bb-ws-help-button')[0].attributes['aria-expanded']).toBe('false');
+  });
+
+  it('keeps the complete long lead before explicit help', () => {
+    const lead = '一覧を表示します。後半の説明も失いません。';
+    const page = workspacePageHeader(doc, { title: '一覧', lead, help: '追加の操作説明。' });
+    expect(byClass(page, 'bb-ws-help-bubble')[0].textContent).toBe(`${lead}\n\n追加の操作説明。`);
+    expect(byClass(page, 'is-page-guide')).toHaveLength(1);
+  });
+
+  it('preserves an explicitly composed lead including permissions', () => {
+    const lead = '世界を表示します。ここからは書き換えません。';
+    const page = workspacePageHeader(doc, { title: '世界', lead, help: '都市を選択します。', preserveLead: true });
+    expect(byClass(page, 'bb-ws-lead')[0].textContent).toBe(lead);
+    expect(byClass(page, 'bb-ws-help-bubble')[0].textContent).toBe('都市を選択します。');
+  });
+
+  it('moves a long single sentence to help without truncating its meaning', () => {
+    const lead = '説明'.repeat(40);
+    const page = workspacePageHeader(doc, { title: '説明', lead });
+    expect(byClass(page, 'bb-ws-lead')).toHaveLength(0);
+    expect(byClass(page, 'bb-ws-help-bubble')[0].textContent).toBe(lead);
   });
 
   it('labels a notice and marks warnings as alerts', () => {
@@ -138,6 +171,33 @@ describe('reusable notification surfaces', () => {
     expect(error.className).toContain('bb-ws-notification-card is-danger');
     expect(text(error)).toContain('0件とは未確認');
     expect(byClass(error, 'bb-ws-button')[0].listeners.get('click')).toBe(retry);
+    expect(error.children.find(child => child.tagName === 'DETAILS').open).toBe(false);
+    const opened = workspaceErrorCard(doc, { title: '一覧を読めませんでした', message: '0件ではありません', open: true });
+    expect(opened.children.find(child => child.tagName === 'DETAILS').open).toBe(true);
+  });
+});
+
+describe('readable colors', () => {
+  const rule = (file, selector) => {
+    const css = readFileSync(new URL(`../../ui/${file}`, import.meta.url), 'utf8');
+    const start = css.indexOf(`${selector} {`);
+    expect(start, `${file}: ${selector}`).toBeGreaterThanOrEqual(0);
+    return css.slice(start, css.indexOf('}', start));
+  };
+
+  it('draws the primary button on the action color so it reads stronger than a default button on white', () => {
+    const primary = rule('workspace-kit.css', '.bb-ws-button.is-primary');
+    expect(primary).toMatch(/background:\s*var\(--bb-color-action\)/);
+    expect(primary).toMatch(/color:\s*var\(--bb-color-action-text\)/);
+    expect(primary).not.toMatch(/--bb-color-rail/);
+    expect(rule('workspace-kit.css', '.bb-ws-button.is-primary:hover:not(:disabled)')).toMatch(/background:\s*var\(--bb-color-action-hover\)/);
+    // Screens no longer repaint the shared primary button.
+    expect(readFileSync(new URL('../../ui/people-and-companies-view.css', import.meta.url), 'utf8')).not.toContain('.bb-ws-button.is-primary');
+  });
+
+  it('keeps small breadcrumb and expired-due text at 4.5:1 or more by choosing darker existing tokens', () => {
+    expect(rule('workspace-kit.css', '.bb-ws-breadcrumb')).toMatch(/color:\s*var\(--bb-color-muted\)/);
+    expect(rule('inbox.css', '.bb-inbox-due.is-expired')).toMatch(/color:\s*var\(--bb-color-inline-error\)/);
   });
 });
 
@@ -232,3 +292,112 @@ describe('workspaceTabList', () => {
     expect(() => workspaceTabList(null)).toThrow('tab_root_required');
   });
 });
+
+
+describe('shared dismissal motion', () => {
+  const css = readFileSync(new URL('../../ui/workspace-kit.css', import.meta.url), 'utf8');
+  const tokens = readFileSync(new URL('../../ui/brainbase-tokens.css', import.meta.url), 'utf8');
+  const duration = name => Number(tokens.match(new RegExp(`--bb-duration-${name}:\\s*(\\d+)ms`))[1]);
+  it('uses shared curves and durations while preserving entrance and search drawer overrides', () => {
+    for (const name of ['out', 'in-out', 'drawer']) expect(tokens).toContain(`--bb-ease-${name}: cubic-bezier(`);
+    expect(tokens).toContain('--bb-ease-drawer-in: ease-out;');
+    expect(duration('drawer-in')).toBe(180);
+    expect(duration('drawer-out')).toBeLessThan(duration('drawer-in'));
+    for (const [selector, name, curve] of [
+      ['.bb-ws-drawer[open]', 'drawer-in', 'drawer-in'],
+      ['.bb-ws-drawer.is-closing', 'drawer-out', 'drawer'],
+      ['.bb-ws-drawer.is-closing::backdrop', 'drawer-out', 'drawer'],
+      ['.bb-ws-error-card.is-dismissing', 'toast-out', 'out'],
+    ]) {
+      const rule = css.slice(css.indexOf(`${selector} {`)).split('}')[0];
+      expect(rule).toContain(`var(--bb-duration-${name}, ${duration(name)}ms)`);
+      const fallback = tokens.match(new RegExp(`--bb-ease-${curve}:\\s*([^;]+);`))[1];
+      expect(rule).toContain(`var(--bb-ease-${curve}, ${fallback})`);
+      expect(rule).not.toContain('ease-in');
+    }
+    expect(css).toContain('.bb-ws-search-band-drawer[open]:not(.is-closing) { animation-name: bb-ws-drawer-opaque-in; }');
+    for (const selector of ['.bb-ws-drawer.is-closing', '.bb-ws-error-card.is-dismissing']) {
+      expect(css.slice(css.indexOf('@media (prefers-reduced-motion:reduce)'))).toMatch(new RegExp(selector.replaceAll('.', '\\.').replaceAll(' ', '\\s*') + '[^{}]*\\{ animation: none;'));
+    }
+  });
+  const node = (reduce = false) => Object.assign(new EventTarget(), {
+    open: true, removed: false,
+    ownerDocument: { defaultView: { matchMedia: () => ({ matches: reduce }) } },
+    classList: { add() {}, remove() {} },
+    remove() { this.removed = true; },
+  });
+  for (const [close, animationName, delay, cssDuration] of [
+    [workspaceCloseDrawer, 'bb-ws-drawer-out', 220, 'drawer-out'],
+    [workspaceDismissNotification, 'bb-ws-notification-out', 250, 'toast-out'],
+  ]) {
+    it.each(['400ms', '0.4s', '100ms, 0.4s, 200ms'])(`${animationName} waits for host duration %s plus its margin`, computedDuration => {
+      vi.useFakeTimers();
+      try {
+        const target = node(); const finish = vi.fn();
+        const closingClass = close === workspaceCloseDrawer ? 'is-closing' : 'is-dismissing';
+        target.classList.add = vi.fn();
+        target.ownerDocument.defaultView.getComputedStyle = element => {
+          expect(element).toBe(target);
+          expect(target.classList.add).toHaveBeenCalledWith(closingClass);
+          return { animationDuration: computedDuration };
+        };
+        close(target, finish);
+        vi.advanceTimersByTime(400); expect(finish).not.toHaveBeenCalled();
+        const margin = close === workspaceCloseDrawer ? 70 : 50;
+        vi.advanceTimersByTime(margin - 1); expect(finish).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1); expect(finish).toHaveBeenCalledTimes(1);
+        if (close === workspaceDismissNotification) expect(target.removed).toBe(true);
+        expect(vi.getTimerCount()).toBe(0);
+      } finally { vi.useRealTimers(); }
+    });
+    it.each(['0s', 'invalid', ''])(`${animationName} uses the literal fallback for unresolvable duration %s`, computedDuration => {
+      vi.useFakeTimers();
+      try {
+        const target = node(); const finish = vi.fn();
+        target.ownerDocument.defaultView.getComputedStyle = () => ({ animationDuration: computedDuration });
+        close(target, finish);
+        vi.advanceTimersByTime(delay - 1); expect(finish).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1); expect(finish).toHaveBeenCalledTimes(1);
+        expect(vi.getTimerCount()).toBe(0);
+      } finally { vi.useRealTimers(); }
+    });
+    it(`${animationName} finishes once on animationend and cancels its fallback`, () => {
+      vi.useFakeTimers();
+      try {
+        const target = node(); const finish = vi.fn();
+        close(target, finish);
+        target.dispatchEvent(Object.assign(new Event('animationend'), { animationName: 'unrelated' }));
+        expect(finish).not.toHaveBeenCalled();
+        target.dispatchEvent(Object.assign(new Event('animationend'), { animationName }));
+        expect(finish).toHaveBeenCalledTimes(1);
+        if (close === workspaceDismissNotification) expect(target.removed).toBe(true);
+        vi.runAllTimers(); expect(finish).toHaveBeenCalledTimes(1);
+      } finally { vi.useRealTimers(); }
+    });
+    it(`${animationName} falls back shortly after CSS and finishes immediately with reduced motion`, () => {
+      vi.useFakeTimers();
+      try {
+        expect(delay).toBeGreaterThan(duration(cssDuration));
+        const target = node(); const finish = vi.fn(); close(target, finish);
+        vi.advanceTimersByTime(delay - 1); expect(finish).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1); expect(finish).toHaveBeenCalledTimes(1);
+        if (close === workspaceDismissNotification) expect(target.removed).toBe(true);
+        const reduced = node(true); const immediate = vi.fn(); close(reduced, immediate);
+        expect(immediate).toHaveBeenCalledTimes(1);
+        if (close === workspaceDismissNotification) expect(reduced.removed).toBe(true);
+        expect(vi.getTimerCount()).toBe(0);
+      } finally { vi.useRealTimers(); }
+    });
+  }
+});
+
+ it('filter choices preserve selection, unknown counts and click ownership', () => {
+   let clicked = 0;
+   const option = workspaceFilterOption(doc, { label: '確認待ちがある', count: '既知1件・未確認あり', checked: true, onClick: () => clicked++ });
+   expect(text(option)).toBe('確認待ちがある 既知1件・未確認あり');
+   expect(option.attributes['aria-checked']).toBe('true');
+   expect(byClass(option, 'bb-ws-filter-option-check')[0].attributes['aria-hidden']).toBe('true');
+   option.listeners.get('click')();
+   expect(clicked).toBe(1);
+   expect(text(workspaceFilterOption(doc, { label: 'すべて', count: 0 }))).toBe('すべて 0');
+ });

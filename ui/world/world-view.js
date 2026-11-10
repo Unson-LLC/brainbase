@@ -29,7 +29,7 @@
 import { THREE, MapControls } from './world-vendor.js';
 import { changesSince, cityMeasures, districtChanges, districtLots, districtSnapshot, districtStage, groupJudgmentPlaces, skyAt, UNPLACED_REASON_TEXT } from './world-placement.js';
 import { createDistrictView, DISTRICT_LEGEND } from './world-district.js';
-import { createWorldCanvasUI } from './world-canvas-ui.js';
+import { createWorldCanvasUI, SKY_MODES, skyModeLabel, skyModeIconSvg } from './world-canvas-ui.js';
 import { workCanvasNotes } from './world-canvas-notes.js';
 import { canvasTexture, drawFacade, FACADE_SIZES, FACADE_UNITS, gableRoof, hashUnit, muted, paintVertices, roundedPlate, valueNoise } from './world-scenery.js';
 import { WORK_STATES, readReasonShort, workCityBlocks, workGrowthBlock, workPickBlock, workSign, workSignBlocks, workSigns, workSiteBlocks } from './world-work-rail.js';
@@ -47,6 +47,8 @@ import {
 export const WORLD_VIEW_CONTRACT_VERSION = 'brainbase.world-view.v0';
 /** Optional full-canvas presentation; the standard host contract remains unchanged. */
 export const WORLD_CANVAS_PRESENTATION_VERSION = 'brainbase.world-canvas.v1';
+
+let legendPanelSequence = 0;
 
 const STATE_LABELS = Object.freeze({ delegated: '任せている', verifying: '確かめ中', returned: '戻している' });
 const STATE_COLORS = Object.freeze({ delegated: 0x087d62, verifying: 0xc99a3a, returned: 0xd92335 });
@@ -1650,21 +1652,33 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
   let scene = null;
 
   // The sky follows the hour by default; the viewer can fix it to see the lit windows at night.
-  const SKY_MODES = [['auto', '空：時刻'], ['day', '空：昼'], ['dusk', '空：夕方'], ['night', '空：夜']];
+  // An icon button reusing the canvas sky artwork and labels, so both presentations behave alike (RQ-152).
   let skyIndex = 0;
   const skyButton = workspaceButton(doc, {
-    text: SKY_MODES[0][1],
+    variant: 'quiet',
     onClick: () => {
       skyIndex = (skyIndex + 1) % SKY_MODES.length;
-      skyButton.textContent = SKY_MODES[skyIndex][1];
-      scene?.setSky(SKY_MODES[skyIndex][0]);
-      district?.setSky(SKY_MODES[skyIndex][0]);
+      renderSkyButton();
+      scene?.setSky(SKY_MODES[skyIndex].value);
+      district?.setSky(SKY_MODES[skyIndex].value);
     },
   });
+  skyButton.classList.add('bb-world-sky');
+  const skyButtonIcon = el(doc, 'span', { className: 'bb-world-sky-icon', attrs: { 'aria-hidden': 'true' } });
+  skyButton.append(skyButtonIcon);
+  function renderSkyButton() {
+    const mode = SKY_MODES[skyIndex].value;
+    skyButtonIcon.innerHTML = skyModeIconSvg(mode);
+    const label = skyModeLabel(mode);
+    skyButton.setAttribute('aria-label', label);
+    skyButton.setAttribute('title', label);
+  }
+  renderSkyButton();
   const header = workspacePageHeader(doc, {
     crumbs: page?.crumbs ?? ['あなたのBrainbase', '世界'],
     title: '世界',
-    lead: '事業を都市、案件を区画、判断の種類を広場の建物として描いています。都市を選ぶとその事業の区画に入り、仕事（タスク）が通りに面した現場として建ち、記録から把握できていないことが街の様子で見えます。見るための画面で、ここからは何も書き換えません。',
+    lead: '見るための画面で、ここからは何も書き換えません。',
+    preserveLead: true,
     source: page?.source ?? null,
     actions: [
       skyButton,
@@ -1711,9 +1725,10 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
         if (business) openCity(business, scene?.selectKey({ code })?.center ?? null);
       },
       onSky: (mode) => {
-        skyIndex = Math.max(0, SKY_MODES.findIndex(([key]) => key === mode));
-        scene?.setSky(SKY_MODES[skyIndex][0]);
-        district?.setSky(SKY_MODES[skyIndex][0]);
+        skyIndex = Math.max(0, SKY_MODES.findIndex((entry) => entry.value === mode));
+        renderSkyButton();
+        scene?.setSky(SKY_MODES[skyIndex].value);
+        district?.setSky(SKY_MODES[skyIndex].value);
       },
       onDismissTask: () => dismissTask(),
     });
@@ -1728,7 +1743,33 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     if (page?.source) help.append(el(doc, 'p', { text: page.source }));
     canvasUI.setHelp([help]);
   } else {
-    stage.append(notices, legend, workLegend);
+    const panelId = `bb-world-legend-${++legendPanelSequence}`;
+    const legendPanel = el(doc, 'section', {
+      className: 'bb-world-legend-panel',
+      attrs: { id: panelId, 'aria-label': '世界の見方と凡例', tabindex: '-1' },
+    });
+    legendPanel.hidden = true;
+    legendPanel.inert = true;
+    workLegend.hidden = false;
+    legendPanel.append(el(doc, 'p', { text: '事業を都市、案件を区画、判断の種類を広場の建物として描いています。都市を選ぶとその事業の区画に入り、仕事（タスク）が通りに面した現場として建ち、記録から把握できていないことが街の様子で見えます。' }), legend, workLegend);
+    const legendToggle = el(doc, 'button', {
+      className: 'bb-world-legend-toggle', text: '？',
+      attrs: { type: 'button', title: '世界の見方と凡例', 'aria-label': '世界の見方と凡例', 'aria-controls': panelId, 'aria-expanded': 'false' },
+    });
+    const setLegendOpen = (open) => {
+      legendPanel.hidden = !open;
+      legendPanel.inert = !open;
+      legendToggle.setAttribute('aria-expanded', String(open));
+      (open ? legendPanel : legendToggle).focus?.({ preventScroll: true });
+    };
+    legendToggle.addEventListener('click', () => setLegendOpen(legendPanel.hidden));
+    legendPanel.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setLegendOpen(false);
+    });
+    stage.append(notices, legendToggle, legendPanel);
     wrap.append(header, stage);
   }
 
@@ -2207,9 +2248,8 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
         },
       } : {}),
     });
-    district.setSky(SKY_MODES[skyIndex][0]);
+    district.setSky(SKY_MODES[skyIndex].value);
     scene.setPaused(true);
-    if (!canvasMode) { legend.hidden = true; workLegend.hidden = true; }
     if (districtCode !== business.code || !district.isOpen()) {
       district.show(business, work, { neighbours: new Map(knownBusinesses.map((entry) => [entry.code, entry.name])), exits: stationsFor(business.code) });
       districtCode = business.code;
@@ -2225,7 +2265,6 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     district.hide();
     districtCode = null;
     scene?.setPaused(false);
-    if (!canvasMode) legend.hidden = false;
   }
 
   async function loadWork(business) {
@@ -2663,14 +2702,14 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
         restoreSelection();
         void loadWorkSummary(note);
       } else {
-        stage.hidden = true;
-        renderFallbackList(doc, wrap, businesses, rows, exitSlot);
+        stage.classList.add('is-fallback');
+        renderFallbackList(doc, stage, businesses, rows, exitSlot);
       }
       for (const business of exitsEnabled ? businesses : []) loadExits(business);
       return;
     }
     scene = createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear: clearAll, onEscape: goUp, onSign: (business, code) => showSignMeaning(business ?? knownBusinesses.find((entry) => entry.code === code) ?? null) });
-    scene.setSky(SKY_MODES[skyIndex][0]);
+    scene.setSky(SKY_MODES[skyIndex].value);
     scene.buildPlaza(rows, rowItems, (row) => (rowItems.get(row.key) ?? []).filter((ref) => isWaiting(proofs.get(ref.decision_attempt_id))).length, Date.now(), { state: judgmentsUnavailable ? judgmentsUnavailable.title.replace('判断の記録：', '') : null });
     scene.buildCities(layoutWorld(businesses), placement.byBusiness);
     showChangesSinceLastVisit(note, businesses, rows);
