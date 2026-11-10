@@ -1751,7 +1751,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     legendPanel.hidden = true;
     legendPanel.inert = true;
     workLegend.hidden = false;
-    legendPanel.append(el(doc, 'p', { text: '事業を都市、案件を区画、判断の種類を広場の建物として描いています。都市を選ぶとその事業の区画に入り、仕事（タスク）が通りに面した現場として建ち、記録から把握できていないことが街の様子で見えます。見るための画面で、ここからは何も書き換えません。' }), legend, workLegend);
+    legendPanel.append(el(doc, 'p', { text: '事業を都市、案件を区画、判断の種類を広場の建物として描いています。都市を選ぶとその事業の区画に入り、仕事（タスク）が通りに面した現場として建ち、記録から把握できていないことが街の様子で見えます。' }), legend, workLegend);
     const legendToggle = el(doc, 'button', {
       className: 'bb-world-legend-toggle', text: '？',
       attrs: { type: 'button', title: '世界の見方と凡例', 'aria-label': '世界の見方と凡例', 'aria-controls': panelId, 'aria-expanded': 'false' },

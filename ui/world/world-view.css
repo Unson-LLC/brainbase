@@ -720,6 +720,13 @@
   padding: var(--bb-space-3);
 }
 
+.bb-world-legend-panel p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--bb-color-ink);
+}
+
 .bb-world-legend-panel[hidden] { display: none; }
 
 .bb-world-legend-panel .bb-world-legend {
