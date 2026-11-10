@@ -305,4 +305,5 @@ it('keeps read-only permissions in the standard world lead', () => {
   const { root } = mountStandard();
   expect(root.querySelector('.bb-ws-lead').textContent).toBe('見るための画面で、ここからは何も書き換えません。');
   expect(root.querySelector('.bb-ws-page .bb-ws-help-bubble')).toBeNull();
+  expect(root.querySelector('.bb-world-legend-panel p').textContent).toBe('事業を都市、案件を区画、判断の種類を広場の建物として描いています。都市を選ぶとその事業の区画に入り、仕事（タスク）が通りに面した現場として建ち、記録から把握できていないことが街の様子で見えます。見るための画面で、ここからは何も書き換えません。');
 });

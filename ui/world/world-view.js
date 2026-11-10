@@ -1748,7 +1748,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     // behaviour as the canvas help button. The information is kept, just tucked away.
     const legendPanel = el(doc, 'div', { className: 'bb-world-legend-panel', attrs: { id: `bb-world-legend-${++worldLegendSequence}` } });
     legendPanel.hidden = true;
-    legendPanel.append(legend, workLegend);
+    legendPanel.append(el(doc, 'p', { text: '事業を都市、案件を区画、判断の種類を広場の建物として描いています。都市を選ぶとその事業の区画に入り、仕事（タスク）が通りに面した現場として建ち、記録から把握できていないことが街の様子で見えます。見るための画面で、ここからは何も書き換えません。' }), legend, workLegend);
     const legendToggle = workspaceButton(doc, {
       text: '？',
       variant: 'quiet',
