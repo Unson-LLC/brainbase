@@ -1220,11 +1220,24 @@ describe('Objective editor common UI contract', () => {
       const guide = byClass(root, 'bb-ws-help')[0];
       expect(guide.parentNode.className).toBe('bb-ws-page-side');
       expect(guide.className.split(/\s+/)).toContain('is-page-guide');
-      expect(guide.children[0].textContent).toBe('?');
+      expect(guide.children[0].textContent).toBe('？');
       expect(collectText(guide)).toContain('現状の理解（観測や仮説）とは分けて扱います。');
       // The first objective is not opened by itself in the tabs layout.
       expect(controller.state.view).toBe('list');
       expect(controller.state.selectedId).toBeNull();
     });
   });
+});
+
+it('places the downward page guide beside status outside header copy', () => {
+  globalThis.document = new FakeDocument();
+  const root = new FakeElement('div');
+  createObjectiveEditorController({ root, port: {}, context: {}, autoLoad: false });
+  const header = findAll(root, node => node.className.includes('objective-editor-header '))[0];
+  const side = header.children.find(node => node.className.includes('bb-ws-page-side'));
+  expect(side).toBeDefined();
+  const guide = findAll(side, node => node.className.includes('is-page-guide'))[0];
+  expect(guide).toBeDefined();
+  expect(guide.children[0].textContent).toBe('？');
+  expect(side.children).toHaveLength(2);
 });

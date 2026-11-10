@@ -378,9 +378,9 @@ export function renderMeetingMinutesLineage(root, payload, { actions = {}, candi
   root.className = `${root.className || ''} bb-mml`.trim();
   if (normalized.status !== 'available') return renderUnavailable(root, normalized, documentRef);
 
-  const heading = makeElement(documentRef, 'header', 'bb-mml-heading bb-ws-page-head');
+  const heading = makeElement(documentRef, 'header', 'bb-mml-heading');
   append(heading,
-    makeElement(documentRef, 'h1', 'bb-mml-title', '議事録からの判断・Task'),
+    makeElement(documentRef, 'h2', 'bb-mml-title', '議事録からの判断・Task'),
     makeElement(documentRef, 'p', 'bb-mml-evidence', `根拠: ${evidenceLabel(normalized.evidence)}`));
   root.appendChild(heading);
 

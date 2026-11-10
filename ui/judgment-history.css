@@ -587,12 +587,6 @@
 /* Compact workspace header, search controls and shared floating notifications. */
 .bb-jh { position: relative; }
 .bb-jh > .bb-ws-page { margin-bottom: var(--bb-space-6, 32px); }
-.bb-jh .bb-ws-page-head h1 {
-  letter-spacing: .02em;
-  font-size: var(--bb-page-title-font-size);
-  font-weight: var(--bb-page-title-font-weight);
-  line-height: var(--bb-page-title-line-height);
-}
 .bb-jh-controls { margin-bottom: var(--bb-space-4, 16px); }
 .bb-jh-checked { font-size: 11px; font-variant-numeric: tabular-nums; }
 .bb-jh-filter-fields { display: grid; gap: 16px; }
