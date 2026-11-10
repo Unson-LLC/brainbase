@@ -182,6 +182,8 @@ describe('World canvas source integration', () => {
     await waitFor(() => app.root.querySelector('.bb-world-fallback'));
     expect(app.root.querySelector('.bb-world-canvas-ui')).toBeNull();
     expect(app.root.querySelector('.bb-ws-page')).not.toBeNull();
+    expect(app.root.querySelector('.bb-ws-lead').textContent).toBe('見るための画面で、ここからは何も書き換えません。');
+    expect(app.root.querySelector('.bb-ws-page .bb-ws-help-bubble')).toBeNull();
     expect(app.rail.textContent).not.toBe('Host rail stays untouched');
   });
 });
