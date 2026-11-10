@@ -62,6 +62,10 @@ jobs:
         if: ${{ matrix.suite == 'representative' }}
         run: npm run test:integration -- --maxWorkers=4
 
+      - name: Run routine runtime regression tests on Node 20
+        if: ${{ matrix.suite == 'representative' }}
+        run: npx vitest run tests/stage3c-runtime.test.ts --maxWorkers=1
+
       - name: Summarize failed or cancelled package validation
         if: ${{ always() && (failure() || cancelled()) }}
         run: |
