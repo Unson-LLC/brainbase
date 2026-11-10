@@ -1,0 +1,146 @@
+{
+  "schema_version": "0.1.0",
+  "status": "pass",
+  "exit_code": 0,
+  "evidence_source": "runner_direct",
+  "producer": "vibepro verify run",
+  "kind": "unit",
+  "story_id": "story-pr-brainbase-task-line",
+  "runtime_identity": {
+    "schema_version": "0.2.0",
+    "collected_at": "2026-11-01T01:09:41.834Z",
+    "mode": "normal",
+    "source_kind": "npm_package",
+    "test_context": null,
+    "package": {
+      "name": "vibepro",
+      "version": "0.2.0-beta.34",
+      "exact_version": "0.2.0-beta.34",
+      "root": "/home/box/.local/lib/node_modules/vibepro"
+    },
+    "cli": {
+      "entrypoint": "/home/box/.local/lib/node_modules/vibepro/bin/vibepro.js",
+      "invoked_as": "/home/box/.local/bin/vibepro",
+      "runtime_module": "/home/box/.local/lib/node_modules/vibepro/src/runtime-info.js"
+    },
+    "release_manifest": {
+      "status": "valid",
+      "manifest": {
+        "schema_version": "0.1.0",
+        "package": {
+          "name": "vibepro",
+          "version": "0.2.0-beta.34",
+          "package_json_sha256": "63f42ef6e7ed01f31ad569eb59a7a25dc30a4c84d2713b8f3e279ebf40a7d8ff",
+          "entrypoint": "bin/vibepro.js"
+        },
+        "source_git": {
+          "commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+          "origin_url": "https://github.com/Unson-LLC/vibepro",
+          "origin_main_commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+          "origin_main_relation": "same",
+          "dirty": false
+        }
+      },
+      "errors": []
+    },
+    "source_git": {
+      "is_git_repo": false,
+      "commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro",
+      "origin_main_commit": "6f87c7f1829c2ee98d0ae8bd52738303d5e5aa0d",
+      "origin_main_relation": "published",
+      "dirty": false,
+      "dirty_summary": []
+    },
+    "identity_digest": "b44cefd5f8c3cc7e5283c6aeb1499732b647653b36c3bf98664a2c0f2926a484",
+    "integrity": {
+      "status": "trusted",
+      "code": null,
+      "purpose": "evidence_generation",
+      "reasons": [
+        "manifested immutable npm runtime"
+      ]
+    }
+  },
+  "head_sha": "cc3646e56cec9a2a88060b798f4a17102ab349d3",
+  "observed": {
+    "status": "pass",
+    "evidence_source": "runner_direct",
+    "run_artifact": ".vibepro/pr/story-pr-brainbase-task-line/verification-runs/unit.json",
+    "run_log": ".vibepro/pr/story-pr-brainbase-task-line/verification-runs/unit.log",
+    "exit_code": "0",
+    "duration_ms": "1518",
+    "started_at": "2026-11-01T01:09:41.861Z",
+    "finished_at": "2026-11-01T01:09:43.339Z",
+    "head_sha_before": "cc3646e56cec9a2a88060b798f4a17102ab349d3",
+    "head_sha_after": "cc3646e56cec9a2a88060b798f4a17102ab349d3",
+    "head_sha": "cc3646e56cec9a2a88060b798f4a17102ab349d3",
+    "worktree_sampled": "true",
+    "worktree_sampling_complete": "true",
+    "worktree_sha256_before": "7095bc12b98453d846f1de59e47ed3455bed7f688b2514fc7acb6456f85b1da7",
+    "worktree_sha256_after": "7095bc12b98453d846f1de59e47ed3455bed7f688b2514fc7acb6456f85b1da7",
+    "stdout_sha256": "a510d1c3e7af9256c6b168dc62e063c38e8614ed980fe87c5adcf88a9f9f0fff",
+    "output_sha256": "a510d1c3e7af9256c6b168dc62e063c38e8614ed980fe87c5adcf88a9f9f0fff",
+    "output_bytes": "202",
+    "log_truncated": "false",
+    "output_metrics": "none",
+    "timed_out": "false",
+    "output_limit_exceeded": "false",
+    "external_kill_signal": "none",
+    "timeout_ms": "7200000",
+    "max_output_bytes": "67108864",
+    "harness_env_removed": "none",
+    "runner_node_version": "v24.22.1",
+    "tree_mutated_during_run": "false",
+    "head_moved_during_run": "false",
+    "worktree_changed_during_run": "false",
+    "worktree_status_sha256_before": "6c77a81379ee133aa98cdbe75ebeae8d806db0e90b41aee74f8b641637524a28",
+    "worktree_status_sha256_after": "6c77a81379ee133aa98cdbe75ebeae8d806db0e90b41aee74f8b641637524a28",
+    "worktree_diff_sha256_before": "a302ce1b219b31c0921d248f0bdf4e250f6dd623314e9b6427c8e1a9c8eae5df",
+    "worktree_diff_sha256_after": "a302ce1b219b31c0921d248f0bdf4e250f6dd623314e9b6427c8e1a9c8eae5df"
+  },
+  "run": {
+    "argv": [
+      "npx",
+      "vitest",
+      "run",
+      "tests/pr-brainbase-line.test.mjs"
+    ],
+    "command": "npx vitest run tests/pr-brainbase-line.test.mjs",
+    "cwd": ".",
+    "started_at": "2026-11-01T01:09:41.861Z",
+    "finished_at": "2026-11-01T01:09:43.339Z",
+    "duration_ms": 1518,
+    "exit_code": 0,
+    "signal": null,
+    "timed_out": false,
+    "output_limit_exceeded": false,
+    "external_kill_signal": null,
+    "timeout_ms": 7200000,
+    "max_output_bytes": 67108864,
+    "head_sha_before": "cc3646e56cec9a2a88060b798f4a17102ab349d3",
+    "head_sha_after": "cc3646e56cec9a2a88060b798f4a17102ab349d3",
+    "worktree_sha256_before": "7095bc12b98453d846f1de59e47ed3455bed7f688b2514fc7acb6456f85b1da7",
+    "worktree_sha256_after": "7095bc12b98453d846f1de59e47ed3455bed7f688b2514fc7acb6456f85b1da7",
+    "tree_mutated_during_run": false,
+    "head_moved_during_run": false,
+    "worktree_changed_during_run": false,
+    "worktree_sampled": true,
+    "worktree_sampling_complete": true,
+    "output_metrics": "none",
+    "counts": null,
+    "node_version": "v24.22.1",
+    "harness_env_removed": [],
+    "log": ".vibepro/pr/story-pr-brainbase-task-line/verification-runs/unit.log",
+    "log_truncated": false
+  },
+  "discarded_agent_observations": [],
+  "warnings": [
+    {
+      "id": "verification_run_counts_not_parsed",
+      "command_name": "verify run",
+      "reason": "the command exited 0 but no test counts could be parsed from its output; the record proves the command did not fail, not how much it checked"
+    }
+  ]
+}

@@ -61,12 +61,12 @@ const personalKnowledgeEventSchema = z.object({
   source: z.unknown().optional(),
   source_pointer: z.unknown().optional(),
   parent_episode_id: z.string().min(1).nullable().optional(),
-  permission_snapshot: z.record(z.unknown()).optional(),
+  permission_snapshot: z.record(z.string(), z.unknown()).optional(),
   sensitivity: z.string().min(1).optional(),
   kind: z.string().min(1).optional(),
   type: z.string().min(1).optional(),
   tags: z.array(z.string().min(1)).optional(),
-  metadata: z.record(z.unknown()).optional()
+  metadata: z.record(z.string(), z.unknown()).optional()
 }).strict();
 
 const personalKnowledgeContextSchema = z.object({}).strict();
@@ -114,14 +114,14 @@ const sourceInventorySchema = z.object({
 
 const candidateSchema = z.object({
   kind: z.string(),
-  payload: z.record(z.unknown()),
+  payload: z.record(z.string(), z.unknown()),
   observationClass: z.enum(['observed', 'inferred']),
   evidenceId: z.string()
 }).strict();
 
 const reviewActionSchema = z.discriminatedUnion('decision', [
   z.object({ candidateId: z.string(), decision: z.literal('approve'), reason: z.string() }).strict(),
-  z.object({ candidateId: z.string(), decision: z.literal('edit'), reason: z.string(), payload: z.record(z.unknown()) }).strict(),
+  z.object({ candidateId: z.string(), decision: z.literal('edit'), reason: z.string(), payload: z.record(z.string(), z.unknown()) }).strict(),
   z.object({ candidateId: z.string(), decision: z.literal('reject'), reason: z.string() }).strict(),
   z.object({ candidateId: z.string(), decision: z.literal('merge'), reason: z.string(), mergeIntoCandidateId: z.string() }).strict()
 ]);
@@ -140,7 +140,7 @@ const connectedSchemas = {
       sourceId: z.string(),
       evidencePointer: z.string(),
       contentHash: z.string(),
-      permissionSnapshot: z.record(z.unknown()),
+      permissionSnapshot: z.record(z.string(), z.unknown()),
       collectionStatus: z.literal('collected')
     }).strict(),
     candidates: z.array(candidateSchema)

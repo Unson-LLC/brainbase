@@ -16,8 +16,10 @@ import {
   type RoutineReceiptPort,
   type RoutineRuntimePorts
 } from '../src/routines.js';
+import { scheduledAtFor } from '../src/routine-liveness.js';
 import { resolveRuntimeHostContext } from '../src/runtime-host.js';
 import { createRunReceiptIdentity, type RunReceiptSourceType } from '../src/run-receipt.js';
+import { assertRunReceiptPort } from '../src/run-receipt-port.js';
 
 function makeReceipt(externalRunId: string, sourceType = 'codex_automations') {
   const projectId = 'portable-project';
@@ -228,6 +230,13 @@ function memoryRunStore(): AutomationRunStorePort {
 }
 
 describe('Stage 3c injected runtime contracts', () => {
+  it('shares the receipt persist/query boundary across consumers', () => {
+    const port = { persist: () => ({ ok: true }), query: () => [] };
+    expect(() => assertRunReceiptPort(port, 'shared receipt')).not.toThrow();
+    expect(() => assertRunReceiptPort({ persist: () => ({ ok: true }) }, 'shared receipt'))
+      .toThrow('shared receipt port with persist and query is required');
+  });
+
   it('routes the consumer handlers through the portable routine cycle boundary', async () => {
     const calls: string[] = [];
     const runtime = createRoutineCycleRuntime({
@@ -816,6 +825,36 @@ describe('Stage 3c injected runtime contracts', () => {
       coverage: 'unavailable',
       anomalies: [{ code: 'routine_stage_failed', stage: 'postprocess' }]
     });
+  });
+
+  it('schedules daily Tokyo midnight on the current local day', () => {
+    const scheduled = scheduledAtFor({
+      routine: 'midnight',
+      automation_id: 'midnight',
+      source_type: 'custom',
+      project_id: 'project',
+      timezone: 'Asia/Tokyo',
+      schedule: { kind: 'daily', hour: 0, minute: 0 },
+      grace_minutes: 5,
+      required_artifacts: ['artifact']
+    }, new Date('2026-10-18T01:00:00.000Z'));
+
+    expect(scheduled.toISOString()).toBe('2026-10-17T15:00:00.000Z');
+  });
+
+  it('schedules weekly Tokyo Sunday midnight at the same instant', () => {
+    const scheduled = scheduledAtFor({
+      routine: 'sunday',
+      automation_id: 'sunday',
+      source_type: 'custom',
+      project_id: 'project',
+      timezone: 'Asia/Tokyo',
+      schedule: { kind: 'weekly', hour: 0, minute: 0, day_of_week: 0 },
+      grace_minutes: 5,
+      required_artifacts: ['artifact']
+    }, new Date('2026-10-17T15:00:00.000Z'));
+
+    expect(scheduled.toISOString()).toBe('2026-10-17T15:00:00.000Z');
   });
 
   it('uses the expectation timezone and weekday supplied by the consumer', () => {

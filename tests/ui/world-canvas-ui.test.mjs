@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { createWorldCanvasUI } from '../../ui/world/world-canvas-ui.js';
 import { FakeDocument, collectText } from './world-canvas-harness.mjs';
 
+vi.mock('../../workspace-kit.js', () => import('../../ui/workspace-kit.js'));
+
 const mounted = [];
 function mount({ width = 1200, height = 740, reducedMotion = false } = {}) {
   const doc = new FakeDocument();
@@ -51,24 +53,36 @@ describe('canvas controls: host-owned business and sky state', () => {
     expect(onCity).toHaveBeenCalledTimes(1);
   });
 
-  it('makes all four sky modes reachable by keyboard with checked state and icon labels', () => {
+  it('cycles all four sky modes without opening a menu or moving focus', () => {
     const { ui, doc, find, onSky } = mount();
     const sky = find('sky');
     sky.focus();
-    sky.dispatch('keydown', { key: 'ArrowDown' });
-    const options = find('sky-menu').children;
-    expect(doc.activeElement).toBe(options[0]);
-    expect(sky.getAttribute('aria-expanded')).toBe('true');
-    options[0].dispatch('keydown', { key: 'End' });
-    expect(doc.activeElement).toBe(options[3]);
-    options[3].click();
-    expect(onSky).toHaveBeenCalledExactlyOnceWith('night');
-    expect(sky.getAttribute('aria-label')).toBe('空：夜');
-    expect(find('sky-menu').hidden).toBe(true);
-    expect(doc.activeElement).toBe(sky);
-    expect(options.map((option) => option.getAttribute('aria-checked'))).toEqual(['false', 'false', 'false', 'true']);
+    expect(sky.getAttribute('aria-label')).toBe('空：自動（現在時刻）。次は昼');
+    expect(sky.getAttribute('aria-haspopup')).toBeNull();
+    expect(find('sky-menu')).toBeNull();
+    for (const [mode, label, next] of [['day', '昼', '夕方'], ['dusk', '夕方', '夜'], ['night', '夜', '自動（現在時刻）'], ['auto', '自動（現在時刻）', '昼']]) {
+      sky.click();
+      expect(onSky).toHaveBeenLastCalledWith(mode);
+      expect(sky.getAttribute('aria-label')).toBe(`空：${label}。次は${next}`);
+      expect(doc.activeElement).toBe(sky);
+    }
+    expect(onSky).toHaveBeenCalledTimes(4);
+    ui.setSky('night');
     ui.setSky('unknown');
-    expect(sky.getAttribute('aria-label')).toBe('空：夜');
+    expect(sky.getAttribute('aria-label')).toBe('空：夜。次は自動（現在時刻）');
+    expect(onSky).toHaveBeenCalledTimes(4);
+  });
+
+  it('hides routine explanations while retaining unavailable-city guidance and help', () => {
+    const { ui, find } = mount();
+    expect(find('context').hidden).toBe(false);
+    expect(collectText(find('context'))).toBe('現在、選べる事業を確認できません。');
+    ui.setCities([{ code: 'sample', name: 'サンプル事業' }]);
+    expect(find('context').hidden).toBe(true);
+    ui.setHelp([]);
+    expect(collectText(find('help-content'))).toContain('事業と案件、関連する仕事を地図で確認します。');
+    ui.setCities([]);
+    expect(find('context').hidden).toBe(false);
   });
 });
 
@@ -309,11 +323,24 @@ describe('warnings, help and one-overlay Escape ownership', () => {
     expect(collectText(find('notes'))).toContain('出典を確認してください');
     find('help-button').click();
     expect(opened(find('help'))).toBe(true);
-    expect(find('help-content').children[0]).toBe(legend);
+    expect(find('help-content').children).toContain(legend);
     ui.clearNotes();
     expect(find('quests').children).toHaveLength(0);
     expect(find('notes').children).toHaveLength(0);
-    expect(find('help-content').children[0]).toBe(legend);
+    expect(find('help-content').children).toContain(legend);
+  });
+
+  it('uses the reusable surface with warning and danger tones while retaining every explanation', () => {
+    const { ui, find } = mount();
+    ui.addNote({ tone: 'warning', summary: '一部を読めません', text: '取得失敗の原文', reason: '再確認が必要' });
+    ui.addNote({ tone: 'danger', summary: '重大なエラー', text: '重大な失敗理由' });
+    const [warning, danger] = find('quests').children;
+    expect(warning.classList.contains('bb-ws-notification-card')).toBe(true);
+    expect(warning.classList.contains('is-warning')).toBe(true);
+    expect(danger.classList.contains('is-danger')).toBe(true);
+    expect(collectText(danger)).toContain('!');
+    expect(collectText(find('notes'))).toContain('重大な失敗理由');
+    expect(collectText(warning)).toContain('再確認が必要');
   });
 
   it('dismisses only the uppermost open overlay without camera or selection callbacks', () => {
@@ -323,9 +350,6 @@ describe('warnings, help and one-overlay Escape ownership', () => {
     ui.showTask([node('h2', '実タスク')]);
     find('help-button').click();
     find('sky').click();
-    expect(ui.dismissOverlay()).toBe(true);
-    expect(find('sky-menu').hidden).toBe(true);
-    expect(opened(find('help'))).toBe(true);
     expect(ui.dismissOverlay()).toBe(true);
     expect(opened(find('help'))).toBe(false);
     expect(opened(find('task'))).toBe(true);

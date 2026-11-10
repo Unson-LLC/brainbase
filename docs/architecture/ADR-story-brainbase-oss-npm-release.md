@@ -23,7 +23,8 @@ The release CLI is the single publication boundary and is split into two
 phases. Credential-free `release:validate` requires the fixed package identity,
 exact version and clean HEAD, proves that HEAD is reachable from an explicitly
 supplied trusted default-branch ref, and runs build, the complete Vitest suite
-with the CI-matching `--maxWorkers=4` ceiling, production dependency audit, and
+with a `--maxWorkers=2` ceiling to avoid shared self-hosted runner saturation,
+production dependency audit, and
 creates the real tarball outside the repository. The worker ceiling changes only
 Vitest concurrency; test selection, timeout, skip, and pass/fail rules remain
 the same as `npm test`. Before hashing it,

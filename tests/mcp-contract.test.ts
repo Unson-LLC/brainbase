@@ -1,3 +1,4 @@
+import publicContract from '../contracts/brainbase-public-contract.v1.json';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -44,26 +45,9 @@ afterEach(async () => {
 
 describe('MCP contract', () => {
   it('C-6 lists exactly the v1 tools', () => {
-    expect(toolDefinitions.map((tool) => tool.name)).toEqual([
-      'get_context',
-      'list_entities',
-      'search',
-      'search_personal_kg',
-      'personal_knowledge_context',
-      'personal_knowledge_register',
-      'personal_knowledge_search',
-      'onboarding_status',
-      'brainbase_onboarding_start',
-      'brainbase_onboarding_get',
-      'brainbase_onboarding_ingest',
-      'brainbase_onboarding_review',
-      'brainbase_onboarding_first_value',
-      'get_ontology',
-      'audit_ontology',
-      'infer_decisions',
-      'ontology_impact',
-      'resolve_entity'
-    ]);
+    expect(toolDefinitions.map(tool => tool.name).sort()).toEqual(
+      publicContract.mcp.toolGroups.find(group => group.id === 'local')!.tools!.map(tool => tool.name),
+    );
     const firstValue = toolDefinitions.find((tool) => tool.name === 'brainbase_onboarding_first_value');
     expect(firstValue?.inputSchema).toMatchObject({
       type: 'object',
@@ -78,7 +62,7 @@ describe('MCP contract', () => {
     const review = toolDefinitions.find((tool) => tool.name === 'brainbase_onboarding_review');
     expect((review?.inputSchema as { properties?: { actions?: { minItems?: number } } }).properties?.actions?.minItems).toBe(1);
     expect((review?.inputSchema as { properties?: { actions?: { items?: { oneOf?: unknown[] } } } }).properties?.actions?.items?.oneOf).toHaveLength(4);
-    const resolver = toolDefinitions.at(17);
+    const resolver = toolDefinitions.find(tool => tool.name === 'resolve_entity');
     expect(resolver).toMatchObject({
       name: 'resolve_entity',
       inputSchema: {
@@ -362,6 +346,9 @@ describe('MCP contract', () => {
     }
   });
 
+  // Includes a real server process and multiple disk-backed tool round trips.
+  // The shared Node 20 CI runner exceeded 5s (5433ms); allow contention here
+  // without relaxing the timeout for the rest of the contract suite.
   it('connected-world onboarding completes start through first-value review over stdio', async () => {
     const dataDir = await fixtureDir();
     const { client, transport } = createClient(dataDir);
@@ -404,7 +391,7 @@ describe('MCP contract', () => {
     } finally {
       await client.close();
     }
-  });
+  }, 15_000);
 
   it('S-8 fails loudly through stdio when canonical SSOT is malformed', async () => {
     const dataDir = await fixtureDir();

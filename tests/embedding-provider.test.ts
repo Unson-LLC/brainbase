@@ -6,6 +6,7 @@ import {
   EMBEDDING_MAX_TEXT_LENGTH,
   type EmbeddingFetch,
   type EmbeddingFetchResponse,
+  EmbeddingProviderError,
   createEmbeddingProviderFromEnv,
   createHttpEmbeddingProvider
 } from '../src/embedding-provider.js';
@@ -138,6 +139,55 @@ describe('embedding provider', () => {
     await expect(value.embed(['alpha'])).rejects.toThrow(/HTTP 500/);
     await expect(value.embed(['alpha'])).resolves.toEqual([[1, 2]]);
     expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  it('reports an exhausted embedding balance distinctly on HTTP 402', async () => {
+    const fetchImpl: EmbeddingFetch = vi.fn(async () => jsonResponse({ error: 'embedding_provider_http_error' }, 402));
+    let error: unknown;
+    try {
+      await provider(fetchImpl).embed(['alpha']);
+    } catch (caught) {
+      error = caught;
+    }
+    expect((error as EmbeddingProviderError).code).toBe('embedding_provider_quota_exhausted');
+    expect((error as Error).message).toMatch(/prepaid balance/);
+    expect((error as Error).message).toMatch(/resolve_entity/);
+  });
+
+  it('reports a quota body code even when the HTTP status is not 402', async () => {
+    const fetchImpl: EmbeddingFetch = vi.fn(async () => jsonResponse({ code: 'embedding_provider_quota_exhausted', message: 'prepaid balance exhausted' }, 503));
+    let error: unknown;
+    try {
+      await provider(fetchImpl).embed(['alpha']);
+    } catch (caught) {
+      error = caught;
+    }
+    expect((error as EmbeddingProviderError).code).toBe('embedding_provider_quota_exhausted');
+  });
+
+  it('does not treat other error bodies as a quota failure or echo their message', async () => {
+    const fetchImpl: EmbeddingFetch = vi.fn(async () => jsonResponse({ code: 'graph_vector_search_unavailable', message: 'internal secret' }, 503));
+    let error: unknown;
+    try {
+      await provider(fetchImpl).embed(['alpha']);
+    } catch (caught) {
+      error = caught;
+    }
+    expect((error as EmbeddingProviderError).code).toBe('embedding_request_failed');
+    expect((error as Error).message).toMatch(/HTTP 503/);
+    expect((error as Error).message).not.toMatch(/internal secret/);
+  });
+
+  it('keeps a non-JSON error body as a generic API error', async () => {
+    const fetchImpl: EmbeddingFetch = vi.fn(async () => new Response('upstream failure', { status: 500 }) as unknown as EmbeddingFetchResponse);
+    let error: unknown;
+    try {
+      await provider(fetchImpl).embed(['alpha']);
+    } catch (caught) {
+      error = caught;
+    }
+    expect((error as EmbeddingProviderError).code).toBe('embedding_request_failed');
+    expect((error as Error).message).toMatch(/HTTP 500/);
   });
 
   it('rejects malformed, zero, duplicate-index, and different-dimension vectors', async () => {

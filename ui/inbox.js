@@ -1,3 +1,4 @@
+import { workspaceTabStrip } from './workspace-kit.js';
 /*
  * 受信箱 (story-inbox-stage1-v1, docs/specs/inbox-stage1.md).
  *
@@ -33,6 +34,14 @@ export const INBOX_GROUP_LABELS = Object.freeze({
 const GROUPS = Object.keys(INBOX_GROUP_LABELS);
 const TABS = ['waiting', 'notices'];
 const VIEWS = ['waiting', 'later', 'cleared'];
+let inboxInstance = 0;
+
+/** The three sections of the 今日決めること layout, in order. */
+export const INBOX_TODAY_SECTIONS = Object.freeze([
+  Object.freeze({ id: 'decide', label: '決めること', groups: Object.freeze(['answer', 'approve']) }),
+  Object.freeze({ id: 'batch', label: 'まとめて片付くもの', groups: Object.freeze(['triage']) }),
+  Object.freeze({ id: 'look', label: '見るだけ', groups: Object.freeze(['task']) }),
+]);
 
 const el = makeWorkspaceElement;
 
@@ -148,13 +157,16 @@ function at(base, dayOffset, hour) {
 }
 
 /** あとで: this evening (only before 18:00), tomorrow morning, next Monday morning — by the viewer's clock. */
-export function inboxLaterChoices(now = new Date()) {
+export function inboxLaterChoices(now = new Date(), { style } = {}) {
+  const today = style === 'today';
   const choices = [];
-  const evening = at(now, 0, 18);
-  if (evening.getTime() > now.getTime()) choices.push({ id: 'evening', label: '今日の夕方', until: evening });
-  choices.push({ id: 'tomorrow', label: '明日の朝', until: at(now, 1, 9) });
+  const evening = at(now, 0, today ? 21 : 18);
+  if (evening.getTime() > now.getTime()) {
+    choices.push({ id: 'evening', label: today ? '今夜 21:00' : '今日の夕方', until: evening });
+  }
+  choices.push({ id: 'tomorrow', label: today ? '明日の朝 9:00' : '明日の朝', until: at(now, 1, 9) });
   const toMonday = ((8 - now.getDay()) % 7) || 7;
-  choices.push({ id: 'monday', label: '来週の月曜の朝', until: at(now, toMonday, 9) });
+  choices.push({ id: 'monday', label: today ? '来週の月曜 9:00' : '来週の月曜の朝', until: at(now, toMonday, 9) });
   return choices;
 }
 
@@ -239,6 +251,42 @@ function relativeTime(value, now) {
   return days < 30 ? `${days}日前` : formatShort(value);
 }
 
+function waitingDays(value, now) {
+  const time = timeOf(value);
+  if (time === null) return null;
+  return Math.max(0, Math.floor((now.getTime() - time) / 86_400_000));
+}
+
+const DUE_SOON_MS = 86_400_000;
+
+/**
+ * How a due time reads on a row: past it is 期限切れ, within a day it is the
+ * time left, otherwise the date.  Only the words change; whether the request
+ * has lapsed is the host's record, never this clock.
+ */
+export function inboxDueLabel(value, now = new Date()) {
+  const time = timeOf(value);
+  if (time === null) return null;
+  const left = time - now.getTime();
+  if (left <= 0) return { state: 'expired', text: '期限切れ' };
+  if (left <= DUE_SOON_MS) {
+    const minutes = Math.ceil(left / 60_000);
+    return { state: 'soon', text: minutes < 60 ? `期限まであと${minutes}分` : `期限まであと${Math.floor(minutes / 60)}時間` };
+  }
+  return { state: 'later', text: `期限 ${formatShort(value)}` };
+}
+
+/** The named facts of a row (依頼・対象 …), in the host's order; anything without both words is left out. */
+function factsOf(item) {
+  return (Array.isArray(item?.facts) ? item.facts : [])
+    .map((fact) => ({ label: textOf(fact?.label), value: textOf(fact?.value) }))
+    .filter((fact) => fact.label && fact.value);
+}
+
+function doneTextOf(action) {
+  return textOf(action?.doneLabel) ?? `「${action.label}」を実行しました`;
+}
+
 export function createInboxUI({
   root,
   page,
@@ -249,6 +297,10 @@ export function createInboxUI({
   onNavigate,
   onCount,
   now = () => new Date(),
+  layout: layoutOption = 'tabs',
+  undoWindowMs: undoWindowMsOption = 0,
+  doneShownMs: doneShownMsOption = 1100,
+  timers: timersOption,
 } = {}) {
   if (!root) throw new TypeError('root is required');
   if (!port || typeof port.readInbox !== 'function' || typeof port.setDisposition !== 'function') {
@@ -258,34 +310,121 @@ export function createInboxUI({
   if (!doc || typeof doc.createElement !== 'function') throw new Error('document_unavailable');
   const crumbs = Array.isArray(page?.crumbs) ? page.crumbs : ['受信箱'];
   const readNow = () => (typeof now === 'function' ? now() : now);
+  const layout = ['today', 'cards'].includes(layoutOption) ? layoutOption : 'tabs';
+  const cards = layout === 'cards';
+  const instanceId = `bb-inbox-${++inboxInstance}`;
+  const undoWindowMs = Number.isFinite(undoWindowMsOption) && undoWindowMsOption > 0 ? undoWindowMsOption : 0;
+  const doneShownMs = Number.isFinite(doneShownMsOption) && doneShownMsOption >= 0 ? doneShownMsOption : 1100;
+  const timers = {
+    set: typeof timersOption?.set === 'function' ? timersOption.set : (fn, ms) => globalThis.setTimeout(fn, ms),
+    clear: typeof timersOption?.clear === 'function' ? timersOption.clear : (id) => globalThis.clearTimeout(id),
+  };
+
+  function normalizedRoute(route) {
+    const next = normalizeRoute(route);
+    return layout === 'today' ? { ...next, tab: 'waiting' } : next;
+  }
 
   const state = {
-    route: normalizeRoute(initialRoute),
+    route: normalizedRoute(initialRoute),
     phase: 'idle',
     result: null,
     reason: null,
     dispositions: new Map(),
     laterOpen: null,
+    expanded: null,
+    filter: 'all',
+    detailOpener: 'opener',
     notice: null,
+    noticeOwner: null,
     notices: null,
+    pending: new Map(),
+    sent: new Set(),
+    // A row whose action was sent and has not answered: its buttons stay still.
+    running: new Map(),
+    // A row whose action succeeded: its result shows for a moment before the rows are read again.
+    done: new Map(),
+    // The one action waiting for its second press (an action with `confirm`).
+    confirming: null,
+    // Where focus goes on the next render ({ itemId, target: 'confirm' | 'action', actionId }).
+    focus: null,
+    // A result to read out with the next count (an action sent after its undo window).
+    said: null,
     destroyed: false,
   };
   let generation = 0;
+  const doneTimers = new Set();
+  // The element to focus once the next render is in place (the confirm band's buttons).
+  let focusTarget = null;
+  let toolbarObserver = null;
+  // One live region kept across renders, so a changed count or a result is read out once.
+  const announcer = el(doc, 'p', { className: 'bb-inbox-announcer bb-ws-visually-hidden', attrs: { role: 'status', 'aria-live': 'polite' } });
+  let lastAnnouncedCount = null;
+
+  function announce(text) {
+    announcer.textContent = text;
+  }
+
+  function setNotice(message, owner = null) {
+    state.notice = message;
+    state.noticeOwner = owner;
+  }
+
+  function clearNotice() {
+    state.notice = null;
+    state.noticeOwner = null;
+  }
+
+  function clearNoticeFor(owner) {
+    if (!state.notice || !state.noticeOwner) return;
+    if (state.noticeOwner.itemId !== owner.itemId || state.noticeOwner.actionId !== owner.actionId) return;
+    clearNotice();
+  }
 
   function go(route) {
-    const next = normalizeRoute({ ...state.route, ...route });
+    const next = normalizedRoute({ ...state.route, ...route });
     if (typeof onRouteChange === 'function') onRouteChange(next);
     else applyRoute(next);
   }
 
-  function reportCount() {
-    if (typeof onCount !== 'function') return;
-    onCount(state.result ? countInboxWaiting({ ...state.result, dispositions: [...state.dispositions.values()] }, readNow()) : { count: null, unreadable: [] });
+  function countNow() {
+    if (!state.result) return { count: null, unreadable: [] };
+    const current = readNow();
+    const base = countInboxWaiting({ ...state.result, dispositions: [...state.dispositions.values()] }, current);
+    if (cards && base.count !== null) base.count = cardItems().filter(item => !activeDisposition(item, state.dispositions, current)).reduce((sum, item) => sum + unitsOf(item), 0);
+    // Rows waiting to be sent, sent, or showing their result are not waiting any more.
+    const gone = new Set([...state.pending.keys(), ...state.sent, ...state.done.keys()]);
+    if (gone.size === 0 || base.count === null) return base;
+    const rows = new Map((cards ? cardItems() : readableItems(state.result)).map((item) => [item.id, item]));
+    let count = base.count;
+    for (const id of gone) {
+      const row = rows.get(id);
+      if (!row) continue;
+      if (activeDisposition(row, state.dispositions, current)) continue;
+      count -= unitsOf(row);
+    }
+    return { count: Math.max(0, count), unreadable: base.unreadable };
+  }
+
+  /** Tells the host the count, and reads it out when it changed (never the first one) or with a result. */
+  function reportCount({ said = null } = {}) {
+    const counted = countNow();
+    if (typeof onCount === 'function') onCount(counted);
+    const words = said ?? state.said;
+    state.said = null;
+    if (words) announce(counted.count === null ? words : `${words}。対応待ち ${counted.count}件`);
+    else if (lastAnnouncedCount !== null && counted.count !== null && counted.count !== lastAnnouncedCount) announce(`対応待ち ${counted.count}件`);
+    if (counted.count !== null) lastAnnouncedCount = counted.count;
+  }
+
+  function noticesWanted() {
+    return layout === 'today' ? typeof port.readNotices === 'function' : state.route.tab === 'notices';
   }
 
   async function loadNotices() {
     if (typeof port.readNotices !== 'function') {
       state.notices = { phase: 'not_collected' };
+      if (!state.destroyed) render();
       return;
     }
     let result;
@@ -294,9 +433,11 @@ export function createInboxUI({
     } catch (error) {
       result = { status: 'unavailable', reason: error instanceof Error ? error.message : 'request_failed' };
     }
+    if (state.destroyed) return;
     state.notices = result?.status === 'ok' && Array.isArray(result.items)
       ? { phase: 'ok', items: result.items }
       : { phase: 'unavailable', reason: result?.reason ?? 'response_invalid' };
+    render();
   }
 
   async function load() {
@@ -311,27 +452,36 @@ export function createInboxUI({
     } catch (error) {
       result = { status: 'unavailable', reason: error instanceof Error ? error.message : 'request_failed' };
     }
-    if (state.route.tab === 'notices' && state.notices === null) await loadNotices();
     if (current !== generation || state.destroyed) return;
+    state.done.clear();
     if (result?.status === 'ok' && Array.isArray(result.sources) && Array.isArray(result.items)) {
       state.result = result;
       state.dispositions = dispositionMap(result.dispositions);
       state.phase = 'ready';
       state.reason = null;
+      state.sent.clear();
+      // A confirm band is for the row as it was; a changed or gone row closes it.
+      const confirming = state.confirming;
+      if (confirming && !readableItems(result).some((item) => item.id === confirming.itemId && (item.revision ?? null) === confirming.revision)) {
+        state.confirming = null;
+      }
     } else {
       state.result = null;
       state.phase = 'error';
       state.reason = result?.reason ?? 'response_invalid';
     }
+    // The inbox is shown as soon as it arrives; notices are read beside it and
+    // never hold back the rows or the count when they are slow or failing.
     render();
     reportCount();
+    if (noticesWanted() && state.notices === null) void loadNotices();
   }
 
   function applyRoute(route) {
-    state.route = normalizeRoute(route);
+    state.route = normalizedRoute(route);
     state.laterOpen = null;
-    if (state.route.tab === 'notices' && state.notices === null) {
-      void loadNotices().then(() => render());
+    if (noticesWanted() && state.notices === null) {
+      void loadNotices();
     }
     render();
   }
@@ -341,7 +491,7 @@ export function createInboxUI({
     if (change.state === 'open') state.dispositions.delete(item.id);
     else state.dispositions.set(item.id, { itemId: item.id, revision: change.revision, state: change.state, until: change.until ?? null, at: readNow().toISOString() });
     state.laterOpen = null;
-    state.notice = null;
+    clearNotice();
     render();
     reportCount();
     let result;
@@ -353,26 +503,145 @@ export function createInboxUI({
     if (state.destroyed || result?.status === 'ok') return;
     if (previous) state.dispositions.set(item.id, previous);
     else state.dispositions.delete(item.id);
-    state.notice = `${failureTitle}。理由: ${reasonText(result?.reason ?? 'response_invalid')}。`;
+    setNotice(`${failureTitle}。理由: ${reasonText(result?.reason ?? 'response_invalid')}。`);
     render();
     reportCount();
   }
 
   async function runAction(item, action) {
+    // The row stays still while its action is out: a second press sends nothing.
+    if (state.running.has(item.id) || state.done.has(item.id)) return;
+    const owner = { itemId: item.id, actionId: action.id };
+    state.running.set(item.id, action.id);
+    state.laterOpen = null;
+    render();
     let result;
     try {
       result = await port.runAction(item.id, action.id);
     } catch (error) {
       result = { status: 'unavailable', reason: error instanceof Error ? error.message : 'request_failed' };
     }
+    state.running.delete(item.id);
     if (state.destroyed) return;
     if (result?.status === 'ok') {
-      state.notice = null;
+      if (undoWindowMs > 0) clearNoticeFor(owner);
+      else clearNotice();
+      await showDone(item, action);
+      return;
+    }
+    setNotice(`「${action.label}」を実行できませんでした。理由: ${reasonText(result?.reason ?? 'response_invalid')}。`, owner);
+    render();
+  }
+
+  /** The host said yes: the row shows its result for a moment, then the rows are read again. */
+  function showDone(item, action) {
+    const said = doneTextOf(action);
+    state.done.set(item.id, said);
+    render();
+    reportCount({ said });
+    return new Promise((resolve) => {
+      const timerId = timers.set(() => {
+        doneTimers.delete(timerId);
+        resolve(load());
+      }, doneShownMs);
+      doneTimers.add(timerId);
+    });
+  }
+
+  function clearPendingTimer(entry) {
+    if (entry.timerId !== null && entry.timerId !== undefined) timers.clear(entry.timerId);
+  }
+
+  async function commitPending(entry) {
+    if (state.pending.get(entry.item.id) !== entry || state.destroyed) return;
+    clearPendingTimer(entry);
+    entry.sent = true;
+    render();
+    let result;
+    try {
+      result = await port.runAction(entry.item.id, entry.action.id);
+    } catch (error) {
+      result = { status: 'unavailable', reason: error instanceof Error ? error.message : 'request_failed' };
+    }
+    if (state.pending.get(entry.item.id) === entry) state.pending.delete(entry.item.id);
+    if (state.destroyed) return;
+    if (result?.status === 'ok') {
+      state.sent.add(entry.item.id);
+      state.said = doneTextOf(entry.action);
+      clearNoticeFor({ itemId: entry.item.id, actionId: entry.action.id });
       await load();
       return;
     }
-    state.notice = `「${action.label}」を実行できませんでした。理由: ${reasonText(result?.reason ?? 'response_invalid')}。`;
+    setNotice(`「${entry.action.label}」を実行できませんでした。理由: ${reasonText(result?.reason ?? 'response_invalid')}。`, { itemId: entry.item.id, actionId: entry.action.id });
     render();
+    reportCount();
+  }
+
+  function pressAction(item, action) {
+    if (undoWindowMs <= 0) {
+      void runAction(item, action);
+      return;
+    }
+    const entry = { item, action, timerId: null };
+    state.pending.set(item.id, entry);
+    clearNotice();
+    entry.timerId = timers.set(() => { void commitPending(entry); }, undoWindowMs);
+    render();
+    reportCount();
+  }
+
+  /** A press on a row's action: one with `confirm` first turns the row's buttons into the confirm band. */
+  function pressFromRow(item, action) {
+    if (state.running.has(item.id) || state.done.has(item.id)) return;
+    if (textOf(action.confirm)) {
+      state.confirming = { itemId: item.id, actionId: action.id, revision: item.revision ?? null };
+      state.focus = { itemId: item.id, target: 'confirm' };
+      state.laterOpen = null;
+      render();
+      return;
+    }
+    pressAction(item, action);
+  }
+
+  function confirmingAction(item, actions) {
+    const confirming = state.confirming;
+    if (!confirming || confirming.itemId !== item.id || confirming.revision !== (item.revision ?? null)) return null;
+    return actions.find((action) => action.id === confirming.actionId && textOf(action.confirm)) ?? null;
+  }
+
+  function renderConfirm(item, action) {
+    const band = el(doc, 'div', { className: 'bb-inbox-confirm', attrs: { role: 'group', 'aria-label': `「${action.label}」の確認` } });
+    band.append(el(doc, 'p', { className: 'bb-inbox-confirm-text', text: textOf(action.confirm) }));
+    const buttons = el(doc, 'div', { className: 'bb-inbox-row-actions' });
+    const send = workspaceButton(doc, {
+      text: cards ? cardActionLabel(item, action) : action.label,
+      variant: action.tone === 'danger' ? 'danger' : 'primary',
+      onClick: () => {
+        state.confirming = null;
+        pressAction(item, action);
+      },
+    });
+    const cancel = workspaceButton(doc, {
+      text: 'やめる',
+      variant: 'quiet',
+      onClick: () => {
+        state.confirming = null;
+        state.focus = { itemId: item.id, target: 'action', actionId: action.id };
+        render();
+      },
+    });
+    if (state.focus?.itemId === item.id && state.focus.target === 'confirm') focusTarget = send;
+    buttons.append(send, cancel);
+    band.append(buttons);
+    return band;
+  }
+
+  function undoPending(entry) {
+    if (entry.sent === true) return;
+    clearPendingTimer(entry);
+    state.pending.delete(entry.item.id);
+    render();
+    reportCount();
   }
 
   function openItem(item, event) {
@@ -384,8 +653,217 @@ export function createInboxUI({
     }
   }
 
+  function cardActionLabel(item, action) {
+    if (action.id === 'deny') return '却下';
+    if (action.id === 'publish-suggested') return '公開';
+    if (action.id === 'open') return item.group === 'approve' ? '申請へ' : item.kind === 'meeting_triage' ? '振り分けへ' : '本体へ';
+    return action.label;
+  }
+
+  function cardItems() {
+    const readable = new Set((state.result?.sources ?? []).filter(source => source.status === 'ok').map(source => source.kind));
+    return (state.result?.items ?? []).filter(item => readable.has(item.kind));
+  }
+
+  function cardSourceProblem(source) {
+    return !['ok', 'not_collected'].includes(source.status);
+  }
+
+  function cardActions(item) {
+    return typeof port.runAction === 'function'
+      ? (Array.isArray(item.actions) ? item.actions : []).filter(action => textOf(action?.id) && textOf(action?.label))
+      : [];
+  }
+
+  function selectCard(item, action = null, opener = 'opener') {
+    if (state.running.has(item.id)) return;
+    state.expanded = state.expanded === item.id && !action ? null : item.id;
+    state.detailOpener = opener;
+    state.confirming = action && textOf(action.confirm)
+      ? { itemId: item.id, actionId: action.id, revision: item.revision ?? null }
+      : null;
+    state.focus = { itemId: item.id, target: !state.expanded ? opener : action && textOf(action.confirm) ? 'confirm' : 'detail' };
+    render();
+  }
+
+  function renderCardTabs(shown) {
+    const bar = el(doc, 'div', { className: 'bb-inbox-card-toolbar' });
+    const tablist = el(doc, 'div', { className: 'bb-inbox-tabs', attrs: { role: 'tablist', 'aria-label': '受信箱' } });
+    workspaceTabStrip(tablist, { memoryKey: `${instanceId}-tabs`, appearance: 'prominent' });
+    const definitions = [
+      ['waiting', '対応待ち', { tab: 'waiting', view: 'waiting' }],
+      ['notices', 'お知らせ', { tab: 'notices', view: 'waiting' }],
+      ['later', '保留', { tab: 'waiting', view: 'later' }],
+      ['cleared', '対応済', { tab: 'waiting', view: 'cleared' }],
+    ];
+    const selectedId = state.route.tab === 'notices' ? 'notices' : state.route.view;
+    for (const [id, label, route] of definitions) {
+      const tab = el(doc, 'button', { className: `bb-inbox-tab${id === selectedId ? ' is-selected' : ''}`, text: label,
+        attrs: { id: `${instanceId}-tab-${id}`, type: 'button', role: 'tab', 'aria-selected': String(id === selectedId), 'aria-controls': `${instanceId}-panel` } });
+      const unreadable = state.result?.sources?.some(cardSourceProblem);
+      const count = id === 'notices' ? state.notices?.phase === 'ok' ? state.notices.items.length : null
+        : shown ? shown[id].filter(item => !state.done.has(item.id)).reduce((sum, item) => sum + unitsOf(item), 0) : null;
+      if (count !== null) tab.append(el(doc, 'span', { className: 'bb-inbox-count bb-ws-tab-count', text: `${count}${id !== 'notices' && unreadable ? '+' : ''}` }));
+      tab.addEventListener('click', () => { state.filter = 'all'; state.expanded = null; state.focus = { target: 'tab', id }; go(route); });
+      if (state.focus?.target === 'tab' && state.focus.id === id) focusTarget = tab;
+      tablist.append(tab);
+    }
+    bar.append(tablist);
+    if (state.route.tab !== 'notices') {
+      const filters = el(doc, 'div', { className: 'bb-inbox-card-filters', attrs: { role: 'group', 'aria-label': '種類で絞り込む' } });
+      for (const [id, label] of [['all', 'すべて'], ['approve', '承認'], ['answer', '会議振り分け'], ['triage', '記憶・取り込み'], ['task', 'タスク']]) {
+        const button = workspaceButton(doc, { text: label, variant: 'quiet', attrs: { 'aria-pressed': String(state.filter === id), 'aria-label': label },
+          onClick: () => { state.filter = id; state.expanded = null; state.focus = { target: 'filter', filter: id }; render(); } });
+        if (state.focus?.target === 'filter' && state.focus.filter === id) focusTarget = button;
+        if (id !== 'all' && shown) {
+          const count = shown[state.route.view].filter(item => !state.done.has(item.id) && matchesCardFilter(item, id)).length;
+          const incomplete = (state.result?.sources ?? []).some(source => matchesCardFilter(source, id) && cardSourceProblem(source));
+          button.setAttribute('aria-label', `${label}、${count}件${incomplete ? '以上、一部取得できません' : ''}`);
+          button.append(el(doc, 'span', { className: 'bb-inbox-card-filter-count', text: ` (${count}${incomplete ? '+' : ''})`, attrs: { 'aria-hidden': 'true' } }));
+        }
+        filters.append(button);
+      }
+      bar.append(filters);
+    }
+    return bar;
+  }
+
+  function renderCard(item, view) {
+    const running = state.running.has(item.id);
+    const done = state.done.get(item.id);
+    const expanded = state.expanded === item.id;
+    const actions = cardActions(item);
+    const card = el(doc, 'article', { className: `bb-inbox-card${expanded ? ' is-expanded' : ''}`, attrs: { role: 'listitem', 'data-inbox-item': item.id, 'data-group': item.group, 'data-kind': item.kind, 'aria-busy': String(running) } });
+    const summary = el(doc, 'div', { className: 'bb-inbox-card-summary' });
+    const main = el(doc, 'div', { className: 'bb-inbox-row-main' });
+    const due = inboxDueLabel(item.dueAt, readNow());
+    const category = item.kind === 'meeting_triage' ? item.group === 'answer' ? 'プロジェクト振り分け' : actions.some(action => action.id === 'publish-suggested') ? '会議の一括公開' : '会議の振り分け'
+      : ({ agent_connection_requests: '利用申請', memory_candidates: 'ナレッジ蓄積', assigned_task: '個別タスク', waiting_task: '判断待ち' })[item.kind]
+        ?? INBOX_GROUP_LABELS[item.group] ?? 'その他';
+    const urgent = due && ['expired', 'soon'].includes(due.state);
+    main.append(el(doc, 'span', { className: `bb-inbox-card-badge${urgent ? ' is-urgent' : ''}`, text: urgent ? `${category}・${due.state === 'expired' ? '期限切れ' : '期限迫る'}` : category }));
+    if (item.blocking) main.append(el(doc, 'span', { className: 'bb-inbox-blocking', text: '対応が必要' }));
+    const opener = workspaceButton(doc, { text: item.title, variant: 'quiet', attrs: { class: 'bb-inbox-card-title', 'aria-expanded': String(expanded), 'aria-controls': `${instanceId}-detail-${item.id}` }, onClick: () => selectCard(item) });
+    if (state.focus?.itemId === item.id && state.focus.target === 'opener') focusTarget = opener;
+    const cardHeading = el(doc, 'h3', { className: 'bb-inbox-card-heading' });
+    cardHeading.append(opener); main.append(cardHeading);
+    const facts = factsOf(item);
+    const metadata = el(doc, 'div', { className: 'bb-inbox-card-metadata' });
+    if (facts.length) metadata.append(renderFacts(facts));
+    const meta = el(doc, 'div', { className: 'bb-inbox-meta' });
+    if (due) meta.append(el(doc, 'span', { className: `bb-inbox-due${due.state === 'later' ? '' : ` is-${due.state}`}`, text: due.text }));
+    const received = relativeTime(item.receivedAt, readNow());
+    if (received) meta.append(el(doc, 'span', { text: received }));
+    const disposition = state.dispositions.get(item.id);
+    if (view === 'later' && disposition?.until) meta.append(el(doc, 'span', { text: `${formatShort(disposition.until)}まで保留` }));
+    if (meta.children.length) metadata.append(meta);
+    if (metadata.children.length) main.append(metadata);
+    summary.append(main);
+    const controls = el(doc, 'div', { className: 'bb-inbox-row-actions' });
+    if (done) controls.append(el(doc, 'span', { className: 'bb-inbox-done', text: done }));
+    else {
+      const primaryButton = workspaceButton(doc, { text: '確認', variant: 'primary', disabled: running,
+        attrs: { 'aria-expanded': String(expanded), 'aria-controls': `${instanceId}-detail-${item.id}` }, onClick: () => selectCard(item, null, 'row-primary') });
+      if (state.focus?.itemId === item.id && state.focus.target === 'row-primary') focusTarget = primaryButton;
+      controls.append(primaryButton);
+      if (view === 'waiting') {
+        const deny = actions.find(action => action.id === 'deny');
+        if (deny) {
+          const denyButton = workspaceButton(doc, { text: '却下', variant: 'danger', disabled: running, onClick: () => selectCard(item, deny, 'row-deny') });
+          if (state.focus?.itemId === item.id && state.focus.target === 'row-deny') focusTarget = denyButton;
+          controls.append(denyButton);
+        }
+        const laterButton = workspaceButton(doc, { text: '保留', variant: 'quiet', disabled: running, attrs: { 'aria-expanded': String(state.laterOpen === item.id) }, onClick: () => { state.laterOpen = state.laterOpen === item.id ? null : item.id; state.focus = { itemId: item.id, target: 'row-later' }; render(); } });
+        if (state.focus?.itemId === item.id && state.focus.target === 'row-later') focusTarget = laterButton;
+        controls.append(laterButton,
+          workspaceButton(doc, { text: '対応済', variant: 'quiet', disabled: running, onClick: () => void dispose(item, { state: 'cleared', revision: item.revision ?? null }, '対応済にできませんでした') }));
+      } else controls.append(workspaceButton(doc, { text: '再開', variant: 'quiet', onClick: () => void dispose(item, { state: 'open' }, '対応待ちに戻せませんでした') }));
+    }
+    summary.append(controls); card.append(summary);
+    if (state.laterOpen === item.id && !running) card.append(renderLaterMenu(item));
+    const detail = el(doc, 'section', { className: 'bb-inbox-card-detail', attrs: { id: `${instanceId}-detail-${item.id}`, 'aria-label': '内容の確認', hidden: !expanded } });
+    if (expanded) {
+      const closeDetail = () => { state.expanded = null; state.confirming = null; state.focus = { itemId: item.id, target: state.detailOpener }; render(); };
+      detail.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); closeDetail(); } });
+      const head = el(doc, 'div', { className: 'bb-inbox-card-detail-head' });
+      const heading = el(doc, 'h4', { text: '内容の確認', attrs: { tabindex: '-1' } });
+      if (state.focus?.itemId === item.id && state.focus.target === 'detail') focusTarget = heading;
+      head.append(heading, workspaceButton(doc, { text: '閉じる', variant: 'quiet', onClick: closeDetail })); detail.append(head);
+      if (textOf(item.detail)) detail.append(el(doc, 'p', { text: item.detail }));
+      if (facts.length) detail.append(renderFacts(facts));
+      const footer = el(doc, 'div', { className: 'bb-inbox-card-detail-footer' });
+      const href = textOf(item.href);
+      if (href) {
+        const source = el(doc, 'a', { className: 'bb-inbox-source-link', text: '本体を開く', attrs: { href } });
+        source.addEventListener('click', event => openItem(item, event)); footer.append(source);
+      }
+      const confirming = confirmingAction(item, actions);
+      if (confirming) footer.append(renderConfirm(item, confirming));
+      else if (view === 'waiting' && !done) {
+        const buttons = el(doc, 'div', { className: 'bb-inbox-row-actions' });
+        for (const action of actions) {
+          const button = workspaceButton(doc, { text: cardActionLabel(item, action), disabled: running, variant: action.tone === 'danger' ? 'danger' : 'primary', onClick: () => pressFromRow(item, action) });
+          if (state.focus?.itemId === item.id && state.focus.target === 'action' && state.focus.actionId === action.id) focusTarget = button;
+          buttons.append(button);
+        }
+        footer.append(buttons);
+      }
+      detail.append(footer);
+    }
+    card.append(detail);
+    return card;
+  }
+
+  function matchesCardFilter(item, filter = state.filter) {
+    if (filter === 'all') return true;
+    if (filter === 'approve') return item.group === 'approve';
+    if (filter === 'answer') return item.kind === 'meeting_triage';
+    if (filter === 'triage') return item.kind === 'memory_candidates';
+    return ['assigned_task', 'waiting_task'].includes(item.kind);
+  }
+
+  function renderCards(shown) {
+    const panel = el(doc, 'div', { className: 'bb-inbox-card-panel', attrs: { id: `${instanceId}-panel`, role: 'tabpanel', 'aria-labelledby': `${instanceId}-tab-${state.route.tab === 'notices' ? 'notices' : state.route.view}` } });
+    if (state.route.tab === 'notices') { panel.append(renderNotices()); return panel; }
+    const which = state.route.view;
+    let any = false;
+    const groups = ['approve', ...GROUPS.filter(group => group !== 'approve')];
+    for (const group of groups) {
+      const rows = sortInboxItems(shown[which].filter(item => item.group === group && matchesCardFilter(item)));
+      const problems = (state.result.sources ?? []).filter(source => source.group === group && matchesCardFilter(source) && cardSourceProblem(source));
+      if (!rows.length && !problems.length) continue;
+      any = true;
+      const section = el(doc, 'section', { className: 'bb-inbox-group', attrs: { 'aria-label': INBOX_GROUP_LABELS[group] } });
+      const heading = el(doc, 'div', { className: 'bb-inbox-card-group-head' });
+      heading.append(el(doc, 'h2', { className: 'bb-inbox-group-title', text: INBOX_GROUP_LABELS[group] }), el(doc, 'span', { className: 'bb-inbox-group-count', text: `${rows.length}件` }));
+      section.append(heading);
+      const list = el(doc, 'div', { className: 'bb-inbox-list', attrs: { role: 'list' } });
+      rows.forEach(item => list.append(renderCard(item, which))); section.append(list);
+      problems.forEach(source => section.append(sourceLine(source))); panel.append(section);
+    }
+    if (state.filter === 'all') {
+      const unknown = shown[which].filter(item => !GROUPS.includes(item.group));
+      const problems = (state.result.sources ?? []).filter(source => !GROUPS.includes(source.group) && cardSourceProblem(source));
+      if (unknown.length || problems.length) {
+        any = true;
+        const section = el(doc, 'section', { className: 'bb-inbox-group', attrs: { 'aria-label': 'その他' } });
+        section.append(el(doc, 'h2', { className: 'bb-inbox-group-title', text: 'その他' }));
+        const list = el(doc, 'div', { className: 'bb-inbox-list', attrs: { role: 'list' } });
+        unknown.forEach(item => list.append(renderCard(item, which))); section.append(list);
+        problems.forEach(source => section.append(sourceLine(source))); panel.append(section);
+      }
+    }
+    if (!any) panel.append(el(doc, 'p', { className: 'bb-inbox-empty', text: state.filter !== 'all' ? '該当する項目はありません。' : which === 'later' ? '保留した項目はありません。' : which === 'cleared' ? '対応済の項目はありません。' : '待っているものはありません。' }));
+    if (which === 'waiting') {
+      const uncollected = (state.result.uncollected ?? []).filter(textOf);
+      if (uncollected.length) panel.append(el(doc, 'p', { className: 'bb-inbox-uncollected', text: `まだ集めていない種類があります（${uncollected.join('・')}）。件数には入っていません。` }));
+    }
+    return panel;
+  }
+
   function renderTabs(waitingCount) {
     const bar = el(doc, 'div', { className: 'bb-inbox-tabs', attrs: { role: 'tablist', 'aria-label': '受信箱' } });
+    workspaceTabStrip(bar, { memoryKey: 'inbox-tabs' });
     for (const [id, label] of [['waiting', '対応待ち'], ['notices', 'お知らせ']]) {
       const selected = state.route.tab === id;
       const tab = el(doc, 'button', {
@@ -394,7 +872,7 @@ export function createInboxUI({
         attrs: { type: 'button', role: 'tab', 'aria-selected': selected ? 'true' : 'false' },
       });
       if (id === 'waiting' && Number.isInteger(waitingCount) && waitingCount > 0) {
-        tab.append(el(doc, 'span', { className: 'bb-inbox-count', text: waitingCount, attrs: { 'aria-label': `${waitingCount}件` } }));
+        tab.append(el(doc, 'span', { className: 'bb-inbox-count bb-ws-tab-count', text: waitingCount, attrs: { 'aria-label': `${waitingCount}件` } }));
       }
       tab.addEventListener('click', () => go({ tab: id, view: 'waiting' }));
       bar.append(tab);
@@ -404,7 +882,7 @@ export function createInboxUI({
 
   function renderLaterMenu(item) {
     const menu = el(doc, 'div', { className: 'bb-inbox-later-menu', attrs: { role: 'group', 'aria-label': 'あとでの時刻' } });
-    for (const choice of inboxLaterChoices(readNow())) {
+    for (const choice of inboxLaterChoices(readNow(), layout === 'today' ? { style: 'today' } : {})) {
       menu.append(workspaceButton(doc, {
         text: choice.label,
         variant: 'quiet',
@@ -414,19 +892,53 @@ export function createInboxUI({
     return menu;
   }
 
+  function renderFacts(facts) {
+    const list = el(doc, 'dl', { className: 'bb-inbox-facts' });
+    for (const fact of facts) {
+      const pair = el(doc, 'div', { className: 'bb-inbox-fact', attrs: { 'data-fact-label': fact.label } });
+      pair.append(el(doc, 'dt', { text: fact.label }), el(doc, 'dd', { text: fact.value }));
+      list.append(pair);
+    }
+    return list;
+  }
+
   function renderRow(item, view) {
-    const row = el(doc, 'div', { className: `bb-inbox-row${item.blocking === true ? ' is-blocking' : ''}`, attrs: { role: 'listitem', 'data-inbox-item': item.id } });
+    const running = view === 'waiting' && state.running.has(item.id);
+    const done = view === 'waiting' ? state.done.get(item.id) ?? null : null;
+    const row = el(doc, 'div', {
+      className: `bb-inbox-row${item.blocking === true ? ' is-blocking' : ''}${running ? ' is-running' : ''}${done ? ' is-done' : ''}`,
+      attrs: { role: 'listitem', 'data-inbox-item': item.id, 'aria-busy': running ? 'true' : undefined },
+    });
     const main = el(doc, 'div', { className: 'bb-inbox-row-main' });
     const href = textOf(item.href);
     const title = el(doc, href ? 'a' : 'span', { className: 'bb-inbox-title', text: item.title, attrs: href ? { href } : {} });
     if (href) title.addEventListener('click', (event) => openItem(item, event));
     main.append(title);
+    const facts = factsOf(item);
+    if (facts.length > 0) main.append(renderFacts(facts));
     const meta = el(doc, 'div', { className: 'bb-inbox-meta' });
     if (item.blocking === true) meta.append(el(doc, 'span', { className: 'bb-inbox-blocking', text: '止めています' }));
-    const due = formatShort(item.dueAt);
-    if (due) meta.append(el(doc, 'span', { className: 'bb-inbox-due', text: `期限 ${due}` }));
-    const received = relativeTime(item.receivedAt, readNow());
-    if (received) meta.append(el(doc, 'span', { text: received, attrs: { title: formatShort(item.receivedAt) ?? undefined } }));
+    const due = inboxDueLabel(item.dueAt, readNow());
+    if (due) {
+      meta.append(el(doc, 'span', {
+        className: `bb-inbox-due${due.state === 'later' ? '' : ` is-${due.state}`}`,
+        text: due.text,
+        attrs: { title: due.state === 'later' ? undefined : `期限 ${formatShort(item.dueAt)}` },
+      }));
+    }
+    if (layout === 'today') {
+      const days = waitingDays(item.receivedAt, readNow());
+      if (days !== null) {
+        meta.append(el(doc, 'span', {
+          className: `bb-inbox-wait${days > 3 ? ' is-long' : ''}`,
+          text: days === 0 ? '今日' : `待ち ${days}日`,
+          attrs: { title: formatShort(item.receivedAt) ?? undefined },
+        }));
+      }
+    } else {
+      const received = relativeTime(item.receivedAt, readNow());
+      if (received) meta.append(el(doc, 'span', { text: received, attrs: { title: formatShort(item.receivedAt) ?? undefined } }));
+    }
     const disposition = state.dispositions.get(item.id);
     if (view === 'later' && disposition?.until) meta.append(el(doc, 'span', { className: 'bb-inbox-until', text: `${formatShort(disposition.until)}に戻ります` }));
     if (textOf(item.detail)) main.append(el(doc, 'p', { className: 'bb-inbox-detail', text: item.detail }));
@@ -434,30 +946,52 @@ export function createInboxUI({
     row.append(main);
 
     const controls = el(doc, 'div', { className: 'bb-inbox-row-actions' });
+    if (done) {
+      controls.append(el(doc, 'span', { className: 'bb-inbox-done', text: `✓ ${done}` }));
+      row.append(controls);
+      return row;
+    }
     if (view === 'waiting') {
-      if (typeof port.runAction === 'function') {
-        for (const action of Array.isArray(item.actions) ? item.actions : []) {
-          if (!textOf(action?.id) || !textOf(action?.label)) continue;
-          controls.append(workspaceButton(doc, { text: action.label, variant: action.tone === 'primary' ? 'primary' : action.tone === 'danger' ? 'danger' : 'default', onClick: () => void runAction(item, action) }));
-        }
+      const actions = typeof port.runAction === 'function'
+        ? (Array.isArray(item.actions) ? item.actions : []).filter((action) => textOf(action?.id) && textOf(action?.label))
+        : [];
+      const confirming = running ? null : confirmingAction(item, actions);
+      if (confirming) {
+        row.append(renderConfirm(item, confirming));
+        return row;
+      }
+      const hasPrimary = actions.some((action) => action.tone === 'primary');
+      for (const action of actions) {
+        const button = workspaceButton(doc, {
+          text: action.label,
+          variant: action.tone === 'primary' ? 'primary' : action.tone === 'danger' ? 'danger' : 'default',
+          disabled: running,
+          onClick: () => pressFromRow(item, action),
+        });
+        if (state.focus?.itemId === item.id && state.focus.target === 'action' && state.focus.actionId === action.id) focusTarget = button;
+        controls.append(button);
       }
       controls.append(
         workspaceButton(doc, {
           text: 'あとで',
           variant: 'quiet',
+          disabled: running,
           attrs: { 'aria-expanded': state.laterOpen === item.id ? 'true' : 'false', 'aria-haspopup': 'true' },
           onClick: () => {
             state.laterOpen = state.laterOpen === item.id ? null : item.id;
             render();
           },
         }),
-        workspaceButton(doc, { text: '片付けた', variant: 'quiet', onClick: () => void dispose(item, { state: 'cleared', revision: item.revision ?? null }, '片付けられませんでした') }),
       );
+      if (!(layout === 'today' && hasPrimary)) {
+        controls.append(workspaceButton(doc, { text: '片付けた', variant: 'quiet', disabled: running, onClick: () => void dispose(item, { state: 'cleared', revision: item.revision ?? null }, '片付けられませんでした') }));
+      }
+      if (running) controls.append(el(doc, 'span', { className: 'bb-inbox-running', text: '送っています' }));
     } else {
       controls.append(workspaceButton(doc, { text: '対応待ちに戻す', variant: 'quiet', onClick: () => void dispose(item, { state: 'open' }, '対応待ちに戻せませんでした') }));
     }
     row.append(controls);
-    if (state.laterOpen === item.id) row.append(renderLaterMenu(item));
+    if (state.laterOpen === item.id && !running) row.append(renderLaterMenu(item));
     return row;
   }
 
@@ -470,7 +1004,8 @@ export function createInboxUI({
 
   function partition(now) {
     const shown = { waiting: [], later: [], cleared: [] };
-    for (const item of readableItems(state.result)) {
+    for (const item of cards ? cardItems() : readableItems(state.result)) {
+      if (state.pending.has(item.id) || state.sent.has(item.id)) continue;
       const disposition = activeDisposition(item, state.dispositions, now);
       shown[disposition ? disposition.state : 'waiting'].push(item);
     }
@@ -509,6 +1044,53 @@ export function createInboxUI({
     return view;
   }
 
+  function renderTodayWaiting(shown) {
+    const view = el(doc, 'div', { className: 'bb-inbox-waiting is-today' });
+    const sources = state.result.sources;
+    for (const definition of INBOX_TODAY_SECTIONS) {
+      const rows = sortInboxItems(shown.waiting.filter((item) => definition.groups.includes(item.group)));
+      const problems = sources.filter((source) => definition.groups.includes(source.group) && source.status !== 'ok');
+      if (rows.length > 0 || problems.length > 0) {
+        const section = el(doc, 'section', {
+          className: 'bb-inbox-group bb-inbox-today-section',
+          attrs: { 'data-section': definition.id, 'data-group': definition.id, 'aria-label': definition.label },
+        });
+        section.append(el(doc, 'h2', { className: 'bb-inbox-group-title', text: definition.label }));
+        if (rows.length > 0) {
+          const list = el(doc, 'div', { className: 'bb-inbox-list', attrs: { role: 'list' } });
+          for (const item of rows) list.append(renderRow(item, 'waiting'));
+          section.append(list);
+        }
+        for (const source of problems) section.append(sourceLine(source));
+        view.append(section);
+      }
+      if (definition.id === 'look' && typeof port.readNotices === 'function' && state.notices !== null) {
+        view.append(renderNotices());
+      }
+    }
+    const uncollected = (Array.isArray(state.result.uncollected) ? state.result.uncollected : []).filter(textOf);
+    if (uncollected.length > 0) {
+      view.append(el(doc, 'p', { className: 'bb-inbox-uncollected', text: `まだ集めていない種類があります（${uncollected.join('・')}）。件数には入っていません。` }));
+    }
+    const links = el(doc, 'div', { className: 'bb-inbox-elsewhere' });
+    if (shown.later.length > 0) links.append(workspaceButton(doc, { text: `あとで ${shown.later.length}件`, variant: 'quiet', onClick: () => go({ view: 'later' }) }));
+    if (shown.cleared.length > 0) links.append(workspaceButton(doc, { text: `片付けた ${shown.cleared.length}件`, variant: 'quiet', onClick: () => go({ view: 'cleared' }) }));
+    if (links.children.length > 0) view.append(links);
+    return view;
+  }
+
+  function renderUndoBand() {
+    const entries = [...state.pending.values()];
+    if (entries.length === 0) return null;
+    const undoable = entries.filter((entry) => entry.sent !== true);
+    const target = undoable.length > 0 ? undoable[undoable.length - 1] : null;
+    const shown = target ?? entries[entries.length - 1];
+    const band = el(doc, 'div', { className: 'bb-inbox-undo', attrs: { role: 'status' } });
+    band.append(el(doc, 'span', { text: target ? `「${shown.action.label}」を実行します。` : `「${shown.action.label}」を実行しています。` }));
+    if (target) band.append(workspaceButton(doc, { text: '元に戻す', variant: 'quiet', onClick: () => undoPending(target) }));
+    return band;
+  }
+
   function renderSet(shown, which) {
     const view = el(doc, 'div', { className: 'bb-inbox-set' });
     view.append(workspaceButton(doc, { text: '対応待ちへ', variant: 'quiet', onClick: () => go({ view: 'waiting' }) }));
@@ -532,7 +1114,7 @@ export function createInboxUI({
     if (!notices || notices.phase === 'not_collected') {
       view.append(el(doc, 'p', { className: 'bb-inbox-uncollected', text: 'お知らせはまだ集めていません。AIに任せた仕事の終わり・議事録ができたこと・申請の結果は、これから集めます。' }));
     } else if (notices.phase === 'unavailable') {
-      view.append(workspaceErrorCard(doc, { title: 'お知らせを読めませんでした', message: `理由: ${reasonText(notices.reason)}。0件ではありません。` }));
+      view.append(workspaceErrorCard(doc, { title: 'お知らせを読めませんでした', message: `理由: ${reasonText(notices.reason)}。0件ではありません。`, open: true }));
     } else if (notices.items.length === 0) {
       view.append(el(doc, 'p', { className: 'bb-inbox-empty', text: 'お知らせはありません。' }));
     }
@@ -542,21 +1124,68 @@ export function createInboxUI({
   function render() {
     if (state.destroyed) return;
     const current = readNow();
+    focusTarget = null;
     const shown = state.result ? partition(current) : null;
-    const waitingCount = shown ? shown.waiting.reduce((sum, item) => sum + unitsOf(item), 0) : null;
-    const view = el(doc, 'div', { className: 'bb-inbox', attrs: { 'data-contract-version': INBOX_UI_CONTRACT_VERSION } });
-    view.append(workspacePageHeader(doc, { crumbs, title: '受信箱', source: page?.source ?? undefined }));
-    view.append(renderTabs(waitingCount));
+    // A row showing its result is still drawn but no longer waiting.
+    const stillWaiting = (item) => !state.done.has(item.id);
+    const waitingCount = shown ? shown.waiting.filter(stillWaiting).reduce((sum, item) => sum + unitsOf(item), 0) : null;
+    const isToday = layout === 'today';
+    const view = el(doc, 'div', {
+      className: `bb-inbox${isToday ? ' is-today' : ''}${cards ? ' is-cards' : ''}`,
+      attrs: { 'data-contract-version': INBOX_UI_CONTRACT_VERSION },
+    });
+    if (!cards) view.append(workspacePageHeader(doc, { crumbs, title: '受信箱', source: page?.source ?? undefined }));
+    if (cards) view.append(renderCardTabs(shown));
+    else if (!isToday) view.append(renderTabs(waitingCount));
+    if (isToday && shown) {
+      const decideGroups = INBOX_TODAY_SECTIONS[0].groups;
+      const decideCount = shown.waiting
+        .filter((item) => decideGroups.includes(item.group) && stillWaiting(item))
+        .reduce((sum, item) => sum + unitsOf(item), 0);
+      // 決めることの取得元（answer・approve）が読めていないのに0件を「ありません」と
+      // 断定しない。読めなかったときは件数ではなく、読めなかったことを出す。
+      const decideUnreadable = (state.result.sources ?? [])
+        .some((source) => decideGroups.includes(source.group) && source.status === 'unavailable');
+      const decideUnknown = decideCount === 0 && decideUnreadable;
+      view.append(el(doc, 'p', {
+        className: `bb-inbox-today-count${decideUnknown ? ' is-unreadable' : ''}`,
+        text: decideCount > 0
+          ? `今日決めること ${decideCount}件`
+          : decideUnreadable
+            ? '今日決めることを読めませんでした。0件ではありません。'
+            : '今日決めることはありません',
+        attrs: decideUnknown ? { role: 'status' } : {},
+      }));
+    }
     if (state.phase === 'loading') view.append(el(doc, 'div', { className: 'bb-inbox-loading', text: '読み込んでいます', attrs: { role: 'status' } }));
+    const undoBand = renderUndoBand();
+    if (undoBand) view.append(undoBand);
     if (state.notice) view.append(workspaceNotice(doc, { label: 'できませんでした', text: state.notice, tone: 'warning', role: 'alert' }));
-    if (state.route.tab === 'notices') {
+    if (cards && shown) {
+      view.append(renderCards(shown));
+    } else if (!isToday && state.route.tab === 'notices') {
       view.append(renderNotices());
     } else if (state.phase === 'error' && !shown) {
-      view.append(workspaceErrorCard(doc, { title: '受信箱を読めませんでした', message: `理由: ${reasonText(state.reason)}。0件ではありません。`, onRetry: () => void load() }));
+      view.append(workspaceErrorCard(doc, { title: '受信箱を読めませんでした', message: `理由: ${reasonText(state.reason)}。0件ではありません。`, onRetry: () => void load(), open: true }));
     } else if (shown) {
-      view.append(state.route.view === 'waiting' ? renderWaiting(shown) : renderSet(shown, state.route.view));
+      if (isToday) view.append(state.route.view === 'waiting' ? renderTodayWaiting(shown) : renderSet(shown, state.route.view));
+      else view.append(state.route.view === 'waiting' ? renderWaiting(shown) : renderSet(shown, state.route.view));
     }
-    root.replaceChildren(view);
+    toolbarObserver?.disconnect();
+    root.replaceChildren(view, announcer);
+    if (cards) {
+      const toolbar = view.querySelector?.('.bb-inbox-card-toolbar');
+      const measure = () => {
+        if (toolbar && root.style) root.style.setProperty('--bb-inbox-toolbar-height', `${toolbar.getBoundingClientRect().height}px`);
+      };
+      measure();
+      if (toolbar && typeof globalThis.ResizeObserver === 'function') { toolbarObserver = new globalThis.ResizeObserver(measure); toolbarObserver.observe(toolbar); }
+    }
+    if (state.focus) {
+      focusTarget?.focus?.({ preventScroll: true });
+      if (cards) focusTarget?.scrollIntoView?.({ block: 'nearest' });
+      state.focus = null;
+    }
   }
 
   const controller = {
@@ -567,7 +1196,22 @@ export function createInboxUI({
     },
     destroy() {
       state.destroyed = true;
+      toolbarObserver?.disconnect();
       generation += 1;
+      for (const timerId of doneTimers) timers.clear(timerId);
+      doneTimers.clear();
+      const remaining = [...state.pending.values()];
+      state.pending.clear();
+      for (const entry of remaining) {
+        clearPendingTimer(entry);
+        if (entry.sent === true || typeof port.runAction !== 'function') continue;
+        try {
+          const result = port.runAction(entry.item.id, entry.action.id);
+          if (result && typeof result.catch === 'function') result.catch(() => {});
+        } catch {
+          // The press still happened; there is no screen left to show the result on.
+        }
+      }
       root.replaceChildren();
     },
   };

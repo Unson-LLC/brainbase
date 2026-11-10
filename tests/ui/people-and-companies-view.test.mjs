@@ -56,12 +56,116 @@ async function mountView({ fetcher, ...options } = {}) {
   return { root, rail, view };
 }
 
+// Minimal native-dialog/focus behavior for the opt-in drawer composition.
+class DirectoryDocument extends FakeDocument {
+  constructor() { super(); this.defaultView = { matchMedia: () => ({ matches: true }) }; this.body = this.createElement('body'); this.activeElement = this.body; }
+  createElement(tag) {
+    const node = super.createElement(tag);
+    node.ownerDocument = this;
+    node.classList = {
+      add: name => { node.className = [...new Set([...node.className.split(' ').filter(Boolean), name])].join(' '); },
+      remove: name => { node.className = node.className.split(' ').filter(value => value !== name).join(' '); },
+      contains: name => node.className.split(' ').includes(name),
+    };
+    node.style = { setProperty() {}, removeProperty() {} };
+    node.contains = target => node === target || node.children.some(child => child.contains?.(target));
+    node.remove = () => {
+      if (node.contains(this.activeElement)) this.activeElement = this.body;
+      if (node.parentNode) node.parentNode.children = node.parentNode.children.filter(child => child !== node);
+      node.parentNode = null;
+    };
+    node.append = (...children) => { for (const child of children.filter(Boolean)) { child.remove?.(); child.parentNode = node; node.children.push(child); } };
+    node.replaceChildren = (...children) => { for (const child of [...node.children]) child.remove(); node.append(...children); };
+    node.focus = () => { this.activeElement = node; };
+    node.setSelectionRange = (start, end) => { node.selectionStart = start; node.selectionEnd = end; };
+    node.showModal = () => { node.open = true; };
+    node.close = () => { node.open = false; node.dispatch('close'); };
+    node.removeEventListener = (name, callback) => { if (node.listeners.get(name) === callback) node.listeners.delete(name); };
+    return node;
+  }
+}
+
 const ledgerNames = (node) => findAll(node, (item) => item.tagName === 'BUTTON' && String(item.className).includes('bb-ws-ledger-row'))
   // The name is the row's first strong; a person or company mark sits before it.
   .map((row) => findAll(row.children[0], (node) => node.tagName === 'STRONG')[0].textContent);
 const ledgerByLabel = (root, label) => findAll(root, (node) => node.attributes?.['aria-label'] === label && node.attributes?.role === 'table')[0];
 
 describe('人と会社', () => {
+  it('keeps fallback directory search focus and waits for IME composition to finish', async () => {
+    await writeGraphV2(dataDir);
+    const doc = new DirectoryDocument();
+    const { root, view } = await mountView({ presentation: 'directory', document: doc });
+    expect(view.root).toBe(root);
+    const search = findAll(root, node => node.tagName === 'INPUT' && node.attributes.type === 'search')[0];
+    search.focus(); search.selectionStart = 2; search.selectionEnd = 2;
+    search.dispatch('compositionstart'); search.value = 'Acme'; search.dispatch('input', { isComposing: true });
+    expect(findAll(root, node => node.className.includes('bb-pc-directory-row'))).toHaveLength(3);
+    search.dispatch('compositionend');
+    expect(findAll(root, node => node.className.includes('bb-pc-directory-row'))).toHaveLength(1);
+    expect(doc.activeElement).toBe(search);
+    expect(search.selectionStart).toBe(2);
+    search.value = ''; search.dispatch('input');
+    expect(findAll(root, node => node.className.includes('bb-pc-directory-row'))).toHaveLength(3);
+    expect(doc.activeElement).toBe(search);
+    view.destroy();
+  });
+
+  it('keeps membership corrections and inline facts inside the directory drawer without a host rail', async () => {
+    await writeGraphV2(dataDir);
+    const doc = new DirectoryDocument();
+    const { view } = await mountView({ presentation: 'directory', rail: undefined, document: doc, canCorrect: true, token: TOKEN });
+    await view.openEntity('person-tanaka');
+    const drawer = findAll(doc.body, node => node.tagName === 'DIALOG' && node.open)[0];
+    expect(drawer).toBeDefined();
+    expect(buttonsNamed(drawer, '所属を付ける')).toHaveLength(1);
+    expect(buttonsNamed(drawer, '「Acme」の所属を終える')).toHaveLength(1);
+    expect(visibleText(section(drawer, '詳細'))).toContain('IDperson-tanaka');
+    buttonsNamed(drawer, '「Acme」の所属を終える')[0].dispatch('click');
+    expect(view.correction.form.kind).toBe('update_edge');
+    expect(view.correction.form.fields).toEqual(['validTo']);
+    expect(section(drawer, '所属を終える')).toBeDefined();
+    expect(visibleText(drawer)).toContain('記録は消さずに残り');
+    expect(api.requests.every(request => request.method === 'GET')).toBe(true);
+    view.destroy();
+  });
+
+  it('offers the explicit directory tabs while retaining membership-derived groups and company search', async () => {
+    await writeGraphV2(dataDir, {
+      entities: [...Object.values(ENTITIES), GLOBEX],
+      edges: [...Object.values(EDGES), link('self', 'member_of', 'org-globex'), link('person-sato', 'member_of', 'org-globex'), link('person-tanaka', 'member_of', 'org-globex')],
+    });
+    let search;
+    const { root } = await mountView({ presentation: 'directory', sourceNotice: { text: 'Synthetic source boundary' }, onSearchControl: input => { search = input; } });
+    expect(findAll(root, node => node.attributes.role === 'tab').map(node => visibleText(node))).toEqual(['人3', '会社2']);
+    const rows = () => findAll(root, node => node.className.includes('bb-pc-directory-row'));
+    expect(rows()).toHaveLength(3);
+    expect(findAll(root, node => node.tagName === 'H2').map(visibleText)).not.toContain('所属が未確認0人');
+    const source = findAll(root, node => node.tagName === 'DETAILS' && node.className === 'bb-pc-directory-source')[0];
+    expect(source).toBeDefined();
+    expect(visibleText(root)).not.toContain('Synthetic source boundary');
+    expect(visibleText(source.children[1])).toContain('Synthetic source boundary');
+    // The same person keeps both real company memberships in one row.
+    expect(visibleText(rows().find(node => visibleText(node).includes('田中 太郎')))).toContain('Acme');
+    expect(visibleText(rows().find(node => visibleText(node).includes('田中 太郎')))).toContain('Globex');
+    search.value = 'Acme'; search.dispatch('input');
+    expect(rows()).toHaveLength(1);
+    expect(visibleText(rows()[0])).toContain('田中 太郎');
+    expect(findAll(root, node => node.attributes.role === 'tab')[0].attributes['aria-selected']).toBe('true');
+  });
+
+  it('keeps people under unknown standing when own company is not known and offers company rows separately', async () => {
+    await writeGraphV2(dataDir);
+    const { root } = await mountView({ presentation: 'directory' });
+    expect(visibleText(root)).toContain('自社が未設定');
+    const unknown = findAll(root, node => node.attributes.role === 'radio' && visibleText(node).startsWith('所属が未確認'))[0];
+    unknown.dispatch('click');
+    expect(findAll(root, node => node.className.includes('bb-pc-directory-row'))).toHaveLength(3);
+    findAll(root, node => node.attributes.role === 'tab')[1].dispatch('click');
+    expect(findAll(root, node => node.className.includes('bb-pc-directory-row'))).toHaveLength(1);
+    expect(visibleText(root)).toContain('Acme');
+    expect(findAll(root, node => node.attributes.role === 'tab')[1].attributes['aria-selected']).toBe('true');
+  });
+
   it('splits people into internal, external by company and not yet known from memberships and the own company', async () => {
     await writeGraphV2(dataDir, {
       entities: [...Object.values(ENTITIES), GLOBEX],

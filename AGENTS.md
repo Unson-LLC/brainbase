@@ -43,3 +43,13 @@ When a user asks to onboard Brainbase from Codex, Claude Code, or CodeCode, trea
 - Keep operationalization safe by default: generated skills, generated routines, and `onboard:install --dry-run` are previews until the user approves file writes, scheduler registration, and live configuration changes.
 - Treat `brainbase onboard:install --target <agent> --dry-run` as configuration preview only. It is not onboarding completion, but real MCP installation is required before actual-agent value verification.
 - Do not modify `package-lock.json`, `tsconfig.json`, or dependency metadata just to onboard a user unless build or install actually fails and the fix is scoped.
+
+## 共通UIを変更する前に
+
+[共通パーツの規約](docs/specs/oss-common-ui-spec.md)を読む。ヘッダー・右詳細パネル・トークン・所有境界・検証の正本をここへ集約する。共通部品をコピーせず、所有するリポジトリで変更する。
+
+### 既存部品を探すとき
+
+利用できるUIカタログや既存画面は任意の参考資料です。用途に合う部品の再利用を推奨しますが、カタログの参照・取得・部品利用は必須ではありません。合う部品がない・見つからない・不適合なら、画面固有の部品を作って進めて構いません。カタログへの追加やデザイン確定を機能開発の前提にせず、後から共通化すると便利なものだけ整理します。参照権限がない資料の取得を待たず、手元の既存ソースを使って継続できます。
+
+正本は本体の実装と正式な共通部品で、カタログは見本です。採用時は対象版との差を確認してください。共通部品そのものを変えて他画面へ影響させる場合の影響確認・所有境界・既存の承認手順は引き続き適用します。

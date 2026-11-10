@@ -4,6 +4,99 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
+## Candidate — v0.50.1（npm公開前）
+
+`develop` bb2a2fa4 までをまとめるpatch更新候補です。議事録一覧（`list_meetings` と `GET /api/meeting-minutes`）に件数の上限（既定100、最大500）と `next_cursor` によるページ分けを足し、共通の議事録画面が続きのページを辿って全件を表示します（#939）。引数なしの `list_meetings(context)` は今までどおり配列を返し、options を渡したときだけページで返します（#943）。judgment DAG を外部レビューagentに合わせ、契約のハッシュを更新します（#940, #944）。VibePro producer の公開契約テストをCIで実行します（#937）。npm公開と利用ホストへの反映は、この候補記録だけでは確認できません。
+
+## Candidate — v0.50.0（npm公開前）
+
+`develop` 8d1449bc までをまとめるminor更新候補です。所有権サーベイの検証のOSS化（#936）、agent限定のTask queueの道具と共通契約テスト（#930）、OSS公開契約のfixture（#931〜#933）、議事録名とbuildの修正（#926・#927）を含みます。npm公開と利用ホストへの反映は、この候補記録だけでは確認できません。
+
+## Candidate — v0.49.1（npm公開前）
+
+共通ナビゲーションの見出しリンクにホスト指定の装飾アイコンとクラスを渡し、グループの余白や見出しの文字組をCSS変数で調整できる候補です。指定しないホストの表示と既存のナビゲーション操作は変更しません。npm公開と利用ホストへの反映は、この候補記録だけでは確認できません。
+
+## Candidate — v0.49.0（npm公開前）
+
+RQ-113のソースに依存しないentity index builderを、新しい公開subpath `@unson/brainbase-mcp/entity-indexer` に追加するminor更新候補です（#920）。`buildIndex`・`createEmptyIndex` と関連するhelper・型を提供し、既存の `createEntityIndexCache` のbuildとして利用できます。`GraphAPISource`・認証・evidence関数はホスト側に残します。npm公開・利用ホストの取り込みは、この候補記録だけでは確認できません。
+
+## Released — v0.48.4
+
+共通UIのトークン（`ui/brainbase-tokens.css`）に共有モーショントークンを追加し、drawer退場を150ms、toast消去を200msへ短縮します。`ui/workspace-kit.css` はfallback付きの `var()` でトークンを参照します。入場・検索帯・モバイル・reduced motionの挙動は維持します（#909）。
+
+- 受信箱・情報の「種類」・プロジェクトの記録のタブを矢印キーで切り替え、選択の下線をすべらせます（#903）。
+- 共通の主ボタンを目立たせ、パンくずと受信箱の期限切れの文字を読みやすくし、受信箱の取得失敗の理由を開いて見せます（#904）。
+- Workerの判断をローカルoutboxへ書く共通の送り口の契約と骨格を追加します。既定では外部へ送信しません（#907）。
+- 既存UI部品の再利用を推奨しつつ、資料の取得や部品利用・登録・デザイン確定を開発の前提にしない方針を明記します（#908）。
+- 正式リリース検証のVitest並列数を4から2へ下げます（#912）。
+- 判断ライフサイクルのHost builderとの一致を確かめるテストを、実行環境に左右されないようにします（#914）。
+
+npm公開済みです。npmの`latest`は`0.48.4`を指し、registryの`gitHead`は`28e45e4b`です。利用ホストへの取り込みと本番反映は別途確認します。
+
+## Candidate — v0.48.3（npm公開前）
+
+共通UIのトークン（`ui/brainbase-tokens.css`）に `--bb-color-muted-on-surface` を追加します。色付きの背景では `--bb-color-muted` をこのトークンへ切り替え、小さな補助テキストを読みやすくします（#911）。npm公開・利用ホストの取り込みは、この候補記録だけでは確認できません。
+
+## Candidate — v0.48.2（npm公開前）
+
+共通UIのトークン（`ui/brainbase-tokens.css`）を紺・ミントのテーマとNoto Sans JPへ切り替えます。フォントは `--bb-font-sans`・`--bb-font-weight-medium`・`--bb-font-weight-body` で指定します。状態色の意味を保ち、ホストは引き続きトークンを上書きできます（#910）。npm公開・利用ホストの取り込みは、この候補記録だけでは確認できません。
+
+## Candidate — v0.48.1（npm公開前）
+
+0.47.5以前の共通部品を読み込んだままの古いタブで、判断の履歴と目的と現状の画面が開かなかった不具合を直します。両画面は共通部品を別名（`workspace-kit.js?capability=loading-stage-v1`）で読み込みます。npm公開・利用ホストの取り込みは、この候補記録だけでは確認できません。
+
+## Candidate — v0.48.0（npm公開前）
+
+`develop` をまとめて公開する候補です。0.47.3〜0.47.6 で `main` にだけ出した変更も含みます。
+
+- 受信箱: 今日決めることの表示と元に戻す（#881）、取得元が使えないときの空表示の誤りの修正（#894）、行の操作の手触り（送信中の停止・成功の表示・読み上げ・`facts`・行内の確認・期限の表示、#898）。
+- 共通UI: 待ち時間の表示（#866）、薄いヘッダーと右詳細パネル（#874）、タブの見た目（#883）、議事録の検索帯（#886・#888）。
+- Canonical Task: `record_kind` と台帳列（#870）。利用側は `docs/releases/unreleased-record-kind.md` の順で、追加の列を先に適用してから取り込みます。
+- リリースノートの下書きの抽出と `docs:check` の延長（#896）、埋め込みの上流エラー本文の記録（#869）。
+- 依存: zod 4（#868）、npm audit の修正（#867・#899）。
+- これらは公開候補の記録であり、npm公開、registry readback、利用側の取り込みは未確認です。
+
+## Candidate — v0.47.2（npm公開前）
+
+共通操作帯と議事録のcompact表示を明示オプションで追加します。既存の検索・権限・保存・取得失敗・空状態の契約を維持し、別ホストのexpanded表示を変更しません。npm公開・利用ホストへの取り込み・本番反映は、この候補記録だけでは確認できません。
+
+## Candidate — v0.47.1（npm公開前）
+
+共通UIのタイトルだけの44px固定ヘッダーと必要時だけ開く右詳細drawerを公開候補に追加します。知識・議事録のdrawer表示は明示オプションで、既存のinline表示やデータ契約は維持します。npm公開・利用ホストへの取り込み・本番反映の完了は、この候補記録だけでは確認できません。
+
+## Candidate — v0.47.0（npm公開前）
+
+- `canonical_tasks` に bot task queue 用の nullable 列 `claimed_by`・`claimed_until`・`status_detail` を追加しました（`ADD COLUMN IF NOT EXISTS`）。`status_detail` の CHECK（started / waiting_for_review / blocked / NULL）、claim の組の CHECK、部分索引 `canonical_tasks_claimed_by_until_idx` を含みます。状態の5値 CHECK と GRANT は変えていません（#861）。
+- 公開CIの正式リリース検証ジョブ `formal-release-validate-linux` を self-hosted runner で実行するようにしました。npm publish ジョブは `ubuntu-latest` のままです（#860）。
+- これらは公開候補の記録であり、consumer検証、npm公開、registry readback、本番反映は未確認です。
+
+## Candidate — v0.46.1（npm公開前）
+
+- Plaud MCP 0.3.12+ が list / transcript 応答を `untrusted-user-data` ブロックで包む形式に対応しました。`payloadOf` で展開し、list の未知形状は空同期にせず失敗します。`listRevision` が 2 未満のときは 30 日分の再一覧を一度だけ行います（#856）。
+- `@modelcontextprotocol/sdk` と `hono` を npm audit 対応の版へ更新しました（#857）。
+- これらは公開候補の記録であり、consumer検証、npm公開、registry readback、本番反映は未確認です。
+
+## Candidate — v0.46.0（npm公開前）
+
+- Canonical Taskの作成と監査を同一DBトランザクションで確定できるよう、`CanonicalTaskRepository.createWithAudit`（任意）と、`CanonicalTaskAuditRepository.supportsTransactionClient` / `upsertAuditLog(entry, { client })` を追加しました。両方の能力が揃う場合だけ同一トランザクションを使い、監査writerが失敗した場合はTaskのINSERTをrollbackして `task_audit_unavailable` を返します。既存の構成の挙動は変わりません。
+- PostgreSQL storeに `createWithAudit` を追加し、BEGIN → Task INSERT → 監査 → COMMIT を同一clientで実行します。失敗時はROLLBACKします。`CANONICAL_TASK_PG_TEST_URL` を指定した統合テストでcommitとrollbackを検証できます。
+- これらは公開候補の記録であり、consumer検証、npm公開、registry readback、本番反映は未確認です。
+
+## Candidate — v0.45.0（npm公開前）
+
+- 今回追加する公開subpathは `./run-receipt-port`、`./meeting-source-mcp-adapters`、`./meeting-source-sync-common-adapter` の3つです。
+- `./run-receipt-port` は `RunReceiptPort` と `assertRunReceiptPort` を提供し、実行記録の保存・照会をホストのportへ差し込めます。`./meeting-source-mcp-adapters` は Tactiq と Plaud のMCP応答を共通の会議ソースへ整形します。`./meeting-source-sync-common-adapter` は会議ソース同期の共通adapter契約を提供します。接続、OAuth、資格情報、保存は利用側のホストが担当します。
+- 既存の `./mesh` を拡張し、`parseMeshEnvelope` を追加しました。既存の封筒・ノード・問い合わせの検査と整形、送信受付の `answer_status: "unknown"` の生成に加え、JSON文字列または値を同じ厳格な境界で検査できます。ネットワーク、認証、暗号、永続化は含みません。
+- 既存の `./routines` を拡張し、3つのAPI（`assertRoutineProductionPorts`、`createRoutineProductionPorts`、`extractRoutinePersonalKgCandidates`）と、`RoutineProductionPorts` の11個のホストport（`reconcile`、`compress`、`buildNightOutput`、`verify`、`recallGraph`、`recallPersonalKg`、`generate`、`recordUsage`、`evaluateMetrics`、`createImprovementCandidates`、`listKnowledgeReviews`）を提供します。前者2つはportの組み立て時検査、後者は会議ごとのPersonal KG候補を `adopted`・`rejected`・`needs_review` に集計します。認証、DB、Personal KGへの昇格、保存、外部送信は利用側のホストが担当します。
+- npm公開、registry readback、consumer確認、本番反映は、候補docsの記載だけでは未確認です。
+
+## Candidate — v0.44.2（npm公開前）
+
+- 世界の通常説明箱を見方と凡例へ移し、都市を選べないときの案内は残します。
+- 空は1つのアイコンボタンで自動・昼・夕方・夜を巡回します。
+- 通知の枠を共通 `workspaceNotificationCard` に統一し、注意はアンバー、重大なエラーは赤で示します。既存の通知・ロード表示も同じ枠を使います。
+- npm公開・組織版の正式依存更新・本番反映は、それぞれ確認が必要です。
+
 ## Released — v0.19.0
 
 目的・保存時点の現状・哲学・世界モデルを同じ範囲で読む共通UIと読み取りAPIを公開しました。共通UIはホストから読取portを受け取り、組織の認証と許可範囲は組織版が担当します。組織版への取込みと本番画面の確認は別の段階です。

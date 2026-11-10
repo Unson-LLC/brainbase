@@ -10,6 +10,10 @@ import { runConsumerSmoke } from './npm-consumer-smoke.mjs';
 const scriptPath = fileURLToPath(import.meta.url);
 const rootDefault = path.resolve(path.dirname(scriptPath), '..');
 export const EXPECTED_PACKAGE_NAME = '@unson/brainbase-mcp';
+export const NPM_PUBLISH_GIT_REF = 'refs/heads/main';
+export const NPM_PUBLISH_WORKFLOW_REF =
+  'Unson-LLC/brainbase/.github/workflows/npm-publish.yml@refs/heads/main';
+export const NPM_PUBLISH_TRUSTED_BRANCH_REF = 'origin/main';
 
 function isDirectInvocation() {
   if (!process.argv[1]) return false;
@@ -72,6 +76,17 @@ export function planRelease(beforeVersion, afterVersion) {
     releaseRequired: compareSemver(afterVersion, beforeVersion) > 0,
     version: afterVersion
   };
+}
+
+export async function isVersionPublishedAtSha(
+  packageName,
+  version,
+  expectedSha,
+  metadata = readNpmMetadata,
+  root = rootDefault
+) {
+  const published = await metadata(packageName, version, root);
+  return Boolean(published && published.gitHead === expectedSha);
 }
 
 function run(command, args, cwd = rootDefault) {
@@ -202,14 +217,16 @@ export function assertPublishedMetadata(metadata, packageName, version, expected
 
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-// Window: 15 attempts with 14 waits (1+2+4+8+16 s backoff, then 9x30 s)
-// wait 301 s in total. The registry packument is served with
+// Window: 24 attempts with 23 waits (1+2+4+8+16 s backoff, then 18x30 s)
+// wait 571 s in total. The registry packument is served with
 // `Cache-Control: max-age=300`
 // (CDN can keep the pre-publish document for up to 300 s), and run
 // 38726775296 saw 0.41.6 appear ~96 s after `npm publish` while the old
-// 8-attempt window (91 s) had already given up. 301 s is just over
-// the 300 s max-age.
-export const NPM_REGISTRY_CONVERGENCE_ATTEMPTS = 15;
+// 8-attempt window (91 s) had already given up. Run 39350202761 then
+// showed that the 15-attempt window (301 s) can still expire before the
+// published version is visible. Keep the retry window below the 15-minute
+// publish-job timeout while allowing delayed registry propagation to settle.
+export const NPM_REGISTRY_CONVERGENCE_ATTEMPTS = 24;
 export const NPM_REGISTRY_CONVERGENCE_MAX_DELAY_MS = 30_000;
 
 export function npmRegistryConvergenceDelays(attempts = NPM_REGISTRY_CONVERGENCE_ATTEMPTS) {
@@ -388,10 +405,11 @@ export async function validateRelease(
   consumerSmoke = runConsumerSmoke
 ) {
   execute('npm', ['run', 'build'], root);
-  // Match the self-hosted CI worker ceiling. This keeps validation's test
-  // target and Vitest decision rules identical while avoiding host-wide
-  // worker multiplication when several jobs share the runner.
-  execute('npm', ['test', '--', '--maxWorkers=4'], root);
+  // Cap validation's Vitest concurrency at 2 workers because the shared
+  // self-hosted runner (EVO-X2) saturates when several jobs run at once,
+  // starving tests until unrelated 5s timeouts fire. Only concurrency
+  // changes; test target, timeout, skip, and pass/fail rules stay identical.
+  execute('npm', ['test', '--', '--maxWorkers=2'], root);
   execute('npm', ['audit', '--omit=dev'], root);
   const artifactDirectory = path.resolve(path.dirname(proofFile));
   const artifact = await createArtifact(root, artifactDirectory, expectedVersion, expectedSha, execute);
@@ -624,17 +642,44 @@ export async function assertSerializedPublicationContext(environment = process.e
   const body = await response.json();
   if (!body || typeof body.value !== 'string') throw new Error('GitHub Actions OIDC response did not contain a token');
   const claims = decodeJwtPayload(body.value);
-  const trustedWorkflowRef = 'Unson-LLC/brainbase/.github/workflows/npm-publish.yml@refs/heads/develop';
+  const trustedWorkflowRef = NPM_PUBLISH_WORKFLOW_REF;
   if (
     claims.iss !== 'https://token.actions.githubusercontent.com' ||
     claims.aud !== audience ||
     claims.repository !== environment.GITHUB_REPOSITORY ||
     String(claims.run_id) !== String(environment.GITHUB_RUN_ID) ||
     claims.workflow_ref !== trustedWorkflowRef ||
-    claims.ref !== 'refs/heads/develop'
+    claims.ref !== NPM_PUBLISH_GIT_REF
   ) {
     throw new Error('GitHub Actions OIDC claims do not match the serialized npm publication workflow');
   }
+}
+
+export async function resolveReleasePlan(
+  beforeRef,
+  afterRef,
+  { root = rootDefault, metadata = readNpmMetadata } = {}
+) {
+  const beforePackage = packageAt(root, beforeRef);
+  const afterPackage = packageAt(root, afterRef);
+  if (beforePackage.name !== EXPECTED_PACKAGE_NAME || afterPackage.name !== EXPECTED_PACKAGE_NAME) {
+    throw new Error(`publication authority is fixed to ${EXPECTED_PACKAGE_NAME}`);
+  }
+  const plan = planRelease(beforePackage.version, afterPackage.version);
+  const sha = gitSha(root, afterRef);
+  let releaseRequired = plan.releaseRequired;
+  if (
+    releaseRequired &&
+    await isVersionPublishedAtSha(EXPECTED_PACKAGE_NAME, plan.version, sha, metadata, root)
+  ) {
+    releaseRequired = false;
+  }
+  return {
+    release_required: releaseRequired,
+    package_name: afterPackage.name,
+    version: plan.version,
+    sha
+  };
 }
 
 async function main(args) {
@@ -643,18 +688,17 @@ async function main(args) {
     const before = option(rest, '--before');
     const after = option(rest, '--after');
     if (!before || !after) throw new Error('Usage: npm-release.mjs plan --before <git-ref> --after <git-ref>');
-    const beforePackage = packageAt(rootDefault, before);
-    const afterPackage = packageAt(rootDefault, after);
-    if (beforePackage.name !== EXPECTED_PACKAGE_NAME || afterPackage.name !== EXPECTED_PACKAGE_NAME) {
-      throw new Error(`publication authority is fixed to ${EXPECTED_PACKAGE_NAME}`);
+    await writeOutputs(await resolveReleasePlan(before, after));
+    return;
+  }
+  if (command === 'already-published') {
+    const version = option(rest, '--version');
+    const expectedSha = option(rest, '--sha');
+    if (!version || !expectedSha) {
+      throw new Error('Usage: npm-release.mjs already-published --version <version> --sha <git-sha>');
     }
-    const plan = planRelease(beforePackage.version, afterPackage.version);
-    await writeOutputs({
-      release_required: plan.releaseRequired,
-      package_name: afterPackage.name,
-      version: plan.version,
-      sha: gitSha(rootDefault, after)
-    });
+    const skip = await isVersionPublishedAtSha(EXPECTED_PACKAGE_NAME, version, expectedSha);
+    process.exitCode = skip ? 0 : 1;
     return;
   }
   if (command === 'validate' || command === 'publish' || command === 'verify') {
@@ -700,7 +744,7 @@ async function main(args) {
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return;
   }
-  throw new Error('Usage: npm-release.mjs <plan|validate|publish|verify>');
+  throw new Error('Usage: npm-release.mjs <plan|already-published|validate|publish|verify>');
 }
 
 if (isDirectInvocation()) {

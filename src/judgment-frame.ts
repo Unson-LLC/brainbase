@@ -46,7 +46,7 @@ const MAX_NOTE = 2_000;
 const MAX_SELECTIONS = 24;
 const MAX_OPTIONS = 8;
 const MAX_USES = 32;
-const MAX_PUBLIC_FRAME_TEXT = 2_000;
+export const MAX_PUBLIC_FRAME_TEXT = 2_000;
 
 /**
  * A caller-provided summary that may be projected to an owner-only history.
@@ -206,7 +206,7 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
-const PUBLIC_FRAME_KEYS = ['summary', 'reason'] as const;
+export const PUBLIC_FRAME_KEYS = ['summary', 'reason'] as const;
 const PUBLIC_FRAME_SECRET_PATTERNS: readonly RegExp[] = [
   /(?:^|[\s([{])Bearer\s+[A-Za-z0-9._~+\/-]{8,}(?=$|[\s)\]}.,;])/iu,
   /\b(?:sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9_-]{16,}|github_pat_[A-Za-z0-9_-]{16,}|xox[baprs]-[A-Za-z0-9-]{16,}|AIza[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16})\b/u,
@@ -219,6 +219,57 @@ const PUBLIC_FRAME_CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/u;
 /** True when text looks like it carries a credential. Shared by public frames and outcome records. */
 export function containsJudgmentFrameCredential(value: string): boolean {
   return PUBLIC_FRAME_SECRET_PATTERNS.some((pattern) => pattern.test(value));
+}
+
+/** True when text carries control characters that must never reach a public projection. */
+export function publicFrameTextHasControlCharacters(value: string): boolean {
+  return PUBLIC_FRAME_CONTROL_CHARACTERS.test(value);
+}
+
+/** The single rejection code every writer uses for an unusable explicit public frame. */
+export type JudgmentPublicFrameRejectionCode = 'frame_public_absent' | 'frame_public_invalid';
+
+export type JudgmentPublicFrameCheck =
+  | { readonly ok: true; readonly frame: JudgmentFramePublicFrame }
+  | { readonly ok: false; readonly code: JudgmentPublicFrameRejectionCode; readonly detail: string };
+
+/**
+ * Validate a standalone explicit public frame with the exact acceptance
+ * boundary enforced inside a frame record: only the `summary`/`reason` keys,
+ * each a non-empty string of at most MAX_PUBLIC_FRAME_TEXT characters, free of
+ * control characters and credential-like values. A missing or empty frame is
+ * reported as `frame_public_absent` so a caller can keep "nothing recorded"
+ * distinct from "recorded but invalid". The value is never trimmed, stripped,
+ * or rewritten; an unusable frame is rejected, not repaired.
+ */
+export function checkJudgmentPublicFrame(value: unknown): JudgmentPublicFrameCheck {
+  if (value === undefined || value === null) {
+    return { ok: false, code: 'frame_public_absent', detail: 'public_frame was not recorded' };
+  }
+  if (!isRecord(value)) {
+    return { ok: false, code: 'frame_public_invalid', detail: 'public_frame must be an object with summary and reason' };
+  }
+  if (Object.keys(value).length === 0) {
+    return { ok: false, code: 'frame_public_absent', detail: 'public_frame was empty' };
+  }
+  for (const key of Object.keys(value)) {
+    if (!PUBLIC_FRAME_KEYS.includes(key as typeof PUBLIC_FRAME_KEYS[number])) {
+      return { ok: false, code: 'frame_public_invalid', detail: `public_frame contains an unknown field: ${key}` };
+    }
+  }
+  for (const key of PUBLIC_FRAME_KEYS) {
+    const candidate = value[key];
+    if (!nonEmpty(candidate, MAX_PUBLIC_FRAME_TEXT)) {
+      return { ok: false, code: 'frame_public_invalid', detail: `${key} must be a non-empty string of at most ${MAX_PUBLIC_FRAME_TEXT} characters` };
+    }
+    if (publicFrameTextHasControlCharacters(candidate)) {
+      return { ok: false, code: 'frame_public_invalid', detail: `${key} contains control characters` };
+    }
+    if (containsJudgmentFrameCredential(candidate)) {
+      return { ok: false, code: 'frame_public_invalid', detail: `${key} contains a credential-like value` };
+    }
+  }
+  return { ok: true, frame: { summary: value.summary as string, reason: value.reason as string } };
 }
 
 function publicFrameRecord(value: JudgmentFrameRecord): Record<string, unknown> {
@@ -428,7 +479,7 @@ export function validateJudgmentFrameRecord(
           issue('frame_public_invalid', `public_frame.${key}`, `${key} must be a non-empty string of at most ${MAX_PUBLIC_FRAME_TEXT} characters`);
           continue;
         }
-        if (PUBLIC_FRAME_CONTROL_CHARACTERS.test(candidate)) {
+        if (publicFrameTextHasControlCharacters(candidate)) {
           issue('frame_public_invalid', `public_frame.${key}`, `${key} contains control characters`);
         }
         if (containsJudgmentFrameCredential(candidate)) {

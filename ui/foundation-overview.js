@@ -7,15 +7,18 @@
  * definitions, and hypotheses visually separate.
  */
 
-import {
+// A new lazy screen must not reuse the pre-loading-stage kit cached by an open tab.
+// The capability query gives this compatible kit its own browser module identity.
+import * as workspaceKit from './workspace-kit.js?capability=loading-stage-v1';
+const {
   workspaceButton,
   workspaceDefinition,
   workspaceLedger,
   workspaceNotice,
   workspacePageHeader,
   workspaceSectionTitle,
-  workspaceHelp, workspaceDialog, workspaceDisclosure, workspaceErrorCard, workspaceLoadingCard, workspaceDismissNotification,
-} from './workspace-kit.js';
+  workspaceHelp, workspaceDialog, workspaceDisclosure, workspaceErrorCard, workspaceLoadingCard, workspaceLoadingStage, workspaceDismissNotification,
+} = workspaceKit;
 
 export const FOUNDATION_OVERVIEW_CONTRACT_VERSION = 'foundation-overview.v1';
 export const FOUNDATION_OVERVIEW_PAGE_SIZE = 50;
@@ -920,7 +923,11 @@ export function renderFoundationOverview(root, state, {
     else surface.append(workspaceErrorCard(doc, notice));
   };
   if (state.status === 'loading') {
-    root.append(surface); renderLoadingState(doc, root, viewState, true, onLoading); return surface;
+    surface.append(workspaceLoadingStage(doc, { title: '目的と現状を準備しています' }));
+    root.append(surface);
+    // The stage says it in the page; close any old floating loading card.
+    renderLoadingState(doc, root, viewState, false, onLoading);
+    return surface;
   }
   if (state.status !== 'ready') {
     notify({ title: '取得失敗', message: `${state.error?.message ?? '目的・哲学・世界モデルを確認できません。'} 登録なし・0件として表示していません。`, onRetry: callbacks.load });
@@ -1002,7 +1009,14 @@ export function renderFoundationCollectionOverview(root, sources, {
     });
     root.append(mount);
   }
-  renderLoadingState(doc, root, viewState, sources.some(source => source.state.status === 'loading'), onLoading);
+  const loading = sources.some(source => source.state.status === 'loading');
+  if (loading && ready === 0) {
+    // The stage says it in the page; close any old floating loading card.
+    renderLoadingState(doc, root, viewState, false, onLoading);
+    root.append(workspaceLoadingStage(doc, { title: '目的と現状を準備しています' }));
+  } else {
+    renderLoadingState(doc, root, viewState, loading, onLoading);
+  }
   return root;
 }
 

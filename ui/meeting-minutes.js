@@ -11,12 +11,17 @@
  * changes what it asks the server for (story-meeting-minutes-list-filters-v1).
  */
 
-import { workspaceCombobox } from './workspace-kit.js';
+// A new lazy screen must not reuse the pre-search-band kit cached by an open tab.
+// The capability query gives this compatible kit its own browser module identity.
+import * as workspaceKit from './workspace-kit.js?capability=search-band-v1';
+const { workspaceActionIcon, workspaceSearchBand, workspaceCompactToolbar, workspaceCombobox, workspaceDetailDrawer } = workspaceKit;
 
 export const MEETING_MINUTES_UI_CONTRACT_VERSION = 'brainbase.meeting-minutes-ui.v1';
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 const TOKYO = 'Asia/Tokyo';
+// The screen chooses 50; the core's independent default remains 100.
+const LIST_PAGE_SIZE = 50;
 const SORTS = Object.freeze([
   { value: 'scheduled-desc', label: '会議の日時が新しい順' },
   { value: 'scheduled-asc', label: '会議の日時が古い順' },
@@ -674,6 +679,8 @@ function appendVersionActionExtensions(doc, section, {
 export function createMeetingMinutesUI({
   root,
   rail = null,
+  detailPresentation = 'inline',
+  toolbarPresentation = 'expanded',
   page = null,
   document: explicitDocument,
   fetcher,
@@ -684,6 +691,10 @@ export function createMeetingMinutesUI({
   meetingConnections,
   meetingParticipants,
   canCreateMeeting,
+  createProjectOptions,
+  createProjectValue,
+  createMeeting,
+  shouldOpenCreatedMeeting,
   createUnavailableReason,
   canEditMinutes,
   hostFilters = [],
@@ -704,6 +715,8 @@ export function createMeetingMinutesUI({
     minutesId: null,
     versionId: null,
     loading: false,
+    nextCursor: null,
+    moreError: null,
     listError: null,
     detailError: null,
     filters: { ...EMPTY_FILTERS },
@@ -716,7 +729,9 @@ export function createMeetingMinutesUI({
     // { meetingId, value, openName } for the 参加者 row (story-meeting-participants-row-v1).
     participants: null,
   };
+  let disposed = false;
   let listRequestGeneration = 0;
+  let seenListCursors = new Set();
   let detailRequestGeneration = 0;
   let createReasonSequence = 0;
   let connectionsSlot = null;
@@ -724,8 +739,14 @@ export function createMeetingMinutesUI({
   let railProjectSlot = null;
   let railProjectMeeting = null;
 
-  const screen = makeElement(doc, 'div', { className: 'bb-minutes-screen', attrs: { 'data-contract-version': MEETING_MINUTES_UI_CONTRACT_VERSION } });
-  const heading = makeElement(doc, 'header', { className: 'bb-minutes-heading' });
+  const searchBand = toolbarPresentation === 'search-band';
+  if (searchBand && typeof workspaceSearchBand !== 'function') {
+    throw new Error('検索帯の共通部品を読み込めませんでした。ページを再読み込みしてください。');
+  }
+  const compact = searchBand || toolbarPresentation === 'compact';
+  const screen = makeElement(doc, 'div', { className: `bb-minutes-screen${compact ? ' bb-minutes-compact bb-ws-neutral-controls' : ''}`, attrs: { 'data-contract-version': MEETING_MINUTES_UI_CONTRACT_VERSION } });
+  if (searchBand) screen.classList.add('bb-minutes-search-band');
+  const heading = makeElement(doc, 'header', { className: 'bb-minutes-heading bb-ws-page-head' });
   heading.append(
     makeElement(doc, 'div', { className: 'bb-minutes-eyebrow', textContent: page?.source ?? '正本の議事録' }),
     makeElement(doc, 'h1', { textContent: '議事録' }),
@@ -742,8 +763,21 @@ export function createMeetingMinutesUI({
     attrs: { 'aria-label': '議事録', tabindex: '-1' },
   });
   const detailPane = makeElement(doc, 'section', { className: 'bb-minutes-detail-pane', attrs: { 'aria-label': '議事録詳細' } });
-  columns.append(listPane, detailPane);
-  screen.append(heading, status, toolbar, columns);
+  let createProjectBox = null;
+  const cleanupCreateProject = () => { createProjectBox?.destroy(); createProjectBox = null; };
+  const detailDrawer = detailPresentation === 'drawer' ? workspaceDetailDrawer(doc, {
+    title: '議事録の詳細', onClose: cleanupCreateProject, opener: () => detailPane.querySelector('.bb-minutes-create-form') ? toolbar.querySelector('.bb-minutes-button.is-primary') : listPane.querySelector('.bb-minutes-meeting-item.is-selected') ?? listPane,
+  }) : null;
+  if (detailDrawer) {
+    if (searchBand) detailDrawer.dialog.classList.add('bb-ws-search-band-drawer');
+    columns.classList.add('bb-minutes-details-in-drawer');
+    columns.append(listPane);
+    const scope = makeElement(doc, 'div', { className: 'bb-minutes-screen bb-minutes-drawer-content' });
+    if (compact) scope.classList.add('bb-ws-neutral-controls');
+    scope.append(detailPane); detailDrawer.setContent(scope);
+  } else columns.append(listPane, detailPane);
+  if (compact) screen.append(heading, toolbar, status, columns);
+  else screen.append(heading, status, toolbar, columns);
   root.replaceChildren(screen);
 
   function filterField(label, control, className = '') {
@@ -753,7 +787,7 @@ export function createMeetingMinutesUI({
   }
 
   function filterCombobox(label, options, value, onChange) {
-    return workspaceCombobox(doc, { label, options, value, className: 'bb-minutes-filter-combobox', onChange });
+    return workspaceCombobox(doc, { label, options, value, showCount: !searchBand, className: 'bb-minutes-filter-combobox', onChange });
   }
 
   const keyword = makeElement(doc, 'input', {
@@ -775,15 +809,14 @@ export function createMeetingMinutesUI({
   const participantField = filterField('参加者', participantBox.root);
   const statusField = filterField('確認の状態', statusBox.root);
   const reset = button(doc, '条件を外す', () => clearFilters(), { className: 'bb-minutes-button bb-minutes-filter-reset' });
-  toolbar.append(
-    filterField('キーワード', keyword, 'is-keyword'),
-    hostSlot,
-    filterField('期間', period, 'is-period'),
-    participantField,
-    statusField,
-    filterField('並べ替え', sortBox.root),
-    reset,
-  );
+  const keywordField = filterField('キーワード', keyword, 'is-keyword');
+  const sortField = filterField('並べ替え', sortBox.root);
+  let compactToolbar = null;
+  if (compact) {
+    const filters = makeElement(doc, 'div', { className: 'bb-minutes-compact-filters' });
+    filters.append(hostSlot, filterField('期間', period, 'is-period'), participantField, statusField);
+    compactToolbar = searchBand ? workspaceSearchBand(doc, { root: toolbar, query: keyword, filters, sort: sortBox, reset, onResetSort: () => { state.sort = SORTS[0].value; renderList(); } }) : workspaceCompactToolbar(doc, { root: toolbar, query: keyword, filters, sort: sortBox, reset });
+  } else toolbar.append(keywordField, hostSlot, filterField('期間', period, 'is-period'), participantField, statusField, sortField, reset);
   const hostBoxes = new Map();
 
   function currentHostFilters() {
@@ -799,16 +832,18 @@ export function createMeetingMinutesUI({
   }
 
   function filtersActive() {
-    return clientFiltersActive() || currentHostFilters().some((filter) => text(filter.value));
+    const local = searchBand ? Object.keys(EMPTY_FILTERS).some(key => key !== 'query' && Boolean(state.filters[key])) : clientFiltersActive();
+    return local || currentHostFilters().some(filter => filter.placement !== 'scope' && (filter.multiple ? filter.values?.length : text(filter.value)));
   }
 
   function clearFilters() {
-    state.filters = { ...EMPTY_FILTERS };
-    keyword.value = '';
+    state.filters = { ...EMPTY_FILTERS, ...(searchBand ? { query: state.filters.query } : {}) };
+    keyword.value = state.filters.query;
     fromInput.value = '';
     toInput.value = '';
     for (const filter of currentHostFilters()) {
-      if (text(filter.value) && typeof filter.onChange === 'function') filter.onChange('');
+      if (searchBand && filter.placement === 'scope') continue;
+      if (typeof filter.onChange === 'function' && (filter.multiple ? filter.values?.length : text(filter.value))) filter.onChange(filter.multiple ? [] : '');
     }
     renderList();
   }
@@ -826,7 +861,11 @@ export function createMeetingMinutesUI({
         const box = workspaceCombobox(doc, {
           label: text(filter.label, id),
           options,
-          value,
+          value, multiple: filter.multiple === true, values: filter.values,
+          renderIcon: filter.renderIcon, showHints: filter.showHints !== false,
+          showCount: searchBand ? false : filter.showCount !== false,
+          align: filter.placement === 'scope' ? 'end' : 'start',
+          searchable: filter.placement === 'scope' ? false : 'auto',
           placeholder: text(filter.placeholder, '選択してください'),
           className: 'bb-minutes-filter-combobox',
           onChange: (next) => {
@@ -837,15 +876,22 @@ export function createMeetingMinutesUI({
         entry = { box, field: filterField(text(filter.label, id), box.root) };
         hostBoxes.set(id, entry);
       }
-      entry.box.update({ options, value, disabled: filter.disabled === true });
+      entry.box.update({ options, value, values: filter.values, disabled: filter.disabled === true });
     }
     for (const [id, entry] of hostBoxes) {
       if (seen.has(id)) continue;
       entry.box.destroy();
       hostBoxes.delete(id);
     }
-    hostSlot.replaceChildren(...hosts.map((filter) => hostBoxes.get(text(filter.id)).field));
-    hostSlot.hidden = hosts.length === 0;
+    const inlineHosts = hosts.filter(filter => !searchBand || filter.placement !== 'scope');
+    const scopeHosts = searchBand ? hosts.filter(filter => filter.placement === 'scope') : [];
+    const reconcile = (parent, children) => {
+      if (!parent) return;
+      if (children.length !== parent.children.length || children.some((child, index) => parent.children[index] !== child)) parent.replaceChildren(...children);
+    };
+    reconcile(hostSlot, inlineHosts.map(filter => hostBoxes.get(text(filter.id)).field));
+    reconcile(compactToolbar?.scopeSlot, scopeHosts.map(filter => hostBoxes.get(text(filter.id)).box.root));
+    hostSlot.hidden = inlineHosts.length === 0;
 
     // Offer only the conditions the loaded records can answer (P9).
     const participants = [...new Set(meetings.flatMap(participantsOf))]
@@ -862,6 +908,8 @@ export function createMeetingMinutesUI({
     statusField.hidden = !hasStates;
     sortBox.update({ value: state.sort });
     reset.hidden = !filtersActive();
+    compactToolbar?.setFiltered(filtersActive());
+    compactToolbar?.setSorted?.(state.sort !== SORTS[0].value);
   }
 
   function clock() {
@@ -877,6 +925,7 @@ export function createMeetingMinutesUI({
   function setStatus(message, kind = '') {
     status.textContent = message;
     status.className = `bb-minutes-status${kind ? ` is-${kind}` : ''}`;
+    status.hidden = compact && kind !== 'error' && (/^(?:(?:\d+件の会議|会議詳細)を読み込みました。|まだ議事録はありません。)$/.test(message) || (Boolean(detailDrawer) && message === '会議詳細を読み込んでいます。'));
   }
 
   async function call(path, init = {}) {
@@ -904,7 +953,7 @@ export function createMeetingMinutesUI({
     });
   }
 
-  function clear(node) { node.replaceChildren(); return node; }
+  function clear(node) { if (node === detailPane) cleanupCreateProject(); node.replaceChildren(); return node; }
 
   function canCreate() {
     if (typeof canCreateMeeting === 'function') {
@@ -1406,12 +1455,25 @@ export function createMeetingMinutesUI({
     return item;
   }
 
+  function appendMore(parent) {
+    if (!state.nextCursor) return;
+    if (state.moreError) {
+      parent.append(makeElement(doc, 'p', {
+        className: 'bb-minutes-error', textContent: state.moreError, attrs: { role: 'alert' },
+      }));
+      parent.append(button(doc, '一覧を再読み込み', () => loadMeetings({ restoreFocus: true })));
+    }
+    parent.append(button(doc, state.loading ? '読み込んでいます。' : 'もっと見る', () => loadMeetings({ append: true }), {
+      disabled: state.loading,
+    }));
+  }
+
   function renderList() {
     clear(listPane);
     const head = makeElement(doc, 'div', { className: 'bb-minutes-pane-head' });
     const meetings = state.meetings.filter((entry) => isRecord(entry?.meeting) && typeof entry.meeting.meeting_id === 'string');
     renderToolbar(meetings);
-    const visible = sortMeetings(meetings.filter((entry) => matchesFilters(entry, state.filters)), state.sort);
+    const visible = sortMeetings(meetings.filter(entry => matchesFilters(entry, state.filters) && currentHostFilters().every(filter => typeof filter.matches !== 'function' || filter.matches(entry, filter.multiple ? filter.values ?? [] : filter.value))), state.sort);
     if (canCreate()) {
       head.append(button(doc, '会議を作成', () => renderCreateForm(), { className: 'bb-minutes-button is-primary' }));
     } else {
@@ -1420,9 +1482,19 @@ export function createMeetingMinutesUI({
     const narrowed = clientFiltersActive();
     head.append(makeElement(doc, 'p', {
       className: 'bb-minutes-sort-note',
-      textContent: narrowed ? `${meetings.length}件中${visible.length}件` : `${meetings.length}件`,
+      textContent: `${narrowed ? `${meetings.length}件中${visible.length}件` : `${meetings.length}件`}${state.nextCursor ? '（続きあり・絞り込みは読込済みの会議が対象）' : ''}`,
     }));
-    listPane.append(head);
+    if (compactToolbar) {
+      const create = head.querySelector('button');
+      if (create) create.append(workspaceActionIcon(doc, 'plus'));
+      const reason = head.querySelector('.bb-minutes-create-reason');
+      if (reason) {
+        head.setAttribute('tabindex', '0'); head.setAttribute('role', 'group');
+        head.setAttribute('aria-label', '会議を作成'); head.setAttribute('aria-describedby', reason.getAttribute('id'));
+        head.setAttribute('title', reason.textContent);
+      }
+      compactToolbar.primary.replaceChildren(head);
+    } else listPane.append(head);
     if (state.listError) {
       appendLoadError(listPane, `会議一覧を読み込めませんでした。理由: ${state.listError}`, () => loadMeetings({ restoreFocus: true }));
     }
@@ -1434,36 +1506,41 @@ export function createMeetingMinutesUI({
           ? '条件に合う会議はありません。'
           : 'まだ議事録はありません。会議を取り込むと、ここに新しい順で並びます。',
       }));
-      if (filtersActive()) listPane.append(button(doc, '条件を外す', () => clearFilters()));
+      if (filtersActive() && !compact) listPane.append(button(doc, '条件を外す', () => clearFilters()));
+      appendMore(listPane);
       return;
     }
     if (visible.length === 0) {
-      listPane.append(makeElement(doc, 'p', { className: 'bb-minutes-empty', textContent: '条件に合う会議はありません。' }));
-      listPane.append(button(doc, '条件を外す', () => clearFilters()));
+      listPane.append(makeElement(doc, 'p', { className: 'bb-minutes-empty', textContent: state.nextCursor ? '読み込んだ会議に条件に合うものはありません。' : '条件に合う会議はありません。' }));
+      if (!compact) listPane.append(button(doc, '条件を外す', () => clearFilters()));
+      appendMore(listPane);
       return;
     }
     const list = makeElement(doc, 'div', { className: 'bb-minutes-meeting-list' });
-    if (state.sort === 'updated-desc') {
+    if (state.sort === 'updated-desc' && !compact) {
       for (const entry of visible) list.append(renderMeetingRow(entry, { flat: true }));
       listPane.append(list);
+      appendMore(listPane);
       return;
     }
+    const updatedOrder = compact && state.sort === 'updated-desc';
     const today = clock();
     let currentKey = null;
     for (const entry of visible) {
       const timing = meetingTiming(entry);
-      if (timing.kind === 'unregistered') continue;
-      const key = dateKey(timing.date);
+      const undated = timing.kind === 'unregistered';
+      if (undated && !updatedOrder) continue;
+      const key = undated ? 'unregistered' : dateKey(timing.date);
       if (key !== currentKey) {
         currentKey = key;
         list.append(makeElement(doc, 'h3', {
           className: 'bb-minutes-date-heading',
-          textContent: dayHeading(timing.date, today),
+          textContent: undated ? '会議の日時が未登録' : dayHeading(timing.date, today),
         }));
       }
       list.append(renderMeetingRow(entry));
     }
-    const unregistered = visible.filter((entry) => meetingTiming(entry).kind === 'unregistered');
+    const unregistered = updatedOrder ? [] : visible.filter((entry) => meetingTiming(entry).kind === 'unregistered');
     if (unregistered.length) {
       list.append(makeElement(doc, 'h3', {
         className: 'bb-minutes-date-heading',
@@ -1472,6 +1549,7 @@ export function createMeetingMinutesUI({
       for (const entry of unregistered) list.append(renderMeetingRow(entry));
     }
     listPane.append(list);
+    appendMore(listPane);
   }
 
   function renderRail(version, documentRecord, meeting) {
@@ -1750,6 +1828,7 @@ export function createMeetingMinutesUI({
   }
 
   function renderDetail(detail, documentRecord = null, selectedVersion = null) {
+    detailDrawer?.setTitle?.('議事録の詳細');
     clear(detailPane);
     connectionsSlot = null;
     participantsSlot = null;
@@ -1827,13 +1906,25 @@ export function createMeetingMinutesUI({
   }
 
   function renderCreateForm() {
+    detailDrawer?.setTitle?.('会議を作成');
+    detailRequestGeneration += 1;
+    detailDrawer?.open();
     clear(detailPane);
     if (!canCreate()) {
       renderCreateUnavailable();
       return;
     }
     const form = makeElement(doc, 'form', { className: 'bb-minutes-create-form' });
-    form.append(makeElement(doc, 'h2', { textContent: '会議を作成' }), makeElement(doc, 'p', { className: 'bb-minutes-item-meta', textContent: '外部サービスを接続しなくても、会議と議事録を保存できます。' }));
+    form.append(makeElement(doc, 'h2', { textContent: '会議を作成' }));
+    const projectOptions = typeof createProjectOptions === 'function' ? createProjectOptions() : null;
+    const initialProject = typeof createProjectValue === 'function' ? createProjectValue() : '';
+    let projectCode = Array.isArray(projectOptions) && projectOptions.some(option => option.value === initialProject) ? initialProject : '';
+    const projectError = makeElement(doc, 'p', { className: 'bb-minutes-warning', attrs: { role: 'alert' } }); projectError.hidden = true;
+    if (Array.isArray(projectOptions)) {
+      createProjectBox = workspaceCombobox(doc, { label: 'プロジェクト', options: [{ value: '', label: 'プロジェクトを選択' }, ...projectOptions], value: projectCode,
+        showCount: false, searchable: true, onChange: value => { projectCode = value; projectError.hidden = true; } });
+      form.append(filterField('プロジェクト', createProjectBox.root), projectError);
+    }
     const title = labelInput(doc, '会議名', { name: 'title', placeholder: '例: 週次定例' });
     const date = labelInput(doc, '日時（任意）', { type: 'datetime-local', name: 'scheduled_at' });
     const participants = labelInput(doc, '参加者（任意・カンマ区切り）', { name: 'participant_ids' });
@@ -1841,6 +1932,7 @@ export function createMeetingMinutesUI({
     const body = labelInput(doc, '本文（任意）', { type: 'textarea', name: 'initial_body', placeholder: '会議の本文を入力' });
     body.input.rows = 8;
     const save = makeElement(doc, 'button', { className: 'bb-minutes-button is-primary', textContent: '会議を保存', type: 'submit' });
+    title.input.required = true;
     form.append(title.wrapper, date.wrapper, participants.wrapper, minutesTitle.wrapper, body.wrapper, save);
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -1850,6 +1942,10 @@ export function createMeetingMinutesUI({
         renderCreateUnavailable();
         return;
       }
+      if (Array.isArray(projectOptions) && !projectOptions.some(option => option.value === projectCode)) {
+        projectError.textContent = 'プロジェクトを選択してください。'; projectError.hidden = false;
+        createProjectBox?.trigger.focus({ preventScroll: true }); return;
+      }
       save.disabled = true;
       try {
         const scheduledAt = date.input.value ? new Date(date.input.value).toISOString() : undefined;
@@ -1857,14 +1953,17 @@ export function createMeetingMinutesUI({
           title: title.input.value,
           ...(scheduledAt ? { scheduled_at: scheduledAt } : {}),
           participant_ids: participants.input.value.split(',').map((value) => value.trim()).filter(Boolean),
-          minutes_title: minutesTitle.input.value,
+          ...(minutesTitle.input.value.trim() ? { minutes_title: minutesTitle.input.value } : {}),
           initial_body: body.input.value,
         };
-        const created = await mutate('', payload);
+        const created = typeof createMeeting === 'function' && Array.isArray(projectOptions) ? await createMeeting(payload, projectCode) : await mutate('', payload);
         const id = created?.meeting?.meeting_id;
         setStatus('会議を保存しました。', 'success');
         await loadMeetings();
-        if (typeof id === 'string') await loadDetail(id);
+        if (typeof id === 'string') {
+          if (typeof shouldOpenCreatedMeeting !== 'function' || shouldOpenCreatedMeeting(created, projectCode) !== false) await loadDetail(id);
+          else { detailDrawer?.close(); renderDetail(null); if (!state.listError) setStatus('会議を保存しました。', 'success'); }
+        }
       } catch (error) {
         save.disabled = false;
         setStatus(error instanceof Error ? error.message : '会議を保存できませんでした。', 'error');
@@ -1873,20 +1972,33 @@ export function createMeetingMinutesUI({
     detailPane.append(form);
   }
 
-  async function loadMeetings({ restoreFocus = false } = {}) {
+  async function loadMeetings({ restoreFocus = false, quiet = false, append = false } = {}) {
+    if (append && (state.loading || !state.nextCursor)) return state.meetings;
     const requestGeneration = ++listRequestGeneration;
-    const isCurrentRequest = () => requestGeneration === listRequestGeneration;
+    const isCurrentRequest = () => !disposed && requestGeneration === listRequestGeneration;
     state.loading = true;
-    setStatus('会議一覧を読み込んでいます。');
+    state.moreError = null;
+    if (append) renderList();
+    if (!quiet) setStatus('会議一覧を読み込んでいます。');
     try {
-      const payload = await call('');
+      const cursor = append ? state.nextCursor : null;
+      const payload = await call(`?limit=${LIST_PAGE_SIZE}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`);
       if (!isCurrentRequest()) return state.meetings;
       if (!isRecord(payload) || !Array.isArray(payload.meetings) || payload.absence_confirmed !== true) throw new Error('会議一覧の形式を確認できません。');
-      state.meetings = sortMeetings(payload.meetings);
+      if (payload.meetings.some(entry => !isRecord(entry?.meeting) || typeof entry.meeting.meeting_id !== 'string' || !entry.meeting.meeting_id.trim())) throw new Error('会議一覧の形式を確認できません。');
+      if (payload.next_cursor != null && (typeof payload.next_cursor !== 'string' || !payload.next_cursor.trim())) throw new Error('会議一覧の続きの形式を確認できません。');
+      const next = payload.next_cursor ?? null;
+      if (next && (next === cursor || (append && seenListCursors.has(next)))) throw new Error('会議一覧の続きが進みません。再読み込みしてください。');
+      const entries = append ? [...state.meetings, ...payload.meetings] : payload.meetings;
+      const unique = new Map(entries.map(entry => [entry?.meeting?.meeting_id, entry]));
+      state.meetings = sortMeetings([...unique.values()]);
+      state.nextCursor = next;
+      if (!append) seenListCursors = new Set();
+      if (next) seenListCursors.add(next);
       state.listError = null;
       const selectedMeetingStillListed = state.meetingId !== null
         && state.meetings.some((entry) => entry?.meeting?.meeting_id === state.meetingId);
-      if (state.meetingId !== null && !selectedMeetingStillListed) {
+      if (state.meetingId !== null && !selectedMeetingStillListed && !append) {
         detailRequestGeneration += 1;
         state.detail = null;
         state.meetingId = null;
@@ -1905,10 +2017,17 @@ export function createMeetingMinutesUI({
     } catch (error) {
       if (!isCurrentRequest()) return state.meetings;
       state.listError = loadErrorMessage(error, '会議一覧を読み込めませんでした。');
+      if (append && !isAccessDenied(error)) {
+        state.moreError = loadErrorMessage(error, '続きの会議を読み込めませんでした。');
+        state.listError = null;
+        setStatus(state.moreError, 'error');
+        return state.meetings;
+      }
       const preserve = preserveLoadedStateOnFailure(error);
       const hadDetail = Boolean(state.detail) || state.meetingId !== null;
       if (!preserve) {
         state.meetings = [];
+        state.nextCursor = null;
         if (hadDetail) {
           detailRequestGeneration += 1;
           state.detail = null;
@@ -1922,14 +2041,17 @@ export function createMeetingMinutesUI({
       if (!preserve && hadDetail) renderDetail(null);
       setStatus(state.listError, 'error');
     } finally {
-      if (isCurrentRequest()) state.loading = false;
+      if (isCurrentRequest()) { state.loading = false; renderList(); }
     }
     return state.meetings;
   }
 
   async function loadDetail(meetingId) {
+    if (disposed) return null;
+    cleanupCreateProject();
+    detailDrawer?.open();
     const requestGeneration = ++detailRequestGeneration;
-    const isCurrentRequest = () => requestGeneration === detailRequestGeneration
+    const isCurrentRequest = () => !disposed && requestGeneration === detailRequestGeneration
       && state.meetingId === meetingId;
     state.meetingId = meetingId;
     state.minutesId = null;
@@ -1938,6 +2060,7 @@ export function createMeetingMinutesUI({
     state.withdrawingMinutesId = null;
     renderList();
     setStatus('会議詳細を読み込んでいます。');
+    if (detailDrawer) detailPane.replaceChildren(makeElement(doc, 'p', { attrs: { role: 'status' }, textContent: '会議詳細を読み込んでいます。' }));
     try {
       const detail = await call(`/${encodeURIComponent(meetingId)}`);
       if (!isCurrentRequest()) return state.detail;
@@ -1970,6 +2093,14 @@ export function createMeetingMinutesUI({
     contractVersion: MEETING_MINUTES_UI_CONTRACT_VERSION,
     refresh: loadMeetings,
     openMeeting: loadDetail,
+    destroy() {
+      disposed = true; listRequestGeneration += 1; detailRequestGeneration += 1;
+      cleanupCreateProject();
+      detailDrawer?.dispose();
+      compactToolbar?.destroy();
+      participantBox.destroy(); statusBox.destroy(); sortBox.destroy();
+      for (const entry of hostBoxes.values()) entry.box.destroy();
+    },
     state,
   };
 }

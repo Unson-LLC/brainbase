@@ -278,6 +278,76 @@ describe('destination navigation (ledger D10, 2026-10-17 revision)', () => {
     expect(text(heading('project'))).toBe('プロジェクト');
   });
 
+  it('keeps heading DOM and behavior unchanged when section decoration is omitted or null', () => {
+    const plain = buildDestinations();
+    const empty = buildDestinations({ sectionIconFor: () => null, sectionLinkClassName: '' });
+    for (const { nav } of [plain, empty]) {
+      nav.show('projects').setCount('tasks', 2, { waiting: true });
+      nav.setLinks('project', [{ id: 'sample', label: 'Sample', href: '#sample' }]);
+    }
+    expect(empty.shape()).toEqual(plain.shape());
+    for (const { group, heading } of [plain, empty]) {
+      expect(heading('project').className).toBe('bb-area-section-label bb-area-section-link');
+      expect(heading('project').textContent).toBe('プロジェクト');
+      expect(heading('project').children).toEqual([]);
+      expect(group('project').attributes['aria-label']).toBe('プロジェクト');
+    }
+    plain.nav.setHidden('projects', true);
+    empty.nav.setHidden('projects', true);
+    expect(empty.shape()).toEqual(plain.shape());
+    expect(empty.heading('project').tagName).toBe('DIV');
+  });
+
+  it('keeps a decorative section icon and host link class through navigation updates', () => {
+    const icon = doc.createElement('svg');
+    const decoratedSections = [];
+    const { nav, heading, group, selected, linkSelections, linksIn } = buildDestinations({
+      sectionIconFor: (section) => {
+        decoratedSections.push(section.id);
+        return section.id === 'project' ? icon : null;
+      },
+      sectionLinkClassName: 'sample-heading-link',
+      linkClassName: 'sample-area-link',
+    });
+    const link = heading('project');
+    const decoration = link.children[0];
+    expect(link.className).toBe('bb-area-section-label bb-area-section-link sample-heading-link');
+    expect(decoration.className).toBe('bb-area-section-icon');
+    expect(decoration.attributes['aria-hidden']).toBe('true');
+    expect(decoration.children).toEqual([icon]);
+    expect(link.children[1].className).toBe('bb-area-link-label');
+    expect(text(link.children[1])).toBe('プロジェクト');
+    expect(group('project').attributes['aria-label']).toBe('プロジェクト');
+    expect(heading('meetings').className).toBe('bb-area-section-label');
+    const initialCalls = [...decoratedSections];
+
+    nav.show('projects').setCount('tasks', 3, { waiting: true });
+    nav.setLinks('project', [{ id: 'sample', label: 'Sample', href: '#sample', current: true }]);
+    expect(heading('project')).toBe(link);
+    expect(link.attributes['aria-current']).toBe('page');
+    const extraLink = linksIn(group('project')).find((entry) => entry.attributes['data-link'] === 'sample');
+    expect(extraLink.className).toBe('bb-area-link sample-area-link');
+    expect(extraLink.attributes['aria-current']).toBe('page');
+    extraLink.click();
+    expect(linkSelections).toEqual(['sample']);
+    link.click();
+    expect(selected).toEqual(['projects']);
+
+    nav.setHidden('projects', true);
+    expect(link.hidden).toBe(true);
+    expect(link.attributes.href).toBeUndefined();
+    expect(link.attributes['aria-current']).toBeUndefined();
+    expect(heading('project').tagName).toBe('DIV');
+    expect(heading('project').children).toEqual([]);
+    nav.setHidden('projects', false).show('company-os').setLinks('project', []);
+    expect(heading('project')).toBe(link);
+    expect(link.children[0]).toBe(decoration);
+    expect(decoration.children[0]).toBe(icon);
+    expect(link.attributes.href).toBe('?screen=projects');
+    expect(link.attributes['aria-current']).toBeUndefined();
+    expect(decoratedSections).toEqual(initialCalls);
+  });
+
   it('puts the caller\'s links at the top of a section, and removes them again (AC-03)', () => {
     const { nav, group, linksIn, linkSelections } = buildDestinations();
     nav.setLinks('project', [

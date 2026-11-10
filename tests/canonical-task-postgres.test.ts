@@ -10,6 +10,7 @@ const persisted = {
   title: 'PostgreSQL Task',
   description: null,
   status: 'pending',
+  record_kind: 'work',
   priority: 'medium',
   project_codes: ['mana', 'brainbase'],
   purpose_label: null,
@@ -43,8 +44,81 @@ function repository(pool: CanonicalTaskPgPool, options: Partial<ConstructorParam
 }
 
 describe('CanonicalTaskPostgresRepository', () => {
+  it.each([undefined, 'work'])('omits record_kind from a work INSERT (%s)', async (recordKind) => {
+    const query = vi.fn().mockResolvedValue({ rows: [persisted] });
+    await repository({ query }).create({ ...persisted, record_kind: recordKind });
+    const sql = query.mock.calls[0][0];
+    expect(sql).toMatch(/^INSERT INTO canonical_tasks/);
+    expect(sql.slice(0, sql.indexOf('VALUES'))).not.toMatch(/\brecord_kind\b/);
+  });
+
+  it.each(['request', 'requirement'])('includes record_kind in a %s INSERT', async (recordKind) => {
+    const query = vi.fn().mockResolvedValue({ rows: [{ ...persisted, record_kind: recordKind }] });
+    await repository({ query }).create({ ...persisted, record_kind: recordKind });
+    expect(query.mock.calls[0][0].split('VALUES')[0]).toMatch(/\brecord_kind\b/);
+    expect(query.mock.calls[0][1]).toContain(recordKind);
+  });
+
+  it.each([undefined, null, 'future-kind'])('normalizes unknown record_kind %s with a warning', (recordKind) => {
+    const normalized = repository({ query: vi.fn() }).normalize({ ...persisted, record_kind: recordKind });
+    expect(normalized).toMatchObject({ record_kind: 'unknown', ledger_agreed: null, ledger_attributes: null });
+    expect(normalized?.normalization_warnings).toContainEqual(expect.objectContaining({ code: 'unknown_record_kind' }));
+  });
+
+  it.each([false, true])('preserves ledger agreement %s and attributes on read', (agreed) => {
+    const normalized = repository({ query: vi.fn() }).normalize({
+      ...persisted, record_kind: 'requirement', ledger_agreed: agreed, ledger_attributes: { basis: 'Decision' },
+    });
+    expect(normalized).toMatchObject({ record_kind: 'requirement', ledger_agreed: agreed, ledger_attributes: { basis: 'Decision' } });
+    expect(normalized?.normalization_warnings).not.toContainEqual(expect.objectContaining({ code: 'unknown_record_kind' }));
+  });
+
+  it.each(['request', 'requirement', null, 'future-kind'])('atomically refuses general updates of record_kind %s', async (recordKind) => {
+    const query = vi.fn().mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ ...persisted, record_kind: recordKind }] });
+    const repo = repository({ query });
+    await expect(repo.update(repo.encodeTaskId(persisted), { title: 'Blocked', version: 2 }))
+      .rejects.toMatchObject({ code: 'ledger_record_use_ledger_api', status: 409 });
+    expect(query.mock.calls[0][0]).toContain("AND record_kind = 'work'");
+    expect(query.mock.calls[0][0]).toContain('AND version =');
+  });
+
+  it.each(['request', 'requirement', null, 'future-kind'])('atomically refuses general deletes of record_kind %s', async (recordKind) => {
+    const query = vi.fn().mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ ...persisted, record_kind: recordKind }] });
+    const repo = repository({ query });
+    await expect(repo.delete(repo.encodeTaskId(persisted), 1))
+      .rejects.toMatchObject({ code: 'ledger_record_use_ledger_api', status: 409 });
+    expect(query.mock.calls[0][0]).toContain("AND record_kind = 'work'");
+    expect(query.mock.calls[0][0]).toContain('AND version = $2');
+  });
+
   it('marks durable persistence as requiring a readiness binding', () => {
     expect(repository({ query: vi.fn() }).requiresReadiness).toBe(true);
+  });
+
+  it('runs create and audit in one transaction and rolls back when the audit fails', async () => {
+    const statements: string[] = [];
+    const clientQuery = vi.fn(async (text: string) => {
+      statements.push(text.trim().split(/\s+/)[0].toUpperCase());
+      return text.startsWith('INSERT INTO canonical_tasks') ? { rows: [persisted] } : { rows: [] };
+    });
+    const pool: CanonicalTaskPgPool = {
+      query: vi.fn(),
+      connect: vi.fn().mockResolvedValue({ query: clientQuery, release: vi.fn() }),
+    };
+    const repo = repository(pool);
+
+    await repo.createWithAudit({ ...persisted }, async (_task, client) => {
+      await client.query('SELECT 1 FROM audit_table');
+    });
+    expect(statements).toEqual(['BEGIN', 'INSERT', 'SELECT', 'COMMIT']);
+
+    statements.length = 0;
+    await expect(repo.createWithAudit({ ...persisted }, async () => {
+      throw new Error('audit unavailable');
+    })).rejects.toThrow('audit unavailable');
+    expect(statements).toEqual(['BEGIN', 'INSERT', 'ROLLBACK']);
   });
 
   it('normalizes cancelled tasks and signs IDs to one store identity', () => {
@@ -218,6 +292,7 @@ describe('CanonicalTaskPostgresRepository', () => {
     expect(clientQuery.mock.calls[1][0]).toContain('FOR UPDATE');
     expect(clientQuery.mock.calls[2][0]).toContain('UPDATE canonical_tasks');
     expect(clientQuery.mock.calls[2][0]).toContain('AND version =');
+    expect(clientQuery.mock.calls[2][0]).toContain("AND record_kind = 'work'");
     expect(clientQuery.mock.calls.at(-1)?.[0]).toBe('COMMIT');
   });
 

@@ -35,7 +35,7 @@
 
 .bb-world-hud-line strong {
   flex: none;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
   color: var(--bb-color-eyebrow);
 }
 
@@ -131,7 +131,7 @@
 }
 
 .bb-world-label.is-city {
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
   font-size: 13px;
 }
 
@@ -188,7 +188,7 @@
 
 .bb-world-entrance-note.is-check {
   color: #8a5a00;
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-world-entrance-note.is-muted {
@@ -200,20 +200,20 @@
   background: transparent;
   border: 0;
   font-size: 15px;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
   letter-spacing: 0.08em;
   color: var(--bb-color-muted);
 }
 
 .bb-world-label.is-plaza {
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
   background: var(--bb-color-rail);
   color: var(--bb-color-rail-strong);
   border-color: var(--bb-color-rail-border);
 }
 
 .bb-world-label.is-street {
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
   background: #2f6e4f;
   border-color: #255a40;
   color: #ffffff;
@@ -227,7 +227,7 @@
 }
 
 .bb-world-label.is-change {
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
   background: #fff4d6;
   border-color: #e0a526;
   color: #6b4a00;
@@ -249,7 +249,7 @@
 
 .bb-world-growth-since {
   margin: 8px 0 2px;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-world-growth-changes li {
@@ -277,7 +277,7 @@
 .bb-world-label.is-judgment.is-waiting {
   border-color: #d92335;
   color: #a1192a;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-world-rail-list {
@@ -301,7 +301,7 @@
 .bb-world-label.is-selected {
   border-color: var(--bb-color-accent);
   box-shadow: 0 0 0 2px rgb(8 125 98 / 18%);
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-world-label.is-engagement.is-finished {
@@ -330,7 +330,7 @@
 
 .bb-world-label.is-hall {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
   color: var(--bb-color-accent-strong);
 }
 
@@ -357,6 +357,25 @@
   display: none;
 }
 
+/* RQ-006: the header sky switch is an icon button. The icon reuses the canvas
+   artwork, so its SVG needs the same explicit size or it would balloon and
+   break the header (the canvas rule only targets .bb-world-canvas-sky-icon). */
+.bb-world-sky {
+  display: inline-grid;
+  place-items: center;
+}
+
+.bb-world-sky-icon {
+  display: inline-flex;
+  line-height: 1;
+}
+
+.bb-world-sky-icon svg {
+  display: block;
+  width: 23px;
+  height: 23px;
+}
+
 .bb-world-chip.is-work-waiting::before { background: #7a6a9e; }
 .bb-world-chip.is-work-in_progress::before { background: #2f7d86; }
 .bb-world-chip.is-work-pending::before { background: #8d979e; }
@@ -370,7 +389,7 @@
   padding: 0 6px;
   border-radius: 999px;
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1.5;
 }
 
@@ -448,7 +467,7 @@
 }
 
 .bb-world-link-mark {
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
   color: #1261ad;
 }
 
@@ -554,7 +573,7 @@
 
 .bb-world-district-legend summary {
   cursor: pointer;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-world-district-legend ul {
@@ -621,7 +640,7 @@
 }
 
 .bb-world-exit-label {
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
   overflow-wrap: anywhere;
 }
 
@@ -652,7 +671,7 @@
 .bb-world-exits-unreadable {
   display: block;
   color: var(--bb-color-warning);
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-world-fallback-exits {
@@ -661,10 +680,76 @@
 
 .bb-world-label.is-exit {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-world-label.is-exit.is-available { border-color: #e0c27a; }
 .bb-world-label.is-exit.is-restricted { border-color: #e3a1a7; color: #a1192a; }
 .bb-world-label.is-exit.is-unknown,
 .bb-world-label.is-exit.is-unavailable { color: var(--bb-color-muted); }
+
+/* Standard presentation help stays above both world and district canvases. */
+.bb-world-legend-toggle {
+  position: absolute;
+  right: var(--bb-space-3);
+  z-index: 6;
+  color: var(--bb-color-ink);
+  background: var(--bb-color-panel);
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-sm);
+  top: var(--bb-space-3);
+  width: 40px;
+  height: 40px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.bb-world-legend-panel {
+  position: absolute;
+  right: var(--bb-space-3);
+  z-index: 6;
+  color: var(--bb-color-ink);
+  background: var(--bb-color-panel);
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-sm);
+  top: calc(var(--bb-space-3) + 48px);
+  width: min(440px, calc(100% - 2 * var(--bb-space-3)));
+  box-sizing: border-box;
+  max-height: calc(100% - 72px);
+  overflow: auto;
+  padding: var(--bb-space-3);
+}
+
+.bb-world-legend-panel p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--bb-color-ink);
+}
+
+.bb-world-legend-panel[hidden] { display: none; }
+
+.bb-world-legend-panel .bb-world-legend {
+  position: static;
+  inset: auto;
+  margin-top: var(--bb-space-3);
+}
+
+.bb-world-legend-toggle:focus-visible,
+.bb-world-legend-panel:focus-visible {
+  outline: 2px solid var(--bb-color-accent);
+  outline-offset: 2px;
+}
+/* No help animation: opening and closing also respects reduced motion. */
+
+.bb-world-stage.is-fallback {
+  height: auto;
+  min-height: 360px;
+  padding: 60px var(--bb-space-3) var(--bb-space-3);
+}
+
+/* Notices must reserve their full height before the list, including wrapped text. */
+.bb-world-stage.is-fallback .bb-world-hud {
+  position: static;
+  max-width: none;
+}

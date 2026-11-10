@@ -1,0 +1,9 @@
+
+ RUN  v4.1.8 /workspace/bbline-bb
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  10:09:42
+   Duration  617ms (transform 67ms, setup 0ms, import 91ms, tests 313ms, environment 0ms)
+
