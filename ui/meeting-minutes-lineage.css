@@ -12,9 +12,7 @@
 .bb-mml-title {
   margin: 0;
   color: var(--bb-color-ink, #17202a);
-  font-size: var(--bb-page-title-font-size);
-  font-weight: var(--bb-page-title-font-weight);
-  line-height: var(--bb-page-title-line-height);
+  font-size: 18px;
 }
 
 .bb-mml-evidence,

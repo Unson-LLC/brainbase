@@ -987,7 +987,7 @@ export function renderObjectiveEditor(root, state, callbacks = {}) {
   const copy = makeElement('div', { className: 'objective-editor-header-copy bb-ws-page-copy' });
   const guide = workspaceHelp(getDocument(), { label: '目的と評価基準', text: '現状の理解（観測や仮説）とは分けて扱います。' });
   guide.className += ' is-page-guide';
-  guide.children[0].textContent = '?';
+  guide.children[0].textContent = '？';
   append(copy,
     makeElement('h1', { text: '目的と評価基準' }),
     makeElement('p', { text: '目指す状態と評価基準を、版つきで編集・確認します。' }),
