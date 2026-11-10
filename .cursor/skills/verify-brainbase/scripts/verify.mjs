@@ -4,16 +4,21 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { dirname, join, relative, resolve } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/sdk/client/stdio.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../../..');
-assert.equal(process.argv.length, 3, 'Usage: node .cursor/skills/verify-brainbase/scripts/verify.mjs NEW_EVIDENCE_DIRECTORY');
+assert.equal(process.argv.length, 4, 'Usage: node .cursor/skills/verify-brainbase/scripts/verify.mjs NEW_EVIDENCE_DIRECTORY EXPECTED_HEAD_SHA');
 const evidence = resolve(process.argv[2]);
+const expectedHead = process.argv[3];
+assert(/^[a-f0-9]{40}$/.test(expectedHead), 'Expected a full head SHA');
+assert(relative(root, evidence).startsWith('..' + '/') || relative(root, evidence) === '..',
+  'Evidence must be outside the checkout');
 // Refuse reuse: old passing evidence must never mask a failed run.
 await mkdir(evidence);
-const scratch = await mkdtemp(join(root, '.verify-brainbase-'));
+const scratch = await mkdtemp(join(tmpdir(), '.verify-brainbase-'));
 const data = join(scratch, 'personal-os');
 const env = {
   PATH: process.env.PATH ?? '',
@@ -24,6 +29,37 @@ const env = {
 const events = [];
 let client;
 let passed = false;
+let interrupted;
+let finishing;
+for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143]]) {
+  process.once(signal, async () => {
+    interrupted = signal;
+    process.exitCode = code;
+    await save('failure.json', { message: 'Interrupted by ' + signal });
+    await finish();
+    process.exit(code);
+  });
+}
+async function finish() {
+  finishing ??= (async () => {
+    try { if (client) await client.close(); }
+    finally {
+      await save('actions.json', events);
+      await rm(scratch, { recursive: true, force: true });
+      const cleanup = !(await readdir(dirname(scratch))).includes(scratch.slice(dirname(scratch).length + 1));
+      const result = passed && cleanup && !interrupted ? 'PASS' : 'FAIL';
+      await save('result.json', { result, cleanup, signal: interrupted,
+        features: ['cli-seed', 'mcp-readback', 'install-preview'],
+        unverified: ['Web UI', 'real agent first value', 'host MCP configuration',
+          'Node 22 skill execution', 'claude and codecode configuration previews',
+          'external sources', 'Graph search and resolution', 'automatic merge', 'next morning sampling'],
+        finishedAt: new Date().toISOString() });
+      console.log(JSON.stringify({ result, cleanup, evidence }));
+      if (result !== 'PASS' && !process.exitCode) process.exitCode = 1;
+    }
+  })();
+  return finishing;
+}
 async function save(name, value) {
   await writeFile(join(evidence, name), JSON.stringify(value, null, 2) + '\n');
 }
@@ -61,8 +97,19 @@ async function call(name, args) {
 try {
   const sha = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' });
   assert.equal(sha.status, 0);
-  await save('identity.json', { head: sha.stdout.trim(), node: process.version, root, data,
+  const gitStatus = spawnSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' });
+  assert.equal(gitStatus.status, 0);
+  await save('identity.json', { head: sha.stdout.trim(), expectedHead, gitStatus: gitStatus.stdout, node: process.version, root, data,
     cliEnvKeys: Object.keys(env), mcpEnvKeys: Object.keys({ ...getDefaultEnvironment(), ...env }), startedAt: new Date().toISOString() });
+  assert.equal(sha.stdout.trim(), expectedHead, 'HEAD does not match expected SHA');
+  assert.equal(gitStatus.stdout, '', 'Working tree is dirty');
+  const build = spawnSync('npm', ['run', 'build'], { cwd: root, encoding: 'utf8', timeout: 120000 });
+  events.push({ feature: 'build', head: expectedHead, exitCode: build.status,
+    stdout: build.stdout, stderr: build.stderr, error: build.error?.message });
+  assert.equal(build.status, 0, 'Build failed: ' + build.stderr);
+  const afterBuild = spawnSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' });
+  assert.equal(afterBuild.status, 0);
+  assert.equal(afterBuild.stdout, '', 'Build changed working tree');
   cli(['onboard:init', '--dir', data]);
   // Doctor checks the real data, not a TCP liveness probe.
   const doctor = JSON.parse(cli(['doctor', '--dir', data]));
@@ -83,7 +130,9 @@ try {
   const beforePreview = await snapshot(scratch);
   const preview = cli(['onboard:install', '--dir', data, '--target', 'codex', '--dry-run', '--output', previewPath]);
   assert(preview.includes(data));
-  assert(preview.includes('brainbase'));
+  assert(preview.includes('[mcp_servers.brainbase]'));
+  assert(preview.split('\n').includes('args = [' + JSON.stringify(join(root, 'dist/index.js')) + ']'),
+    'Preview must point args to this checkout MCP entry');
   assert.deepEqual(await snapshot(scratch), beforePreview, 'Dry-run changed files');
   await save('install-preview.json', { preview, before: beforePreview, after: await snapshot(scratch) });
   const transport = new StdioClientTransport({ command: process.execPath,
@@ -112,17 +161,5 @@ try {
   await save('failure.json', { message: error.message, stack: error.stack });
   process.exitCode = 1;
 } finally {
-  try { if (client) await client.close(); }
-  finally {
-    await save('actions.json', events);
-    await rm(scratch, { recursive: true, force: true });
-    const cleanup = !(await readdir(root)).includes(scratch.slice(root.length + 1));
-    await save('result.json', { result: passed && cleanup ? 'PASS' : 'FAIL', cleanup,
-      features: ['cli-seed', 'mcp-readback', 'install-preview'],
-      unverified: ['Web UI', 'real agent first value', 'host MCP configuration',
-        'external sources', 'Graph search and resolution', 'automatic merge', 'next morning sampling'],
-      finishedAt: new Date().toISOString() });
-    console.log(JSON.stringify({ result: passed && cleanup ? 'PASS' : 'FAIL', cleanup, evidence }));
-    if (!cleanup) process.exitCode = 1;
-  }
+  await finish();
 }

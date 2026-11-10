@@ -16,7 +16,7 @@ Run `brainbase onboard:install --target codex --dry-run`. Source checkouts use `
 Preconditions: the helper has seeded its owned directory and recorded its scratch file hashes. Run the helper using Launch in ../SKILL.md.
 
 - Preview: `node dist/cli.js onboard:install --dir <owned-directory> --target codex --dry-run --output <owned-scratch>/must-not-exist.toml`.
-- Inspect: require exit 0, output containing `brainbase` and the exact owned data directory.
+- Inspect: require exit 0, output containing `[mcp_servers.brainbase]`, an `args` line pointing to this checkout's `dist/index.js`, and the exact owned data directory.
 - Confirm no write: compare complete scratch file hashes before and after. The output path is included in that tree and must remain absent. Capture the output and both manifests in `install-preview.json`.
 
 ## Gotchas

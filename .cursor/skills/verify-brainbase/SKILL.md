@@ -13,14 +13,15 @@ Run from the repository root with Node.js and npm. The repository builds with `n
 
 ```bash
 npm ci --ignore-scripts --no-audit --no-fund
-npm run build
 mkdir -p ../verification-evidence
-node .cursor/skills/verify-brainbase/scripts/verify.mjs ../verification-evidence/run-001
+node .cursor/skills/verify-brainbase/scripts/verify.mjs ../verification-evidence/run-001 <EXPECTED_FULL_HEAD_SHA>
 ```
 
 `run-001` must not exist. Use a new directory for every attempt. Install and build outputs stay in the checkout; remove them in Cleanup. This avoids leaving node_modules on an inode-constrained host. No credentials, database service, browser, or TCP port is needed. Dependency installation accesses the npm registry; the product journey uses only local CLI processes and stdio.
 
-The helper creates a unique `.verify-brainbase-*` directory inside this checkout and initializes it through `node dist/cli.js onboard:init --dir <owned-directory>`. Readiness is a successful `doctor` with `localBackend.connected: true`, followed by a successful seed and persisted readback. A cold data directory alone is not seeded readiness. The CLI is noninteractive; each invocation is a fresh child process with captured stdout, stderr, and exit status. The MCP server is a fresh child connected through the public SDK's stdio transport. There is no shared session or persistent server to attach to.
+The helper checks the expected full head SHA and requires `git status --porcelain` to be empty, then runs `npm run build` itself. Evidence must be outside the checkout. It records the build output and checks the working tree again before driving the product.
+
+The helper creates a unique `.verify-brainbase-*` directory in the OS temporary directory and initializes it through `node dist/cli.js onboard:init --dir <owned-directory>`. Readiness is a successful `doctor` with `localBackend.connected: true`, followed by a successful seed and persisted readback. A cold data directory alone is not seeded readiness. The CLI is noninteractive; each invocation is a fresh child process with captured stdout, stderr, and exit status. The MCP server is a fresh child connected through the public SDK's stdio transport. There is no shared session or persistent server to attach to.
 
 ## Doctor
 
@@ -54,11 +55,11 @@ The requested evidence directory survives teardown, including failed attempts:
 - `result.json`: PASS or FAIL, cleanup status, covered features, and unverified surfaces.
 - `failure.json`: failure message and stack, when a journey fails.
 
-Require process exit 0, result PASS, cleanup true, and the expected user-visible values in the trace. Check the Git head against the PR under review; rerun after any head change. A successful build or a ready flag is insufficient. The read-only MCP calls must leave canonical file hashes unchanged. Inspect both the action and resulting state. No production boundary is mocked. No claim is made about actual agent value, network-wide egress monitoring, or full product coverage.
+Require process exit 0, result PASS, cleanup true, and the expected user-visible values in the trace. Supply the PR head as the second argument; rerun after any head change. A successful build or a ready flag is insufficient. The read-only MCP calls must leave canonical file hashes unchanged. Inspect both the action and resulting state. No production boundary is mocked. No claim is made about actual agent value, network-wide egress monitoring, or full product coverage.
 
 ## Cleanup
 
-The helper closes only its own MCP client and child transport in `finally`, then removes only its unique scratch directory. It also does so on assertion failure. It never kills by process name. Inspect `result.json` and confirm the evidence directory still contains the trace after the run.
+The helper closes only its own MCP client and child transport in `finally`, then removes only its unique scratch directory. It also does so on assertion failure, SIGINT, and SIGTERM. SIGKILL cannot be caught; after a forced kill, inspect the data path in identity.json and remove only that run's temporary directory and child process. It never kills by process name. Inspect `result.json` and confirm the evidence directory still contains the trace after the run.
 
 After reviewing the evidence, remove only install/build outputs created by this run:
 
@@ -70,4 +71,6 @@ Do this only when this run created those directories in an initially clean check
 
 ## Helpers
 
-`scripts/verify.mjs` is executable and accepts exactly one new evidence directory. It does not install dependencies, publish, merge, change host configuration, or register scheduled tasks. Maintain this map with `/maintain-verification-skill` when routes, commands, or tool contracts change.
+`scripts/verify.mjs` is executable and accepts a new evidence directory and the expected full head SHA. It does not install dependencies, publish, merge, change host configuration, or register scheduled tasks. Maintain this map with `/maintain-verification-skill` when routes, commands, or tool contracts change.
+
+Claude Code does not auto-discover `.cursor/skills/`. Ask it to read `.cursor/skills/verify-brainbase/SKILL.md` explicitly, then follow Launch from the repository root.
