@@ -280,6 +280,6 @@ describe('RQ-151/152 behaviour with a live scene and district (WebGL vendor mock
 
 it('keeps read-only permissions in the standard world lead', () => {
   const { root } = mountStandard();
-  expect(root.querySelector('.bb-ws-lead').textContent).toBe('事業を都市、案件を区画、判断の種類を広場の建物として描いています。見るための画面で、ここからは何も書き換えません。');
-  expect(root.querySelector('.bb-ws-page .bb-ws-help-bubble').textContent).toContain('都市を選ぶと');
+  expect(root.querySelector('.bb-ws-lead').textContent).toBe('見るための画面で、ここからは何も書き換えません。');
+  expect(root.querySelector('.bb-ws-page .bb-ws-help-bubble')).toBeNull();
 });

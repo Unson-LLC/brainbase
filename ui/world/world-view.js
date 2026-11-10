@@ -1677,9 +1677,8 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
   const header = workspacePageHeader(doc, {
     crumbs: page?.crumbs ?? ['あなたのBrainbase', '世界'],
     title: '世界',
-    lead: '事業を都市、案件を区画、判断の種類を広場の建物として描いています。見るための画面で、ここからは何も書き換えません。',
+    lead: '見るための画面で、ここからは何も書き換えません。',
     preserveLead: true,
-    help: '都市を選ぶとその事業の区画に入り、仕事（タスク）が通りに面した現場として建ち、記録から把握できていないことが街の様子で見えます。',
     source: page?.source ?? null,
     actions: [
       skyButton,

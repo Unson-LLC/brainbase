@@ -200,7 +200,8 @@ describe('RQ-151 standard World help', () => {
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     expect(panel.hidden).toBe(true);
     expect(panel.inert).toBe(true);
-    expect(app.root.querySelector('.bb-ws-lead').textContent).toBe('事業を都市、案件を区画、判断の種類を広場の建物として描いています。見るための画面で、ここからは何も書き換えません。');
+    expect(app.root.querySelector('.bb-ws-lead').textContent).toBe('見るための画面で、ここからは何も書き換えません。');
+    expect(app.root.querySelector('.bb-ws-page .bb-ws-help-bubble')).toBeNull();
     toggle.click();
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
     expect(panel.hidden).toBe(false);
