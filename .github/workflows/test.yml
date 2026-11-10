@@ -39,6 +39,9 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     strategy:
+      # Both matrix entries now run the full suite on the shared EVO-X2.
+      # Keep them sequential to avoid adding another four concurrent workers.
+      max-parallel: 1
       fail-fast: false
       matrix:
         include:
