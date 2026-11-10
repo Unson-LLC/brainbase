@@ -237,3 +237,11 @@ test('renders only the selected external version body in the shared core content
   await waitFor(() => collectText(root).includes('外部版2の本文'));
   assert.doesNotMatch(collectText(root), /外部版1の本文/);
 });
+
+test('keeps storage as an embedded section rather than a page title', () => {
+  const root = new FakeElement('main');
+  createMeetingMinutesStorageUI({ root, document: new FakeDocument(), view: {} });
+  assert.equal(findAll(root, node => node.tagName === 'H1').length, 0);
+  assert.equal(findAll(root, node => node.tagName === 'H2')[0]?.textContent, '議事録の保存先');
+  assert.equal(findAll(root, node => /bb-ws-page-(head|copy)/.test(node.className)).length, 0);
+});

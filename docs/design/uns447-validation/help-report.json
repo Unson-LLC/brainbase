@@ -1,0 +1,26 @@
+[
+  {
+    "width": 1440,
+    "open": "true",
+    "closed": "false",
+    "bounds": {
+      "x": 1140,
+      "y": 47.546875,
+      "width": 300,
+      "height": 62.78125
+    },
+    "inside": true
+  },
+  {
+    "width": 390,
+    "open": "true",
+    "closed": "false",
+    "bounds": {
+      "x": 0,
+      "y": 103.09375,
+      "width": 273,
+      "height": 62.78125
+    },
+    "inside": true
+  }
+]

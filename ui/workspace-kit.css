@@ -43,12 +43,12 @@
 .bb-ws-page-head h1 {
   margin: 0;
   color: var(--bb-color-ink);
-  font-size: clamp(32px, 3.5vw, 44px);
-  font-weight: var(--bb-font-weight-medium);
-  line-height: 1.1;
   letter-spacing: -.055em;
   word-break: keep-all;
   overflow-wrap: break-word;
+  font-size: var(--bb-page-title-font-size);
+  font-weight: var(--bb-page-title-font-weight);
+  line-height: var(--bb-page-title-line-height);
 }
 
 .bb-ws-lead {
@@ -464,10 +464,6 @@
     gap: 16px;
   }
 
-  .bb-ws-page-head h1 {
-    font-size: 34px;
-  }
-
   .bb-ws-notice {
     grid-template-columns: minmax(0, 1fr);
     gap: 4px;
@@ -690,7 +686,7 @@
 .bb-ws-detail-closebar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: flex-end; min-height: 44px; padding: 4px 16px; box-sizing: border-box; background: var(--bb-color-panel); border-bottom: 1px solid var(--bb-color-border); }
 .bb-ws-detail-content { padding: 20px 24px 32px; }
 .bb-ws-has-topbar .bb-ws-page-head h1,
-.bb-ws-has-topbar .knowledge-outcome-head h2,
+.bb-ws-has-topbar .knowledge-outcome-head h1,
 .bb-ws-has-topbar .bb-minutes-heading h1 { display: none; }
 @media (max-width: 760px) { .bb-ws-detail-content { padding: 16px 16px 32px; } }
 
@@ -954,6 +950,12 @@
 /* Shared typography uses the host-loaded Noto Sans JP with system fallback. */
 :where(.bb-ws, .bb-minutes-screen, .bb-inbox) { font-family: var(--bb-font-sans); font-weight: var(--bb-font-weight-body); }
 :where(h1,h2,h3,h4,h5,h6,strong,b) { font-weight: var(--bb-font-weight-medium); }
+
+/* Page explanations open into the content, clear of the sticky title bar. */
+.bb-ws-help.is-page-guide .bb-ws-help-bubble { top: calc(100% + 8px); bottom: auto; left: auto; right: 0; transform: translateY(-4px); }
+.bb-ws-help.is-page-guide:not(.is-dismissed):is(:hover, :focus-within, .is-open) .bb-ws-help-bubble { transform: translateY(0); }
+.bb-ws-help.is-page-guide .bb-ws-help-bubble::after { top: auto; bottom: 100%; }
+@media (max-width: 760px) { .bb-ws-help.is-page-guide .bb-ws-help-bubble { left: 0; right: auto; } }
 
 /* The same search field may live in a topbar or in a screen's action band. */
 .bb-ws-search-control { display: flex; align-items: center; flex: none; gap: var(--bb-list-search-gap); box-sizing: border-box; width: var(--bb-list-search-width); max-width: 100%; height: var(--bb-list-control-height); padding: 0 var(--bb-space-3); border: 1px solid var(--bb-color-border); border-radius: var(--bb-list-control-radius); background: var(--bb-color-panel); color: var(--bb-color-muted); }

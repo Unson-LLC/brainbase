@@ -53,6 +53,36 @@ describe('workspace kit (the organization edition screen pattern)', () => {
     expect(byClass(page, 'bb-ws-source')[0].textContent).toBe('手元のGraph');
   });
 
+  it('keeps a short lead and puts the complete explanation in existing help', () => {
+    const lead = '事業を都市として表示します。都市を選ぶと仕事と判断を確認できます。';
+    const page = workspacePageHeader(doc, { title: '世界', lead });
+    expect(byClass(page, 'bb-ws-lead')[0].textContent).toBe('事業を都市として表示します。');
+    expect(byClass(page, 'bb-ws-help-bubble')[0].textContent).toBe(lead);
+    expect(byClass(page, 'bb-ws-help-button')[0].textContent).toBe('？');
+    expect(byClass(page, 'bb-ws-help-button')[0].attributes['aria-expanded']).toBe('false');
+  });
+
+  it('keeps the complete long lead before explicit help', () => {
+    const lead = '一覧を表示します。後半の説明も失いません。';
+    const page = workspacePageHeader(doc, { title: '一覧', lead, help: '追加の操作説明。' });
+    expect(byClass(page, 'bb-ws-help-bubble')[0].textContent).toBe(`${lead}\n\n追加の操作説明。`);
+    expect(byClass(page, 'is-page-guide')).toHaveLength(1);
+  });
+
+  it('preserves an explicitly composed lead including permissions', () => {
+    const lead = '世界を表示します。ここからは書き換えません。';
+    const page = workspacePageHeader(doc, { title: '世界', lead, help: '都市を選択します。', preserveLead: true });
+    expect(byClass(page, 'bb-ws-lead')[0].textContent).toBe(lead);
+    expect(byClass(page, 'bb-ws-help-bubble')[0].textContent).toBe('都市を選択します。');
+  });
+
+  it('moves a long single sentence to help without truncating its meaning', () => {
+    const lead = '説明'.repeat(40);
+    const page = workspacePageHeader(doc, { title: '説明', lead });
+    expect(byClass(page, 'bb-ws-lead')).toHaveLength(0);
+    expect(byClass(page, 'bb-ws-help-bubble')[0].textContent).toBe(lead);
+  });
+
   it('labels a notice and marks warnings as alerts', () => {
     const info = workspaceNotice(doc, { label: '出典', text: 'このMacのGraph' });
     expect(info.className).toBe('bb-ws-notice is-info');
