@@ -961,7 +961,7 @@
 .bb-ws-search-control.bb-ws-search-control > input::placeholder { color: var(--bb-search-band-placeholder); opacity: 1; }
 .bb-ws-search-control > .bb-ws-action-icon { width: var(--bb-toolbar-icon-size); height: var(--bb-toolbar-icon-size); flex: none; }
 .bb-ws-search-control:focus-within { outline: 2px solid var(--bb-color-mint); outline-offset: 2px; }
-.bb-ws-topbar.has-query { gap: var(--bb-space-4); padding-block: max(0px, calc((var(--bb-page-header-height) - var(--bb-list-control-height)) / 2)); }
+.bb-ws-topbar.has-query { padding-right: var(--bb-page-header-inline-end, var(--bb-space-5)); gap: var(--bb-space-4); padding-block: max(0px, calc((var(--bb-page-header-height) - var(--bb-list-control-height)) / 2)); }
 .bb-ws-topbar > .bb-ws-search-control { margin-left: auto; }
 @media (max-width: 600px) {
   .bb-ws-topbar.has-query { flex-wrap: wrap; }
@@ -993,3 +993,26 @@
 .bb-ws-search-control.bb-ws-search-control > input:is(:focus,:focus-visible) { border: 0; outline: none; background: transparent; box-shadow: none; }
 
 .bb-ws-neutral-controls .bb-ws-filter-icon-trigger.bb-ws-filter-icon-trigger:is(:hover,:focus,:focus-visible,[aria-expanded="true"]) { border-color: var(--bb-color-border); box-shadow: none; }
+
+/* Explicit filter choices: selection is a check, hover alone paints the row. */
+.bb-ws-filter-popover button.bb-ws-filter-option[role] { display: grid; grid-template-columns: var(--bb-space-4) minmax(0, 1fr) auto; gap: var(--bb-space-2); color: var(--bb-color-ink); background: transparent; }
+.bb-ws-filter-popover button.bb-ws-filter-option[aria-checked="true"] { background: transparent; color: var(--bb-color-ink); }
+.bb-ws-filter-popover button.bb-ws-filter-option:not(:disabled):hover { background: var(--bb-color-canvas); }
+.bb-ws-filter-option-check { color: var(--bb-color-action); }
+.bb-ws-filter-option[aria-checked="true"] .bb-ws-filter-option-check::before { content: '✓'; }
+.bb-ws-filter-option[aria-checked="true"] .bb-ws-filter-option-label { font-weight: var(--bb-font-weight-medium); }
+.bb-ws-filter-option-label { min-width: 0; overflow-wrap: anywhere; }
+.bb-ws-filter-option-count { color: var(--bb-color-muted); text-align: right; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 600px) {
+  .bb-ws-filter-anchor > .bb-ws-filter-popover { position: fixed; left: var(--bb-space-4); right: var(--bb-space-4); top: auto; width: auto; max-width: none; margin-top: calc(var(--bb-list-control-height) + var(--bb-space-2)); }
+}
+
+/* Applied conditions share one mint surface across screen toolbars. */
+.bb-ws-button.bb-ws-filter-chip { min-height: var(--bb-list-control-height); padding-inline: var(--bb-space-3); border: 0; border-radius: var(--bb-list-control-radius); background: var(--bb-color-accent-soft); color: var(--bb-color-action); box-shadow: none; }
+.bb-ws-button.bb-ws-filter-chip:hover { background: var(--bb-color-accent-soft); }
+.bb-ws-filter-popover select:is(:focus,:active) { outline: none; box-shadow: none; border-color: var(--bb-color-border); }
+.bb-ws-filter-popover select:focus-visible { outline: 2px solid var(--bb-color-mint); outline-offset: 2px; }
+
+.bb-ws-button.bb-ws-filter-chip:focus-visible { outline: 2px solid var(--bb-color-mint); outline-offset: 2px; }
+.bb-ws-filter-anchor[data-pointer-focus] .bb-ws-filter-popover select:focus-visible { outline: none; box-shadow: none; }

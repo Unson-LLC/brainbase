@@ -64,6 +64,8 @@ import {
   workspaceButton,
   workspaceDetailDrawer,
   workspaceFilterPopover,
+  workspaceFilterOption,
+  workspaceFilterChip,
   workspaceSearchControl,
   workspaceTabStrip,
   workspaceDefinition,
@@ -593,7 +595,7 @@ export function createPeopleAndCompaniesView({
     }
     toolbar.append(tabs);
     directoryControls.push(workspaceTabStrip(tabs, { appearance: 'segmented', memoryKey: 'people-directory' }));
-    if (condition) toolbar.append(workspaceButton(doc, { text: `${condition} ×`, attrs: { 'aria-label': `${condition}の絞り込みを解除` }, onClick: () => { condition = ''; controller.render(); } }));
+    if (condition) toolbar.append(workspaceFilterChip(doc, { label: condition, attrs: { 'aria-label': `${condition}の絞り込みを解除` }, onRemove: () => { condition = ''; controller.render(); } }));
     const ownId = payload.ownCompany.id;
     const standing = item => { const value = personStanding(item, ownId); return value.startsWith('所属未確認') ? '所属が未確認' : value; };
     const all = view === 'people' ? people : companies;
@@ -601,7 +603,7 @@ export function createPeopleAndCompaniesView({
     const matches = (item, value) => !value || (view === 'people' ? standing(item) === value : item.kinds.length ? item.kinds.some(kind => (ownKey(COMPANY_KIND_LABELS, kind.kind) ?? kind.kind) === value) : value === '種類の記録なし');
     const panel = makeElement(doc, 'div', { attrs: { role: 'group', 'aria-label': '人と会社の絞り込み' } });
     for (const value of ['', ...values]) {
-      const radio = workspaceButton(doc, { text: `${value || 'すべて'} ${all.filter(item => matches(item, value)).length}`, attrs: { role: 'radio', 'aria-checked': String(condition === value) }, onClick: () => { condition = value; controller.render(); } });
+      const radio = workspaceFilterOption(doc, { label: value || 'すべて', count: all.filter(item => matches(item, value)).length, checked: condition === value, onClick: () => { condition = value; controller.render(); } });
       panel.append(radio);
     }
     const filter = workspaceFilterPopover(doc, { panel, appearance: 'icon' });
