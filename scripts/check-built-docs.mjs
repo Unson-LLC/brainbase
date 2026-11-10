@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { parsePublicReleaseState } from './lib/public-release-state.mjs';
 
@@ -70,3 +70,22 @@ process.stdout.write(`${JSON.stringify({
     'reference/mcp-tools.html'
   ]
 }, null, 2)}\n`);
+
+// Check the emitted script, not prose mentioning GTM in the manual.
+const gtmId = (process.env.VITEPRESS_GTM_ID || process.env.GTM_CONTAINER_ID || '').trim();
+async function checkGtm(directory) {
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) {
+      await checkGtm(path);
+    } else if (entry.name.endsWith('.html')) {
+      const html = await readFile(path, 'utf8');
+      const hasSnippet = html.includes('https://www.googletagmanager.com/gtm.js?id=');
+      if (hasSnippet !== Boolean(gtmId)) {
+        throw new Error(`${path}: GTM snippet presence must match the build container ID`);
+      }
+      if (gtmId) requireText(html, JSON.stringify(gtmId), path);
+    }
+  }
+}
+await checkGtm(dist);

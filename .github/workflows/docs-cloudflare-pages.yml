@@ -80,10 +80,21 @@ jobs:
       - name: Run publication contract tests
         run: npx vitest run tests/public-message-promotion.test.ts tests/repo-hygiene.test.ts
 
+      - name: Verify GTM markup with a test container
+        env:
+          VITEPRESS_GTM_ID: GTM-TEST123456
+        run: |
+          npm run docs:build
+          npm run docs:smoke
+
       - name: Build VitePress site
+        env:
+          VITEPRESS_GTM_ID: ${{ vars.VITEPRESS_GTM_ID }}
         run: npm run docs:build
 
       - name: Smoke-test built HTML
+        env:
+          VITEPRESS_GTM_ID: ${{ vars.VITEPRESS_GTM_ID }}
         run: npm run docs:smoke
 
       - name: Validate bounded Worker secret target

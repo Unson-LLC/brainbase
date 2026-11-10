@@ -90,18 +90,18 @@ Build <12文字のSHA> · <branch>
 
 ## Google Tag Manager
 
-公開siteのGA4計測はGoogle Tag Manager経由で行います。container IDはbuild時の環境変数`VITEPRESS_GTM_ID`（または`GTM_CONTAINER_ID`）で渡します。
+対象は brainbase.pages.dev の VitePress マニュアルです。brainbase.unson.jp への導入は含みません。GA4計測にはGoogle Tag Managerのコンテナ設定が必要です。container IDはbuild時の環境変数`VITEPRESS_GTM_ID`（または`GTM_CONTAINER_ID`）で渡します。
 
 ```text
 VITEPRESS_GTM_ID=GTM-XXXXXXX
 ```
 
-環境変数が空の場合、GTM scriptは生成HTMLへ出力されません（no-op）。IDはsecretではないためリポジトリへ直書きせず、Cloudflare Pagesのbuild environment variablesで設定します。
+環境変数が空の場合、GTM scriptは生成HTMLへ出力されません（no-op）。IDはsecretではないためリポジトリへ直書きせず、GitHub Actions の repository variable `VITEPRESS_GTM_ID` に設定します。公開 workflow はこの値を build step の環境変数へ渡します。Cloudflare Pages の build environment variables は Actions の build には入りません。ローカル build では上記の環境変数を直接渡します。
 
-計測するイベントは次の2つです。
+イベントの送信条件は次のとおりです。
 
-- GA4の自動`page_view`
-- 外部リンククリック時の`outbound_click`（`link_url`、`link_domain`）
+- `page_view` はコンテナ側で初回表示の送信を設定した場合に送られます。サイト内遷移の計測には GA4 の履歴計測を有効にする必要があります。
+- この差分が直接送るのは外部リンククリック時の`outbound_click`（`link_url`、`link_domain`）
 
 ## Brainbase Graphから公開説明を昇格する
 
