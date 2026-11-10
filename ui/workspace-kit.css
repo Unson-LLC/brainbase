@@ -994,4 +994,6 @@
 .bb-ws-help.is-page-guide .bb-ws-help-bubble { top: calc(100% + 8px); bottom: auto; left: auto; right: 0; transform: translateY(-4px); }
 .bb-ws-help.is-page-guide:not(.is-dismissed):is(:hover, :focus-within, .is-open) .bb-ws-help-bubble { transform: translateY(0); }
 .bb-ws-help.is-page-guide .bb-ws-help-bubble::after { top: auto; bottom: 100%; }
-@media (max-width: 760px) { .bb-ws-help.is-page-guide .bb-ws-help-bubble { left: 0; right: auto; } }
+/* Keep the guide at the right edge even when a host header becomes one column.
+   Specificity also preserves this placement when host CSS is loaded last. */
+.bb-ws-page-head > :has(> .bb-ws-help.is-page-guide) { justify-content: flex-end; align-self: stretch; }

@@ -1,3 +1,5 @@
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -1093,102 +1095,114 @@ describe('Objective editor common UI contract', () => {
 
     // FakeElement has no layout engine. Measure the actual renderer and shipped CSS.
     const chrome = process.env.CHROME_BIN ?? ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'].find(existsSync);
-    it.skipIf(!chrome)('without a rail opens help below and adjacent to its button in a browser', async () => {
+    it.skipIf(!chrome && !process.env.CI)('keeps objective and knowledge page guides below their buttons and inside the viewport', async () => {
+      if (!chrome) throw new Error('Chrome is required in CI; install Chrome or set CHROME_BIN');
       const repo = fileURLToPath(new URL('../../', import.meta.url));
-      const temp = mkdtempSync(`${repo}.objective-layout-`);
+      const temp = mkdtempSync(join(tmpdir(), 'brainbase-objective-layout-'));
       try {
-        const fixture = `${temp}/index.html`;
-        writeFileSync(fixture, `<!doctype html><meta charset="utf-8">
-          ${['brainbase-tokens', 'workspace-kit', 'objective-editor'].map(name => `<link rel="stylesheet" href="${pathToFileURL(`${repo}ui/${name}.css`)}">`).join('')}
-          <div id="root"></div><pre id="measurements"></pre>
-          <script type="module">
-            import { createObjectiveEditorController } from '${pathToFileURL(`${repo}ui/objective-editor.js`)}';
-            const controller = createObjectiveEditorController({ root: document.querySelector('#root'), port: {}, autoLoad: false });
-            controller.render();
-            document.querySelector('.bb-ws-help-button').click();
-            setTimeout(() => {
-              const rect = selector => {
-                const { left, right, top, bottom, width } = document.querySelector(selector).getBoundingClientRect();
-                return { left, right, top, bottom, width };
-              };
-              document.querySelector('#measurements').textContent = JSON.stringify({
-                button: rect('.bb-ws-help-button'), bubble: rect('.bb-ws-help-bubble'),
-                guide: rect('.bb-ws-help'), header: rect('.objective-editor-header'),
-                visible: getComputedStyle(document.querySelector('.bb-ws-help-bubble')).visibility,
-                viewport: innerWidth,
+        for (const [page, sharedLast] of [
+          ['objective', false], ['objective', true], ['knowledge', false], ['knowledge', true],
+        ]) {
+          const styles = ['brainbase-tokens', ...(sharedLast
+            ? ['objective-editor', 'outcome-knowledge', 'workspace-kit']
+            : ['workspace-kit', 'objective-editor', 'outcome-knowledge'])];
+          const fixture = `${temp}/index.html`;
+          writeFileSync(fixture, `<!doctype html><meta charset="utf-8">
+            ${styles.map(name => `<link rel="stylesheet" href="${pathToFileURL(`${repo}ui/${name}.css`)}">`).join('')}
+            <div id="root"></div><pre id="measurements"></pre>
+            <script type="module">
+              import { createObjectiveEditorController } from '${pathToFileURL(`${repo}ui/objective-editor.js`)}';
+              import { createKnowledgeOverviewController } from '${pathToFileURL(`${repo}ui/outcome-knowledge.js`)}';
+              const controller = ${page === 'objective' ? 'createObjectiveEditorController' : 'createKnowledgeOverviewController'}({ root: document.querySelector('#root'), port: {}, autoLoad: false });
+              controller.render();
+              document.querySelector('.bb-ws-help-button').click();
+              setTimeout(() => {
+                const rect = selector => {
+                  const { left, right, top, bottom, width } = document.querySelector(selector).getBoundingClientRect();
+                  return { left, right, top, bottom, width };
+                };
+                document.querySelector('#measurements').textContent = JSON.stringify({
+                  button: rect('.bb-ws-help-button'), bubble: rect('.bb-ws-help-bubble'),
+                  guide: rect('.bb-ws-help'), header: rect('.bb-ws-page-head'),
+                  visible: getComputedStyle(document.querySelector('.bb-ws-help-bubble')).visibility,
+                  viewport: innerWidth,
+                });
+              }, 200);
+            </script>`);
+          for (const width of [1280, 900, 760, 740, 721, 720, 700, 600, 320]) {
+            const browser = spawn(chrome, [
+              '--headless', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
+              '--no-first-run', '--no-default-browser-check', '--allow-file-access-from-files',
+              '--disable-background-networking', '--disable-extensions', '--no-proxy-server',
+              `--user-data-dir=${temp}/profile-${width}`, `--window-size=${width},800`,
+              '--remote-debugging-pipe',
+            ], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
+            let id = 0;
+            let buffer = '';
+            const pending = new Map();
+            const send = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
+              const requestId = ++id;
+              const timeout = setTimeout(() => {
+                pending.delete(requestId);
+                reject(new Error(`Chrome timed out: ${method}`));
+              }, 10000);
+              pending.set(requestId, {
+                resolve: result => { clearTimeout(timeout); resolve(result); },
+                reject: error => { clearTimeout(timeout); reject(error); },
               });
-            }, 200);
-          </script>`);
-        for (const width of [1280, 900, 600]) {
-          const browser = spawn(chrome, [
-            '--headless', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
-            '--no-first-run', '--no-default-browser-check', '--allow-file-access-from-files',
-            '--disable-background-networking', '--disable-extensions', '--no-proxy-server',
-            `--user-data-dir=${temp}/profile-${width}`, `--window-size=${width},800`,
-            '--remote-debugging-pipe',
-          ], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
-          let id = 0;
-          let buffer = '';
-          const pending = new Map();
-          const send = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
-            const requestId = ++id;
-            const timeout = setTimeout(() => {
-              pending.delete(requestId);
-              reject(new Error(`Chrome timed out: ${method}`));
-            }, 10000);
-            pending.set(requestId, {
-              resolve: result => { clearTimeout(timeout); resolve(result); },
-              reject: error => { clearTimeout(timeout); reject(error); },
+              browser.stdio[3].write(JSON.stringify({ id: requestId, method, params, sessionId }) + '\0');
             });
-            browser.stdio[3].write(JSON.stringify({ id: requestId, method, params, sessionId }) + '\0');
-          });
-          browser.stdio[4].on('data', chunk => {
-            buffer += chunk;
-            let end;
-            while ((end = buffer.indexOf('\0')) >= 0) {
-              const message = JSON.parse(buffer.slice(0, end));
-              buffer = buffer.slice(end + 1);
-              const request = pending.get(message.id);
-              if (!request) continue;
-              pending.delete(message.id);
-              if (message.error) request.reject(new Error(JSON.stringify(message.error)));
-              else request.resolve(message.result);
+            browser.stdio[4].on('data', chunk => {
+              buffer += chunk;
+              let end;
+              while ((end = buffer.indexOf('\0')) >= 0) {
+                const message = JSON.parse(buffer.slice(0, end));
+                buffer = buffer.slice(end + 1);
+                const request = pending.get(message.id);
+                if (!request) continue;
+                pending.delete(message.id);
+                if (message.error) request.reject(new Error(JSON.stringify(message.error)));
+                else request.resolve(message.result);
+              }
+            });
+            let measurements;
+            try {
+              const { targetId } = await send('Target.createTarget', { url: pathToFileURL(fixture).href });
+              const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+              await send('Emulation.setDeviceMetricsOverride', { width, height: 800, deviceScaleFactor: 1, mobile: false }, sessionId);
+              await send('Page.navigate', { url: pathToFileURL(fixture).href }, sessionId);
+              const result = await send('Runtime.evaluate', {
+                expression: `new Promise(resolve => {
+                  const timer = setInterval(() => {
+                    const text = document.querySelector('#measurements')?.textContent;
+                    if (text) { clearInterval(timer); resolve(JSON.parse(text)); }
+                  }, 20);
+                })`,
+                awaitPromise: true, returnByValue: true,
+              }, sessionId);
+              expect(result.exceptionDetails).toBeUndefined();
+              measurements = result.result.value;
+            } finally {
+              if (browser.exitCode === null && browser.signalCode === null) {
+                const exited = new Promise(resolve => browser.once('exit', resolve));
+                browser.kill();
+                await exited;
+              }
             }
-          });
-          let measurements;
-          try {
-            const { targetId } = await send('Target.createTarget', { url: pathToFileURL(fixture).href });
-            const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
-            const result = await send('Runtime.evaluate', {
-              expression: `new Promise(resolve => {
-                const timer = setInterval(() => {
-                  const text = document.querySelector('#measurements')?.textContent;
-                  if (text) { clearInterval(timer); resolve(JSON.parse(text)); }
-                }, 20);
-              })`,
-              awaitPromise: true, returnByValue: true,
-            }, sessionId);
-            expect(result.exceptionDetails).toBeUndefined();
-            measurements = result.result.value;
-          } finally {
-            if (browser.exitCode === null && browser.signalCode === null) {
-              const exited = new Promise(resolve => browser.once('exit', resolve));
-              browser.kill();
-              await exited;
-            }
+            const { button, bubble, guide, header, visible, viewport } = measurements;
+            expect(viewport).toBe(width);
+            expect(visible).toBe('visible');
+            expect(bubble.top - button.bottom).toBeGreaterThanOrEqual(7);
+            expect(bubble.top - button.bottom).toBeLessThanOrEqual(9);
+            expect(Math.abs(button.right - bubble.right), `adjacent edges at ${width}px`).toBeLessThanOrEqual(1);
+            expect(bubble.right, `${page}, sharedLast=${sharedLast}, ${width}px right`).toBeLessThanOrEqual(viewport);
+            expect(bubble.left, `${page}, sharedLast=${sharedLast}, ${width}px left`).toBeGreaterThanOrEqual(0);
+            expect(guide.width).toBeCloseTo(16, 0);
+            if (viewport > 760) expect(header.right - button.right).toBeLessThanOrEqual(26);
           }
-          const { button, bubble, guide, header, visible, viewport } = measurements;
-          expect(visible).toBe('visible');
-          expect(bubble.top - button.bottom).toBeGreaterThanOrEqual(7);
-          expect(bubble.top - button.bottom).toBeLessThanOrEqual(9);
-          // Desktop guides align right; the shared mobile rule aligns left.
-          const edge = viewport > 760 ? 'right' : 'left';
-          expect(Math.abs(button[edge] - bubble[edge]), `adjacent edges at ${width}px`).toBeLessThanOrEqual(1);
-          expect(guide.width).toBeCloseTo(16, 0);
-          if (viewport > 760) expect(header.right - button.right).toBeLessThanOrEqual(26);
         }
       } finally {
-        rmSync(temp, { recursive: true, force: true });
+        rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
       }
     }, 60000);
 
@@ -1204,6 +1218,7 @@ describe('Objective editor common UI contract', () => {
       expect(byClass(root, 'bb-ws-ledger')).toHaveLength(0);
       expect(byClass(root, 'bb-ws-page-head')).toHaveLength(1);
       const guide = byClass(root, 'bb-ws-help')[0];
+      expect(guide.parentNode.className).toBe('bb-ws-page-side');
       expect(guide.className.split(/\s+/)).toContain('is-page-guide');
       expect(guide.children[0].textContent).toBe('?');
       expect(collectText(guide)).toContain('現状の理解（観測や仮説）とは分けて扱います。');
