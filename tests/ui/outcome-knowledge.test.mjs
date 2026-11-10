@@ -282,7 +282,8 @@ describe('outcome knowledge UI contract', () => {
     });
     const item = normalizeKnowledgeItem({ id: 'k-selected', title: '選択する知識', type: 'knowledge', scope: 'project', lifecycle: { status: 'active' } });
     const selectedList = new FakeElement('div');
-    renderKnowledgeList(selectedList, { state: 'ready', records: [item] }, { selectedId: item.id });
+    const selectionCalls = [];
+    renderKnowledgeList(selectedList, { state: 'ready', records: [item] }, { selectedId: item.id, onSelect: value => selectionCalls.push(value) });
     const jump = findAll(selectedList, 'a').find((node) => node.className.includes('knowledge-detail-jump'));
     expect(jump).toBeTruthy();
     expect(jump.attributes.href).toBe('#knowledge-selected-detail');
@@ -294,6 +295,11 @@ describe('outcome knowledge UI contract', () => {
     expect(selectedRow.parentNode.children.indexOf(jump)).toBe(selectedRow.parentNode.children.indexOf(selectedRow) + 1);
     jump.dispatch('click');
     expect(focused).toEqual([{ preventScroll: true }]);
+    expect(selectionCalls).toEqual([]);
+    const drawerList = new FakeElement('div');
+    renderKnowledgeList(drawerList, { state: 'ready', records: [item] }, { selectedId: item.id, onOpenDetail: value => selectionCalls.push(value) });
+    findAll(drawerList, 'a')[0].dispatch('click');
+    expect(selectionCalls).toEqual([item]);
 
     const unselectedList = new FakeElement('div');
     renderKnowledgeList(unselectedList, { state: 'ready', records: [item] });

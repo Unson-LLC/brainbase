@@ -21,7 +21,7 @@
   margin: 14px 0 8px;
   color: var(--bb-color-muted);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-graph .bb-pc-empty,
@@ -138,7 +138,7 @@
   color: var(--bb-color-ink);
   font: inherit;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
   cursor: pointer;
 }
 
@@ -163,7 +163,7 @@
 
 .bb-graph .bb-pc-company-title {
   color: var(--bb-color-ink);
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-pc-mark {
@@ -176,7 +176,7 @@
   color: var(--bb-pc-mark-ink);
   background: var(--bb-pc-mark-bg);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1;
 }
 
@@ -202,7 +202,7 @@
 .bb-pc-people-ledger .bb-ws-ledger-object strong,
 .bb-pc-company-ledger .bb-ws-ledger-object strong {
   overflow: hidden;
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -235,7 +235,7 @@
   background: var(--bb-color-canvas);
   color: var(--bb-color-muted);
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-pc-kind::before {
@@ -270,17 +270,6 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-}
-
-.bb-pc-action-row .bb-ws-button.is-primary {
-  border-color: var(--bb-color-action);
-  background: var(--bb-color-action);
-  color: var(--bb-color-action-text);
-}
-
-.bb-pc-action-row .bb-ws-button.is-primary:hover:not(:disabled) {
-  border-color: var(--bb-color-action-hover);
-  background: var(--bb-color-action-hover);
 }
 
 .bb-pc-action-row .bb-ws-button[data-adds]::before {
@@ -413,3 +402,78 @@
   color: var(--bb-color-ink);
   font-size: 13px;
 }
+
+/* The compact directory is explicit; the original two-ledger view stays available. */
+.bb-pc-directory {
+  --bb-pc-directory-radius: 12px;
+  --bb-pc-directory-row-height: 60px;
+}
+.bb-pc-directory-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: var(--bb-space-4);
+}
+.bb-pc-directory-toolbar .bb-ws-filter-anchor { margin-left: auto; }
+.bb-pc-directory-create { min-height: 36px; }
+.bb-pc-directory-create::before { content: '＋'; }
+.bb-pc-directory-list {
+  overflow: hidden;
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-pc-directory-radius);
+  background: var(--bb-color-paper);
+  box-shadow: var(--bb-shadow-sm);
+}
+.bb-pc-directory-row {
+  display: grid;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) 220px 270px 110px;
+  column-gap: 20px;
+  width: 100%;
+  min-height: var(--bb-pc-directory-row-height);
+  padding: var(--bb-space-2) var(--bb-space-4);
+  border: 0;
+  border-bottom: 1px solid var(--bb-color-border-soft, var(--bb-color-border));
+  background: transparent;
+  color: var(--bb-color-ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.bb-pc-directory-row:last-child { border-bottom: 0; }
+.bb-pc-directory-row:hover { background: var(--bb-color-canvas); }
+.bb-pc-directory-row[aria-expanded='true'] { background: var(--bb-color-accent-soft); }
+.bb-pc-directory-row:focus-visible { outline: 2px solid var(--bb-color-accent); outline-offset: -2px; }
+.bb-pc-directory-list.is-companies .bb-pc-directory-row { grid-template-columns: minmax(0, 1fr) 120px 200px 250px; }
+.bb-pc-directory-who { display: flex; align-items: center; min-width: 0; }
+.bb-pc-directory-row .bb-pc-mark { width: 28px; height: 28px; font-size: 12px; }
+.bb-pc-directory-copy { display: grid; gap: 2px; min-width: 0; }
+.bb-pc-directory-copy strong { overflow: hidden; color: var(--bb-color-ink); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.bb-pc-directory-note,
+.bb-pc-directory-term,
+.bb-pc-directory-cell { min-width: 0; color: var(--bb-color-muted); font-size: 12px; overflow-wrap: anywhere; }
+.bb-pc-directory-row .bb-pc-company-chips { font-size: 12px; }
+.bb-pc-directory-row .bb-pc-company-chip .bb-pc-mark { width: 18px; height: 18px; font-size: 10px; }
+.bb-pc-directory-row .bb-pc-kind { font-size: 11px; }
+.bb-pc-directory-term { text-align: right; }
+.bb-pc-directory .bb-pc-group-title { margin: 28px 0 12px; font-size: 15px; font-weight: 600; }
+.bb-pc-directory .bb-pc-group-title:first-of-type { margin-top: 4px; }
+.bb-pc-directory-none { margin: 0; padding: var(--bb-space-3) var(--bb-space-4); border: 1px solid var(--bb-color-border); border-radius: var(--bb-pc-directory-radius); color: var(--bb-color-muted); font-size: 12px; }
+.bb-pc-directory-detail .bb-pc-detail-nav { margin-top: var(--bb-space-2); }
+@media (max-width: 1200px) {
+  .bb-pc-directory-row { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) 100px; gap: var(--bb-space-3); }
+  .bb-pc-directory-list.is-companies .bb-pc-directory-row { grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr) minmax(0, .8fr) minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .bb-pc-directory-row,
+  .bb-pc-directory-list.is-companies .bb-pc-directory-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); row-gap: var(--bb-space-2); }
+  .bb-pc-directory-row .bb-pc-directory-term { text-align: left; }
+  .bb-pc-directory-row .bb-pc-directory-who { min-height: 32px; }
+}
+
+.bb-pc-directory-source { margin-top: var(--bb-space-4); color: var(--bb-color-muted); font-size: 12px; }
+.bb-pc-directory-source > summary { width: fit-content; cursor: pointer; }
+.bb-pc-directory-source > summary:focus-visible { outline: 2px solid var(--bb-color-focus); outline-offset: 2px; }
+.bb-pc-directory-source[open] > summary { margin-bottom: var(--bb-space-2); }

@@ -55,7 +55,7 @@
 .judgment-view-kicker {
   color: var(--judgment-eyebrow);
   font-size: .72rem;
-  font-weight: 750;
+  font-weight: var(--bb-font-weight-medium);
   letter-spacing: .12em;
   text-transform: uppercase;
 }
@@ -100,7 +100,7 @@
   padding: 2px 10px;
   background: var(--judgment-panel);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .judgment-view-panel {
@@ -134,7 +134,7 @@
 
 .judgment-view a {
   color: var(--judgment-accent-strong);
-  font-weight: 650;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .judgment-view a:focus-visible {
@@ -215,7 +215,7 @@
 
 .judgment-view-objective-state {
   font-size: 1.1rem;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .judgment-view-meta {

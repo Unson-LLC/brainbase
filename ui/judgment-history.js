@@ -8,7 +8,10 @@
  * review host.
  */
 
-import {
+// A new lazy screen must not reuse the pre-loading-stage kit cached by an open tab.
+// The capability query gives this compatible kit its own browser module identity.
+import * as workspaceKit from './workspace-kit.js?capability=loading-stage-v1';
+const {
   makeWorkspaceElement,
   workspaceButton,
   workspaceDialog,
@@ -21,7 +24,8 @@ import {
   workspacePageHeader,
   workspaceRailBlock,
   workspaceRailHead,
-} from './workspace-kit.js';
+  workspaceLoadingStage,
+} = workspaceKit;
 
 export const JUDGMENT_HISTORY_UI_CONTRACT_VERSION = 'brainbase.judgment-history-ui.v1';
 
@@ -1069,10 +1073,6 @@ function appendReferenceList(doc, references) {
   if (list.children?.length) wrap.append(list);
   if (bare.length) {
     wrap.append(makeWorkspaceElement(doc, 'p', { className: 'bb-jh-reference-kinds', text: referenceKindCounts(bare) }));
-    wrap.append(makeWorkspaceElement(doc, 'p', {
-      className: 'bb-jh-reference-note',
-      text: 'この記録には参照の名前が残っていません。どの記録かは「記録の詳細」のIDで確かめられます。',
-    }));
   }
   return wrap;
 }
@@ -1462,10 +1462,6 @@ function appendNormalRecordDetails(doc, record, { onCopyReference, open = false,
   ]));
   const handoff = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-handoff' });
   handoff.append(makeWorkspaceElement(doc, 'h4', { text: '次の判断に引き継ぐ' }));
-  handoff.append(makeWorkspaceElement(doc, 'p', {
-    className: 'bb-jh-reference-note',
-    text: 'この判断を別の判断の根拠として使うときに、AIへ渡す参照です。コピーしてAIとの会話に貼ります。',
-  }));
   handoff.append(appendNormalReferenceExport(doc, record, null, { onCopyReference }));
   for (const event of events) handoff.append(appendNormalReferenceExport(doc, record, event, { onCopyReference }));
   details.append(handoff);
@@ -1860,6 +1856,14 @@ function skeletonRows(doc, count = 5) {
   }));
 }
 
+// Have any rows arrived in the raw payload, regardless of the active
+// period/query filter?  Used only while loading to decide the full-screen stage.
+function hasArrivedRows(arrived) {
+  if (!arrived) return false;
+  const list = arrived.mode === 'normal' ? arrived.records : arrived.items;
+  return Array.isArray(list) && list.length > 0;
+}
+
 function loadingLine(doc) {
   return makeWorkspaceElement(doc, 'p', {
     className: 'bb-jh-summary bb-jh-loading',
@@ -1884,13 +1888,6 @@ function summaryLine(doc, aggregate, { loading = false } = {}) {
   if (aggregate?.mode !== 'normal') return line;
   line.append(makeWorkspaceElement(doc, 'span', { text: '　・　結果を確かめた判断 ' }));
   line.append(makeWorkspaceElement(doc, Number.isInteger(confirmed) ? 'strong' : 'span', { text: Number.isInteger(confirmed) ? `${confirmed}件` : '数えられません' }));
-  // Results are never recorded automatically; say how a person adds one.
-  if (Number.isInteger(confirmed) && confirmed < retrieved) {
-    line.append(makeWorkspaceElement(doc, 'span', {
-      className: 'bb-jh-summary-note',
-      text: '　結果は自動では記録されません。判断を開いて「良かったか」を記録すると数えられます。',
-    }));
-  }
   return line;
 }
 
@@ -2391,11 +2388,14 @@ export function createJudgmentHistoryUI({
   function render() {
     if (state.disposed) return;
     updateNotifications(state.phase === 'loading');
-    if (state.phase === 'loading' && !state.showSkeleton && !state.arrived) {
-      // Before the placeholder rows appear, say in the page what is happening.
+    if (state.phase === 'loading' && !hasArrivedRows(state.arrived)) {
+      // Before any rows arrive, say in the page what is happening. Decide this
+      // from the raw arrived payload, not a filtered aggregate: once rows have
+      // arrived, a period/query filter that hides them must not bring back the
+      // full-screen stage, and we skip a second aggregation per render.
       const pending = makeWorkspaceElement(doc, 'div', { className: 'bb-jh', attrs: { 'aria-busy': 'true' } });
       if (!notificationRoot) pending.append(notifications);
-      pending.append(loadingLine(doc));
+      pending.append(workspaceLoadingStage(doc, { title: '判断の履歴を準備しています', slow: state.slow }));
       root.replaceChildren(pending);
       return;
     }

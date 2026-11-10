@@ -20,6 +20,7 @@ on:
   push:
     branches:
       - develop
+      - main
     paths:
       - docs/manual/**
       - docs/.vitepress/**
@@ -31,7 +32,7 @@ on:
   workflow_dispatch:
     inputs:
       deploy:
-        description: Deploy the validated develop build to Cloudflare Pages
+        description: Deploy the validated main build to Cloudflare Pages
         required: true
         type: boolean
         default: false
@@ -55,12 +56,13 @@ permissions:
 jobs:
   validate-and-publish:
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
-    runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_BACKUP == 'on' && '"ubuntu-latest"' || '["self-hosted","Linux","X64","wsl-linux","nucbox-evo-x2"]') }}
     timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && 'main' || github.ref }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -113,10 +115,11 @@ jobs:
         id: deployment
         env:
           EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REF: ${{ github.ref }}
           MANUAL_DEPLOY: ${{ inputs.deploy }}
         run: |
           SHOULD_DEPLOY=false
-          if [ "$EVENT_NAME" = "push" ]; then
+          if [ "$EVENT_NAME" = "push" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; then
             SHOULD_DEPLOY=true
           elif [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$MANUAL_DEPLOY" = "true" ]; then
             SHOULD_DEPLOY=true
@@ -138,13 +141,37 @@ jobs:
             exit 1
           }
 
+      - name: Confirm Cloudflare Pages production branch
+        if: ${{ steps.deployment.outputs.should_deploy == 'true' }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          response="$(curl -fsS \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/brainbase")" || {
+            echo "::error::Failed to read Cloudflare Pages project 'brainbase' from the Cloudflare API." >&2
+            exit 1
+          }
+          if [ "$(printf '%s' "$response" | jq -r '.success')" != "true" ]; then
+            echo "::error::Cloudflare API did not return success while reading the Cloudflare Pages project 'brainbase'." >&2
+            exit 1
+          fi
+          production_branch="$(printf '%s' "$response" | jq -r '.result.production_branch')"
+          if [ "$production_branch" != "main" ]; then
+            echo "::error::Cloudflare Pages project 'brainbase' production branch is '$production_branch', not 'main'. A --branch=main deploy would only be a preview (main.brainbase.pages.dev) and https://brainbase.pages.dev would not change. Fix: set the project's production branch to main in Cloudflare (Workers & Pages > brainbase > Settings > Builds > Branch control), then re-run." >&2
+            exit 1
+          fi
+          echo "Cloudflare Pages project 'brainbase' production branch: $production_branch"
+
       - name: Deploy verified build to Cloudflare Pages
         if: ${{ steps.deployment.outputs.should_deploy == 'true' }}
         uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy docs/.vitepress/dist --project-name=brainbase --branch=develop --commit-dirty=true
+          command: pages deploy docs/.vitepress/dist --project-name=brainbase --branch=main --commit-dirty=true
 
       - name: Read back the public site
         if: ${{ steps.deployment.outputs.should_deploy == 'true' }}
@@ -163,6 +190,6 @@ jobs:
             echo
             echo '- Protection: docs contracts, publication contracts, VitePress build, smoke check, and required post-deploy public readback.'
             echo '- Reproduce: `npm ci --ignore-scripts && npm run docs:check && npx vitest run tests/public-message-promotion.test.ts tests/repo-hygiene.test.ts && npm run docs:build && npm run docs:smoke`.'
-            echo '- Expected: validation passes before a deploy; a develop push or approved manual deploy also passes `docs:verify-public`.'
+            echo '- Expected: validation passes before a deploy; a main push or approved manual deploy from main also passes `docs:verify-public`.'
             echo '- Unknown: inspect the failed step; if deployment/readback failed, the public site state requires a fresh readback.'
           } >> "$GITHUB_STEP_SUMMARY"

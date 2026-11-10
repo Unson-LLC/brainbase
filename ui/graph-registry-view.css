@@ -14,43 +14,6 @@
 }
 
 /* The kinds as tabs, with their counts. */
-.bb-gr-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 14px;
-  border-bottom: 1px solid var(--bb-color-border);
-}
-
-.bb-gr-tab {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 6px;
-  margin-bottom: -1px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  padding: 8px 12px;
-  background: transparent;
-  color: var(--bb-color-muted);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.bb-gr-tab:hover {
-  color: var(--bb-color-ink);
-}
-
-.bb-gr-tab.is-selected {
-  border-bottom-color: var(--bb-color-accent);
-  color: var(--bb-color-ink);
-  font-weight: 680;
-}
-
-.bb-gr-tab:focus-visible {
-  outline: 2px solid var(--bb-color-focus);
-  outline-offset: -2px;
-}
 
 .bb-gr-tab-count {
   color: var(--bb-color-quiet);
@@ -96,7 +59,7 @@
 .bb-gr-filters-label {
   color: var(--bb-color-muted);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-gr-filter-chip {
@@ -108,6 +71,7 @@
   border-radius: 999px;
   padding: 3px 6px 3px 10px;
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   color: var(--bb-color-ink);
   font: inherit;
   font-size: 12px;
@@ -208,7 +172,7 @@
   margin-bottom: 6px;
   color: var(--bb-color-accent);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-gr-detail-head h1 {
@@ -244,7 +208,7 @@
   margin: 0 0 6px;
   color: var(--bb-color-muted);
   font-size: 12px;
-  font-weight: 650;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-gr-connection-list,
@@ -321,3 +285,5 @@
   color: var(--bb-color-quiet);
   font-size: 12px;
 }
+
+.bb-gr-tabs { margin-top: 14px; }

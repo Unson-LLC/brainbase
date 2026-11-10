@@ -60,7 +60,7 @@ body:has(#brainbase-value-proof-review) {
 .vpr .bb-ws-button,
 .bb-vpr-detail .bb-ws-button {
   font-size: 13px;
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .vpr .bb-ws-button.is-quiet,
@@ -90,7 +90,7 @@ body:has(#brainbase-value-proof-review) {
 
 .bb-vpr-notice-title {
   color: var(--bb-color-ink);
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-vpr-setup-guide {
@@ -132,6 +132,7 @@ body:has(#brainbase-value-proof-review) {
 .bb-ws-button.bb-vpr-toggle.is-pressed {
   border-color: var(--bb-color-accent);
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   color: var(--bb-color-accent-strong);
   box-shadow: inset 3px 0 var(--bb-color-accent);
 }
@@ -140,11 +141,11 @@ body:has(#brainbase-value-proof-review) {
 .bb-vpr-primary {
   color: var(--bb-color-ink);
   font-size: 13px;
-  font-weight: 690;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-vpr-state {
-  font-weight: 690;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-vpr-state.is-delegated {
@@ -161,7 +162,7 @@ body:has(#brainbase-value-proof-review) {
 
 .bb-vpr-alert {
   color: var(--bb-color-danger);
-  font-weight: 690;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 /* 委任の地図: six columns; the kind name keeps the most room. */
@@ -171,10 +172,12 @@ body:has(#brainbase-value-proof-review) {
 
 .bb-vpr-map-ledger.is-unrecorded .bb-ws-ledger-row:not(.bb-ws-ledger-head) {
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-vpr-map-ledger.is-unrecorded .bb-ws-ledger-row.is-selected {
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 /* Highlights: compact ledgers of judgments, above the map. */
@@ -258,7 +261,7 @@ body:has(#brainbase-value-proof-review) {
 
 .bb-vpr-source-link {
   color: var(--vpr-action);
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -342,13 +345,14 @@ body:has(#brainbase-value-proof-review) {
 
 .bb-vpr-item.is-selected {
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   box-shadow: inset 3px 0 var(--bb-color-accent);
 }
 
 .bb-vpr-item-title {
   color: var(--bb-color-ink);
   font-size: 13px;
-  font-weight: 690;
+  font-weight: var(--bb-font-weight-medium);
   overflow-wrap: anywhere;
 }
 

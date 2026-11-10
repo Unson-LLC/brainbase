@@ -5,6 +5,11 @@ import {
   type NormalizedRunReceipt
 } from './run-receipt.js';
 import {
+  assertRunReceiptPort,
+  type RunReceiptPersistenceInput,
+  type RunReceiptPort
+} from './run-receipt-port.js';
+import {
   resolveRuntimeHostContext,
   type Awaitable,
   type RuntimeHostContext,
@@ -73,19 +78,9 @@ export interface AutomationRunnerPort {
   retry?(input: AutomationRunnerRetryInput): Awaitable<AutomationRunnerResult>;
 }
 
-export interface AutomationReceiptPersistenceInput {
-  payload: unknown;
-  normalized: NormalizedRunReceipt;
-  context: RuntimeHostContext;
-}
+export type AutomationReceiptPersistenceInput = RunReceiptPersistenceInput<RuntimeHostContext>;
 
-export interface AutomationReceiptPort {
-  persist(input: AutomationReceiptPersistenceInput): Awaitable<unknown>;
-  query(input: {
-    request: AutomationRunRequest;
-    context: RuntimeHostContext;
-  }): Awaitable<unknown>;
-}
+export type AutomationReceiptPort = RunReceiptPort<AutomationRunRequest, RuntimeHostContext>;
 
 export type AutomationRunClaim =
   | {
@@ -266,11 +261,7 @@ function assertPorts(ports: AutomationRunPorts): void {
   if (!ports.runner || typeof ports.runner !== 'object' || typeof ports.runner.start !== 'function') {
     throw new Error('automation runner port with start is required');
   }
-  if (!ports.receipt || typeof ports.receipt !== 'object'
-    || typeof ports.receipt.persist !== 'function'
-    || typeof ports.receipt.query !== 'function') {
-    throw new Error('automation receipt port with persist and query is required');
-  }
+  assertRunReceiptPort(ports.receipt, 'automation receipt');
   if (!ports.runStore || typeof ports.runStore !== 'object'
     || typeof ports.runStore.claim !== 'function'
     || typeof ports.runStore.markRunnerStarted !== 'function'

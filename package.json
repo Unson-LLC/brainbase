@@ -1,6 +1,6 @@
 {
   "name": "@unson/brainbase-mcp",
-  "version": "0.44.1",
+  "version": "0.50.1",
   "description": "Local-first Brainbase judgment OS that lets supported AI agents reuse a user's approved goals, priorities, decisions, and judgment criteria.",
   "type": "module",
   "license": "MIT",
@@ -14,6 +14,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./entity-indexer": {
+      "types": "./dist/entity-indexer.d.ts",
+      "import": "./dist/entity-indexer.js"
+    },
+    "./entity-index-cache": {
+      "types": "./dist/entity-index-cache.d.ts",
+      "import": "./dist/entity-index-cache.js"
     },
     "./judgment-dag": {
       "types": "./dist/judgment-dag.d.ts",
@@ -163,6 +171,10 @@
       "types": "./dist/run-receipt.d.ts",
       "import": "./dist/run-receipt.js"
     },
+    "./run-receipt-port": {
+      "types": "./dist/run-receipt-port.d.ts",
+      "import": "./dist/run-receipt-port.js"
+    },
     "./routines": {
       "types": "./dist/routines.d.ts",
       "import": "./dist/routines.js"
@@ -190,6 +202,10 @@
     "./meeting-source-connection": {
       "types": "./dist/meeting-source-connection.d.ts",
       "import": "./dist/meeting-source-connection.js"
+    },
+    "./meeting-source-mcp-adapters": {
+      "types": "./dist/meeting-source-mcp-adapters.d.ts",
+      "import": "./dist/meeting-source-mcp-adapters.js"
     },
     "./meeting-source-reader": {
       "types": "./dist/meeting-source-reader.d.ts",
@@ -399,6 +415,10 @@
       "types": "./dist/meeting-source-sync.d.ts",
       "import": "./dist/meeting-source-sync.js"
     },
+    "./meeting-source-sync-common-adapter": {
+      "types": "./dist/meeting-source-sync-common-adapter.d.ts",
+      "import": "./dist/meeting-source-sync-common-adapter.js"
+    },
     "./meeting-minutes-http": {
       "types": "./dist/meeting-minutes-http.d.ts",
       "import": "./dist/meeting-minutes-http.js"
@@ -520,7 +540,20 @@
       "import": "./dist/private-philosophy-graph.js"
     },
     "./ui/native-scrollbars": "./ui/native-scrollbars.js",
-    "./ui/native-scrollbars.css": "./ui/native-scrollbars.css"
+    "./ui/native-scrollbars.css": "./ui/native-scrollbars.css",
+    "./queue-task-tools": {
+      "types": "./dist/queue-task-tools.d.ts",
+      "import": "./dist/queue-task-tools.js"
+    },
+    "./testing/queue-task-tools-contract": {
+      "types": "./dist/testing/queue-task-tools-contract.d.ts",
+      "import": "./dist/testing/queue-task-tools-contract.js"
+    },
+    "./contracts/brainbase-public-contract.v1.json": "./contracts/brainbase-public-contract.v1.json",
+    "./ownership-survey": {
+      "types": "./dist/ownership-survey.d.ts",
+      "import": "./dist/ownership-survey.js"
+    }
   },
   "bin": {
     "brainbase-mcp": "dist/index.js",
@@ -575,14 +608,17 @@
     "build:world": "node scripts/build-world-vendor.mjs"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.31.0",
+    "@modelcontextprotocol/sdk": "^1.32.0",
     "graphology": "0.26.0",
     "js-yaml": "^4.1.1",
     "sigma": "3.0.3",
-    "zod": "^3.25.56"
+    "zod": "^4.6.7"
   },
   "overrides": {
-    "ip-address": "^10.4.0"
+    "ip-address": "^10.4.0",
+    "vitepress": {
+      "vite": "^6.4.5"
+    }
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
@@ -594,7 +630,7 @@
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "vitepress": "^1.6.4",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.12"
   },
   "engines": {
     "node": ">=20"

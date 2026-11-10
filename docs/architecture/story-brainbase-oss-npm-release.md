@@ -18,15 +18,15 @@
 ## Trust boundaries
 
 - package sourceとrelease CLIはdefault branch上のレビュー済みworkflowから読み込む。
-- 公開artifactはdevelopへpushされたcommit（`github.sha`）をdetached checkoutしてcredentialなしでbuild・packし、manifestの`gitHead`とdigestが一致した同一tarballだけを公開する。
-- 手動`release_ref`も`origin/develop`から到達可能なcommitだけを許可し、package名を`@unson/brainbase-mcp`へ固定する。
+- 公開artifactは`main`へpushされたcommit（`github.sha`）をdetached checkoutしてcredentialなしでbuild・packし、manifestの`gitHead`とdigestが一致した同一tarballだけを公開する。
+- 手動`release_ref`も`origin/main`から到達可能なcommitだけを許可し、package名を`@unson/brainbase-mcp`へ固定する。
 - validation jobは`contents: read`だけを持ち、OIDCとnpm credentialを持たない。artifact/proofを短期Actions artifactでpublish jobへ渡す。
 - publish jobだけが`id-token: write`と`NODE_AUTH_TOKEN`を持ち、CLIが要求するActions repository/run/serialization contextを設定する。`id-token: write`はpublish前のOIDCガード用で、npm provenanceは使わない（publish stepで`NPM_CONFIG_PROVENANCE=false`、`--provenance`なし）。
-- pull requestの任意scriptを、merge前の`pull_request_target`権限で実行しない。npmは`pull_request_target`から来たTrusted Publishingのトークンを拒否するため、公開workflowはdevelopへの`push`と`workflow_dispatch`だけで起動する。
+- pull requestの任意scriptを、merge前の`pull_request_target`権限で実行しない。npmは`pull_request_target`から来たTrusted Publishingのトークンを拒否するため、公開workflowは`main`への`push`と`workflow_dispatch`だけで起動する。
 
 ## Failure semantics
 
-- npm credentialなし、scope権限なし、2FA拒否、またはGitHub runner OIDC attestation不成立は公開失敗として終了する。Actionsを名乗る環境変数だけでは公開境界を通過できず、OIDCのworkflow refとref claimはreview済み`refs/heads/develop`へ完全一致させる。
+- npm credentialなし、scope権限なし、2FA拒否、またはGitHub runner OIDC attestation不成立は公開失敗として終了する。Actionsを名乗る環境変数だけでは公開境界を通過できず、OIDCのworkflow refとref claimはreview済み`refs/heads/main`へ完全一致させる。
 - registry 404だけを未公開として扱い、timeout、401、5xxを未公開へ読み替えない。
 - 同一versionの`gitHead`不一致はimmutable collisionとしてfail loudする。
 - registry収束を確認できない場合、GitHub Releaseを作成しない。

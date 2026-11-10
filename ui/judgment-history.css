@@ -16,7 +16,7 @@
 
 .bb-jh .bb-ws-page-head h1 {
   font-size: 20px;
-  font-weight: 800;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1.25;
   letter-spacing: 0;
 }
@@ -337,7 +337,7 @@
 .bb-jh-decision strong {
   overflow-wrap: anywhere;
   color: var(--bb-color-ink);
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-jh-reference-summary small,
@@ -568,7 +568,7 @@
     color: var(--bb-color-quiet);
     content: '';
     font-size: 10px;
-    font-weight: 700;
+    font-weight: var(--bb-font-weight-medium);
     letter-spacing: .06em;
     text-transform: uppercase;
   }
@@ -587,7 +587,7 @@
 /* Compact workspace header, search controls and shared floating notifications. */
 .bb-jh { position: relative; }
 .bb-jh > .bb-ws-page { margin-bottom: var(--bb-space-6, 32px); }
-.bb-jh .bb-ws-page-head h1 { font-size: 24px; line-height: 1.4; font-weight: 600; letter-spacing: .02em; }
+.bb-jh .bb-ws-page-head h1 { font-size: 24px; line-height: 1.4; font-weight: var(--bb-font-weight-medium); letter-spacing: .02em; }
 .bb-jh-controls { margin-bottom: var(--bb-space-4, 16px); }
 .bb-jh-checked { font-size: 11px; font-variant-numeric: tabular-nums; }
 .bb-jh-filter-fields { display: grid; gap: 16px; }
@@ -622,13 +622,13 @@
 .bb-jh-loading { color: var(--bb-color-muted); }
 .bb-jh-summary-note { font-size: 11.5px; }
 .bb-jh-entrypoint { display: grid; gap: 2px; }
-.bb-jh-entrypoint small.bb-jh-waiting { color: var(--bb-color-warning-strong, var(--bb-color-accent-strong)); font-size: 11px; font-weight: 600; }
+.bb-jh-entrypoint small.bb-jh-waiting { color: var(--bb-color-warning-strong, var(--bb-color-accent-strong)); font-size: 11px; font-weight: var(--bb-font-weight-medium); }
 .bb-jh-filter-fields .bb-jh-filter .bb-ws-combobox { width: 100%; }
 
 /* Detail: references that only have an id, the one question, and the record details. */
 .bb-jh-references { display: grid; gap: 8px; }
 .bb-jh-reference-list small { color: var(--bb-color-quiet); font-size: 11px; }
-.bb-jh-reference-kinds { margin: 0; color: var(--bb-color-ink); font-size: 13px; font-weight: 600; }
+.bb-jh-reference-kinds { margin: 0; color: var(--bb-color-ink); font-size: 13px; font-weight: var(--bb-font-weight-medium); }
 .bb-jh-references .bb-jh-reference-note,
 .bb-jh-handoff .bb-jh-reference-note { margin: 0; }
 .bb-jh-feedback { display: grid; gap: 12px; }
@@ -664,7 +664,7 @@
   margin: 0;
   color: var(--bb-color-muted);
   font-size: 11px;
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
   letter-spacing: 0.04em;
 }
 
@@ -738,6 +738,7 @@
 .bb-jh-owner.is-applied {
   border-color: var(--bb-color-accent);
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-jh-owner strong {
@@ -767,6 +768,7 @@
 .bb-jh-owner-badge.is-applied {
   border-color: var(--bb-color-accent);
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   color: var(--bb-color-accent-strong);
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
 }

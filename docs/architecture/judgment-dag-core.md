@@ -14,11 +14,11 @@ Brainbase OSS and organization deployments share the same Judgment DAG semantic 
 
 Brainbase is not only a memory/knowledge store. Its core responsibility is to externalize, preserve, replay, evaluate, and improve the structure by which a person or organization turns context into judgment and action.
 
-The prior product boundary that limited OSS Brainbase to `Remember / Organize / Retrieve / Learn` is revised. Brainbase owns the **judgment substrate**; Mana may own autonomous operating loops, continuous follow-through, and outcome ownership on top of that substrate.
+The prior product boundary that limited OSS Brainbase to `Remember / Organize / Retrieve / Learn` is revised. Brainbase owns the **judgment substrate**. [ADR-026](https://github.com/Unson-LLC/brainbase-project/blob/main/docs/architecture/adr/ADR-026-review-promises-and-external-agents.md) retires Mana and makes Brainbase the canonical home of review promises, read by external agents such as Grok Bot and, for enterprise use, Claude (Duet).
 
 ```text
 Brainbase = Remember / Organize / Retrieve / Judge / Replay / Learn
-Mana      = Operate / Prioritize continuously / Act autonomously / Follow-through
+External agents = Check agreed review dates / Read promises and actuals / Propose the agreed next step
 ```
 
 Brainbase may represent and execute judgment nodes. It does not become an always-on autonomous operator merely because it can execute a DAG.
@@ -269,18 +269,23 @@ Organization/Enterprise adds operational concerns rather than a different brain 
 - cross-project governance
 - enterprise security boundaries
 
-## Mana boundary after this decision
+## Review promises and external-agent boundary
 
-Mana is no longer defined as the only place where judgment can occur.
+[ADR-026](https://github.com/Unson-LLC/brainbase-project/blob/main/docs/architecture/adr/ADR-026-review-promises-and-external-agents.md) supersedes the former Mana operating boundary. Brainbase is not paired with Mana; Mana is retired by product decision.
 
-Brainbase owns **what the judgment graph is, what it depends on, who/what can run it, what it produced, and how it evaluated**.
+Brainbase owns **what the judgment graph is, what it depends on, who/what can run it, what it produced, and how it evaluated**. It is also the canonical home of the review promise for each world-model hypothesis and prediction: one metric, an acceptable deviation, a review date (check even without a deviation), and the action agreed in advance if it deviates.
 
-Mana owns the higher-order operating behavior that repeatedly decides *when* to run graphs, prioritizes across goals, initiates work, monitors progress, follows through, and intervenes over time.
+The human sets that promise when placing the hypothesis. The AI does not invent or change review conditions when results arrive. Grok Bot routines are the current intended watcher: read the promise and actuals on the review date, then produce the agreed replanning proposal or return the decision to Sato. Enterprise Claude (Duet) should be able to read the same promise. Brainbase does not depend on a particular watcher.
+
+ADR-014 F5's return to a human when relying on a refuted world model remains one of these agreed actions; the promise does not grant additional execution or adoption authority. Recording the promise version, observations, check, and resulting action must allow later inspection of whether the agent followed the agreement.
 
 ```text
-Brainbase: executable organizational cognition
-Mana: autonomous organizational operation
+Brainbase: judgment substrate and canonical review promises
+External agents: scheduled observation and the pre-agreed next step
+Human: hypotheses, review conditions, and required adoption/approval decisions
 ```
+
+This is an accepted design direction. Promise fields in schemas/contracts, watcher integrations, and operational rollout remain Planned in ADR-026's next steps; this document update does not implement them or stop a running bot.
 
 ## Non-goals
 

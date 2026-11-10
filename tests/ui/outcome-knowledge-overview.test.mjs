@@ -251,4 +251,30 @@ describe('organization-wide knowledge list', () => {
     select.dispatch('change');
     expect(changes).toEqual([null]);
   });
+  it('keeps the directory columns, project provenance and lifecycle on a selectable row', () => {
+    globalThis.document = new FakeDocument();
+    const root = new FakeElement('div'); const selected = [];
+    const record = normalizeKnowledgeCollection({ state: 'results', records: [{ id: 'sample-record', type: 'document', title: '手順', summary: '担当者を確認する', scope: 'organization', project_code: 'sample-project', updated_at: null, lifecycle: { status: 'retired' } }] }).records[0];
+    renderKnowledgeList(root, { state: 'ready', records: [record], searched_scope: ['project'] }, { directory: true, showProject: true, onSelect: item => selected.push(item.id) });
+    expect(collectText(root)).toContain('種類タイトルプロジェクト更新日');
+    expect(collectText(root)).toContain('組織共通');
+    expect(collectText(root)).toContain('失効');
+    expect(collectText(root)).toContain('担当者を確認する');
+    findAll(root, byClass('knowledge-list-row'))[0].dispatch('click');
+    expect(selected).toEqual(['sample-record']);
+    expect(findAll(root, byClass('knowledge-row-updated'))[0].textContent).toBe('未確認');
+  });
+
+  it('ignores stale overview reads after a new search and after destruction', async () => {
+    globalThis.document = new FakeDocument(); const pending = [];
+    const controller = createKnowledgeOverviewController({ root: new FakeElement('div'), autoLoad: false, api: () => new Promise(resolve => pending.push(resolve)) });
+    const first = controller.loadItems(); controller.state.filters.q = 'new';
+    const second = controller.loadItems();
+    const result = title => ({ state: 'results', records: [{ id: title, title, project_code: 'sample-project', lifecycle: { status: 'active' } }] });
+    pending[1](result('new')); await second; pending[0](result('old')); await first;
+    expect(controller.state.list.records[0].title).toBe('new');
+    const third = controller.loadItems(); controller.destroy(); pending[2](result('destroyed')); await third;
+    expect(controller.state.list.records[0].title).toBe('new');
+  });
+
 });

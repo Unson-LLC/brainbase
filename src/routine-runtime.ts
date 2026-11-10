@@ -6,6 +6,11 @@ import {
   type NormalizedRunReceipt
 } from './run-receipt.js';
 import {
+  assertRunReceiptPort,
+  type RunReceiptPersistenceInput,
+  type RunReceiptPort
+} from './run-receipt-port.js';
+import {
   resolveRuntimeHostContext,
   type Awaitable,
   type RuntimeHostContext,
@@ -226,19 +231,9 @@ export interface RoutineRunnerPort {
   retry?(input: RoutineRunnerRetryInput): Awaitable<RoutineRunnerResult>;
 }
 
-export interface RoutineReceiptPersistenceInput {
-  payload: unknown;
-  normalized: NormalizedRunReceipt;
-  context: RuntimeHostContext;
-}
+export type RoutineReceiptPersistenceInput = RunReceiptPersistenceInput<RuntimeHostContext>;
 
-export interface RoutineReceiptPort {
-  persist(input: RoutineReceiptPersistenceInput): Awaitable<unknown>;
-  query(input: {
-    request: RoutineRunRequest;
-    context: RuntimeHostContext;
-  }): Awaitable<unknown>;
-}
+export type RoutineReceiptPort = RunReceiptPort<RoutineRunRequest, RuntimeHostContext>;
 
 export interface RoutineRuntimePorts extends RuntimeHostPorts {
   runner: RoutineRunnerPort;
@@ -270,11 +265,7 @@ function assertRoutinePorts(ports: RoutineRuntimePorts): void {
   if (!ports.runner || typeof ports.runner !== 'object' || typeof ports.runner.start !== 'function') {
     throw new Error('routine runner port with start is required');
   }
-  if (!ports.receipt || typeof ports.receipt !== 'object'
-    || typeof ports.receipt.persist !== 'function'
-    || typeof ports.receipt.query !== 'function') {
-    throw new Error('routine receipt port with persist and query is required');
-  }
+  assertRunReceiptPort(ports.receipt, 'routine receipt');
 }
 
 export class RoutineRuntimeService {
