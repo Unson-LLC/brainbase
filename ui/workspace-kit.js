@@ -50,7 +50,7 @@ function appendContent(parent, doc, content) {
 }
 
 /** Breadcrumb, h1, lead, source label and actions, as on the organization screens. */
-export function workspacePageHeader(doc, { crumbs = [], title, lead, help, source, actions = [] } = {}) {
+export function workspacePageHeader(doc, { crumbs = [], title, lead, help, preserveLead = false, source, actions = [] } = {}) {
   const wrap = el(doc, 'div', { className: 'bb-ws-page' });
   if (crumbs.length > 0) {
     const breadcrumb = el(doc, 'nav', { className: 'bb-ws-breadcrumb', attrs: { 'aria-label': 'パンくず' } });
@@ -65,15 +65,15 @@ export function workspacePageHeader(doc, { crumbs = [], title, lead, help, sourc
   copy.append(el(doc, 'h1', { text: title }));
   const description = typeof lead === 'string' ? lead.trim() : '';
   const sentences = description.match(/[^。！？!?]+[。！？!?]?/gu) ?? [];
-  const longLead = description.length > 60 || sentences.length > 1;
+  const longLead = !preserveLead && (description.length > 60 || sentences.length > 1);
   const summary = longLead ? (sentences[0]?.length <= 60 ? sentences[0] : '') : description;
   if (summary) copy.append(el(doc, 'p', { className: 'bb-ws-lead', text: summary }));
   head.append(copy);
   const side = el(doc, 'div', { className: 'bb-ws-page-side' });
   if (help || longLead) {
-    const guide = workspaceHelp(doc, { label: title, text: help ?? description });
+    const guide = workspaceHelp(doc, { label: title, text: [longLead ? description : '', help].filter(Boolean).join('\n\n') });
     guide.className += ' is-page-guide';
-    guide.children[0].textContent = '?';
+    guide.children[0].textContent = '？';
     side.append(guide);
   }
   if (source) side.append(el(doc, 'span', { className: 'bb-ws-source', text: source }));

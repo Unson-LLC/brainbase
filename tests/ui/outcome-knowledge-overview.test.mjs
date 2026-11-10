@@ -278,3 +278,12 @@ describe('organization-wide knowledge list', () => {
   });
 
 });
+
+it('uses the full-width question mark for the knowledge page guide', () => {
+  globalThis.document = new FakeDocument();
+  const root = new FakeElement('div');
+  createKnowledgeOverviewController({ root, autoLoad: false });
+  const guide = findAll(root, byClass('is-page-guide'))[0];
+  expect(guide).toBeDefined();
+  expect(guide.children[0].textContent).toBe('？');
+});

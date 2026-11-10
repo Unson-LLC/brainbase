@@ -1105,3 +1105,16 @@ describe('Objective editor common UI contract', () => {
     });
   });
 });
+
+it('places the downward page guide beside status outside header copy', () => {
+  globalThis.document = new FakeDocument();
+  const root = new FakeElement('div');
+  createObjectiveEditorController({ root, port: {}, context: {}, autoLoad: false });
+  const header = findAll(root, node => node.className.includes('objective-editor-header '))[0];
+  const side = header.children.find(node => node.className.includes('bb-ws-page-side'));
+  expect(side).toBeDefined();
+  const guide = findAll(side, node => node.className.includes('is-page-guide'))[0];
+  expect(guide).toBeDefined();
+  expect(guide.children[0].textContent).toBe('？');
+  expect(side.children).toHaveLength(2);
+});

@@ -1591,7 +1591,7 @@ export function createKnowledgeOverviewController(options = {}) {
     const headerMeta = makeElement('div', { className: 'knowledge-header-meta' });
     const guide = workspaceHelp(getDocument(), { label: '知識・判断', text: '見られるすべてのプロジェクトと組織共通の知識・判断を一覧にします。登録や改訂は、プロジェクトを選ぶとできます。' });
     guide.className += ' is-page-guide';
-    guide.children[0].textContent = '?';
+    guide.children[0].textContent = '？';
     renderKnowledgeProjectFilter(headerMeta, { projects: options.projects, selected: null }, { onChange: (code) => openProject(code, { reason: 'filter' }) });
     headerMeta.append(guide);
     append(header, headerMain, headerMeta);

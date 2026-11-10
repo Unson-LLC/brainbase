@@ -988,10 +988,14 @@ export function renderObjectiveEditor(root, state, callbacks = {}) {
   append(copy,
     makeElement('h1', { text: '目的と評価基準' }),
     makeElement('p', { text: '目指す状態と評価基準を、版つきで編集・確認します。' }),
-    workspaceHelp(getDocument(), { label: '目的と評価基準', text: '現状の理解（観測や仮説）とは分けて扱います。' }),
   );
   const headerStatus = state.save.state !== 'idle' ? state.save.state : state.objectives.state;
-  header.append(copy, statusBadge(headerStatus));
+  const side = makeElement('div', { className: 'bb-ws-page-side' });
+  const guide = workspaceHelp(getDocument(), { label: '目的と評価基準', text: '現状の理解（観測や仮説）とは分けて扱います。' });
+  guide.className += ' is-page-guide';
+  guide.children[0].textContent = '？';
+  side.append(guide, statusBadge(headerStatus));
+  header.append(copy, side);
   wrapper.append(header);
   const toolbar = makeElement('div', { className: 'objective-editor-toolbar' });
   const tabs = [
