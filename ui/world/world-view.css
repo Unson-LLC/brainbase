@@ -386,6 +386,13 @@
   backdrop-filter: blur(4px);
 }
 
+.bb-world-legend-panel p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--bb-color-ink);
+}
+
 .bb-world-legend-panel[hidden] {
   display: none;
 }

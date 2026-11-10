@@ -1,3 +1,8 @@
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawn } from 'node:child_process';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { validateFoundationDefinition } from '../../src/ontology-foundation.ts';
 
@@ -803,7 +808,7 @@ describe('Objective editor common UI contract', () => {
       expect(collectText(byClass(root, 'bb-ws-breadcrumb')[0])).toBe('あなたのBrainbase/目的と現状');
       expect(findAll(root, (node) => node.tagName === 'H1')[0].textContent).toBe('目的と現状');
       expect(byClass(root, 'bb-ws-source')[0].textContent).toBe('手元のGraph');
-      expect(findButtons(byClass(root, 'bb-ws-page-head')[0]).map((button) => [button.textContent, button.className]))
+      expect(findButtons(byClass(root, 'bb-ws-page-head')[0]).filter((button) => button.className !== 'bb-ws-help-button').map((button) => [button.textContent, button.className]))
         .toEqual([['再読込', 'bb-ws-button'], ['新しい目的', 'bb-ws-button is-primary']]);
       // No tabs in this layout.
       expect(byClass(root, 'objective-editor-tab')).toHaveLength(0);
@@ -1004,7 +1009,7 @@ describe('Objective editor common UI contract', () => {
 
     it('offers no edit actions when the host does not allow writing', async () => {
       const { root, rail } = await mountWorkspace({ canEdit: false });
-      expect(findButtons(byClass(root, 'bb-ws-page-head')[0]).map((button) => button.textContent)).toEqual(['再読込']);
+      expect(findButtons(byClass(root, 'bb-ws-page-head')[0]).filter((button) => button.className !== 'bb-ws-help-button').map((button) => button.textContent)).toEqual(['再読込']);
       expect(findButtons(rail)).toHaveLength(0);
     });
 
@@ -1052,7 +1057,8 @@ describe('Objective editor common UI contract', () => {
       const { root } = await mountWorkspace();
       const wrapper = byClass(root, 'bb-objective-workspace')[0];
       expect(wrapper.children.map((node) => node.className.split(' ')[0])).toEqual(['bb-ws-page', 'bb-ws-summary', 'bb-ws-ledger']);
-      expect(collectText(byClass(root, 'bb-ws-lead')[0])).toBe('目指す状態と評価基準を、版つきで確かめて直します。下の「現状と見通し」は、目的とは分けた、いまの理解（観測と仮説）です。');
+      expect(collectText(byClass(root, 'bb-ws-lead')[0])).toBe('目指す状態と評価基準を、版つきで確かめて直します。');
+      expect(collectText(byClass(root, 'bb-ws-help-bubble')[0])).toContain('下の「現状と見通し」');
     });
 
     it('without a rail ignores the host options and draws the same tabs layout', async () => {
@@ -1073,7 +1079,7 @@ describe('Objective editor common UI contract', () => {
         const { port } = workspacePort();
         const controller = createObjectiveEditorController({ root, port, context: {}, canEdit: true, autoLoad: false, ...host });
         await controller.loadObjectives();
-        return JSON.stringify(shape(root));
+        return JSON.stringify(shape(root)).replace(/bb-ws-help-\d+/g, 'bb-ws-help-ID');
       };
       const plain = await draw({});
       const withHost = await draw({
@@ -1087,6 +1093,119 @@ describe('Objective editor common UI contract', () => {
       expect(plain).toContain('目的と評価基準');
     });
 
+    // FakeElement has no layout engine. Measure the actual renderer and shipped CSS.
+    const chrome = process.env.CHROME_BIN ?? ['/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser'].find(existsSync);
+    it.skipIf(!chrome && !process.env.CI)('keeps objective and knowledge page guides below their buttons and inside the viewport', async () => {
+      if (!chrome) throw new Error('Chrome is required in CI; install Chrome or set CHROME_BIN');
+      const repo = fileURLToPath(new URL('../../', import.meta.url));
+      const temp = mkdtempSync(join(tmpdir(), 'brainbase-objective-layout-'));
+      try {
+        for (const [page, sharedLast] of [
+          ['objective', false], ['objective', true], ['knowledge', false], ['knowledge', true],
+        ]) {
+          const styles = ['brainbase-tokens', ...(sharedLast
+            ? ['objective-editor', 'outcome-knowledge', 'workspace-kit']
+            : ['workspace-kit', 'objective-editor', 'outcome-knowledge'])];
+          const fixture = `${temp}/index.html`;
+          writeFileSync(fixture, `<!doctype html><meta charset="utf-8">
+            ${styles.map(name => `<link rel="stylesheet" href="${pathToFileURL(`${repo}ui/${name}.css`)}">`).join('')}
+            <div id="root"></div><pre id="measurements"></pre>
+            <script type="module">
+              import { createObjectiveEditorController } from '${pathToFileURL(`${repo}ui/objective-editor.js`)}';
+              import { createKnowledgeOverviewController } from '${pathToFileURL(`${repo}ui/outcome-knowledge.js`)}';
+              const controller = ${page === 'objective' ? 'createObjectiveEditorController' : 'createKnowledgeOverviewController'}({ root: document.querySelector('#root'), port: {}, autoLoad: false });
+              controller.render();
+              document.querySelector('.bb-ws-help-button').click();
+              setTimeout(() => {
+                const rect = selector => {
+                  const { left, right, top, bottom, width } = document.querySelector(selector).getBoundingClientRect();
+                  return { left, right, top, bottom, width };
+                };
+                document.querySelector('#measurements').textContent = JSON.stringify({
+                  button: rect('.bb-ws-help-button'), bubble: rect('.bb-ws-help-bubble'),
+                  guide: rect('.bb-ws-help'), header: rect('.bb-ws-page-head'),
+                  visible: getComputedStyle(document.querySelector('.bb-ws-help-bubble')).visibility,
+                  viewport: innerWidth,
+                });
+              }, 200);
+            </script>`);
+          for (const width of [1280, 900, 760, 740, 721, 720, 700, 600, 320]) {
+            const browser = spawn(chrome, [
+              '--headless', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
+              '--no-first-run', '--no-default-browser-check', '--allow-file-access-from-files',
+              '--disable-background-networking', '--disable-extensions', '--no-proxy-server',
+              `--user-data-dir=${temp}/profile-${width}`, `--window-size=${width},800`,
+              '--remote-debugging-pipe',
+            ], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
+            let id = 0;
+            let buffer = '';
+            const pending = new Map();
+            const send = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
+              const requestId = ++id;
+              const timeout = setTimeout(() => {
+                pending.delete(requestId);
+                reject(new Error(`Chrome timed out: ${method}`));
+              }, 10000);
+              pending.set(requestId, {
+                resolve: result => { clearTimeout(timeout); resolve(result); },
+                reject: error => { clearTimeout(timeout); reject(error); },
+              });
+              browser.stdio[3].write(JSON.stringify({ id: requestId, method, params, sessionId }) + '\0');
+            });
+            browser.stdio[4].on('data', chunk => {
+              buffer += chunk;
+              let end;
+              while ((end = buffer.indexOf('\0')) >= 0) {
+                const message = JSON.parse(buffer.slice(0, end));
+                buffer = buffer.slice(end + 1);
+                const request = pending.get(message.id);
+                if (!request) continue;
+                pending.delete(message.id);
+                if (message.error) request.reject(new Error(JSON.stringify(message.error)));
+                else request.resolve(message.result);
+              }
+            });
+            let measurements;
+            try {
+              const { targetId } = await send('Target.createTarget', { url: pathToFileURL(fixture).href });
+              const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+              await send('Emulation.setDeviceMetricsOverride', { width, height: 800, deviceScaleFactor: 1, mobile: false }, sessionId);
+              await send('Page.navigate', { url: pathToFileURL(fixture).href }, sessionId);
+              const result = await send('Runtime.evaluate', {
+                expression: `new Promise(resolve => {
+                  const timer = setInterval(() => {
+                    const text = document.querySelector('#measurements')?.textContent;
+                    if (text) { clearInterval(timer); resolve(JSON.parse(text)); }
+                  }, 20);
+                })`,
+                awaitPromise: true, returnByValue: true,
+              }, sessionId);
+              expect(result.exceptionDetails).toBeUndefined();
+              measurements = result.result.value;
+            } finally {
+              if (browser.exitCode === null && browser.signalCode === null) {
+                const exited = new Promise(resolve => browser.once('exit', resolve));
+                browser.kill();
+                await exited;
+              }
+            }
+            const { button, bubble, guide, header, visible, viewport } = measurements;
+            expect(viewport).toBe(width);
+            expect(visible).toBe('visible');
+            expect(bubble.top - button.bottom).toBeGreaterThanOrEqual(7);
+            expect(bubble.top - button.bottom).toBeLessThanOrEqual(9);
+            expect(Math.abs(button.right - bubble.right), `adjacent edges at ${width}px`).toBeLessThanOrEqual(1);
+            expect(bubble.right, `${page}, sharedLast=${sharedLast}, ${width}px right`).toBeLessThanOrEqual(viewport);
+            expect(bubble.left, `${page}, sharedLast=${sharedLast}, ${width}px left`).toBeGreaterThanOrEqual(0);
+            expect(guide.width).toBeCloseTo(16, 0);
+            if (viewport > 760) expect(header.right - button.right).toBeLessThanOrEqual(26);
+          }
+        }
+      } finally {
+        rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+      }
+    }, 60000);
+
     it('without a rail keeps the tabs layout and never draws the workspace pattern', async () => {
       globalThis.document = new FakeDocument();
       const root = new FakeElement('div');
@@ -1096,10 +1215,29 @@ describe('Objective editor common UI contract', () => {
       expect(root.children[0].className).toBe('objective-editor-root');
       expect(findAll(root, (node) => node.tagName === 'H1')[0].textContent).toBe('目的と評価基準');
       expect(byClass(root, 'objective-editor-tab').map((tab) => tab.textContent)).toEqual(['目的一覧', '目的を編集', 'Story参照']);
-      expect(findAll(root, (node) => String(node.className).includes('bb-ws-'))).toHaveLength(0);
+      expect(byClass(root, 'bb-ws-ledger')).toHaveLength(0);
+      expect(byClass(root, 'bb-ws-page-head')).toHaveLength(1);
+      const guide = byClass(root, 'bb-ws-help')[0];
+      expect(guide.parentNode.className).toBe('bb-ws-page-side');
+      expect(guide.className.split(/\s+/)).toContain('is-page-guide');
+      expect(guide.children[0].textContent).toBe('？');
+      expect(collectText(guide)).toContain('現状の理解（観測や仮説）とは分けて扱います。');
       // The first objective is not opened by itself in the tabs layout.
       expect(controller.state.view).toBe('list');
       expect(controller.state.selectedId).toBeNull();
     });
   });
+});
+
+it('places the downward page guide beside status outside header copy', () => {
+  globalThis.document = new FakeDocument();
+  const root = new FakeElement('div');
+  createObjectiveEditorController({ root, port: {}, context: {}, autoLoad: false });
+  const header = findAll(root, node => node.className.includes('objective-editor-header '))[0];
+  const side = header.children.find(node => node.className.includes('bb-ws-page-side'));
+  expect(side).toBeDefined();
+  const guide = findAll(side, node => node.className.includes('is-page-guide'))[0];
+  expect(guide).toBeDefined();
+  expect(guide.children[0].textContent).toBe('？');
+  expect(side.children).toHaveLength(2);
 });

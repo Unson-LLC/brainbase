@@ -182,6 +182,9 @@ describe('World canvas source integration', () => {
     await waitFor(() => app.root.querySelector('.bb-world-fallback'));
     expect(app.root.querySelector('.bb-world-canvas-ui')).toBeNull();
     expect(app.root.querySelector('.bb-ws-page')).not.toBeNull();
+    expect(app.root.querySelector('.bb-ws-lead').textContent).toBe('見るための画面で、ここからは何も書き換えません。');
+    expect(app.root.querySelector('.bb-ws-page .bb-ws-help-bubble')).toBeNull();
+    expect(app.root.querySelector('.bb-world-legend-panel p').textContent).toBe('事業を都市、案件を区画、判断の種類を広場の建物として描いています。都市を選ぶとその事業の区画に入り、仕事（タスク）が通りに面した現場として建ち、記録から把握できていないことが街の様子で見えます。');
     expect(app.rail.textContent).not.toBe('Host rail stays untouched');
   });
 });
