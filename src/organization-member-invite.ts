@@ -122,6 +122,14 @@ export type OrganizationMemberInviteReissueResult =
   | { status: 'already_revoked' };
 
 export interface OrganizationMemberInviteRepository {
+  /** Serialize the callback for this tenant and normalized email across all
+   * service instances using this repository. Durable adapters must coordinate
+   * across processes and propagate callback errors without changing them.
+   */
+  withPendingEmailLock<T>(
+    input: { tenantId: string; inviteeEmail: string },
+    operation: () => Promise<T>,
+  ): Promise<T>;
   save(record: OrganizationMemberInviteRecord): Promise<void>;
   get(input: { tenantId: string; inviteId: string }): Promise<OrganizationMemberInviteRecord | null>;
   findPendingByEmail(input: {
@@ -203,14 +211,17 @@ export interface OrganizationMemberInvitePolicy {
 
   /**
    * Decide what to do when a pending invite already exists for the same
-   * tenant and email. Default: `reject`.
+   * tenant and email. Default: `reject`. `reissue` replaces a single existing
+   * invite with a new token, keeping its role and metadata. A role change or
+   * multiple existing pending invites is rejected. For the same raw token,
+   * callers must use resendInvite explicitly.
    */
   onDuplicatePending?(input: {
     tenantId: string;
     actorPersonId: string;
     role: string;
     existingInviteIds: string[];
-  }): 'reject' | 'allow' | Promise<'reject' | 'allow'>;
+  }): 'reject' | 'reissue' | Promise<'reject' | 'reissue'>;
 }
 
 export interface OrganizationMemberInviteEnvelope {
@@ -347,7 +358,7 @@ const INVITE_ID_PATTERN = /^omi_[A-Za-z0-9_-]{16,64}$/u;
 const ROLE_PATTERN = /^[A-Za-z][A-Za-z0-9._:-]{0,63}$/u;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
 const SECRET_KEY_PATTERN =
-  /(?:access|refresh|id)?[_-]?(?:token|secret)|credential|password|private[_-]?key|authorization[_-]?code|client[_-]?secret/i;
+  /(?:access|refresh|id)?[_-]?(?:token|secret)|credential|password|private[_-]?key|authorization[_-]?code|client[_-]?secret|api[_-]?key|session/i;
 const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f-\u009f]/u;
 
 function fail(code: string, message: string, status = 400, details: JsonRecord = {}): never {
@@ -567,32 +578,41 @@ export class OrganizationMemberInviteService {
     const metadata = normalizeMetadata(input.metadata);
     await this.authorize({ action: 'create', tenantId: actor.tenantId, actorPersonId: actor.personId, role });
 
-    const now = this.now();
-    const existing = await this.store(() => this.repository.findPendingByEmail({
-      tenantId: actor.tenantId,
-      inviteeEmail,
-      now,
-    }));
-    if (!Array.isArray(existing) || existing.some((record) => !isStoredRecord(record)
-        || record.tenantId !== actor.tenantId || record.inviteeEmail !== inviteeEmail)) fail(...STORE_UNAVAILABLE);
-    const duplicates = existing.filter((record) => record.status === 'pending' && !isExpired(record, now));
-    if (duplicates.length > 0) {
-      const decision = await this.policyCall(() => this.policy.onDuplicatePending?.({
-        tenantId: actor.tenantId,
-        actorPersonId: actor.personId,
-        role,
-        existingInviteIds: duplicates.map((record) => record.inviteId),
-      }));
-      if (decision !== 'allow') {
-        fail('invite_duplicate', 'A pending invite already exists for this email', 409, {
-          existingInviteIds: duplicates.map((record) => record.inviteId),
-        });
-      }
-    }
+    try {
+      return await this.repository.withPendingEmailLock({ tenantId: actor.tenantId, inviteeEmail }, async () => {
+        const now = this.now();
+        const existing = await this.store(() => this.repository.findPendingByEmail({
+          tenantId: actor.tenantId,
+          inviteeEmail,
+          now,
+        }));
+        if (!Array.isArray(existing) || existing.some((record) => !isStoredRecord(record)
+            || record.tenantId !== actor.tenantId || record.inviteeEmail !== inviteeEmail)) fail(...STORE_UNAVAILABLE);
+        const duplicates = existing.filter((record) => record.status === 'pending' && !isExpired(record, now));
+        if (duplicates.length > 0) {
+          const decision = await this.policyCall(() => this.policy.onDuplicatePending?.({
+            tenantId: actor.tenantId,
+            actorPersonId: actor.personId,
+            role,
+            existingInviteIds: duplicates.map((record) => record.inviteId),
+          }));
+          if (decision === 'reissue' && duplicates.length === 1 && duplicates[0].role === role) {
+            return this.reissue({ actor, inviteId: duplicates[0].inviteId });
+          }
+          fail('invite_duplicate', 'A pending invite already exists for this email', 409, {
+            existingInviteIds: duplicates.map((record) => record.inviteId),
+          });
+        }
 
-    const { record, token } = this.issueRecord({ actor, inviteeEmail, role, inviterDisplayName, metadata });
-    await this.store(() => this.repository.save(record));
-    return this.finishIssue('invite', record, token, actor, 'create');
+        const { record, token } = this.issueRecord({ actor, inviteeEmail, role, inviterDisplayName, metadata });
+        const acceptUrl = this.acceptUrl(token, record);
+        await this.store(() => this.repository.save(record));
+        return this.finishIssue('invite', record, token, acceptUrl, actor, 'create');
+      });
+    } catch (error) {
+      if (error instanceof OrganizationMemberInviteError) throw error;
+      fail(...STORE_UNAVAILABLE);
+    }
   }
 
   async acceptInvite(input: AcceptOrganizationMemberInviteInput): Promise<AcceptOrganizationMemberInviteResult> {
@@ -771,7 +791,7 @@ export class OrganizationMemberInviteService {
     if (!sameHash(hashToken(token), record.tokenHash)) {
       fail('invite_token_mismatch', 'Token does not belong to this invite; use reissue', 400);
     }
-    return this.finishIssue('resend', record, token, actor, 'resend');
+    return this.finishIssue('resend', record, token, this.acceptUrl(token, record), actor, 'resend');
   }
 
   async reissue(input: OrganizationMemberInviteTargetInput): Promise<ReissueOrganizationMemberInviteResult> {
@@ -796,6 +816,7 @@ export class OrganizationMemberInviteService {
       inviterDisplayName: current.inviterDisplayName ?? null,
       metadata: current.metadata ?? {},
     });
+    const acceptUrl = this.acceptUrl(token, record);
     const now = record.issuedAt;
     const result = await this.store(() => this.repository.reissue({
       tenantId: actor.tenantId,
@@ -824,7 +845,7 @@ export class OrganizationMemberInviteService {
         || result.record.status !== 'pending') {
       fail(...STORE_UNAVAILABLE);
     }
-    const issued = await this.finishIssue('reissue', result.record, token, actor, 'reissue', inviteId);
+    const issued = await this.finishIssue('reissue', result.record, token, acceptUrl, actor, 'reissue', inviteId);
     return { ...issued, previous: toReadback(result.previous, now) };
   }
 
@@ -875,11 +896,11 @@ export class OrganizationMemberInviteService {
     kind: OrganizationMemberInviteEnvelope['kind'],
     record: OrganizationMemberInviteRecord,
     token: string,
+    acceptUrl: string,
     actor: OrganizationMemberInviteActor,
     action: OrganizationMemberInviteAction,
     supersededInviteId?: string,
   ): Promise<OrganizationMemberInviteIssueResult> {
-    const acceptUrl = this.acceptUrl(token, record);
     let delivered = false;
     if (this.delivery) {
       try {
@@ -924,8 +945,9 @@ export class OrganizationMemberInviteService {
     }
     let parsed: URL;
     try { parsed = new URL(url); } catch { fail('invite_accept_url_invalid', 'Invite accept URL could not be built', 500); }
-    if (parsed.protocol !== 'https:' || parsed.username || parsed.password) {
-      fail('invite_accept_url_invalid', 'Invite accept URL must use HTTPS without URL credentials', 500);
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password
+        || !parsed.hash.includes(token) || parsed.href.split('#')[0].includes(token)) {
+      fail('invite_accept_url_invalid', 'Invite accept URL must use HTTPS without URL credentials and keep the token only in the fragment', 500);
     }
     return url;
   }
@@ -1022,12 +1044,13 @@ export class OrganizationMemberInviteService {
 
 /**
  * Reference in-memory repository for tests, fixtures, and local runs. It is
- * not a persistence adapter. Each method runs without awaiting, so a single
- * Node process serializes it atomically.
+ * not a persistence adapter. Issuance callbacks serialize per tenant/email in
+ * one Node process; state mutation methods run atomically without awaiting.
  */
 export function createInMemoryOrganizationMemberInviteRepository(): OrganizationMemberInviteRepository & {
   snapshot(): OrganizationMemberInviteRecord[];
 } {
+  const pendingEmailLocks = new Map<string, Promise<void>>();
   const byId = new Map<string, OrganizationMemberInviteRecord>();
   const idByHash = new Map<string, string>();
   const clone = (record: OrganizationMemberInviteRecord) => structuredClone(record);
@@ -1037,6 +1060,20 @@ export function createInMemoryOrganizationMemberInviteRepository(): Organization
   };
 
   return {
+    async withPendingEmailLock({ tenantId, inviteeEmail }, operation) {
+      const key = JSON.stringify([tenantId, inviteeEmail]);
+      const previous = pendingEmailLocks.get(key) ?? Promise.resolve();
+      let release: () => void = () => {};
+      const current = new Promise<void>(resolve => { release = resolve; });
+      pendingEmailLocks.set(key, current);
+      await previous;
+      try {
+        return await operation();
+      } finally {
+        release();
+        if (pendingEmailLocks.get(key) === current) pendingEmailLocks.delete(key);
+      }
+    },
     async save(record) {
       byId.set(record.inviteId, clone(record));
       idByHash.set(record.tokenHash, record.inviteId);

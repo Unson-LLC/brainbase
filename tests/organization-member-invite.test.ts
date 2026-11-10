@@ -416,10 +416,86 @@ describe('organization member invite kernel', () => {
     }), 'invite_duplicate', 409);
     expect(error.details).toEqual({ existingInviteIds: [first.invite.inviteId] });
 
-    const lenient = setup({ policy: { onDuplicatePending: () => 'allow' } });
-    await lenient.service.createInvite({ actor: admin, inviteeEmail: 'dup@example.com', role: 'member' });
-    await lenient.service.createInvite({ actor: admin, inviteeEmail: 'dup@example.com', role: 'admin' });
-    expect(lenient.repository.snapshot()).toHaveLength(2);
+    const replacing = setup({ policy: { onDuplicatePending: () => 'reissue' } });
+    const original = await replacing.service.createInvite({ actor: admin, inviteeEmail: 'dup@example.com', role: 'member' });
+    const replacement = await replacing.service.createInvite({ actor: admin, inviteeEmail: 'dup@example.com', role: 'member' });
+    expect(replacement.token).not.toBe(original.token);
+    expect(replacing.repository.snapshot().map(record => record.status)).toEqual(['revoked', 'pending']);
+    expect(replacing.sent.map(envelope => envelope.kind)).toEqual(['invite', 'reissue']);
+    await expectCode(replacing.service.acceptInvite({
+      tenantId: admin.tenantId, token: original.token,
+      person: { personId: 'duplicate-invitee', email: 'dup@example.com', emailVerified: true },
+    }), 'invite_revoked', 410);
+    await expectCode(replacing.service.createInvite({ actor: admin, inviteeEmail: 'dup@example.com', role: 'admin' }),
+      'invite_duplicate', 409);
+  });
+
+  it('rejects concurrent creates across services sharing a repository', async () => {
+    const repository = createInMemoryOrganizationMemberInviteRepository();
+    const first = setup({ repository });
+    const second = setup({ repository });
+    const results = await Promise.allSettled([first, second].map(ctx => ctx.service.createInvite({
+      actor: admin, inviteeEmail: ' DUP@example.com ', role: 'member',
+    })));
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    const rejected = results.find(result => result.status === 'rejected');
+    expect(rejected?.status === 'rejected' && rejected.reason).toMatchObject({ code: 'invite_duplicate', status: 409 });
+    expect(repository.snapshot().filter(record => record.status === 'pending')).toHaveLength(1);
+  });
+
+  it.each([
+    { name: 'builder throws', build: () => { throw new Error('private builder error'); } },
+    { name: 'userinfo', build: ({ token }: { token: string }) => `https://user:pass@example.test/#${token}` },
+    { name: 'missing token', build: () => 'https://example.test/#missing' },
+    { name: 'query token', build: ({ token }: { token: string }) => `https://example.test/?token=${token}` },
+    { name: 'query and fragment token', build: ({ token }: { token: string }) => `https://example.test/?token=${token}#${token}` },
+    { name: 'path token', build: ({ token }: { token: string }) => `https://example.test/${token}#${token}` },
+  ])('does not save or supersede an invite for $name', async ({ build }) => {
+    let invalid = true;
+    const ctx = setup({ buildAcceptUrl: input => invalid ? build(input) : `https://example.test/#${input.token}` });
+    await expectCode(ctx.service.createInvite({ actor: admin, inviteeEmail: invitee.email, role: 'member' }),
+      'invite_accept_url_invalid', 500);
+    expect(ctx.repository.snapshot()).toEqual([]);
+    invalid = false;
+    const issued = await ctx.service.createInvite({ actor: admin, inviteeEmail: invitee.email, role: 'member' });
+    const before = ctx.repository.snapshot();
+    invalid = true;
+    await expectCode(ctx.service.reissue({ actor: admin, inviteId: issued.invite.inviteId }),
+      'invite_accept_url_invalid', 500);
+    expect(ctx.repository.snapshot()).toEqual(before);
+    expect(ctx.sent).toHaveLength(1);
+  });
+
+  it.each(['api_key', 'apiKey', 'session', 'session_id'])('rejects sensitive metadata key %s', async key => {
+    const ctx = setup();
+    await expectCode(ctx.service.createInvite({
+      actor: admin, inviteeEmail: invitee.email, role: 'member', metadata: { [key]: 'private' },
+    }), 'validation_error', 400);
+    expect(ctx.repository.snapshot()).toEqual([]);
+  });
+
+  it('serializes concurrent policy reissues and preserves a single pending invite', async () => {
+    const repository = createInMemoryOrganizationMemberInviteRepository();
+    const clients = [setup({ repository, policy: { onDuplicatePending: () => 'reissue' } }),
+      setup({ repository, policy: { onDuplicatePending: () => 'reissue' } })];
+    const issued = await Promise.all(clients.map(ctx => ctx.service.createInvite({
+      actor: admin, inviteeEmail: 'dup@example.com', role: 'member',
+    })));
+    expect(repository.snapshot().filter(record => record.status === 'pending')).toHaveLength(1);
+    expect(repository.snapshot().filter(record => record.status === 'revoked')).toHaveLength(1);
+    expect(new Set(issued.map(result => result.token)).size).toBe(2);
+  });
+
+  it('checks reissue authority before replacing a duplicate', async () => {
+    const ctx = setup({ policy: { onDuplicatePending: () => 'reissue', authorize: request => {
+      if (request.action === 'reissue') throw new Error('denied');
+    } } });
+    await ctx.service.createInvite({ actor: admin, inviteeEmail: 'dup@example.com', role: 'member' });
+    const before = ctx.repository.snapshot();
+    await expectCode(ctx.service.createInvite({ actor: admin, inviteeEmail: 'dup@example.com', role: 'member' }),
+      'invite_forbidden', 403);
+    expect(ctx.repository.snapshot()).toEqual(before);
+    expect(ctx.sent).toHaveLength(1);
   });
 
   it('normalizes delivery and store failures into stable errors without raw messages', async () => {
@@ -501,6 +577,7 @@ describe('organization member invite kernel', () => {
     await expectCode(ctx.service.createInvite({ actor: admin, inviteeEmail: invitee.email, role: 'member' }),
       'invite_accept_url_invalid', 500);
     expect(ctx.sent).toEqual([]);
+    expect(ctx.repository.snapshot()).toEqual([]);
   });
 
   it('issues omi_ ids and has no real mail transport in the kernel', () => {
@@ -530,8 +607,8 @@ describe('organization member invite HTTP routes', () => {
     server = undefined;
   });
 
-  async function start(context: { current: TrustedOrganizationMemberInviteRequestContext | null }) {
-    const ctx = setup();
+  async function start(context: { current: TrustedOrganizationMemberInviteRequestContext | null }, overrides: Parameters<typeof setup>[0] = {}) {
+    const ctx = setup(overrides);
     const handler = createOrganizationMemberInviteHttpHandler({ service: ctx.service });
     server = createServer((request, response) => {
       void handler(request, response, context.current).then((handled) => {
@@ -598,6 +675,27 @@ describe('organization member invite HTTP routes', () => {
     const reissued = await call('POST', `/${second.body.invite.inviteId}/reissue`);
     expect(reissued.status).toBe(201);
     expect(reissued.body.previous.supersededByInviteId).toBe(reissued.body.invite.inviteId);
+  });
+
+  it('returns only a recovery inviteId on delivery failure for create and reissue', async () => {
+    const context = { current: adminContext as TrustedOrganizationMemberInviteRequestContext | null };
+    const tokens: string[] = [];
+    const { ctx, call } = await start(context, { delivery: async envelope => {
+      tokens.push(new URL(envelope.acceptUrl).hash.replace('#token=', ''));
+      throw new Error(`SMTP ${envelope.to} ${envelope.acceptUrl}`);
+    } });
+    const created = await call('POST', '', { inviteeEmail: 'hanako@example.com', role: 'member' });
+    const firstId = ctx.repository.snapshot()[0].inviteId;
+    expect(created.status).toBe(503);
+    expect(created.body.error).toEqual({ code: 'invite_delivery_unavailable', status: 503,
+      message: 'Invite delivery is unavailable', details: { inviteId: firstId } });
+    const reissued = await call('POST', `/${firstId}/reissue`);
+    const pending = ctx.repository.snapshot().find(record => record.status === 'pending');
+    expect(reissued.status).toBe(503);
+    expect(reissued.body.error.details).toEqual({ inviteId: pending?.inviteId });
+    const responses = JSON.stringify([created, reissued]);
+    expect(responses).not.toContain('hanako@example.com');
+    for (const token of tokens) expect(responses).not.toContain(token);
   });
 
   it('rejects missing auth, body identity, unverified origin, and wrong methods', async () => {

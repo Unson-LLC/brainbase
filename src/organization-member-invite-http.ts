@@ -71,10 +71,10 @@ function writeJson(response: ServerResponse, statusCode: number, body: unknown):
   response.end(JSON.stringify(body));
 }
 
-function writeError(response: ServerResponse, status: number, code: string, message: string): void {
+function writeError(response: ServerResponse, status: number, code: string, message: string, details?: { inviteId: string }): void {
   writeJson(response, status, {
     protocol_version: ORGANIZATION_MEMBER_INVITE_HTTP_VERSION,
-    error: { code, status, message },
+    error: { code, status, message, ...(details ? { details } : {}) },
   });
 }
 
@@ -282,7 +282,10 @@ export function createOrganizationMemberInviteHttpHandler(
       if (error instanceof BodyLimitError) writeError(response, 413, 'body_too_large', error.message);
       else if (error instanceof HttpInputError) writeError(response, 400, 'validation_error', error.message);
       else if (error instanceof OrganizationMemberInviteError) {
-        writeError(response, error.status, error.code, error.message);
+        const inviteId = error.details.inviteId;
+        const details = typeof inviteId === 'string' && /^omi_[A-Za-z0-9_-]{16,64}$/u.test(inviteId)
+          ? { inviteId } : undefined;
+        writeError(response, error.status, error.code, error.message, details);
       } else writeError(response, 500, 'internal_error', 'Invite operation failed');
     }
     return true;
