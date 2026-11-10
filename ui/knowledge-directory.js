@@ -1,4 +1,4 @@
-import { makeWorkspaceElement as el, workspaceSearchControl, workspaceFilterPopover, workspaceButton, workspaceDialog } from './workspace-kit.js';
+import { makeWorkspaceElement as el, workspaceSearchControl, workspaceFilterPopover, workspaceFilterChip, workspaceButton, workspaceDialog } from './workspace-kit.js';
 
 const SCOPES = [['all', 'すべて'], ['project', 'プロジェクトの記録'], ['organization', '組織共通']];
 const STATUSES = [['active', '有効な記録'], ['inactive', '現在は非適用'], ['all', 'すべて']];
@@ -24,7 +24,7 @@ export function knowledgeDirectoryToolbar(doc, { filters, queryInput, onComposit
   query.addEventListener('keydown', keydown);
   root.append(search);
   const chips = el(doc, 'div', { className: 'knowledge-directory-chips' });
-  const chip = (label, clear) => chips.append(workspaceButton(doc, { text: `${label} ×`, attrs: { 'aria-label': `${label}を解除` }, onClick: clear }));
+  const chip = (label, clear) => chips.append(workspaceFilterChip(doc, { label, onRemove: clear }));
   const panel = el(doc, 'div', { attrs: { 'aria-label': '知識の絞り込み' } });
   const field = (label, name, choices, selected, onChangeField) => {
     const wrap = el(doc, 'label', { className: 'knowledge-directory-field', text: label });

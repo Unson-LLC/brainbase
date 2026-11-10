@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import {
   workspaceButton,
+  workspaceFilterOption,
   workspaceCloseDrawer,
   workspaceDismissNotification,
   workspaceTabList,
@@ -389,3 +390,14 @@ describe('shared dismissal motion', () => {
     });
   }
 });
+
+ it('filter choices preserve selection, unknown counts and click ownership', () => {
+   let clicked = 0;
+   const option = workspaceFilterOption(doc, { label: '確認待ちがある', count: '既知1件・未確認あり', checked: true, onClick: () => clicked++ });
+   expect(text(option)).toBe('確認待ちがある 既知1件・未確認あり');
+   expect(option.attributes['aria-checked']).toBe('true');
+   expect(byClass(option, 'bb-ws-filter-option-check')[0].attributes['aria-hidden']).toBe('true');
+   option.listeners.get('click')();
+   expect(clicked).toBe(1);
+   expect(text(workspaceFilterOption(doc, { label: 'すべて', count: 0 }))).toBe('すべて 0');
+ });

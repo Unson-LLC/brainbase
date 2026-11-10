@@ -157,7 +157,7 @@ describe('人と会社', () => {
     await writeGraphV2(dataDir);
     const { root } = await mountView({ presentation: 'directory' });
     expect(visibleText(root)).toContain('自社が未設定');
-    const unknown = findAll(root, node => node.attributes.role === 'radio' && node.textContent.startsWith('所属が未確認'))[0];
+    const unknown = findAll(root, node => node.attributes.role === 'radio' && visibleText(node).startsWith('所属が未確認'))[0];
     unknown.dispatch('click');
     expect(findAll(root, node => node.className.includes('bb-pc-directory-row'))).toHaveLength(3);
     findAll(root, node => node.attributes.role === 'tab')[1].dispatch('click');

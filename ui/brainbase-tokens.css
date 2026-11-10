@@ -90,7 +90,15 @@
   --bb-font-weight-medium: 500;
   --bb-color-mint: #6fc4b5;
   /* Approved compact Inbox presentation; scoped by the opt-in cards layout. */
-  --bb-inbox-approval-stripe: #d97706;
+  --bb-color-review: #d97706;
+  --bb-knowledge-type-decision: var(--bb-color-action);
+  --bb-knowledge-type-knowledge: var(--bb-color-success);
+  --bb-knowledge-type-fact: var(--bb-color-mint-strong);
+  --bb-knowledge-type-principle: var(--bb-color-warning);
+  --bb-knowledge-type-procedure: color-mix(in srgb, var(--bb-color-action) 70%, var(--bb-color-mint) 30%);
+  --bb-knowledge-type-term: color-mix(in srgb, var(--bb-color-action) 60%, var(--bb-color-danger) 40%);
+  --bb-knowledge-type-policy: color-mix(in srgb, var(--bb-color-success) 70%, var(--bb-color-action) 30%);
+  --bb-inbox-approval-stripe: var(--bb-color-review);
   --bb-inbox-task-stripe: #2563eb;
   --bb-inbox-border-subtle: #ebf0f2;
   --bb-inbox-tab-hover: rgb(255 255 255 / 50%);
