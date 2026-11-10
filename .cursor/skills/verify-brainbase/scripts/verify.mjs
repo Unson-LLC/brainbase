@@ -32,7 +32,8 @@ let passed = false;
 let interrupted;
 let finishing;
 for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143], ['SIGHUP', 129]]) {
-  process.once(signal, async () => {
+  process.on(signal, async () => {
+    if (interrupted) return;
     interrupted = signal;
     process.exitCode = code;
     await save('failure.json', { message: 'Interrupted by ' + signal });
@@ -141,6 +142,8 @@ try {
   transport.stderr?.on('data', chunk => { serverStderr += chunk; });
   client = new Client({ name: 'verify-brainbase', version: '1.0.0' });
   await client.connect(transport);
+  const identity = JSON.parse(await readFile(join(evidence, 'identity.json'), 'utf8'));
+  await save('identity.json', { ...identity, mcpPid: transport.pid });
   const tools = await client.listTools();
   events.push({ feature: 'mcp-readback', method: 'tools/list', response: tools });
   for (const name of ['get_context', 'list_entities', 'onboarding_status']) {

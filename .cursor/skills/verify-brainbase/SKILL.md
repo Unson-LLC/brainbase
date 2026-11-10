@@ -47,7 +47,7 @@ It calls public commands and tools, never application internals, fixture writers
 
 The requested evidence directory survives teardown, including failed attempts:
 
-- `identity.json`: Git head, Node version, paths, and environment keys.
+- `identity.json`: Git head, Node version, paths, environment keys, and `mcpPid` after the MCP connection succeeds.
 - `actions.json`: commands, arguments, stdout, stderr, exit codes, MCP requests and responses.
 - `doctor.json`, `memories.json`, `persisted-files.json`: usable local backend, visible memories, and persisted file hashes.
 - `install-preview.json`: preview output and equal before/after manifests. The supplied output path must remain absent. This proves file behavior, not a general guarantee about every dry-run command.
@@ -59,7 +59,7 @@ Require process exit 0, result PASS, cleanup true, and the expected user-visible
 
 ## Cleanup
 
-The helper closes only its own MCP client and child transport in `finally`, then removes only its unique scratch directory. It also does so on assertion failure, SIGINT, SIGTERM, and SIGHUP. SIGKILL cannot be caught; after a forced kill, inspect the data path in identity.json and remove only that run's temporary directory and child process. It never kills by process name. Inspect `result.json` and confirm the evidence directory still contains the trace after the run.
+The helper closes only its own MCP client and child transport in `finally`, then removes only its unique scratch directory. It also does so on assertion failure, SIGINT, SIGTERM, and SIGHUP, including repeated signals during cleanup. SIGKILL cannot be caught; after a forced kill, inspect the `data` path and `mcpPid` in identity.json and remove only that run's temporary directory and child process. Before signaling a recorded PID, confirm it still belongs to this run; OS PIDs may be reused. A kill before the MCP connection succeeds may leave no recorded `mcpPid`; in that case do not guess a child PID. It never kills by process name. Inspect `result.json` and confirm the evidence directory still contains the trace after the run.
 
 After reviewing the evidence, remove only install/build outputs created by this run:
 
@@ -67,7 +67,7 @@ After reviewing the evidence, remove only install/build outputs created by this 
 rm -rf node_modules dist
 ```
 
-Do this only when this run created those directories in an initially clean checkout. Do not delete pre-existing user build outputs. Check `git status --short`. Separately, read `identity.json` and confirm that the parent directory of its `data` path no longer exists in the OS temporary directory. Confirm that this run's MCP child process has exited; a clean checkout alone does not prove cleanup. Keep the evidence directory. Simultaneous runs require separate clean checkouts and evidence directories because dependency/build outputs are shared within one checkout.
+Do this only when this run created those directories in an initially clean checkout. Do not delete pre-existing user build outputs. Check `git status --short`. Separately, read `identity.json` and confirm that the parent directory of its `data` path no longer exists in the OS temporary directory. Use `mcpPid` from `identity.json` with `kill -0 <mcpPid>` to confirm that this run's MCP child process has exited (the check must report no such process); a clean checkout alone does not prove cleanup. Keep the evidence directory. Simultaneous runs require separate clean checkouts and evidence directories because dependency/build outputs are shared within one checkout.
 
 ## Helpers
 
