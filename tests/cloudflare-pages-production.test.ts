@@ -157,7 +157,7 @@ describe('Cloudflare Pages production deploy target', () => {
     expect(workflow).toContain('npm run docs:verify-public');
     expect(workflow).not.toContain('--branch=main');
     expect(workflow).not.toContain('--branch main');
-    expect(workflow).toContain('runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]');
-    expect(workflow).not.toMatch(/ubuntu-latest|windows-latest|macos-latest/u);
+    expect(workflow).toContain("runs-on: ${{ fromJSON(vars.CI_RUNNER_BACKUP == 'on' && '\"ubuntu-latest\"' || '[\"self-hosted\",\"Linux\",\"X64\",\"wsl-linux\",\"nucbox-evo-x2\"]') }}");
+    expect(workflow).not.toMatch(/windows-latest|macos-latest/u);
   });
 });
