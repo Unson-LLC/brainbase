@@ -31,7 +31,7 @@ let client;
 let passed = false;
 let interrupted;
 let finishing;
-for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143]]) {
+for (const [signal, code] of [['SIGINT', 130], ['SIGTERM', 143], ['SIGHUP', 129]]) {
   process.once(signal, async () => {
     interrupted = signal;
     process.exitCode = code;
