@@ -195,17 +195,16 @@ describe('RQ-151 standard World help', () => {
     expect(toggle.tagName).toBe('BUTTON'); // Native Enter/Space activation; no custom keyboard emulation.
     expect(toggle.getAttribute('type')).toBe('button');
     expect(toggle.textContent).toBe('？');
+    expect(toggle.getAttribute('title')).toBe('世界の見方と凡例');
     expect(toggle.getAttribute('aria-controls')).toBe(panel.id);
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     expect(panel.hidden).toBe(true);
     expect(panel.inert).toBe(true);
-    expect(panel.getAttribute('aria-hidden')).toBe('true');
     expect(app.root.querySelector('.bb-ws-page').textContent).not.toContain('事業を都市');
     toggle.click();
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
     expect(panel.hidden).toBe(false);
     expect(panel.inert).toBe(false);
-    expect(panel.getAttribute('aria-hidden')).toBe('false');
     expect(app.doc.activeElement).toBe(panel);
     expect(panel.textContent).toContain('事業を都市');
     expect(panel.querySelectorAll('.bb-world-chip').map((chip) => chip.textContent)).toEqual([
@@ -226,6 +225,19 @@ describe('RQ-151 standard World help', () => {
     expect(app.doc.activeElement).toBe(toggle);
     await waitFor(() => app.root.querySelector('.bb-world-fallback'));
     expect(app.root.querySelector('.bb-world-stage').hidden).not.toBe(true);
+  });
+
+  it('keeps multi-line notices before the WebGL fallback list in the same stage', async () => {
+    const app = mount({ presentation: 'standard' });
+    await waitFor(() => app.root.querySelector('.bb-world-fallback'));
+    const stage = app.root.querySelector('.bb-world-stage');
+    const hud = stage.querySelector('.bb-world-hud');
+    const list = stage.querySelector('.bb-world-fallback');
+    expect(stage.classList.contains('is-fallback')).toBe(true);
+    expect(hud.querySelectorAll('.bb-world-hud-line').length).toBeGreaterThanOrEqual(4);
+    expect(hud.textContent).toContain('3Dを表示できない');
+    expect(list.textContent).toContain('事業');
+    expect(stage.children.indexOf(hud)).toBeLessThan(stage.children.indexOf(list));
   });
 
   it('does not share ids across instances or add standard help to canvas presentation', () => {

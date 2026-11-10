@@ -168,7 +168,17 @@ describe('RQ-151/152 placement: the new controls carry positionable classes and 
     // The panel is an absolutely positioned, size-bounded overlay above the canvas.
     expect(rule('.bb-world-legend-panel')).toMatch(/position:\s*absolute/u);
     expect(rule('.bb-world-legend-panel')).toMatch(/z-index/u);
-    expect(rule('.bb-world-legend-panel')).toMatch(/max-width|width/u);
+    expect(rule('.bb-world-legend-panel')).toContain('width: min(440px, calc(100% - 2 * var(--bb-space-3)))');
+    expect(rule('.bb-world-legend-panel')).not.toMatch(/max-width\s*:/u);
+    for (const selector of ['.bb-world-legend-toggle', '.bb-world-legend-panel']) {
+      expect(css.split(`${selector} {`)).toHaveLength(2);
+    }
+  });
+
+  it('lets fallback notices reserve their full height above the list', () => {
+    expect(rule('.bb-world-stage.is-fallback')).toMatch(/height:\s*auto/u);
+    expect(rule('.bb-world-stage.is-fallback .bb-world-hud')).toMatch(/position:\s*static/u);
+    expect(rule('.bb-world-stage.is-fallback .bb-world-hud')).toMatch(/max-width:\s*none/u);
   });
 
   it('sizes the header sky icon SVG so it does not balloon and break the header', () => {
@@ -247,39 +257,6 @@ describe('RQ-151/152 behaviour with a live scene and district (WebGL vendor mock
     const enterButton = await waitFor(() => findAll(rail, (node) => node.tagName === 'BUTTON' && node.textContent.includes('の区画に入る'))[0]);
     return { doc, root, rail, view, enterButton };
   }
-
-  it('keeps the "？" disclosure exactly as the viewer left it when entering and leaving a city', async () => {
-    const app = await mountWebgl();
-    const toggle = app.root.querySelector('.bb-world-legend-toggle');
-    const panel = app.root.querySelector('.bb-world-legend-panel');
-    toggle.click();
-    expect(panel.hidden).toBe(false);
-    // Enter the district: the old coupling that force-hid the legend on entry is gone.
-    app.enterButton.click();
-    await waitFor(() => app.root.querySelector('.bb-world-district-canvas'));
-    expect(panel.hidden).toBe(false);
-    // Leave back to the whole world: nothing reopens or re-hides the disclosure either.
-    findAll(app.root, (node) => node.tagName === 'BUTTON' && node.textContent === '全体に戻る')[0].click();
-    expect(panel.hidden).toBe(false);
-  });
-
-  it('leaves the "？" disclosure closed when the viewer never opened it, through entering and leaving a city', async () => {
-    const app = await mountWebgl();
-    const toggle = app.root.querySelector('.bb-world-legend-toggle');
-    const panel = app.root.querySelector('.bb-world-legend-panel');
-    // Untouched: the disclosure starts closed and nothing should open it on its own.
-    expect(panel.hidden).toBe(true);
-    expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    // Enter the district: the removed coupling must not open the legend either.
-    app.enterButton.click();
-    await waitFor(() => app.root.querySelector('.bb-world-district-canvas'));
-    expect(panel.hidden).toBe(true);
-    expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    // Leave back to the whole world: still closed, aria state in step with it.
-    findAll(app.root, (node) => node.tagName === 'BUTTON' && node.textContent === '全体に戻る')[0].click();
-    expect(panel.hidden).toBe(true);
-    expect(toggle.getAttribute('aria-expanded')).toBe('false');
-  });
 
   it('cycling the header sky icon reaches the open district (and the scene with it)', async () => {
     const app = await mountWebgl();

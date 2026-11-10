@@ -1744,7 +1744,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     const panelId = `bb-world-legend-${++legendPanelSequence}`;
     const legendPanel = el(doc, 'section', {
       className: 'bb-world-legend-panel',
-      attrs: { id: panelId, 'aria-label': '世界の見方と凡例', 'aria-hidden': 'true', tabindex: '-1' },
+      attrs: { id: panelId, 'aria-label': '世界の見方と凡例', tabindex: '-1' },
     });
     legendPanel.hidden = true;
     legendPanel.inert = true;
@@ -1752,12 +1752,11 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     legendPanel.append(el(doc, 'p', { text: '事業を都市、案件を区画、判断の種類を広場の建物として描いています。都市を選ぶとその事業の区画に入り、仕事（タスク）が通りに面した現場として建ち、記録から把握できていないことが街の様子で見えます。見るための画面で、ここからは何も書き換えません。' }), legend, workLegend);
     const legendToggle = el(doc, 'button', {
       className: 'bb-world-legend-toggle', text: '？',
-      attrs: { type: 'button', 'aria-label': '世界の見方と凡例', 'aria-controls': panelId, 'aria-expanded': 'false' },
+      attrs: { type: 'button', title: '世界の見方と凡例', 'aria-label': '世界の見方と凡例', 'aria-controls': panelId, 'aria-expanded': 'false' },
     });
     const setLegendOpen = (open) => {
       legendPanel.hidden = !open;
       legendPanel.inert = !open;
-      legendPanel.setAttribute('aria-hidden', String(!open));
       legendToggle.setAttribute('aria-expanded', String(open));
       (open ? legendPanel : legendToggle).focus?.({ preventScroll: true });
     };
