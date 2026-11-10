@@ -505,9 +505,14 @@ export function workspaceFilterPopover(doc, { content, open = false, onToggle, t
     if (event.key !== 'Escape') return;
     event.preventDefault(); event.stopPropagation(); setOpen(false); control.focus();
   };
+  const pointerFocus = () => root.setAttribute('data-pointer-focus', 'true');
+  const keyboardFocus = () => root.removeAttribute?.('data-pointer-focus');
+  root.addEventListener('pointerdown', pointerFocus);
+  root.addEventListener('keydown', keyboardFocus);
   const toggle = () => setOpen(!isOpen, true);
   control.addEventListener('click', toggle); setOpen(open);
   return { root, control, panel, setOpen, get isOpen() { return isOpen === true; }, destroy() {
+    root.removeEventListener?.('pointerdown', pointerFocus); root.removeEventListener?.('keydown', keyboardFocus);
     destroyed = true; isOpen = false; removeListeners(); cancelExit(); control.removeEventListener?.('click', toggle);
     panel.hidden = true; panel.inert = true; panel.setAttribute('inert', ''); panel.setAttribute('aria-hidden', 'true'); control.setAttribute('aria-expanded', 'false');
   } };

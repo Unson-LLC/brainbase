@@ -503,7 +503,7 @@
 }
 
 .knowledge-directory .bb-ws-filter-popover .knowledge-control:is(:focus,:active) { outline: none; box-shadow: none; border-color: var(--knowledge-line-strong); }
-.knowledge-directory .bb-ws-filter-popover .knowledge-control:focus-visible { outline: none; background: var(--bb-color-accent-soft); }
+.knowledge-directory .bb-ws-filter-popover .knowledge-control:focus-visible { outline: 2px solid var(--bb-color-mint); outline-offset: 2px; }
 
 /* Type labels retain text; color is a secondary distinction. */
 .knowledge-directory .knowledge-row-type[data-record-type="decision"] { background: var(--bb-knowledge-type-decision); color: var(--bb-color-action-text); }
