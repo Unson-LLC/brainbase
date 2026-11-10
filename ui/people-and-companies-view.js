@@ -62,6 +62,10 @@ import {
 } from './graph-view-shared.js';
 import {
   workspaceButton,
+  workspaceDetailDrawer,
+  workspaceFilterPopover,
+  workspaceSearchControl,
+  workspaceTabStrip,
   workspaceDefinition,
   workspaceDetailEmpty,
   workspaceHostNotice,
@@ -241,6 +245,8 @@ export function createPeopleAndCompaniesView({
   autoLoad = true,
   initialEntityId,
   onDetailOpen,
+  presentation,
+  onSearchControl,
   now = () => new Date(),
   canCorrect = false,
   correctionScope,
@@ -267,10 +273,32 @@ export function createPeopleAndCompaniesView({
     root,
     rail,
     label: '人と会社',
-    className: 'bb-pc',
+    className: `bb-pc${presentation === 'directory' ? ' bb-pc-directory' : ''}`,
     contractVersion: PEOPLE_AND_COMPANIES_VIEW_CONTRACT_VERSION,
   });
   const state = { list: { state: 'loading' }, detail: null };
+  const directory = presentation === 'directory';
+  let view = 'people';
+  let query = '';
+  let condition = '';
+  let directoryControls = [];
+  let drawer;
+  let drawerClosing = false;
+  let creating = false;
+  let disposed = false;
+  const search = directory ? makeElement(doc, 'input', { attrs: { type: 'search', 'aria-label': '名前や会社名で探す', placeholder: '名前や会社名で探す' } }) : null;
+  let searchComposing = false;
+  const updateSearch = event => {
+    if (searchComposing || event?.isComposing || disposed) return;
+    const next = search.value.trim().toLocaleLowerCase();
+    if (next === query) return;
+    query = next; controller.render();
+  };
+  search?.addEventListener('compositionstart', () => { searchComposing = true; });
+  search?.addEventListener('compositionend', () => { searchComposing = false; updateSearch(); });
+  search?.addEventListener('input', updateSearch);
+  const cleanupControls = () => { for (const control of directoryControls) control.destroy(); directoryControls = []; };
+
   // Where to move after the next render: the opened record's head, or the row it was opened from.
   let pendingScroll = null;
   let detailTop = null;
@@ -427,6 +455,7 @@ export function createPeopleAndCompaniesView({
   }
 
   function openCreateEntity(type) {
+    if (directory) creating = true;
     // A host that places people in projects lists the ones a new person may join (`personProjects`).
     const projects = type === 'person' && state.list.state === 'ok' ? state.list.payload.personProjects ?? [] : [];
     correction.openCreateEntity({
@@ -515,7 +544,120 @@ export function createPeopleAndCompaniesView({
     });
   }
 
+  function directoryRow(item, payload) {
+    const person = view === 'people';
+    const row = makeElement(doc, 'button', { className: 'bb-pc-directory-row', attrs: { type: 'button', 'data-key': item.id, 'aria-expanded': String(state.detail?.id === item.id) } });
+    const who = makeElement(doc, 'span', { className: 'bb-pc-directory-who' });
+    const copy = makeElement(doc, 'span', { className: 'bb-pc-directory-copy' });
+    copy.append(makeElement(doc, 'strong', { text: item.isOwner ? `${item.name}（あなた）` : item.id === payload.ownCompany.id ? `${item.name}（自社）` : item.name }));
+    const note = person ? personOrgNote(item, payload.ownCompany.id) : null;
+    if (note) copy.append(makeElement(doc, 'span', { className: 'bb-pc-directory-note', text: orgNoteText(note) }));
+    who.append(person ? personMark(item) : companyMark(item.id, item.name), copy);
+    const projectText = (count, responsible = 0) => count > 0 ? `プロジェクト${count}件${responsible ? `（うち責任者として${responsible}件）` : ''}` : '関わるプロジェクトはありません';
+    row.append(who);
+    if (person) {
+      row.append(item.companyIds.length ? companyChips(item.companyIds) : makeElement(doc, 'span', { className: 'bb-pc-directory-note', text: '所属が未確認' }),
+        makeElement(doc, 'span', { className: 'bb-pc-directory-cell', text: projectText(item.projectCount, item.accountableProjectCount) }),
+        makeElement(doc, 'span', { className: 'bb-pc-directory-term', text: validityLabel(item, payload.asOf) }));
+    } else {
+      row.append(kindBadges(item) || makeElement(doc, 'span', { className: 'bb-pc-directory-note', text: '種類の記録なし' }),
+        makeElement(doc, 'span', { className: 'bb-pc-directory-cell', text: item.memberIds.length ? `${item.memberIds.length}人` : '所属する人はいません' }),
+        makeElement(doc, 'span', { className: 'bb-pc-directory-cell', text: `${projectText(item.projectIds.length)}${item.relatedProjects.length ? `（関わる ${item.relatedProjects.length}件）` : ''} / ${validityLabel(item, payload.asOf)}` }));
+    }
+    row.addEventListener('click', () => void controller.openEntity(item.id));
+    return row;
+  }
+
+  function directoryWorkspace() {
+    cleanupControls();
+    const children = [];
+    if (!onSearchControl) children.push(workspaceSearchControl(doc, { input: search }));
+    onSearchControl?.(search);
+    const notice = graphStateNotice(doc, state.list, { onRetry: () => void controller.load() });
+    const hostNotice = sourceNotice ? workspaceHostNotice(doc, sourceNotice) : null;
+    if (notice) return [...children, hostNotice, notice].filter(Boolean);
+    const payload = state.list.payload;
+    const people = payload.people.filter(item => item.active);
+    const companies = payload.companies.filter(item => item.active);
+    const toolbar = makeElement(doc, 'div', { className: 'bb-pc-directory-toolbar' });
+    const tabs = makeElement(doc, 'div', { attrs: { role: 'tablist', 'aria-label': '人と会社' } });
+    for (const [value, label, count] of [['people', '人', people.length], ['companies', '会社', companies.length]]) {
+      const tab = workspaceButton(doc, { attrs: { type: 'button', role: 'tab', 'aria-selected': String(view === value) }, onClick: () => {
+        view = value; condition = ''; query = ''; search.value = '';
+        search.setAttribute('placeholder', view === 'people' ? '名前や会社名で探す' : '会社名で探す');
+        search.setAttribute('aria-label', view === 'people' ? '名前や会社名で探す' : '会社名で探す');
+        controller.render();
+      } });
+      tab.append(makeElement(doc, 'span', { text: label }), makeElement(doc, 'span', { className: 'bb-ws-tab-count', text: String(count) }));
+      tabs.append(tab);
+    }
+    toolbar.append(tabs);
+    directoryControls.push(workspaceTabStrip(tabs, { appearance: 'segmented', memoryKey: 'people-directory' }));
+    if (condition) toolbar.append(workspaceButton(doc, { text: `${condition} ×`, attrs: { 'aria-label': `${condition}の絞り込みを解除` }, onClick: () => { condition = ''; controller.render(); } }));
+    const ownId = payload.ownCompany.id;
+    const standing = item => { const value = personStanding(item, ownId); return value.startsWith('所属未確認') ? '所属が未確認' : value; };
+    const all = view === 'people' ? people : companies;
+    const values = view === 'people' ? ['社内', '社外', '所属が未確認'] : [...new Set(companies.flatMap(item => item.kinds.length ? item.kinds.map(kind => ownKey(COMPANY_KIND_LABELS, kind.kind) ?? kind.kind) : ['種類の記録なし']))];
+    const matches = (item, value) => !value || (view === 'people' ? standing(item) === value : item.kinds.length ? item.kinds.some(kind => (ownKey(COMPANY_KIND_LABELS, kind.kind) ?? kind.kind) === value) : value === '種類の記録なし');
+    const panel = makeElement(doc, 'div', { attrs: { role: 'group', 'aria-label': '人と会社の絞り込み' } });
+    for (const value of ['', ...values]) {
+      const radio = workspaceButton(doc, { text: `${value || 'すべて'} ${all.filter(item => matches(item, value)).length}`, attrs: { role: 'radio', 'aria-checked': String(condition === value) }, onClick: () => { condition = value; controller.render(); } });
+      panel.append(radio);
+    }
+    const filter = workspaceFilterPopover(doc, { panel, appearance: 'icon' });
+    filter.control.setAttribute('aria-label', condition ? '人と会社の絞り込み（適用中）' : '人と会社の絞り込み');
+    if (condition) filter.control.className += ' is-filtered';
+    toolbar.append(filter.root);
+    directoryControls.push(filter);
+    const add = actionButton(view === 'people' ? '人を追加' : '会社を追加', view === 'people' ? can.createPerson : can.createCompany, () => openCreateEntity(view === 'people' ? 'person' : 'org'), { variant: 'primary', reasonId: 'bb-pc-add-reason', adds: true });
+    if (add) { add.className += ' bb-pc-directory-create'; toolbar.append(add); }
+    children.push(toolbar);
+    if (!writable && add) children.push(makeElement(doc, 'p', { className: 'bb-pc-action-reason', text: readOnlyText(), attrs: { id: 'bb-pc-add-reason' } }));
+    if (payload.absenceConfirmed) children.push(graphHostEmptyNotice(doc, emptyNotice) ?? workspaceNotice(doc, { label: '未登録', text: 'Graphに人と会社の記録はまだありません。' }));
+    if (view === 'people' && !ownId) children.push(workspaceNotice(doc, { label: '自社が未設定', tone: 'warning', text: `${OWN_COMPANY_REASONS[payload.ownCompany.reason] ?? '自社を決められません。'}推測で社内・社外を分けず、全員を所属未確認に置いています。` }));
+    const searched = item => !query || [item.name, item.orgNote, ...(item.aliases ?? []), ...(item.companyIds ?? []).map(nameOf)].some(value => String(value ?? '').toLocaleLowerCase().includes(query));
+    const shown = all.filter(item => matches(item, condition) && searched(item));
+    const listOf = records => { const list = makeElement(doc, 'div', { className: `bb-pc-directory-list is-${view}` }); list.append(...records.map(item => directoryRow(item, payload))); return list; };
+    if (!shown.length && !payload.absenceConfirmed) children.push(makeElement(doc, 'p', { className: 'bb-pc-empty', text: view === 'people' ? '条件に合う人はいません。' : '条件に合う会社はありません。' }));
+    else if (view === 'companies' || condition || query) children.push(listOf(shown));
+    else for (const label of ['社内', '社外', '所属が未確認']) {
+      const records = shown.filter(item => standing(item) === label);
+      if (label === '所属が未確認' && records.length === 0) continue;
+      children.push(groupTitle('h2', label, `${records.length}人`));
+      children.push(records.length ? listOf(records) : makeElement(doc, 'p', { className: 'bb-pc-directory-none', text: label === '所属が未確認' ? '所属が分からない人はいません。' : `${label}の人は登録されていません。` }));
+    }
+    children.push(endedNote(payload));
+    if (hostNotice) {
+      const source = makeElement(doc, 'details', { className: 'bb-pc-directory-source' });
+      source.append(makeElement(doc, 'summary', { text: '接続範囲' }), hostNotice);
+      children.push(source);
+    }
+    return children;
+  }
+
+  function renderDirectoryDrawer() {
+    if (!state.detail && !(creating && correction.form)) {
+      creating = false;
+      if (!drawerClosing) drawer?.close({ restoreFocus: false, immediate: true });
+      return;
+    }
+    drawer ??= workspaceDetailDrawer(doc, { title: '人と会社の詳細', onClose: () => {
+      drawerClosing = true;
+      const id = state.detail?.id;
+      state.detail = null; creating = false; pendingScroll = id ? { row: id } : null;
+      correction.close();
+      drawerClosing = false;
+    } });
+    const content = makeElement(doc, 'div', { className: 'bb-graph bb-pc bb-pc-directory-detail' });
+    if (state.detail) {
+      content.append(...detailPage());
+      if (!layout.inline) content.append(...railContent());
+    } else content.append(correction.render(doc));
+    drawer.setContent(content); drawer.open();
+  }
+
   function workspace() {
+    if (directory) return directoryWorkspace();
     if (state.detail) return detailPage();
     const listed = state.list.state === 'ok' && !state.list.payload.absenceConfirmed;
     const addActions = listed
@@ -573,8 +715,9 @@ export function createPeopleAndCompaniesView({
 
   function backToList() {
     const id = state.detail?.id;
-    correction.close();
     state.detail = null;
+    creating = false;
+    correction.close();
     pendingScroll = id ? { row: id } : null;
     controller.render();
   }
@@ -839,6 +982,7 @@ export function createPeopleAndCompaniesView({
   // Controller
 
   const controller = Object.freeze({
+    root,
     get state() {
       return state;
     },
@@ -846,8 +990,21 @@ export function createPeopleAndCompaniesView({
       return correction;
     },
     render() {
-      layout.render(workspace(), railContent());
+      if (disposed) return;
+      // Reparenting a focused fallback input removes native focus. The header
+      // slot keeps its input in place; standalone hosts restore only that input.
+      const restoreSearch = directory && !onSearchControl && doc.activeElement === search;
+      const selection = restoreSearch ? [search.selectionStart, search.selectionEnd] : null;
+      layout.render(workspace(), directory ? [] : railContent());
+      if (directory) renderDirectoryDrawer();
       settleScroll();
+      if (restoreSearch) {
+        search.focus?.({ preventScroll: true });
+        if (Number.isInteger(selection[0]) && Number.isInteger(selection[1])) search.setSelectionRange?.(...selection);
+      }
+    },
+    destroy() {
+      disposed = true; cleanupControls(); drawer?.dispose(); onSearchControl?.(null);
     },
     /** Back from a record's page to the ledgers, at the row it was opened from. */
     showList() {
@@ -868,13 +1025,15 @@ export function createPeopleAndCompaniesView({
      * unless `keepCorrection`; reading the same record again (after a save) stays where it is.
      */
     async openEntity(id, { keepCorrection = false } = {}) {
+      if (disposed) return;
+      creating = false;
       if (!keepCorrection && correction.form && state.detail?.id !== id) correction.close();
       if (state.detail?.id !== id) pendingScroll = { head: true };
       state.detail = { id, state: 'loading' };
       controller.render();
       onDetailOpen?.({ id });
       const result = await client.read(`/entities/${encodeURIComponent(id)}`);
-      if (state.detail?.id !== id) return;
+      if (disposed || state.detail?.id !== id) return;
       state.detail = { id, ...normalizeEntityDetail(result) };
       controller.render();
     },

@@ -73,10 +73,27 @@ export function workspacePageHeader(doc, { crumbs = [], title, lead, source, act
   return wrap;
 }
 
-/** A shared, title-only top bar. The host owns scrolling and immersive-page visibility. */
-export function workspaceTopbar(doc, { title = '' } = {}) {
+/** Shared search presentation. The caller keeps the input, value and handlers. */
+export function workspaceSearchControl(doc, { input } = {}) {
+  if (!input || typeof input.tagName !== 'string') throw new TypeError('search_input_required');
+  const search = el(doc, 'label', { className: 'bb-ws-search-control' });
+  search.append(workspaceActionIcon(doc, 'search'), input);
+  return search;
+}
+
+/** A shared title bar, with an optional search input owned by the caller. */
+export function workspaceTopbar(doc, { title = '', query } = {}) {
   const header = el(doc, 'header', { className: 'bb-ws-topbar' });
   header.append(el(doc, 'h1', { text: title }));
+  let search;
+  let currentQuery;
+  header.setQuery = input => {
+    if (input === currentQuery) return;
+    search?.remove(); search = null; currentQuery = input;
+    if (input) { search = workspaceSearchControl(doc, { input }); header.append(search); }
+    toggleWorkspaceClass(header, 'has-query', Boolean(input));
+  };
+  header.setQuery(query);
   return header;
 }
 
@@ -416,35 +433,66 @@ export function workspaceDialog(doc, { title, content, opener, presentation = 'c
 }
 
 /** Anchored advanced search. Hosts destroy it before replacing its controls. */
-export function workspaceFilterPopover(doc, { content, open = false, onToggle, trigger, panel: suppliedPanel, initialFocus } = {}) {
+export function workspaceFilterPopover(doc, { content, open = false, onToggle, trigger, panel: suppliedPanel, initialFocus, appearance } = {}) {
   const root = el(doc, 'span', { className: 'bb-ws-filter-anchor' });
   const panel = suppliedPanel || el(doc, 'div', { className: 'bb-ws-filter-popover', attrs: { id: `bb-ws-filter-${nextWorkspaceSequence()}`, role: 'region', 'aria-label': '詳細検索' } });
   if (!panel.id && !panel.getAttribute?.('id')) panel.setAttribute('id', `bb-ws-filter-${nextWorkspaceSequence()}`);
   panel.classList?.add('bb-ws-filter-popover');
-  const control = trigger || workspaceButton(doc, { text: '詳細検索', variant: 'quiet' });
+  const control = trigger || workspaceButton(doc, { text: appearance === 'icon' ? undefined : '詳細検索', variant: 'quiet' });
+  if (appearance === 'icon') {
+    control.classList?.add('bb-ws-filter-icon-trigger');
+    if (!control.getAttribute?.('aria-label')) control.setAttribute('aria-label', '絞り込む');
+    if (!Array.from(control.children ?? []).some(child => String(child.tagName).toLowerCase() === 'svg')) {
+      const caption = el(doc, 'span', { className: 'bb-ws-visually-hidden' });
+      const nodes = Array.from(control.childNodes ?? control.children ?? []);
+      if (nodes.length) caption.append(...nodes); else caption.textContent = control.textContent || '';
+      control.replaceChildren(workspaceActionIcon(doc, 'filter'), caption);
+    }
+  }
   control.setAttribute('aria-controls', panel.id || panel.getAttribute?.('id') || panel.attributes?.id);
   appendContent(panel, doc, content); root.append(control, panel);
   let destroyed = false;
+  let isOpen = null;
+  let timer;
   const removeListeners = () => { doc.removeEventListener?.('pointerdown', outside); doc.removeEventListener?.('keydown', escape); };
+  const cancelExit = () => {
+    clearTimeout(timer); timer = undefined;
+    panel.removeEventListener?.('animationend', ended);
+    panel.classList?.remove('is-closing');
+  };
+  const finishExit = () => { cancelExit(); if (!isOpen) panel.hidden = true; };
+  const ended = event => { if (event.target === panel && event.animationName === 'bb-ws-filter-exit') finishExit(); };
   const setOpen = (value, focus = false) => {
     if (destroyed) return;
-    removeListeners(); panel.hidden = !value; control.setAttribute('aria-expanded', String(value));
-    onToggle?.(value);
-    if (value) {
+    const next = Boolean(value);
+    if (next === isOpen) return;
+    const wasOpen = isOpen === true;
+    isOpen = next; removeListeners(); cancelExit();
+    control.setAttribute('aria-expanded', String(next));
+    panel.inert = !next;
+    if (next) {
+      panel.removeAttribute?.('inert'); panel.removeAttribute?.('aria-hidden'); panel.hidden = false;
       doc.addEventListener?.('pointerdown', outside); doc.addEventListener?.('keydown', escape);
       if (focus) (typeof initialFocus === 'function' ? initialFocus() : initialFocus || panel.querySelector?.('input:not(:disabled),select:not(:disabled),button:not(:disabled)'))?.focus();
+    } else {
+      panel.setAttribute('inert', ''); panel.setAttribute('aria-hidden', 'true');
+      if (wasOpen && panel.isConnected !== false && panel.classList && !reducedMotion(panel)) {
+        panel.classList.add('is-closing'); panel.addEventListener('animationend', ended);
+        timer = setTimeout(finishExit, animationFallback(panel, 50, 230));
+      } else panel.hidden = true;
     }
+    onToggle?.(next);
   };
   const outside = event => { if (!root.contains?.(event.target)) setOpen(false); };
   const escape = event => {
     if (event.key !== 'Escape') return;
     event.preventDefault(); event.stopPropagation(); setOpen(false); control.focus();
   };
-  const toggle = () => setOpen(panel.hidden, true);
+  const toggle = () => setOpen(!isOpen, true);
   control.addEventListener('click', toggle); setOpen(open);
-  return { root, control, panel, destroy() {
-    destroyed = true; removeListeners(); control.removeEventListener?.('click', toggle);
-    panel.hidden = true; control.setAttribute('aria-expanded', 'false');
+  return { root, control, panel, setOpen, get isOpen() { return isOpen === true; }, destroy() {
+    destroyed = true; isOpen = false; removeListeners(); cancelExit(); control.removeEventListener?.('click', toggle);
+    panel.hidden = true; panel.inert = true; panel.setAttribute('inert', ''); panel.setAttribute('aria-hidden', 'true'); control.setAttribute('aria-expanded', 'false');
   } };
 }
 
@@ -768,7 +816,7 @@ export function workspaceCompactToolbar(doc, { root, query, filters, sort, reset
   }
   controls.append(search, group); if (sort) controls.append(sort.root);
   root.replaceChildren(primary, controls);
-  const closeFilter = () => { if (!filter.panel.hidden) filterButton.click(); };
+  const closeFilter = () => filter.setOpen(false);
   const clear = () => { closeFilter(); filterButton.focus({ preventScroll: true }); };
   const sortClick = () => { if (sort?.trigger.getAttribute('aria-expanded') === 'true') closeFilter(); };
   reset?.addEventListener('click', clear); sort?.trigger.addEventListener('click', sortClick); sort?.trigger.addEventListener('keydown', sortClick);
@@ -807,6 +855,7 @@ const isSelectedTab = node => node?.getAttribute?.('aria-selected') === 'true' |
 export function workspaceTabStrip(root, { memoryKey, appearance } = {}) {
   workspaceTabList(root);
   if (appearance === 'prominent') toggleWorkspaceClass(root, 'bb-ws-tabs--prominent', true);
+  if (appearance === 'segmented') toggleWorkspaceClass(root, 'bb-ws-tabs--segmented', true);
   if (tabStrips.has(root)) return tabStrips.get(root);
   const doc = root.ownerDocument;
   const view = doc?.defaultView;
@@ -915,7 +964,7 @@ export function workspaceSearchBand(doc, { root, query, filters, sort, reset, on
   const scopeSlot = el(doc, 'span', { className: 'bb-ws-toolbar-scope' });
   const trigger = workspaceButton(doc, { variant: 'quiet', attrs: { 'aria-label': 'フィルター', title: 'フィルター' } });
   trigger.classList.add('bb-ws-toolbar-filter'); trigger.append(workspaceActionIcon(doc, 'filter'));
-  const filter = workspaceFilterPopover(doc, { content: filters, trigger,
+  const filter = workspaceFilterPopover(doc, { content: filters, trigger, appearance: 'icon',
     onToggle: open => { if (open) sort?.close(false); },
   });
   filter.root.classList.add('bb-ws-toolbar-filter-group'); filter.panel.classList.add('bb-ws-toolbar-filter-panel');
@@ -923,7 +972,7 @@ export function workspaceSearchBand(doc, { root, query, filters, sort, reset, on
     reset.textContent = 'フィルターを解除'; reset.setAttribute('aria-label', 'フィルターを解除');
     const footer = el(doc, 'div', { className: 'bb-ws-menu-reset' }); footer.append(reset); filters.append(footer);
   }
-  const closeFilter = () => { if (!filter.panel.hidden) trigger.click(); };
+  const closeFilter = () => filter.setOpen(false);
   const clear = () => { closeFilter(); trigger.focus({ preventScroll: true }); };
   const sortClick = () => closeFilter();
   const sortReset = workspaceButton(doc, { text: '初期順に戻す', attrs: { 'aria-label': '並べ替えを初期順に戻す' } });
