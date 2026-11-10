@@ -1099,6 +1099,10 @@ describe('Objective editor common UI contract', () => {
       expect(byClass(root, 'objective-editor-tab').map((tab) => tab.textContent)).toEqual(['目的一覧', '目的を編集', 'Story参照']);
       expect(byClass(root, 'bb-ws-ledger')).toHaveLength(0);
       expect(byClass(root, 'bb-ws-page-head')).toHaveLength(1);
+      const guide = byClass(root, 'bb-ws-help')[0];
+      expect(guide.className.split(/\s+/)).toContain('is-page-guide');
+      expect(guide.children[0].textContent).toBe('?');
+      expect(collectText(guide)).toContain('現状の理解（観測や仮説）とは分けて扱います。');
       // The first objective is not opened by itself in the tabs layout.
       expect(controller.state.view).toBe('list');
       expect(controller.state.selectedId).toBeNull();
