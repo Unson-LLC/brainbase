@@ -4,6 +4,10 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
+## Candidate — v0.50.10（npm公開前）
+
+0.50.9にUNS-363 / #989のpersonal_knowledge_rejectを追加するpatch更新候補です。ローカルモードでは「local retraction is not supported」エラーで失敗し、ネットワークI/Oやファイルへの書き込みは行いません。npm公開と利用ホストへの配備は別途確認します。
+
 ## Candidate — v0.50.2（npm公開前）
 
 `develop` cba9d949 までをまとめるpatch更新候補です。共通の議事録画面が全ページを辿るのをやめ、新しい順の最初の50件だけを表示して、続きは「もっと見る」で読みます（#946）。task-save の基準比較ツールを追加します（#945、package外）。npm公開と利用ホストへの反映は、この候補記録だけでは確認できません。

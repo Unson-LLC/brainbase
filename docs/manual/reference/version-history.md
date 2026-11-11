@@ -2,6 +2,12 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
+## 0.50.10 candidate — npm公開前
+
+- 0.50.9にUNS-363 / #989のpersonal_knowledge_rejectを追加するpatch更新候補。ローカルモードでは「local retraction is not supported」エラーで失敗し、ネットワークI/Oやファイルへの書き込みは行わない。
+- 0.50.9のUIの見出しと「？」ヘルプの動作を保持する。認証・権限・保存後のreadbackの契約は変更しない。
+- npm公開と利用ホストへの配備は別途確認する。
+
 ## 0.50.2 candidate — npm公開前
 
 - `develop` cba9d949 までをまとめて公開するpatch更新候補。
