@@ -12,7 +12,7 @@
 - INV-6: managed HTTPの接続先は明示的に扱う。`managed_cloud` はHTTPSと非loopbackホストを要求する。loopback HTTP clientは明示的なtest/development接続としてのみ利用できる。OSSのローカル動作はstdio+filesystemであり、HTTP待受を開始しない。リダイレクトや失敗したリクエストは明示的なエラーとし、フォールバックしない。
 - INV-7: MCPのcontext、register、search入力には、識別情報やファイルシステム選択のフィールドを含めない。これらの値は信頼できる設定から決める。
 - INV-8: 既存の `search_personal_kg` は、従来のローカルPersonal KGとの互換経路として残す。
-- INV-9: `managed_cloud` のMCP境界では、`personal_knowledge_context`、`personal_knowledge_register`、`personal_knowledge_search` の3ツールだけを `tools/list` に含め、その他のツールを広告せず、直接呼び出しもローカルストレージへ到達する前に拒否する。組織Graphなどの別機能は別MCPで提供し、localモードの既存ツール一覧と実行は変更しない。
+- INV-9: `managed_cloud` のMCP境界では、`personal_knowledge_context`、`personal_knowledge_register`、`personal_knowledge_reject`、`personal_knowledge_search` の4ツールだけを `tools/list` に含め、その他のツールを広告せず、直接呼び出しもローカルストレージへ到達する前に拒否する。組織Graphなどの別機能は別MCPで提供し、localモードの既存ツールの実行は変更しない。`personal_knowledge_reject` は認証済みAPIストレージでのみ実行でき、localストアでは明示的に拒否する。
 
 ## シナリオ
 

@@ -89,6 +89,12 @@
             ]
           },
           {
+            "name": "personal_knowledge_reject",
+            "requiredInput": [
+              "event_id"
+            ]
+          },
+          {
             "name": "personal_knowledge_search",
             "requiredInput": [
               "query"
@@ -122,6 +128,7 @@
         "toolNames": [
           "personal_knowledge_context",
           "personal_knowledge_register",
+          "personal_knowledge_reject",
           "personal_knowledge_search"
         ]
       },
