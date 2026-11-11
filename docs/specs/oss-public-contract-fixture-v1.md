@@ -9,16 +9,16 @@ Story ID: `story-oss-public-contract-fixture-v1`
 
 ## 確かめた現行の公開面
 
-- MCP（`src/server.ts`）: `toolDefinitions` は18件。`createServer()` の tools/list は非公開関数 `configuredToolDefinitions` を通り、次のように変わる。
-  - 既定（`BRAINBASE_PERSONAL_KNOWLEDGE_MODE` / `BRAINBASE_PERSONAL_KG_STORAGE_MODE` が未設定か `local`）: 18件。
+- MCP（`src/server.ts`）: `toolDefinitions` は19件。`createServer()` の tools/list は非公開関数 `configuredToolDefinitions` を通り、次のように変わる。
+  - 既定（`BRAINBASE_PERSONAL_KNOWLEDGE_MODE` / `BRAINBASE_PERSONAL_KG_STORAGE_MODE` が未設定か `local`）: 19件。
   - `managed_cloud`: `personal_knowledge_context` / `personal_knowledge_register` / `personal_knowledge_reject` / `personal_knowledge_search` の4件だけ。foundation 接続は無視される。
-  - local で `createServer({ foundation })`: 18件に `foundationPublicToolDefinitions`（`src/foundation-public-provider.ts`）の4件を足した22件。
+  - local で `createServer({ foundation })`: 19件に `foundationPublicToolDefinitions`（`src/foundation-public-provider.ts`）の4件を足した23件。
 - queue（`src/queue-task-tools.ts`、#930）: `createQueueTaskTools({ backend, resolveAgent })` に backend を渡したときだけ7件を返す。`createServer()` には登録されない。subpath `@unson/brainbase-mcp/queue-task-tools` を定義済みだが未release。名前は `QUEUE_TASK_TOOL_NAMES`、定義は `queueTaskToolDefinitions`。
 - host 用の組み立て部品（`src/foundation-authenticated-tools.ts`）: `foundationPublicTools`（上の4件に必須の `scope_id` を足した版）と `foundationAdoptionTools`（`foundation_adopt`、「gm以上」という組織の役割を前提にする）。OSSの `createServer()` は登録しない。
 - CLI（`src/cli.ts` の `runCli`）: `switch (parsed.command)` の case は29個。うち `review:serve` は `web:serve` と同じ処理に落ちる別名（コメントで明記）なので、正規の command は28個。`--help` は switch より前で usage を返し、usage は29個すべてを `brainbase <command>` の形で載せている。未知の command は usage を出して1を返す。
 - package（`package.json`）: name `@unson/brainbase-mcp`、main `dist/index.js`、types `dist/index.d.ts`、bin `brainbase-mcp` → `dist/index.js`、`brainbase` → `dist/cli.js`。2つの入口の src（`src/index.ts` / `src/cli.ts`）は `#!/usr/bin/env node` で始まる。`files` には既に `contracts` が入り、`exports` には `./package.json` があり、`contracts/judgment-dag/*.json` などは個別に export されている。version は 0.49.0。
 - tarball の検査: `tests/repo-hygiene.test.ts` の INV-4 と `tests/e2e/brainbase-mcp-only-acceptance.spec.ts` は、どちらも tarball の中身が `contracts/` で始まるものを含む許可リストに収まることを確かめている。`files` の完全一致を見ているのは INV-4 だけである。tarball の一覧は `scripts/npm-release.mjs` の `packFilesInIsolation`（build 中の dist と競合しないよう生成物を除いて staging から `npm pack --dry-run --ignore-scripts --json` する）で取る。
-- 件数を直書きした既存のassert: `tests/mcp-contract.test.ts` の「C-6 lists exactly the v1 tools」（18件を順番つきで）と `tests/queue-task-tools.test.ts` の AC-1（`toHaveLength(18)`）。
+- fixture を参照する既存のassert: `tests/mcp-contract.test.ts` の「C-6 lists exactly the v1 tools」は `toolDefinitions` のtool名をソートし、契約fixtureの `local` 群のtool名と比較する。`tests/queue-task-tools.test.ts` の AC-1 は同じ比較に加え、tools/list のtool名もソートして `local` 群のtool名と比較する。件数は直書きしない。
 - CHANGELOG ファイルはリポジトリにない。
 
 ## 決定

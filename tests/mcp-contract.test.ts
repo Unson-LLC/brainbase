@@ -1,5 +1,5 @@
 import publicContract from '../contracts/brainbase-public-contract.v1.json';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -541,6 +541,25 @@ describe('Personal Knowledge reject MCP contract', () => {
   it.each(['owner', 'owner_person_id', 'organization', 'organization_id', 'action', 'tenant'])('reject refuses extra input field %s before runtime access', async (key) => {
     vi.stubEnv('BRAINBASE_PERSONAL_KNOWLEDGE_MODE', 'managed_cloud');
     await expect(callBrainbaseTool('personal_knowledge_reject', { event_id: 'event-1', [key]: 'override' })).rejects.toThrow(/Unrecognized key/);
+  });
+
+  it('rejects local retraction without network calls or file writes when mode is unset', async () => {
+    vi.stubEnv('BRAINBASE_PERSONAL_KNOWLEDGE_MODE', '');
+    vi.stubEnv('BRAINBASE_PERSONAL_KG_STORAGE_MODE', '');
+    vi.stubEnv('BRAINBASE_PERSONAL_KNOWLEDGE_CONTEXT', '');
+    vi.stubEnv('BRAINBASE_PERSONAL_CONTEXT', '');
+    const dataDir = await mkdtemp(join(tmpdir(), 'brainbase-mcp-'));
+    dirs.push(dataDir);
+    vi.stubEnv('BRAINBASE_PERSONAL_OS_DIR', dataDir);
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    const before = await readdir(dataDir, { recursive: true });
+    expect(before).toEqual([]);
+
+    await expect(callBrainbaseTool('personal_knowledge_reject', { event_id: 'event-1' })).rejects.toThrow(/local retraction is not supported/);
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(await readdir(dataDir, { recursive: true })).toEqual(before);
   });
 
   it('managed reject uses fresh configured identity and token per request', async () => {
