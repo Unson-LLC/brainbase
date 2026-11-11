@@ -1,0 +1,14 @@
+name: PR UNS number
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  check-pr-uns-number:
+    uses: Unson-LLC/harness/.github/workflows/check-pr-uns-number.yml@baf8aee1133d96f2f786c8446ff4b8197ce7b6e8
+    with:
+      runs_on: ${{ vars.CI_RUNNER_BACKUP == 'on' && '"ubuntu-latest"' || '["self-hosted","Linux","X64","wsl-linux","nucbox-evo-x2"]' }}
