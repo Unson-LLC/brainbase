@@ -4,6 +4,10 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
+## Candidate — v0.50.11（npm公開前）
+
+0.50.10に、共通部品のdialogの背景クリックを`closedby="any"`でブラウザに任せる変更（#992）を加えるpatch更新候補です。未対応のブラウザでは、これまでの判定を代替として残します。npm公開と利用ホストへの配備は別途確認します。
+
 ## Candidate — v0.50.10（npm公開前）
 
 0.50.9にUNS-363 / #989のpersonal_knowledge_rejectを追加するpatch更新候補です。ローカルモードでは「local retraction is not supported」エラーで失敗し、ネットワークI/Oやファイルへの書き込みは行いません。npm公開と利用ホストへの配備は別途確認します。
