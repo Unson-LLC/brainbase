@@ -52,6 +52,7 @@ Mana委任UI（`ui/outcome-mana`、そのCSSと`ui/icons/mana`）は、0.8.0の�
 - 継続して内容が更新される詳細は `workspaceDetailDrawer` を使う。`setContent` は内容更新、`open` は明示的なユーザー操作や詳細リンク、`close` は終了、`dispose` は画面破棄に対応する。
 - 単発の詳細は `workspaceDialog(..., { presentation: 'drawer' })`。ホスト所有のdialogは `workspaceApplyDrawer` / `workspaceCloseDrawer` を使い同じ幅・開閉モーション・reduced motionへ揃える。
 - Escape、背景クリック、閉じるボタン、モーダルのfocus制御、閉じた後の選択行へのfocus復帰を保持する。非同期応答が来ても、閉じたdrawerを勝手に開き直さない。画面離脱時は破棄して古い応答が前画面を復活させない。
+- 背景クリックで閉じる動作は `closedby="any"` をブラウザに任せる。未対応のブラウザ（Safari）だけ、機能検出のうえでポインタ位置の判定を使う。どちらも `cancel` と同じ終了処理を通る。
 - 知識・議事録は `detailPresentation: 'drawer'` を明示できる。互換性のため未指定時は既存のinline表示を保持する。会議作成、保存結果、失敗、再試行も到達可能な状態に保つ。
 
 ### 所有と変更手順
@@ -59,6 +60,10 @@ Mana委任UI（`ui/outcome-mana`、そのCSSと`ui/icons/mana`）は、0.8.0の�
 共通UIとトークンはこのOSSリポジトリ、組織のルーティング・認証・権限・監査は組織ホスト、テナントの値は設定リポジトリが所有する。[所有境界ADR](../architecture/oss-organization-ui-ownership.md)に従う。ブランド資料とトークンの役割も同ADRを参照する。
 
 共通部品の変更はOSSへ先に実装・テストし、正式公開npmのexact pinを組織ホストへ取り込む。ホストによるコピー、共通CSSの上書き、DOM監視での共通部品の移設は避け、明示的なオプションとライフサイクルで合成する。
+
+### Webの機能の選び方
+
+`ui/` のHTML・CSS・ブラウザ側JavaScriptを書く前に、`modern-web-guidance`（版は `package.json` のdevDependenciesに固定）で該当するガイドを読む。手順は `.claude/skills/modern-web-guidance/SKILL.md`。一部のブラウザが未対応の機能は、機能検出つきの代替を残す。`tests/ui/modern-web-legacy-scan.test.mjs` が `ui/` に古い書き方が入るのを止めるが、機械的に見るのはガイドの約20%である。
 
 ### 検証
 
