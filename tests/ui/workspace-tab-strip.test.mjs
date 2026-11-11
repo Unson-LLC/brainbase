@@ -254,3 +254,16 @@ describe('workspaceTabStrip', () => {
     expect(css).not.toMatch(/(^|\n)\[role="?tablist"?\]/);
   });
 });
+
+describe('header view tabs', () => {
+  it('opts into header styling while preserving host keys, focus and moving indicator', async () => {
+    const doc = new FakeDocument(); const host = redrawingHost(doc, { appearance: 'header', memoryKey: 'header-view-test' });
+    await flush(); expect(host.strip.className).toContain('bb-ws-tabs--header');
+    host.tab(0).focus(); expect(press(host.tab(0), 'ArrowRight')).toBe(true); await flush();
+    expect(host.selected).toBe(1); expect(doc.activeElement).toBe(host.tab(1));
+    expect(host.strip.style.values['--bb-tab-indicator-x']).toBe('100px');
+    expect(host.tab(1).getAttribute('tabindex')).toBe('0'); expect(host.tab(0).getAttribute('tabindex')).toBe('-1');
+    expect(press(host.tab(1), 'End')).toBe(true); await flush(); expect(host.selected).toBe(2);
+    expect(press(host.tab(2), 'Home')).toBe(true); await flush(); expect(host.selected).toBe(0);
+  });
+});

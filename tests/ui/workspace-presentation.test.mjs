@@ -231,3 +231,53 @@ describe('knowledge directory Japanese search input', () => {
     expect(next.query).toBe(query); next.destroy();
   });
 });
+
+describe('composable page header and panel', () => {
+  it('keeps the accessible title first while replacing caller-owned tabs, tools and query', () => {
+    const doc = new Document(); const query = doc.createElement('input'); query.value = 'example';
+    const changed = vi.fn(); query.addEventListener('input', changed);
+    const tabs = doc.createElement('nav'); const action = doc.createElement('button');
+    const clicked = vi.fn(); action.addEventListener('click', clicked);
+    const header = workspaceTopbar(doc, { title: '一覧', tabs, query, tools: action });
+    expect(header.children.map(node => node.className || node.tagName)).toEqual(['H1', 'bb-ws-topbar-tabs', 'bb-ws-search-control', 'bb-ws-topbar-tools']);
+    expect(header.classList.contains('has-tabs')).toBe(true);
+    expect(header.children[0].textContent).toBe('一覧');
+    expect(header.children[0].getAttribute('aria-hidden')).toBeNull();
+    const search = header.children[2]; const nextTabs = doc.createElement('nav');
+    header.setTabs(nextTabs); header.setQuery(query);
+    expect(header.children[1].children[0]).toBe(nextTabs); expect(header.children[2]).toBe(search);
+    expect(search.children[1]).toBe(query); expect(query.value).toBe('example');
+    query.dispatch('input'); action.click(); expect(changed).toHaveBeenCalledTimes(1); expect(clicked).toHaveBeenCalledTimes(1);
+    header.setTabs(null); expect(header.classList.contains('has-tabs')).toBe(false);
+    expect(header.children[0].tagName).toBe('H1'); expect(header.children[1]).toBe(search);
+    header.setQuery(null); header.setTools(null); expect(header.children).toHaveLength(1);
+    expect(header.classList.contains('has-tools')).toBe(false);
+  });
+  it('opts into compact search without replacing its input', () => {
+    const doc = new Document(); const input = doc.createElement('input');
+    const compact = workspaceSearchControl(doc, { input, appearance: 'compact' });
+    expect(compact.classList.contains('bb-ws-search-control--compact')).toBe(true);
+    expect(compact.children[1]).toBe(input);
+    expect(workspaceSearchControl(doc, { input }).classList.contains('bb-ws-search-control--compact')).toBe(false);
+  });
+  it('keeps panel Escape focus, inert exit, reopen cancellation and outside dismissal', () => {
+    vi.useFakeTimers(); const doc = new Document(); const input = doc.createElement('input');
+    const panel = workspaceFilterPopover(doc, { content: input, appearance: 'panel', initialFocus: input }); doc.body.append(panel.root);
+    expect(panel.panel.classList.contains('bb-ws-filter-popover--panel')).toBe(true);
+    panel.control.click(); expect(doc.activeElement).toBe(input);
+    doc.dispatch('keydown', { key: 'Escape' }); expect(doc.activeElement).toBe(panel.control);
+    expect(panel.panel.inert).toBe(true); expect(panel.panel.hidden).toBe(false);
+    vi.advanceTimersByTime(209); expect(panel.panel.hidden).toBe(false);
+    vi.advanceTimersByTime(1); expect(panel.panel.hidden).toBe(true);
+    panel.setOpen(true); panel.setOpen(false); panel.setOpen(true); vi.runAllTimers();
+    expect(panel.panel.hidden).toBe(false); expect(panel.panel.inert).toBe(false);
+    doc.dispatch('pointerdown', { target: doc.body }); expect(panel.isOpen).toBe(false);
+    panel.panel.dispatch('animationend', { animationName: 'bb-ws-filter-exit' }); expect(panel.panel.hidden).toBe(true);
+    panel.destroy(); expect(doc.count('keydown')).toBe(0); expect(doc.count('pointerdown')).toBe(0); expect(vi.getTimerCount()).toBe(0);
+  });
+  it('immediately closes panels when reduced motion is requested', () => {
+    vi.useFakeTimers(); const doc = new Document(true);
+    const panel = workspaceFilterPopover(doc, { appearance: 'panel' }); doc.body.append(panel.root);
+    panel.setOpen(true); panel.setOpen(false); expect(panel.panel.hidden).toBe(true); expect(vi.getTimerCount()).toBe(0); panel.destroy();
+  });
+});

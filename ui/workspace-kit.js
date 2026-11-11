@@ -84,26 +84,46 @@ export function workspacePageHeader(doc, { crumbs = [], title, lead, help, prese
 }
 
 /** Shared search presentation. The caller keeps the input, value and handlers. */
-export function workspaceSearchControl(doc, { input } = {}) {
+export function workspaceSearchControl(doc, { input, appearance } = {}) {
   if (!input || typeof input.tagName !== 'string') throw new TypeError('search_input_required');
   const search = el(doc, 'label', { className: 'bb-ws-search-control' });
+  if (appearance === 'compact') toggleWorkspaceClass(search, 'bb-ws-search-control--compact', true);
   search.append(workspaceActionIcon(doc, 'search'), input);
   return search;
 }
 
 /** A shared title bar, with an optional search input owned by the caller. */
-export function workspaceTopbar(doc, { title = '', query } = {}) {
+export function workspaceTopbar(doc, { title = '', query, tabs, tools } = {}) {
   const header = el(doc, 'header', { className: 'bb-ws-topbar' });
   header.append(el(doc, 'h1', { text: title }));
   let search;
   let currentQuery;
+  let tabsSlot;
+  let toolsSlot;
+  header.setTabs = content => {
+    if (Array.isArray(content) && !content.some(Boolean)) content = null;
+    tabsSlot?.remove(); tabsSlot = null;
+    if (content) {
+      tabsSlot = el(doc, 'div', { className: 'bb-ws-topbar-tabs' });
+      appendContent(tabsSlot, doc, content); header.append(tabsSlot);
+      if (search) header.append(search);
+      if (toolsSlot) header.append(toolsSlot);
+    }
+    toggleWorkspaceClass(header, 'has-tabs', Boolean(content));
+  };
+  header.setTools = content => {
+    if (Array.isArray(content) && !content.some(Boolean)) content = null;
+    toolsSlot?.remove(); toolsSlot = null;
+    if (content) { toolsSlot = el(doc, 'div', { className: 'bb-ws-topbar-tools' }); appendContent(toolsSlot, doc, content); header.append(toolsSlot); }
+    toggleWorkspaceClass(header, 'has-tools', Boolean(content));
+  };
   header.setQuery = input => {
     if (input === currentQuery) return;
     search?.remove(); search = null; currentQuery = input;
-    if (input) { search = workspaceSearchControl(doc, { input }); header.append(search); }
+    if (input) { search = workspaceSearchControl(doc, { input }); header.append(search); if (toolsSlot) header.append(toolsSlot); }
     toggleWorkspaceClass(header, 'has-query', Boolean(input));
   };
-  header.setQuery(query);
+  header.setTabs(tabs); header.setQuery(query); header.setTools(tools);
   return header;
 }
 
@@ -387,7 +407,7 @@ export function workspaceCloseDrawer(dialog, finish) {
   };
   const complete = () => { if (!active) return; cancel(); finish(); };
   const ended = event => {
-    if (event.target === dialog && event.animationName === 'bb-ws-drawer-out') complete();
+    if (event.target === dialog && ['bb-ws-drawer-out', 'bb-ws-input-frame-out'].includes(event.animationName)) complete();
   };
   drawerClosings.set(dialog, cancel);
   dialog.addEventListener('animationend', ended);
@@ -465,6 +485,7 @@ export function workspaceFilterPopover(doc, { content, open = false, onToggle, t
   const panel = suppliedPanel || el(doc, 'div', { className: 'bb-ws-filter-popover', attrs: { id: `bb-ws-filter-${nextWorkspaceSequence()}`, role: 'region', 'aria-label': '詳細検索' } });
   if (!panel.id && !panel.getAttribute?.('id')) panel.setAttribute('id', `bb-ws-filter-${nextWorkspaceSequence()}`);
   panel.classList?.add('bb-ws-filter-popover');
+  if (appearance === 'panel') toggleWorkspaceClass(panel, 'bb-ws-filter-popover--panel', true);
   const control = trigger || workspaceButton(doc, { text: appearance === 'icon' ? undefined : '詳細検索', variant: 'quiet' });
   if (appearance === 'icon') {
     control.classList?.add('bb-ws-filter-icon-trigger');
@@ -505,7 +526,7 @@ export function workspaceFilterPopover(doc, { content, open = false, onToggle, t
       panel.setAttribute('inert', ''); panel.setAttribute('aria-hidden', 'true');
       if (wasOpen && panel.isConnected !== false && panel.classList && !reducedMotion(panel)) {
         panel.classList.add('is-closing'); panel.addEventListener('animationend', ended);
-        timer = setTimeout(finishExit, animationFallback(panel, 50, 230));
+        timer = setTimeout(finishExit, animationFallback(panel, 50, appearance === 'panel' ? 210 : 230));
       } else panel.hidden = true;
     }
     onToggle?.(next);
@@ -625,11 +646,12 @@ function comboboxText(value) {
 export function workspaceCombobox(doc, {
   label, options = [], value = '', placeholder = '選択してください', searchLabel, searchPlaceholder = '絞り込む',
   emptyText = '一致する候補はありません', limit = 100, searchable = 'auto', className, onChange,
-  multiple = false, values = [], renderIcon, showCount = true, showHints = true, align = 'start',
+  multiple = false, values = [], renderIcon, showCount = true, showHints = true, align = 'start', appearance,
 } = {}) {
   const sequence = nextWorkspaceSequence();
   const listId = `bb-ws-combobox-${sequence}-list`;
   const root = el(doc, 'span', { className: ['bb-ws-combobox', className].filter(Boolean).join(' ') });
+  if (appearance === 'compact') toggleWorkspaceClass(root, 'bb-ws-combobox--compact', true);
   if (multiple) root.classList?.add('bb-ws-combobox-multiple');
   if (align === 'end') root.classList?.add('bb-ws-combobox-align-end');
   const trigger = el(doc, 'button', { className: 'bb-ws-combobox-trigger', attrs: { type: 'button', 'aria-haspopup': 'listbox', 'aria-expanded': 'false', 'aria-controls': listId } });
@@ -648,6 +670,10 @@ export function workspaceCombobox(doc, {
   root.append(trigger, popup);
 
   const state = { options: [], values: [...new Set((Array.isArray(values) ? values : []).map(String))].filter(Boolean), value: String(value ?? ''), query: '', active: -1, shown: [], open: false, disabled: false };
+  let exitTimer;
+  const cancelExit = () => { clearTimeout(exitTimer); exitTimer = undefined; popup.removeEventListener?.('animationend', exitEnded); toggleWorkspaceClass(popup, 'is-closing', false); };
+  const finishExit = () => { cancelExit(); if (!state.open) popup.hidden = true; };
+  const exitEnded = event => { if (event.target === popup && event.animationName === 'bb-ws-compact-dropdown-out') finishExit(); };
   const usesSearch = () => searchable === true || (searchable === 'auto' && state.options.length > 8);
   const focusTarget = () => (usesSearch() ? search : list);
   const chosen = () => state.options.find(option => option.value === state.value);
@@ -696,6 +722,10 @@ export function workspaceCombobox(doc, {
       const item = el(doc, 'li', { className: `bb-ws-combobox-option${index === state.active ? ' is-active' : ''}`, attrs: { id: `bb-ws-combobox-${sequence}-option-${index}`, role: 'option', 'aria-selected': String(selected), 'data-value': option.value } });
       const optionLabel = el(doc, 'span', { className: 'bb-ws-combobox-option-label', text: option.label });
       if (typeof renderIcon === 'function') { const icon = renderIcon(option); if (icon) { optionLabel.textContent = ''; optionLabel.append(icon, el(doc, 'span', { className: 'bb-ws-combobox-text', text: option.label })); } }
+      if (appearance === 'compact') {
+        const check = el(doc, 'span', { className: multiple ? 'bb-ws-combobox-check' : 'bb-ws-combobox-mark', attrs: { 'aria-hidden': 'true' } });
+        check.append(workspaceActionIcon(doc, 'check')); item.append(check);
+      }
       item.append(optionLabel);
       if (showHints && option.hint) item.append(el(doc, 'span', { className: 'bb-ws-combobox-option-hint', text: option.hint }));
       item.addEventListener('pointerdown', event => event.preventDefault?.());
@@ -730,6 +760,7 @@ export function workspaceCombobox(doc, {
 
   function open(query = '') {
     if (state.disabled) return;
+    cancelExit(); popup.inert = false; popup.removeAttribute?.('inert'); popup.removeAttribute?.('aria-hidden');
     if (!state.open) { state.open = true; doc.addEventListener?.('pointerdown', outside); }
     state.query = query; search.value = query; search.hidden = !usesSearch();
     const selectedIndex = state.options.findIndex(option => multiple ? state.values.includes(option.value) : option.value === state.value);
@@ -742,7 +773,12 @@ export function workspaceCombobox(doc, {
   function close(returnFocus = true) {
     if (!state.open) return;
     state.open = false; removeListeners();
-    popup.hidden = true; trigger.setAttribute('aria-expanded', 'false'); activeDescendant(null);
+    if (appearance === 'compact' && !reducedMotion(popup) && popup.isConnected !== false) {
+      popup.inert = true; popup.setAttribute('inert', ''); popup.setAttribute('aria-hidden', 'true');
+      toggleWorkspaceClass(popup, 'is-closing', true); popup.addEventListener?.('animationend', exitEnded);
+      exitTimer = setTimeout(finishExit, animationFallback(popup, 50, 190));
+    } else popup.hidden = true;
+    trigger.setAttribute('aria-expanded', 'false'); activeDescendant(null);
     if (returnFocus) trigger.focus?.();
   }
 
@@ -802,7 +838,7 @@ export function workspaceCombobox(doc, {
       renderTrigger();
       if (state.open) { search.hidden = !usesSearch(); renderList(); }
     },
-    destroy() { close(false); removeListeners(); },
+    destroy() { close(false); removeListeners(); cancelExit(); popup.hidden = true; },
   };
 }
 
@@ -811,7 +847,7 @@ export function workspaceActionIcon(doc, name) {
   const svg = typeof doc.createElementNS === 'function' ? doc.createElementNS('http://www.w3.org/2000/svg', 'svg') : doc.createElement('svg');
   for (const [key, value] of Object.entries({ class: 'bb-ws-action-icon', viewBox: '0 0 24 24', 'aria-hidden': 'true' })) svg.setAttribute(key, value);
   const path = typeof doc.createElementNS === 'function' ? doc.createElementNS('http://www.w3.org/2000/svg', 'path') : doc.createElement('path');
-  const paths = { plus: 'M12 5v14M5 12h14', search: 'M21 21l-4.35-4.35M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0', filter: 'M4 7h16M7 12h10M10 17h4', sort: 'M8 4v16m-3-3 3 3 3-3M16 20V4m-3 3 3-3 3 3' };
+  const paths = { check: 'M5 12l5 5 9-10', sliders: 'M4 8h8M18 8h2M4 16h2M12 16h8 M17.4 8a2.4 2.4 0 1 1-4.8 0 2.4 2.4 0 0 1 4.8 0 M11.4 16a2.4 2.4 0 1 1-4.8 0 2.4 2.4 0 0 1 4.8 0', plus: 'M12 5v14M5 12h14', search: 'M21 21l-4.35-4.35M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0', filter: 'M4 7h16M7 12h10M10 17h4', sort: 'M8 4v16m-3-3 3 3 3-3M16 20V4m-3 3 3-3 3 3' };
   path.setAttribute('d', paths[name] || paths.filter); svg.append(path); return svg;
 }
 
@@ -888,6 +924,7 @@ export function workspaceTabStrip(root, { memoryKey, appearance } = {}) {
   workspaceTabList(root);
   if (appearance === 'prominent') toggleWorkspaceClass(root, 'bb-ws-tabs--prominent', true);
   if (appearance === 'segmented') toggleWorkspaceClass(root, 'bb-ws-tabs--segmented', true);
+  if (appearance === 'header') toggleWorkspaceClass(root, 'bb-ws-tabs--header', true);
   if (tabStrips.has(root)) return tabStrips.get(root);
   const doc = root.ownerDocument;
   const view = doc?.defaultView;
@@ -1021,5 +1058,122 @@ export function workspaceSearchBand(doc, { root, query, filters, sort, reset, on
     setFiltered(active) { toggleWorkspaceClass(filter.root, 'is-filtered', Boolean(active)); trigger.setAttribute('aria-label', active ? 'フィルター（適用中）' : 'フィルター'); },
     setSorted(active) { toggleWorkspaceClass(sort?.root, 'is-sorted', Boolean(active)); sortReset.hidden = !active; },
     destroy() { filter.destroy(); reset?.removeEventListener('click', clear); sortReset.removeEventListener('click', resetSort); sort?.trigger.removeEventListener('click', sortClick); sort?.trigger.removeEventListener('keydown', sortClick); },
+  };
+}
+
+/** Business-neutral compositions. Labels, values and mutations belong to the host. */
+
+export function workspaceConditionChips(doc, { items = [], reset, resetLabel = '初めの状態に戻す' } = {}) {
+  const root = el(doc, 'div', { className: 'bb-ws-condition-chips' });
+  for (const { label, onRemove } of items) {
+    const chip = el(doc, 'span', { className: 'bb-ws-condition-chip' });
+    chip.append(el(doc, 'span', { text: label }));
+    const remove = workspaceButton(doc, { attrs: { 'aria-label': `${label}を解除` }, onClick: onRemove });
+    const svg = doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true');
+    const path = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'M6 6l12 12M18 6L6 18'); svg.append(path); remove.append(svg);
+    chip.append(remove); root.append(chip);
+  }
+  if (reset) {
+    const button = workspaceButton(doc, { attrs: { 'aria-label': resetLabel, title: resetLabel }, onClick: reset });
+    button.className = 'bb-ws-condition-reset';
+    const svg = doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true');
+    const path = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'M4 5v5h5 M4.6 10A8 8 0 1 1 6.3 17.7'); svg.append(path); button.append(svg); root.append(button);
+  }
+  return root;
+}
+
+export function workspacePills(doc, { label, items = [], value, onChange } = {}) {
+  const root = el(doc, 'div', { className: 'bb-ws-pills', attrs: { role: 'group', 'aria-label': label } });
+  const buttons = items.map(item => {
+    const button = workspaceButton(doc, { text: item.label, disabled: Boolean(item.disabled),
+      attrs: { 'aria-pressed': String(item.value === value) }, onClick: () => onChange?.(item.value, item) });
+    if (item.icon) button.prepend(item.icon);
+    root.append(button); return button;
+  });
+  root.update = next => buttons.forEach((button, i) => button.setAttribute('aria-pressed', String(items[i].value === next)));
+  return root;
+}
+
+export function workspaceControlRow(doc, { label, control, tight = false } = {}) {
+  const root = el(doc, 'div', { className: `bb-ws-control-row${tight ? ' is-tight' : ''}` });
+  const slot = el(doc, 'div', { className: 'bb-ws-control-slot' });
+  if (control) slot.append(control);
+  root.append(el(doc, 'span', { className: 'bb-ws-control-label', text: label }), slot);
+  return root;
+}
+
+export function workspaceFormRow(doc, { label, control, required = false, top = false } = {}) {
+  const root = el(doc, 'div', { className: `bb-ws-form-row${top ? ' is-top' : ''}` });
+  const caption = el(doc, control?.id ? 'label' : 'span', { className: 'bb-ws-form-label', text: label,
+    attrs: { for: control?.id || undefined } });
+  if (required) {
+    caption.append(el(doc, 'span', { className: 'bb-ws-form-required', text: '※', attrs: { 'aria-label': '必須' } }));
+    control?.setAttribute('aria-required', 'true');
+    if (control && ['INPUT', 'TEXTAREA', 'SELECT'].includes(control.tagName)) control.required = true;
+  }
+  if (control && !control.id && !control.getAttribute('aria-label') && !control.getAttribute('aria-labelledby')) control.setAttribute('aria-label', label);
+  root.append(caption); if (control) root.append(control);
+  return root;
+}
+
+/** Uses the canonical modal, Escape/backdrop/close animation and focus return. */
+export function workspaceInputFrame(doc, { title, opener, onClose, tools = [], preview, rows = [], footer = [], showTitle = true } = {}) {
+  const drawer = workspaceDetailDrawer(doc, { title, opener, onClose });
+  drawer.dialog.classList.add('bb-ws-input-frame');
+  if (tools.length) drawer.dialog.classList.add('has-tools');
+  drawer.dialog.querySelector('.bb-ws-detail-closebar > button')?.setAttribute('aria-label', '閉じる');
+  const top = el(doc, 'div', { className: 'bb-ws-input-top' });
+  const toolRow = el(doc, 'div', { className: 'bb-ws-input-tools' }); toolRow.append(...tools);
+  const heading = el(doc, 'h2', { text: title }); if (showTitle) top.append(heading); if (preview) top.append(preview);
+  const form = el(doc, 'div', { className: 'bb-ws-input-fields' }); form.append(...rows);
+  const foot = el(doc, 'div', { className: 'bb-ws-input-footer' }); foot.append(...footer);
+  drawer.dialog.querySelector('.bb-ws-detail-closebar').prepend(toolRow);
+  drawer.setContent(top, form, foot);
+  return { ...drawer, top, tools: toolRow, fields: form, footer: foot,
+    setTitle(next) { drawer.setTitle(next); heading.textContent = String(next); },
+  };
+}
+
+export function workspaceCardRow(doc, { cells = [], stripe, selected = false, key, onSelect, label, preview = false } = {}) {
+  const root = el(doc, onSelect ? 'button' : 'div', { className: `bb-ws-card-row${selected ? ' is-selected' : ''}${preview ? ' is-preview' : ''}`,
+    attrs: { type: onSelect ? 'button' : undefined, 'data-key': key, 'aria-label': label, 'aria-pressed': onSelect ? String(selected) : undefined } });
+  if (stripe) root.style.setProperty('--bb-card-stripe', stripe);
+  for (const cell of cells) {
+    const slot = el(doc, 'span', { className: 'bb-ws-card-cell' });
+    if (cell && typeof cell === 'object' && cell.tagName) slot.append(cell); else slot.textContent = String(cell ?? '');
+    root.append(slot);
+  }
+  if (onSelect) root.addEventListener('click', () => onSelect(key));
+  return root;
+}
+
+/** FLIP keyed retained or redrawn rows; capture immediately before a host redraw. */
+export function workspaceRowMotion(root) {
+  let previous = new Map();
+  const animations = new Set();
+  return {
+    capture() { previous = new Map(Array.from(root.querySelectorAll('[data-key]'), node => [node.getAttribute('data-key'), node.getBoundingClientRect().top])); },
+    play() {
+      for (const animation of animations) animation.cancel(); animations.clear();
+      if (root.ownerDocument.defaultView?.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { previous.clear(); return; }
+      const style = root.ownerDocument.defaultView?.getComputedStyle(root);
+      const rawDuration = style?.getPropertyValue('--bb-row-move-duration').trim();
+      const amount = parseFloat(rawDuration);
+      const duration = Number.isFinite(amount) && amount >= 0 ? amount * (rawDuration.endsWith('ms') ? 1 : 1000) : 320;
+      const easing = style?.getPropertyValue('--bb-row-move-ease').trim() || 'cubic-bezier(.2,.8,.2,1)';
+      for (const node of root.querySelectorAll('[data-key]')) {
+        const old = previous.get(node.getAttribute('data-key'));
+        const dy = old === undefined ? 0 : old - node.getBoundingClientRect().top;
+        if (!dy || !node.animate) continue;
+        const animation = node.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration, easing });
+        animations.add(animation); animation.finished?.then(() => animations.delete(animation), () => animations.delete(animation));
+      }
+      previous.clear();
+    },
+    destroy() { for (const animation of animations) animation.cancel(); animations.clear(); previous.clear(); },
   };
 }

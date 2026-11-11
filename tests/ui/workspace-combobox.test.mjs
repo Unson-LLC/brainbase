@@ -171,3 +171,47 @@ describe('opt-in multiple scope choices', () => {
     expect(limited.popup.children[2].textContent).toContain('ほか');
   });
 });
+
+describe('compact combobox lifecycle', () => {
+  it('keeps multiple choices open, supports keyboard selection and cancels stale exit on reopen', () => {
+    vi.useFakeTimers();
+    try {
+      const { box, doc, onChange } = setup({ appearance: 'compact', multiple: true, searchable: false, values: ['per_3'] });
+      expect(box.root.className).toContain('bb-ws-combobox--compact');
+      box.open(); press(box.list, 'Home'); press(box.list, 'ArrowDown'); press(box.list, ' ');
+      expect(box.values).toEqual(['per_3', '__unassigned__']); expect(onChange).toHaveBeenLastCalledWith(['per_3', '__unassigned__'], expect.anything());
+      expect(box.isOpen).toBe(true); expect(box.popup.hidden).toBe(false);
+      press(box.list, 'Escape'); expect(doc.activeElement).toBe(box.trigger);
+      expect(box.popup.inert).toBe(true); expect(box.popup.getAttribute('aria-hidden')).toBe('true'); expect(box.popup.hidden).toBe(false);
+      box.open(); vi.runAllTimers(); expect(box.isOpen).toBe(true); expect(box.popup.hidden).toBe(false);
+      expect(box.popup.inert).toBe(false); expect(box.popup.getAttribute('aria-hidden')).toBeNull();
+      doc.dispatch('pointerdown', { target: doc.body }); expect(box.isOpen).toBe(false);
+      vi.advanceTimersByTime(189); expect(box.popup.hidden).toBe(false);
+      vi.advanceTimersByTime(1); expect(box.popup.hidden).toBe(true);
+      box.destroy(); expect(vi.getTimerCount()).toBe(0);
+      expect(doc.listeners.get('pointerdown')).toEqual([]);
+    } finally { vi.useRealTimers(); }
+  });
+  it('finishes a single selection on its own exit event and destroys during exit', () => {
+    vi.useFakeTimers();
+    try {
+      const { box, doc, onChange } = setup({ appearance: 'compact', searchable: false });
+      box.open(); press(box.list, 'ArrowDown'); press(box.list, 'Enter');
+      expect(box.value).toBe('__unassigned__'); expect(onChange).toHaveBeenCalledWith('__unassigned__', expect.anything());
+      expect(box.isOpen).toBe(false); expect(doc.activeElement).toBe(box.trigger);
+      box.popup.dispatch('animationend', { target: box.list, animationName: 'bb-ws-compact-dropdown-out' }); expect(box.popup.hidden).toBe(false);
+      box.popup.dispatch('animationend', { animationName: 'bb-ws-compact-dropdown-out' }); expect(box.popup.hidden).toBe(true);
+      box.open(); box.close(); box.destroy(); expect(box.popup.hidden).toBe(true); expect(vi.getTimerCount()).toBe(0);
+      expect(box.popup.listeners.get('animationend')).toEqual([]);
+    } finally { vi.useRealTimers(); }
+  });
+  it('closes immediately under reduced motion and retains immediate default closing', () => {
+    vi.useFakeTimers();
+    try {
+      const { box, doc } = setup({ appearance: 'compact' }); doc.defaultView = { matchMedia: () => ({ matches: true }) };
+      box.open(); box.close(); expect(box.popup.hidden).toBe(true); expect(vi.getTimerCount()).toBe(0);
+      const normal = setup().box; expect(normal.root.className).not.toContain('bb-ws-combobox--compact');
+      normal.open(); normal.close(); expect(normal.popup.hidden).toBe(true); expect(vi.getTimerCount()).toBe(0);
+    } finally { vi.useRealTimers(); }
+  });
+});
