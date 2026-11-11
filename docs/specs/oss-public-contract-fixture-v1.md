@@ -11,7 +11,7 @@ Story ID: `story-oss-public-contract-fixture-v1`
 
 - MCP（`src/server.ts`）: `toolDefinitions` は18件。`createServer()` の tools/list は非公開関数 `configuredToolDefinitions` を通り、次のように変わる。
   - 既定（`BRAINBASE_PERSONAL_KNOWLEDGE_MODE` / `BRAINBASE_PERSONAL_KG_STORAGE_MODE` が未設定か `local`）: 18件。
-  - `managed_cloud`: `personal_knowledge_context` / `personal_knowledge_register` / `personal_knowledge_search` の3件だけ。foundation 接続は無視される。
+  - `managed_cloud`: `personal_knowledge_context` / `personal_knowledge_register` / `personal_knowledge_reject` / `personal_knowledge_search` の4件だけ。foundation 接続は無視される。
   - local で `createServer({ foundation })`: 18件に `foundationPublicToolDefinitions`（`src/foundation-public-provider.ts`）の4件を足した22件。
 - queue（`src/queue-task-tools.ts`、#930）: `createQueueTaskTools({ backend, resolveAgent })` に backend を渡したときだけ7件を返す。`createServer()` には登録されない。subpath `@unson/brainbase-mcp/queue-task-tools` を定義済みだが未release。名前は `QUEUE_TASK_TOOL_NAMES`、定義は `queueTaskToolDefinitions`。
 - host 用の組み立て部品（`src/foundation-authenticated-tools.ts`）: `foundationPublicTools`（上の4件に必須の `scope_id` を足した版）と `foundationAdoptionTools`（`foundation_adopt`、「gm以上」という組織の役割を前提にする）。OSSの `createServer()` は登録しない。
@@ -142,8 +142,8 @@ Director 決定の反映では fixture・テスト・package exports・文書を
 
 実装PRでは下を写すのではなく、上の取り方で実装から観測した結果と突き合わせて作る。食い違えば観測を正とし、PR本文に差を書く。
 
-- `local`（18）: `audit_ontology` []、`brainbase_onboarding_first_value` [action, runId]、`brainbase_onboarding_get` [runId]、`brainbase_onboarding_ingest` [candidates, runId, source]、`brainbase_onboarding_review` [actions, runId]、`brainbase_onboarding_start` [sources, valueTarget]、`get_context` []、`get_ontology` []、`infer_decisions` []、`list_entities` []、`onboarding_status` []、`ontology_impact` []、`personal_knowledge_context` []、`personal_knowledge_register` [event]、`personal_knowledge_search` [query]、`resolve_entity` [asOf, text]、`search` [query]、`search_personal_kg` [query]
-- `managed_cloud`（3）: `personal_knowledge_context`、`personal_knowledge_register`、`personal_knowledge_search`
+- `local`（19）: `audit_ontology` []、`brainbase_onboarding_first_value` [action, runId]、`brainbase_onboarding_get` [runId]、`brainbase_onboarding_ingest` [candidates, runId, source]、`brainbase_onboarding_review` [actions, runId]、`brainbase_onboarding_start` [sources, valueTarget]、`get_context` []、`get_ontology` []、`infer_decisions` []、`list_entities` []、`onboarding_status` []、`ontology_impact` []、`personal_knowledge_context` []、`personal_knowledge_register` [event]、`personal_knowledge_reject` [event_id]、`personal_knowledge_search` [query]、`resolve_entity` [asOf, text]、`search` [query]、`search_personal_kg` [query]
+- `managed_cloud`（4）: `personal_knowledge_context`、`personal_knowledge_register`、`personal_knowledge_reject`、`personal_knowledge_search`
 - `foundation_connected`（+4）: `foundation_describe` []、`foundation_read` [id, revision, type]、`foundation_validate_problem` [snapshot]、`foundation_validate_reference` [reference]
 - `queue_task_tools`（7）: `attach_evidence` [expected_version, kind, ref, task_id]、`claim_next` []、`claim_task` [task_id]、`get_task` [task_id]、`list_my_tasks` []、`renew_claim` [task_id]、`update_status` [expected_version, task_id, to_status]
 - `cli.commands`（28）: `doctor`、`graph:bundles`、`graph:upgrade`、`judgment:hook`、`judgment:install`、`mcp`、`memory:list`、`memory:register`、`onboard:agent`、`onboard:apply`、`onboard:candidates`、`onboard:demo`、`onboard:diagnose-sources`、`onboard:extract`、`onboard:import`、`onboard:init`、`onboard:install`、`onboard:plan`、`onboard:projects`、`onboard:recommend`、`onboard:routines`、`onboard:seed`、`onboard:skills`、`onboard:start`、`ontology:audit`、`ontology:migrate`、`ontology:show`、`web:serve`
