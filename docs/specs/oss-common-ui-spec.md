@@ -65,6 +65,12 @@ Mana委任UI（`ui/outcome-mana`、そのCSSと`ui/icons/mana`）は、0.8.0の�
 
 `ui/` のHTML・CSS・ブラウザ側JavaScriptを書く前に、`modern-web-guidance`（版は `package.json` のdevDependenciesに固定）で該当するガイドを読む。手順は `.claude/skills/modern-web-guidance/SKILL.md`。一部のブラウザが未対応の機能は、機能検出つきの代替を残す。`tests/ui/modern-web-legacy-scan.test.mjs` が `ui/` に古い書き方が入るのを止めるが、機械的に見るのはガイドの約20%である。
 
+対応ブラウザの基準は、機能ごとのBaselineの区分で決める。2026-11-12時点の `ui/` の使い方（`:has()`、`color-mix()`、`dvh`、`inert` を代替なしで使う）を追認したもので、変えるときはこの節を先に直す。
+
+- Widely available: そのまま使う。
+- Newly available: 使ってよい。無いブラウザで操作が止まる機能は、機能検出つきの代替を置く。
+- Limited availability（主要ブラウザのどれかが未対応）: 無くても操作が完結する上乗せとしてだけ使う。代替は既存の処理を機能検出で囲んで残す。例は `closedby`。
+
 ### 検証
 
 desktop/mobile、長いタイトル、スクロール時の固定、詳細の開閉とfocus復帰、画面遷移、読み込み・未確認・失敗・再試行・保存結果を確認する。API/認証/権限/readbackの契約は見た目と別に維持する。合成fixtureでテストし、本番データを公開テストへ入れない。
