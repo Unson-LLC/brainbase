@@ -2,6 +2,8 @@ import type { JudgmentJournalTurnInput } from './judgment-journal-turn-publisher
 
 /** Minimal identity verified by the consuming host's authentication boundary. */
 export interface RemoteJudgmentHookPrincipal {
+  personId: string;
+  organizationId: string;
   tenantId?: string;
   projectCodes: string[];
 }

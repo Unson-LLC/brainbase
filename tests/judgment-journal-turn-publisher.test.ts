@@ -33,7 +33,7 @@ function request(publisher?: (value: typeof input) => Promise<void>) {
     isAuthorized: () => true,
     body: Buffer.from(JSON.stringify({ hook_event_name: 'Stop', session_id: input.sessionId, turn_id: input.turnId })),
     declaredHost: 'claude-code', personHostedClaudeCodeAllowed: true, trustedAuthKind: 'brainbase-jwt' as const,
-    trustedPrincipal: { tenantId: 'tenant', projectCodes: ['project'] },
+    trustedPrincipal: { personId: 'person', organizationId: 'organization', tenantId: 'tenant', projectCodes: ['project'] },
     trustedToken: input.trustedToken, projectCode: input.projectCode,
     dispatch: async () => ({ output: { systemMessage: 'finished' } }), journalTurnPublisher: publisher,
   };
