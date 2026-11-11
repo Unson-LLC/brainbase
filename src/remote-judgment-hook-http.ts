@@ -1,3 +1,5 @@
+import type { JudgmentJournalTurnInput } from './judgment-journal-turn-publisher.js';
+
 /** Minimal identity verified by the consuming host's authentication boundary. */
 export interface RemoteJudgmentHookPrincipal {
   tenantId?: string;
@@ -78,6 +80,8 @@ export interface RemoteJudgmentHookRequest {
   personHostedClaudeCodeAllowed?: boolean;
   isAuthorized: (authorization: string | undefined, expectedToken: string) => boolean;
   dispatch: RemoteJudgmentHookDispatch;
+  /** Optional HTTP publisher for person-authenticated hosted Claude Code Stop events. */
+  journalTurnPublisher?: (input: JudgmentJournalTurnInput) => Promise<void>;
   onDispatchError?: (details: {
     eventName: string;
     reason: string;
@@ -222,6 +226,28 @@ export async function handleRemoteJudgmentHookRequest(
         || typeof dispatchResult.routeResolutionSha256 !== 'string'
         || !/^[a-f0-9]{64}$/.test(dispatchResult.routeResolutionSha256))) {
       return { status: 503, body: { error: 'judgment_hook_route_receipt_missing' } };
+    }
+    if (eventName === 'Stop' && host === 'claude-code' && personHostedClaudeCode
+      && request.localClaudeCodeAllowed !== true) {
+      const report = (reason: string) => {
+        try { console.warn(reason); } catch { /* Logging cannot affect the hook response. */ }
+      };
+      if (!request.journalTurnPublisher) report('judgment_journal_not_configured');
+      else if (!request.trustedToken) report('judgment_journal_token_missing');
+      else {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+          await Promise.race([
+            Promise.resolve().then(() => request.journalTurnPublisher!({
+              sessionId, turnId, projectCode: request.projectCode!, trustedToken: request.trustedToken!,
+            })),
+            new Promise<never>((_resolve, reject) => {
+              timer = setTimeout(() => reject(new Error()), 1500);
+            }),
+          ]);
+        } catch { report('judgment_journal_publish_failed'); }
+        finally { if (timer) clearTimeout(timer); }
+      }
     }
     const hasRouteReceipt = typeof dispatchResult.receiptId === 'string'
       && dispatchResult.receiptId.trim().length > 0

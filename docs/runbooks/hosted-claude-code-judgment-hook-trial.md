@@ -6,6 +6,11 @@ The host must verify authentication before invoking the handler. Use `remoteJudg
 
 For the hosted path, the verified principal must have a non-empty trimmed `tenantId` and include the selected project code in `projectCodes`. Pass the verified principal, token, and authentication kind through the handler request. A shared bearer token is not accepted for a remote `claude-code` declaration, even when the hosted flag is set.
 
+Import `createJudgmentJournalTurnPublisher` from `@unson/brainbase-mcp/judgment-journal-turn-publisher` and pass its result as the handler's optional `journalTurnPublisher`.
+Configure it with `{ apiBaseUrl, journalRoot, fetch?, onError? }`, using the same journal root as the canonical dispatcher.
+After an accepted hosted person-JWT Claude Code Stop, it reads the finished journal and posts to `/api/organization/judgment-journal/turns` with `trustedToken`.
+Shared-bearer, owner-loopback, and remote hosts do not publish; missing configuration or publication failures preserve the hook response and report only a safe reason code.
+
 ## Person's trial settings
 
 Configure your hook adapter with settings equivalent to:
