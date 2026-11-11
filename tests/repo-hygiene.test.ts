@@ -26,6 +26,7 @@ const allowedWorkflowFiles = new Set([
   '.github/workflows/public-message-promotion.yml',
   '.github/workflows/test.yml',
   '.github/workflows/pr-brainbase-line.yml',
+  '.github/workflows/pr-uns-number.yml',
   '.github/workflows/vibepro-producer-contract.yml'
 ]);
 
@@ -84,6 +85,7 @@ describe('MCP-only repository hygiene', () => {
       '.github/workflows/public-message-promotion.yml',
       '.github/workflows/test.yml',
       '.github/workflows/pr-brainbase-line.yml',
+      '.github/workflows/pr-uns-number.yml',
   '.github/workflows/vibepro-producer-contract.yml'
     ])).toEqual([]);
     expect(forbiddenMatches(['.github/workflows/xterm.yml'])).toEqual([
