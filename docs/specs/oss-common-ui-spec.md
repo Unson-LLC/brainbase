@@ -159,7 +159,7 @@ The heading link's padding-top token replaces the top edge of the label padding,
 The shared review orange is `--bb-color-review`; the inbox approval stripe aliases this token. Knowledge directory type labels use explicit type tokens and retain their text. `judgment`/`decision` and `document`/`knowledge` aliases share their respective type color; missing or unrecognized types retain the neutral label.
 
 
-### これからの共通標準（0.50.10候補）
+### これからの共通標準（0.50.11候補）
 
 同じ目的で同じ動きをするものは同じ部品を使う。見た目が似ていても役目が違うものは区別する。業務データ、文言、取得・保存・権限判断はホストが渡す。既存ページの検索・プルダウン・主ボタンの置き換えは今回行わない。以下の明示選択以外は既定の見た目を維持する。ヘッダーの52px化だけは全利用画面へ適用する。世界のようにヘッダーを生成しない画面には影響しない。
 
