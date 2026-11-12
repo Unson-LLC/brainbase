@@ -26,7 +26,9 @@
 }
 
 .bb-gp > .bb-ws-page .bb-ws-page-head h1 {
-  font-size: clamp(28px, 3vw, 36px);
+  font-size: var(--bb-page-title-font-size);
+  font-weight: var(--bb-page-title-font-weight);
+  line-height: var(--bb-page-title-line-height);
 }
 
 .bb-gp > .bb-ws-page .bb-ws-lead {

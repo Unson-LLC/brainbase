@@ -112,6 +112,16 @@ describe('workspaceTabStrip', () => {
     expect(host.strip.listeners.get('keydown')).toHaveLength(1);
   });
 
+  it('opts into segmented tabs while preserving redraw focus and the host selection handler', async () => {
+    const doc = new FakeDocument(); const host = redrawingHost(doc, { appearance: 'segmented', memoryKey: 'segmented-redraw' }); await flush();
+    expect(host.strip.className.split(' ')).toContain('bb-ws-tabs--segmented');
+    expect(host.strip.className.split(' ')).not.toContain('bb-ws-tabs--prominent');
+    host.tab(0).focus(); press(host.tab(0), 'ArrowRight'); await flush();
+    expect(host.clicks).toEqual(['お知らせ']); expect(doc.activeElement).toBe(host.tab(1));
+    expect(host.tab(1).getAttribute('aria-selected')).toBe('true');
+    expect(workspaceTabStrip(host.strip, { appearance: 'segmented' })).toBe(workspaceTabStrip(host.strip));
+  });
+
   it('moves with the arrow keys through the host click handler, wrapping at both ends', async () => {
     const doc = new FakeDocument();
     const host = redrawingHost(doc);

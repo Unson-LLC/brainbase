@@ -145,7 +145,7 @@ Brainbaseが必要になるのは、正式決定、過去の方針、会議中�
 
 人物・プロジェクト・判断を関係とともに残すと、AIは対象の仕事から適用される判断や理由をたどれます。意味や名前から候補を見つけ、関係をたどり、根拠を確かめる。その流れで、過去の判断を次の仕事へつなぎます。
 
-[検索の仕組みと提供状態を見る](/guide/search)
+[検索のしくみと提供状態を見る](/guide/search)
 
 ## Brainbase・AI・Manaの役割
 
@@ -187,7 +187,7 @@ Brainbaseは、情報を一か所へ集めるだけのデータベースでは�
 | Graph SSOT | 実在する人物、組織、プロジェクト、判断と、それらの関係を正本として持つ |
 | Judgment DAG | どの証拠から何を判断し、どの権限で実行し、結果をどう評価したかをつなぐ |
 
-[仕組みを一枚の構成図で見る](/guide/architecture) · [オントロジーとは何かを見る](/guide/ontology)
+[しくみを一枚の構成図で見る](/guide/architecture) · [オントロジーとは何かを見る](/guide/ontology)
 
 ## 現在試せるもの
 
@@ -204,7 +204,7 @@ Brainbaseは、情報を一か所へ集めるだけのデータベースでは�
 
 - [10分で、自分の判断を一つ渡す](/guide/quick-start)
 - [Brainbaseの全体像](/guide/grand-design)
-- [仕組みとシステム構成](/guide/architecture)
+- [しくみとシステム構成](/guide/architecture)
 - [オントロジーとは](/guide/ontology)
 - [Judgment DAGの考え方](/guide/judgment-system)
 - [現在の状態](/guide/status)

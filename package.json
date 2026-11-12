@@ -67,6 +67,10 @@
       "types": "./dist/judgment-node-evidence.d.ts",
       "import": "./dist/judgment-node-evidence.js"
     },
+    "./judgment-frame-evidence": {
+      "types": "./dist/judgment-frame-evidence.d.ts",
+      "import": "./dist/judgment-frame-evidence.js"
+    },
     "./judgment-event-adapter": {
       "types": "./dist/judgment-event-adapter.d.ts",
       "import": "./dist/judgment-event-adapter.js"
@@ -633,6 +637,7 @@
     "@types/node": "^22.15.29",
     "@types/pg": "^8.23.1",
     "esbuild": "0.28.2",
+    "modern-web-guidance": "1.0.0",
     "pg": "^8.23.1",
     "three": "0.186.1",
     "tsx": "^4.19.4",
