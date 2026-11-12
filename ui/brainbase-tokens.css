@@ -177,9 +177,9 @@
   --bb-page-title-font-size: 20px;
   --bb-page-title-line-height: 28px;
   --bb-page-title-font-weight: 600;
-  --bb-page-header-padding-top: var(--bb-space-3);
-  --bb-page-header-padding-bottom: var(--bb-space-4);
-  --bb-page-header-height: calc(var(--bb-page-title-line-height) + var(--bb-page-header-padding-top) + var(--bb-page-header-padding-bottom));
+  --bb-page-header-padding-top: 0px;
+  --bb-page-header-padding-bottom: 0px;
+  --bb-page-header-height: 52px;
   --bb-search-band-header-height: var(--bb-page-header-height);
   --bb-search-band-scope-padding: 13px;
   --bb-search-band-scope-viewport-reserve: 192px;
@@ -190,4 +190,28 @@
   --bb-create-hover: var(--bb-color-action-hover);
   --bb-radius-pill: 999px;
 
+  /* Additive neutral compositions; existing palette aliases retain their values. */
+  --bb-color-slate: #475569;
+  --bb-color-line-soft: var(--bb-inbox-border-subtle);
+  --bb-color-placeholder: #9aa3af;
+  --bb-composed-chip-hover: rgb(36 50 75 / .1);
+  --bb-shadow-card-row-hover: 0 8px 18px -10px rgb(36 50 75 / .45);
+  --bb-shadow-card-preview: 0 8px 18px -12px rgb(36 50 75 / .45);
+  --bb-row-move-duration: 320ms;
+  --bb-row-move-ease: cubic-bezier(.2,.8,.2,1);
+  --bb-shadow-compact-dropdown: 0 0 0 1px rgb(27 36 51 / .08), 0 12px 28px rgb(27 36 51 / .18);
+  --bb-shadow-control-panel: 0 0 0 1px rgb(27 36 51 / .08), 0 20px 44px -12px rgb(27 36 51 / .28);
+  --bb-input-frame-width: 600px;
+  --bb-control-panel-width: 372px;
+  --bb-control-panel-duration: 160ms;
+  --bb-compact-dropdown-duration: 140ms;
+  --bb-compact-dropdown-offset: -6px;
+  --bb-compact-dropdown-scale: .98;
+  --bb-header-tab-color-duration: 200ms;
+  --bb-header-tab-duration: 300ms;
+  --bb-header-tab-ease: cubic-bezier(.3,1.4,.5,1);
+  --bb-input-frame-duration: 220ms;
+  --bb-input-frame-ease: cubic-bezier(.2,.7,.2,1);
+  --bb-shadow-input-frame: -12px 0 40px rgb(36 50 75 / .12);
+  --bb-color-input-frame-overlay: rgb(32 41 57 / .18);
 }

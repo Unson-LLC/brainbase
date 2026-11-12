@@ -31,9 +31,10 @@ Mana委任UI（`ui/outcome-mana`、そのCSSと`ui/icons/mana`）は、0.8.0の�
 
 ### ページヘッダー
 
-- `workspaceTopbar(document, { title, query })` はタイトルと任意の検索欄を持つ共通バー。検索が不要ならqueryを省略する。返されたheaderの `setQuery(input | null)` で所有元のinputとhandlerを保持して検索を更新でき、最初の子要素は常にh1。本文と同じcanvas背景、文字20px/28px・weight600、上12px・下16px・左右32px（高さ56px）。下線・装飾は付けない。寸法は `--bb-page-header-*` / `--bb-page-title-*` を参照する。スクロール領域の上端へsticky固定し、本文やfocus対象を隠さない。ホストはバーの直下に追加の上余白を入れない。
+- `workspaceTopbar(document, { title, query, tabs, tools })` は全ページ共通の52pxバー。下に1pxの線、左右24px、間隔8px。左に任意のタブ、右に検索と道具を置く。タイトルは最初の子のH1として常に保持し、`tabs` がある時だけ視覚的に隠す。タブなしは従来どおりタイトルを表示する。本文と同じcanvas背景でsticky固定し、`--bb-page-header-height` が検索帯の固定位置にも使われる。
+- `setQuery(input | null)`、`setTabs(Node | Node[] | null)`、`setTools(Node | Node[] | null)` で内容を更新できる。検索inputの値とhandlerは所有元が保持する。同じinputを再指定しても包みを作り直さない。空slotはDOMを増やさない。道具の処理・名前・利用可否は呼び出す側が決める。
 - `workspaceSearchControl(document, { input })` は幅240px・高さ36px・文字13px・アイコン16pxの共通検索部品。白い面と通常の枠を持ち、ヘッダー内と本文操作帯で同じ部品を使う。入力の値・検索処理・ラベルは所有元が渡す。
-- 件数、追加ボタン、画面固有のフィルターは本文の操作帯に置く。全ページ共通の用途が定義されていない3点メニューは追加しない。
+- タブの件数はタブ内、検索・追加・表示条件の道具は `tools` に合成できる。既存画面の本文操作帯は今回移設しない。用途の定まらない道具は追加しない。
 - 世界のような没入型キャンバスはヘッダーを出さず、画面上端から内容を表示する。
 - 単独ページの本文見出しもH1とし、`--bb-page-title-font-size` / `--bb-page-title-line-height` / `--bb-page-title-font-weight` を参照する。画面・viewportごとのサイズを定義しない。
 - `workspacePageHeader` のleadは60字以内・1文までを表示し、それを超える全文は既存 `workspaceHelp` の「？」へ置く。`help` で明示の補足も渡せる。長いleadの全文に補足を続け、説明を失わない。権限を含むleadを呼び出し元で組み立てる場合は `preserveLead: true` で自動分割を止め、操作説明だけを `help` に渡す。状態・権限・失敗・出典は説明と分けて維持する。
@@ -167,3 +168,69 @@ The heading link's padding-top token replaces the top edge of the label padding,
 `workspaceFilterChip(document, { label, onRemove, attrs })` provides the shared mint applied-condition surface and individual remove action. The host retains removal and focus behavior. Search-bearing topbars use `--bb-page-header-inline-end` (default `--bb-space-5`) to align the search edge with the host content gutter.
 
 The shared review orange is `--bb-color-review`; the inbox approval stripe aliases this token. Knowledge directory type labels use explicit type tokens and retain their text. `judgment`/`decision` and `document`/`knowledge` aliases share their respective type color; missing or unrecognized types retain the neutral label.
+
+
+### これからの共通標準（0.50.12候補）
+
+同じ目的で同じ動きをするものは同じ部品を使う。見た目が似ていても役目が違うものは区別する。業務データ、文言、取得・保存・権限判断はホストが渡す。既存ページの検索・プルダウン・主ボタンの置き換えは今回行わない。以下の明示選択以外は既定の見た目を維持する。ヘッダーの52px化だけは全利用画面へ適用する。世界のようにヘッダーを生成しない画面には影響しない。
+
+これからの検索は `workspaceSearchControl({ input, appearance: 'compact' })`（210×32px、白面、内側1px枠、角7px、文字12.5px、アイコン14px）。入力の名前と検索処理はホストが持つ。ヘッダータブ付きのqueryにも同じ形を適用する。タブなしの既存queryは240×36pxを維持する。
+
+これからの候補選択は `workspaceCombobox({ appearance: 'compact', ... })`、ページの見方は `workspaceTabStrip(root, { appearance: 'header' })`、主操作は `workspaceButton({ variant: 'primary', ... })` の紺を使う。ページごとにCSSを写さず、tokens → workspace-kit.css → ホストのレイアウトCSSの順で読む。主ボタンの色や共通セレクタをホストで上書きしない。
+
+#### ヘッダーの見方タブ
+
+- 役目: 同じページの見方を選ぶ。文言・件数・選択はホストが持つ。
+- 見た目: `appearance: 'header'`。52pxの文字タブ、左右14px、間2px、15px/600（選択700）。`.bb-ws-tab-count` は22pxのミント丸、文字11.5px/600。選択中は濃いミント。紺の3px下線はヘッダー下線と底をそろえる。
+- 状態・動き: ホストのARIA選択を参照。下線は300ms、`cubic-bezier(.3,1.4,.5,1)`。←→/Home/End、非表示・disabledの除外、描画後のfocus復帰とスクロールは既存controllerを使う。reduced motionでは移動しない。
+- 呼出: `workspaceTabStrip(root, { appearance: 'header', memoryKey })`。保持したrootの子を更新したら `update()`、破棄時は `destroy()`。tablist/tab/aria-selectedとclick処理はホストが用意する。
+- 禁止: 既存stripへ自動適用、IDや件数の推測、同じ下線の二重描画。
+
+#### 条件チップ
+
+- 役目: かかっている条件と解除操作を並べる。
+- 見た目: 24px高、角6px、ミント面、紺12px/500。×は18px、リセットは24pxのアイコン。6px間隔で折り返す。
+- 状態・動き: `workspaceConditionChips(document, { items: [{ label, onRemove }], reset, resetLabel })`。`reset` は初期状態と違う時だけホストが渡す。選択状態を内部で推測しない。解除とリセットの後の描画・focusはホストが管理する。
+- 禁止: 条件解除でqueryや別の条件を勝手に変える、業務条件を部品へ埋め込む。
+
+#### 丸い選択印
+
+- 役目: 2〜4個の排他的な短い選択肢。
+- 見た目: `workspacePills(document, { label, items: [{ value, label, disabled, icon }], value, onChange })`。高さ28px・角999px・間2px、文字12.5px。入力枠内は30px/13px。選択は紺・白文字600、通常はslate/500、hoverはcanvas、disabledはopacity .35。
+- 状態・動き: ネイティブbuttonのTab/Enter/Spaceを保つ。`aria-pressed` を使うgroupでありtablistではない。ホストが変更を受け入れた後 `root.update(value)` で反映する。装飾のiconはホストが渡す。
+- 禁止: 押しただけで業務状態を確定、4択を超える一覧の代用、disabledの操作実行。
+
+#### コンパクトなプルダウンと候補
+
+- 役目: 単一または複数の候補選択。`workspaceCombobox` の `appearance: 'compact'` を明示する。
+- 見た目: trigger28px・角6px（`className: 'is-boxed'` で通常枠、`is-active` で適用中のミント面を明示）、候補32px・角8px、popupはpadding4px・角10px・最小150px幅・最大260px高、通常面は白、hoverはcanvas。複数は15pxの四角いチェックで選択を表す。フォーム内はtrigger32px・候補34px・最小幅200px。
+- 状態・動き: 単一は選んだら閉じる。複数は `multiple: true, values, onChange(values, option)` で選んでも閉じない。候補の空値は全解除。140ms ease-out、-6px/scale .98から現れて逆へ消える。閉じ始めにinert/aria-hiddenにし、アニメ完了またはfallbackで隠す。再openは古い終了を取消す。
+- 呼出: 短い一覧は `searchable: false, showCount: false, showHints: false`。検索可能・空・上限案内・単複選択・候補icon・右揃え等の既存契約も使える。`update`/`open`/`close`/`destroy`を使う。Arrow/Home/End/Page/Enter/Space（複数）/Esc/Tab、外側クリック、focus復帰は既存制御を保つ。reduced motionは即時。
+- 禁止: CSSで開閉だけをまねる、選択を色だけで示す、値を保存先へ直接送る、既存ページへ自動適用。
+
+#### 項目名と操作の2列の小窓
+
+- 役目: 右上の道具から、関連する表示操作をまとめて開く。
+- 見た目: `workspaceFilterPopover(document, { trigger, appearance: 'panel', content })`。372px幅、上40px、角14px、padding上下6px。`workspaceControlRow(document, { label, control, tight })` は左92px・右可変、左右16px、通常44px・tight38px。右に操作をそろえる。影は `--bb-shadow-control-panel`。
+- 状態・動き: 160ms `--bb-filter-enter-ease`。既存のEsc・外側・終了中inert・focus復帰・reopen取消・destroyを使う。reduced motionは即時。内容の選択・初期化の処理はホストが持つ。
+- 禁止: 設定項目や権限の内蔵、画面のDOM監視で移設、下位popupのEscで親まで閉じる。
+
+#### 右から開く入力枠
+
+- 役目: 共通のモーダル内へ道具、札、項目、決定操作を合成する。
+- 呼出: `workspaceInputFrame(document, { title, opener, onClose, tools, preview, rows, footer, showTitle })`。返値は `workspaceDetailDrawer` の `dialog/setContent/setTitle/open/close/dispose` と、`top/tools/fields/footer` の各Node。札自身に見出しがある詳細では `showTitle: false` で重複を避ける（読み上げ名は保持）。`workspaceFormRow(document, { label, control, required, top })` をrowsへ渡す。id付きcontrolのlabelを関連付け、必須は※とaria-required、ネイティブ入力にはrequiredを設定する。
+- 見た目: 幅600px（viewport以下）、canvasの上部・白い入力面。道具がある時は上部52px、ない時は上部22px。札slot、項目は左96px・右可変・高さ52px、focus-withinで下に紺2px。項目面は6px 28px 24px、下の決定行は14px 28px、主ボタンは紺。影・overlayは入力枠専用トークン。
+- 状態・動き: drawer本体のshowModal、Esc、背景クリック、focus trapと戻り、非同期応答で勝手に開かない制御を共有する。入力枠だけ220ms `cubic-bezier(.2,.7,.2,1)` で右端から全面移動する。既存drawerの既定の見た目は変えない。reduced motionでは即時。非同期保存・エラー・必須項目の組合せ・未保存確認はホストの責務。
+- 禁止: 保存・権限・業務状態遷移を部品内で判断、応答で再open、画面破棄後のDOM復活。
+
+#### 一覧の札の行
+
+- 役目: ホストの任意のセルを白い札へ並べる。
+- 呼出: `workspaceCardRow(document, { key, label, cells, stripe, selected, onSelect, preview })`。`stripe` はホストの色またはtoken参照、列定義は親の `--bb-card-columns`。`onSelect(key)` があればnative button、なければ通常Node。セルのNodeをそのまま渡せる。
+- 見た目: 最小48px、下3px、角8px、左右16px/22px、列間20px、左に5pxの色帯。hoverは影だけを150msで表示し、selectedは紺2px枠。previewは52px・列間16px・常設の薄い影。
+- 状態・動き: `workspaceRowMotion(root)` の `capture()` → ホストが並べ替え/再描画 → `play()`。`data-key` で前後の位置を対応させ、既存行だけを320ms `cubic-bezier(.2,.8,.2,1)` で新位置へ移す。reduced motionは動かさない。`destroy()` で進行中の動きを取り消す。
+- 禁止: 業務優先度や表示順の内蔵、重複key、focusできるセル操作をbutton行内へ入れる。複数の操作が要る行は非button行へホストが適切な意味付けを行う。
+
+#### 互換性と検証
+
+既存export/class/必須入力は削除・変更しない。未指定のtab、search、combobox、drawerの見た目と選択契約を保持する。共通tokenの既定色は変更せず、新しい影・slate・動きの値だけ追加する。合成fixtureで見た目・選択・キー・開閉・focus・reduced motionを検証し、npm tarballへ個人情報・ローカル照合資料を混ぜない。
