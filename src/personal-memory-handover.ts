@@ -124,11 +124,11 @@ export class PersonalMemoryRegistrationError extends Error {
 /** Read both local memory stores and each memory's registration state. Never uses the network. */
 export async function listLocalMemories(dataDirInput?: string): Promise<LocalMemory[]> {
   const dataDir = resolveDataDir(dataDirInput);
-  const [current, legacy, receipts] = await Promise.all([
-    readCurrentStore(dataDir),
-    readLegacyStore(dataDir),
-    readMemoryRegistrationReceipts(dataDir)
-  ]);
+  // Finish each read before reporting failure: legacy loading can create local
+  // files, which must not continue after the caller starts cleaning up.
+  const receipts = await readMemoryRegistrationReceipts(dataDir);
+  const current = await readCurrentStore(dataDir);
+  const legacy = await readLegacyStore(dataDir);
   return [...current, ...legacy].map((memory) => withStatus(memory, receipts));
 }
 
