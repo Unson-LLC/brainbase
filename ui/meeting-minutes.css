@@ -1,3 +1,5 @@
+@import url('./meeting-minutes-page.css');
+
 .bb-minutes-screen {
   --bb-color-accent: var(--bb-color-brand-indigo);
   --bb-color-accent-strong: var(--bb-color-brand-indigo);

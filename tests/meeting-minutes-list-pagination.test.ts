@@ -61,7 +61,10 @@ describe('meeting list is body-free and paginated (UNS-264)', () => {
     const page = await store.list_meetings(OWNER, {});
     expect(page.meetings.map((entry) => entry.meeting.meeting_id)).toEqual([...ids].reverse());
     for (const entry of page.meetings) {
-      expect(Object.keys(entry).sort()).toEqual(['meeting', 'minutes']);
+      expect(Object.keys(entry).sort()).toEqual(['current_version_states', 'meeting', 'minutes']);
+      expect(entry.current_version_states).toEqual([{
+        minutes_id: entry.minutes[0].minutes_id, version_id: entry.minutes[0].current_version_id, status: 'pending',
+      }]);
       expect(entry.minutes).toHaveLength(1);
       // A document summary never carries the writable body; it only names its versions.
       expect(entry.minutes[0]).not.toHaveProperty('body');

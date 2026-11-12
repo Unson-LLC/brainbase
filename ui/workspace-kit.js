@@ -93,8 +93,8 @@ export function workspaceSearchControl(doc, { input, appearance } = {}) {
 }
 
 /** A shared title bar, with an optional search input owned by the caller. */
-export function workspaceTopbar(doc, { title = '', query, tabs, tools } = {}) {
-  const header = el(doc, 'header', { className: 'bb-ws-topbar' });
+export function workspaceTopbar(doc, { title = '', query, tabs, tools, wrap = false } = {}) {
+  const header = el(doc, 'header', { className: `bb-ws-topbar${wrap ? ' bb-ws-topbar--wrap' : ''}` });
   header.append(el(doc, 'h1', { text: title }));
   let search;
   let currentQuery;
@@ -143,7 +143,7 @@ function workspaceLightDismiss(doc, dialog, close) {
 }
 
 /** A reusable right inspector whose content can refresh without replacing the modal. */
-export function workspaceDetailDrawer(doc, { title = '詳細', opener, onClose } = {}) {
+export function workspaceDetailDrawer(doc, { title = '詳細', opener, onClose, beforeClose } = {}) {
   const dialog = workspaceApplyDrawer(el(doc, 'dialog', { className: 'bb-ws-dialog bb-ws-detail-drawer' }));
   const titleId = `bb-ws-inspector-${nextWorkspaceSequence()}`;
   dialog.setAttribute('aria-labelledby', titleId);
@@ -161,6 +161,7 @@ export function workspaceDetailDrawer(doc, { title = '詳細', opener, onClose }
   };
   const close = ({ restoreFocus = true, immediate = false } = {}) => {
     if (!dialog.open) return;
+    if (!immediate && beforeClose?.() === false) return;
     // Clear the caller's open state before an asynchronous content update arrives.
     if (cancelClosing && !immediate) return;
     if (!cancelClosing) onClose?.();
@@ -854,7 +855,7 @@ export function workspaceActionIcon(doc, name) {
   const svg = typeof doc.createElementNS === 'function' ? doc.createElementNS('http://www.w3.org/2000/svg', 'svg') : doc.createElement('svg');
   for (const [key, value] of Object.entries({ class: 'bb-ws-action-icon', viewBox: '0 0 24 24', 'aria-hidden': 'true' })) svg.setAttribute(key, value);
   const path = typeof doc.createElementNS === 'function' ? doc.createElementNS('http://www.w3.org/2000/svg', 'path') : doc.createElement('path');
-  const paths = { check: 'M5 12l5 5 9-10', sliders: 'M4 8h8M18 8h2M4 16h2M12 16h8 M17.4 8a2.4 2.4 0 1 1-4.8 0 2.4 2.4 0 0 1 4.8 0 M11.4 16a2.4 2.4 0 1 1-4.8 0 2.4 2.4 0 0 1 4.8 0', plus: 'M12 5v14M5 12h14', search: 'M21 21l-4.35-4.35M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0', filter: 'M4 7h16M7 12h10M10 17h4', sort: 'M8 4v16m-3-3 3 3 3-3M16 20V4m-3 3 3-3 3 3' };
+  const paths = { edit: 'M4 20h4L19 9l-4-4L4 16z M13.5 6.5l4 4', undo: 'M4 5v5h5 M4.6 10A8 8 0 1 1 6.3 17.7', check: 'M5 12l5 5 9-10', sliders: 'M4 8h8M18 8h2M4 16h2M12 16h8 M17.4 8a2.4 2.4 0 1 1-4.8 0 2.4 2.4 0 0 1 4.8 0 M11.4 16a2.4 2.4 0 1 1-4.8 0 2.4 2.4 0 0 1 4.8 0', plus: 'M12 5v14M5 12h14', search: 'M21 21l-4.35-4.35M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0', filter: 'M4 7h16M7 12h10M10 17h4', sort: 'M8 4v16m-3-3 3 3 3-3M16 20V4m-3 3 3-3 3 3' };
   path.setAttribute('d', paths[name] || paths.filter); svg.append(path); return svg;
 }
 
@@ -1113,8 +1114,8 @@ export function workspaceControlRow(doc, { label, control, tight = false } = {})
   return root;
 }
 
-export function workspaceFormRow(doc, { label, control, required = false, top = false } = {}) {
-  const root = el(doc, 'div', { className: `bb-ws-form-row${top ? ' is-top' : ''}` });
+export function workspaceFormRow(doc, { label, control, required = false, top = false, appearance } = {}) {
+  const root = el(doc, 'div', { className: `bb-ws-form-row${top ? ' is-top' : ''}${appearance === 'quiet' ? ' is-quiet' : ''}` });
   const caption = el(doc, control?.id ? 'label' : 'span', { className: 'bb-ws-form-label', text: label,
     attrs: { for: control?.id || undefined } });
   if (required) {
@@ -1128,8 +1129,8 @@ export function workspaceFormRow(doc, { label, control, required = false, top = 
 }
 
 /** Uses the canonical modal, Escape/backdrop/close animation and focus return. */
-export function workspaceInputFrame(doc, { title, opener, onClose, tools = [], preview, rows = [], footer = [], showTitle = true } = {}) {
-  const drawer = workspaceDetailDrawer(doc, { title, opener, onClose });
+export function workspaceInputFrame(doc, { title, opener, onClose, beforeClose, tools = [], preview, rows = [], footer = [], showTitle = true } = {}) {
+  const drawer = workspaceDetailDrawer(doc, { title, opener, onClose, beforeClose });
   drawer.dialog.classList.add('bb-ws-input-frame');
   if (tools.length) drawer.dialog.classList.add('has-tools');
   drawer.dialog.querySelector('.bb-ws-detail-closebar > button')?.setAttribute('aria-label', '閉じる');

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { workspaceConditionChips, workspacePills, workspaceFormRow, workspaceCardRow, workspaceRowMotion, workspaceInputFrame } from '../../ui/workspace-kit.js';
+import { workspaceConditionChips, workspacePills, workspaceFormRow, workspaceCardRow, workspaceRowMotion, workspaceInputFrame, workspaceDetailDrawer } from '../../ui/workspace-kit.js';
 class Node {
   constructor(doc, tag) { this.ownerDocument=doc; this.tagName=tag.toUpperCase(); this.children=[]; this.attributes={}; this.listeners={}; this.style={setProperty:vi.fn()}; this.top=0; this.className=''; this.classList={add:n=>{this.className+=' '+n},remove:n=>{this.className=this.className.split(' ').filter(x=>x!==n).join(' ')}}; }
   prepend(...nodes) { this.children.unshift(...nodes); }
@@ -57,4 +57,47 @@ it('composes a frame while retaining the drawer dismissal and opener lifecycle',
     expect(frame.dialog.open).toBe(false);expect(doc.activeElement).toBe(opener);
     frame.setContent(doc.createElement('div'));expect(frame.dialog.open).toBe(false);frame.dispose();expect(frame.dialog.isConnected).toBe(false);expect(vi.getTimerCount()).toBe(0);
   } finally {vi.useRealTimers();}
+});
+
+
+describe('host-controlled unsaved form dismissal', () => {
+  for (const [name, create] of [['drawer', workspaceDetailDrawer], ['input frame', workspaceInputFrame]]) {
+    it(`keeps the ${name} open when the host vetoes close, X, or Escape`, () => {
+      vi.useFakeTimers();
+      try {
+        const doc = document(true), onClose = vi.fn(), beforeClose = vi.fn(() => false);
+        const frame = create(doc, { title: 'Fixture', onClose, beforeClose });
+        frame.open();
+        frame.close();
+        frame.dialog.querySelector('.bb-ws-detail-closebar > button').click();
+        const preventDefault = vi.fn();
+        frame.dialog.listeners.cancel({ preventDefault });
+        expect(preventDefault).toHaveBeenCalledOnce();
+        expect(beforeClose).toHaveBeenCalledTimes(3);
+        expect(frame.dialog.open).toBe(true);
+        expect(onClose).not.toHaveBeenCalled();
+        beforeClose.mockReturnValue(true);
+        frame.close();
+        expect(frame.dialog.open).toBe(false);
+        expect(onClose).toHaveBeenCalledOnce();
+        frame.open(); beforeClose.mockReturnValue(false); frame.dispose();
+        expect(frame.dialog.isConnected).toBe(false);
+        expect(frame.dialog.open).toBe(false);
+        expect(vi.getTimerCount()).toBe(0);
+      } finally { vi.useRealTimers(); }
+    });
+  }
+
+  it('applies quiet form appearance explicitly while retaining required labels and controls', () => {
+    const doc = document(), input = doc.createElement('input'); input.id = 'fixture-quiet-title';
+    const onInput = vi.fn(); input.addEventListener('input', onInput);
+    const row = workspaceFormRow(doc, { label: 'Title', control: input, required: true, appearance: 'quiet' });
+    expect(row.className).toContain('is-quiet');
+    expect(row.children[0].getAttribute('for')).toBe(input.id);
+    expect(row.children[1]).toBe(input);
+    expect(input.required).toBe(true);
+    expect(input.getAttribute('aria-required')).toBe('true');
+    expect(input.listeners.input).toBe(onInput);
+    expect(workspaceFormRow(doc, { label: 'Default' }).className).not.toContain('is-quiet');
+  });
 });

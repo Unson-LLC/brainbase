@@ -1152,8 +1152,8 @@
 .bb-ws-input-frame .bb-ws-detail-closebar > .bb-ws-button { width:30px; height:30px; min-height:0; padding:0; border:0; border-radius:6px; background:none; font-size:0; color:var(--bb-color-muted); }
 .bb-ws-input-frame .bb-ws-detail-closebar > .bb-ws-button::before { content:'×'; font-size:22px; }
 .bb-ws-input-frame .bb-ws-detail-closebar > .bb-ws-button:hover { background:var(--bb-color-canvas); }
-.bb-ws-topbar-tools .bb-ws-filter-anchor > .bb-ws-button { width:32px; height:32px; min-height:0; padding:0; border:0; border-radius:7px; background:none; }
-.bb-ws-topbar-tools .bb-ws-filter-anchor > .bb-ws-button::after { display:none; }
+.bb-ws-topbar-tools > .bb-ws-filter-anchor > .bb-ws-button { width:32px; height:32px; min-height:0; padding:0; border:0; border-radius:7px; background:none; }
+.bb-ws-topbar-tools > .bb-ws-filter-anchor > .bb-ws-button::after { display:none; }
 .bb-ws-input-fields .bb-ws-combobox--compact .bb-ws-combobox-trigger { height:32px; border-radius:7px; }
 .bb-ws-input-fields .bb-ws-combobox--compact .bb-ws-combobox-popup { min-width:200px; }
 .bb-ws-input-fields .bb-ws-combobox--compact .bb-ws-combobox-option { min-height:34px; }
@@ -1184,3 +1184,18 @@
 .bb-ws-combobox-mark { display:grid; place-items:center; width:14px; height:14px; color:var(--bb-color-action); }
 .bb-ws-combobox-mark .bb-ws-action-icon { width:14px; height:14px; stroke-width:2.4; visibility:hidden; }
 .bb-ws-combobox-option[aria-selected="true"] .bb-ws-combobox-mark .bb-ws-action-icon { visibility:visible; }
+
+.bb-ws-form-row.is-quiet:focus-within { box-shadow:inset 0 -1px 0 var(--bb-color-line-soft); }
+
+/* Header view controls use the same compact appearance as their standalone versions. */
+.bb-ws-topbar.has-tabs .bb-ws-topbar-tools > .bb-ws-button { border:0; }
+.bb-ws-topbar-tools > .bb-ws-filter-anchor > .bb-ws-button { background:var(--bb-color-paper); color:var(--bb-color-slate); box-shadow:inset 0 0 0 1px var(--bb-color-border); }
+.bb-ws-tabs--header > :is([role="tab"],a,button) { display:block; line-height:1.6; }
+.bb-ws-tabs--header .bb-ws-tab-count { line-height:1.6; }
+@media(max-width:1200px) {
+  .bb-ws-topbar.bb-ws-topbar--wrap { flex-wrap:wrap; height:auto; min-height:52px; padding-bottom:8px; }
+  .bb-ws-topbar--wrap .bb-ws-topbar-tabs { flex-basis:100%; height:52px; }
+  .bb-ws-topbar--wrap .bb-ws-search-control { flex:1; min-width:72px; }
+}
+
+.bb-ws-tabs--header .bb-ws-tab-count { font-feature-settings:normal; font-variant-numeric:normal; }

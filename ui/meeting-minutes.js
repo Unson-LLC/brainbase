@@ -16,6 +16,8 @@
 import * as workspaceKit from './workspace-kit.js?capability=search-band-v1';
 const { workspaceActionIcon, workspaceSearchBand, workspaceCompactToolbar, workspaceCombobox, workspaceDetailDrawer } = workspaceKit;
 
+import { createMinutesPage, minutesListState, minutesDateCell, minutesConfirmation } from './meeting-minutes-page.js';
+
 export const MEETING_MINUTES_UI_CONTRACT_VERSION = 'brainbase.meeting-minutes-ui.v1';
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
@@ -681,6 +683,9 @@ export function createMeetingMinutesUI({
   rail = null,
   detailPresentation = 'inline',
   toolbarPresentation = 'expanded',
+  pagePresentation,
+  participantIdentities,
+  meetingProject,
   page = null,
   document: explicitDocument,
   fetcher,
@@ -739,13 +744,22 @@ export function createMeetingMinutesUI({
   let railProjectSlot = null;
   let railProjectMeeting = null;
 
-  const searchBand = toolbarPresentation === 'search-band';
+  const tablePage = pagePresentation === 'table';
+  let pageUI = null;
+  let draft = null;
+  let pendingLeave = null;
+  let selectedDocumentId = null;
+  let versionBox = null;
+  const detailNotice = makeElement(doc,'span',{className:'mp-saved',attrs:{role:'status'}});
+  const detailTools = makeElement(doc, 'div', { className: 'mp-detail-tools' });
+  const searchBand = !tablePage && toolbarPresentation === 'search-band';
   if (searchBand && typeof workspaceSearchBand !== 'function') {
     throw new Error('検索帯の共通部品を読み込めませんでした。ページを再読み込みしてください。');
   }
   const compact = searchBand || toolbarPresentation === 'compact';
   const screen = makeElement(doc, 'div', { className: `bb-minutes-screen${compact ? ' bb-minutes-compact bb-ws-neutral-controls' : ''}`, attrs: { 'data-contract-version': MEETING_MINUTES_UI_CONTRACT_VERSION } });
   if (searchBand) screen.classList.add('bb-minutes-search-band');
+  if (tablePage) screen.classList.add('bb-minutes-table');
   const heading = makeElement(doc, 'header', { className: 'bb-minutes-heading bb-ws-page-head' });
   heading.append(
     makeElement(doc, 'div', { className: 'bb-minutes-eyebrow', textContent: page?.source ?? '正本の議事録' }),
@@ -764,8 +778,14 @@ export function createMeetingMinutesUI({
   });
   const detailPane = makeElement(doc, 'section', { className: 'bb-minutes-detail-pane', attrs: { 'aria-label': '議事録詳細' } });
   let createProjectBox = null;
-  const cleanupCreateProject = () => { createProjectBox?.destroy(); createProjectBox = null; };
-  const detailDrawer = detailPresentation === 'drawer' ? workspaceDetailDrawer(doc, {
+  let createParticipantBox = null;
+  const cleanupCreateProject = () => { createProjectBox?.destroy(); createProjectBox = null; createParticipantBox?.destroy(); createParticipantBox = null; };
+  const detailDrawer = tablePage ? workspaceKit.workspaceInputFrame(doc, {
+    title: '議事録の詳細', showTitle: false, tools: [detailTools],
+    beforeClose: () => requestLeave(() => detailDrawer.close()),
+    onClose: () => { cleanupCreateProject(); detailRequestGeneration += 1; draft = null; state.editingMinutesId = null; detailTools.replaceChildren(); },
+    opener: () => listPane.querySelector('.mp-row[aria-expanded="true"]') ?? listPane,
+  }) : detailPresentation === 'drawer' ? workspaceDetailDrawer(doc, {
     title: '議事録の詳細', onClose: cleanupCreateProject, opener: () => detailPane.querySelector('.bb-minutes-create-form') ? toolbar.querySelector('.bb-minutes-button.is-primary') : listPane.querySelector('.bb-minutes-meeting-item.is-selected') ?? listPane,
   }) : null;
   if (detailDrawer) {
@@ -774,9 +794,14 @@ export function createMeetingMinutesUI({
     columns.append(listPane);
     const scope = makeElement(doc, 'div', { className: 'bb-minutes-screen bb-minutes-drawer-content' });
     if (compact) scope.classList.add('bb-ws-neutral-controls');
-    scope.append(detailPane); detailDrawer.setContent(scope);
+    scope.append(detailPane);
+    if (tablePage) {
+      scope.classList.add('mp-drawer-content');
+      detailDrawer.fields.classList.add('mp-detail-fields');
+      detailDrawer.fields.append(scope);
+    } else detailDrawer.setContent(scope);
   } else columns.append(listPane, detailPane);
-  if (compact) screen.append(heading, toolbar, status, columns);
+  if (compact || tablePage) screen.append(heading, toolbar, status, columns);
   else screen.append(heading, status, toolbar, columns);
   root.replaceChildren(screen);
 
@@ -812,12 +837,68 @@ export function createMeetingMinutesUI({
   const keywordField = filterField('キーワード', keyword, 'is-keyword');
   const sortField = filterField('並べ替え', sortBox.root);
   let compactToolbar = null;
-  if (compact) {
+  if (compact && !tablePage) {
     const filters = makeElement(doc, 'div', { className: 'bb-minutes-compact-filters' });
     filters.append(hostSlot, filterField('期間', period, 'is-period'), participantField, statusField);
     compactToolbar = searchBand ? workspaceSearchBand(doc, { root: toolbar, query: keyword, filters, sort: sortBox, reset, onResetSort: () => { state.sort = SORTS[0].value; renderList(); } }) : workspaceCompactToolbar(doc, { root: toolbar, query: keyword, filters, sort: sortBox, reset });
-  } else toolbar.append(keywordField, hostSlot, filterField('期間', period, 'is-period'), participantField, statusField, sortField, reset);
+  } else if (!tablePage) toolbar.append(keywordField, hostSlot, filterField('期間', period, 'is-period'), participantField, statusField, sortField, reset);
   const hostBoxes = new Map();
+  if (tablePage) {
+    pageUI = createMinutesPage({ doc, state, screen, toolbar, listPane, keyword, clock,
+      hostFilters: currentHostFilters,
+      principalIds: () => typeof participantIdentities === 'function' ? participantIdentities() : [typeof currentPrincipalId === 'function' ? currentPrincipalId() : currentPrincipalId],
+      projectContext: meeting => {
+        if (typeof meetingProject === 'function') return meetingProject(meeting);
+        const label = meetingLabelText(meetingLabel, meeting).replace(/^プロジェクト:\s*/u, '');
+        return { label };
+      },
+      sortMeetings, matchesFilters, listState: minutesListState, versionNumber: listedVersionNumber,
+      onRender: renderList, onCreate: () => runLeave(renderCreateForm), canCreate,
+      appendCreateUnavailable, onOpen: id => runLeave(() => loadDetail(id)),
+    });
+  }
+
+  function requestLeave(action) {
+    if (tablePage && draft?.saving) return false;
+    if (!tablePage || !draft || draft.body === draft.original) return true;
+    pendingLeave = action;
+    let notice = detailDrawer.dialog.querySelector('.mp-unsaved');
+    if (!notice) {
+      notice = makeElement(doc, 'div', { className: 'mp-unsaved', attrs: { role: 'alert' } });
+      notice.append(makeElement(doc, 'p', { textContent: '保存していない変更があります。' }));
+      notice.append(button(doc, '編集を続ける', () => { pendingLeave = null; notice.remove(); detailDrawer.dialog.setAttribute('closedby','any'); detailPane.querySelector('textarea')?.focus(); }));
+      notice.append(button(doc, '変更を破棄', () => {
+        const next = pendingLeave; pendingLeave = null; draft = null; state.editingMinutesId = null; notice.remove(); detailDrawer.dialog.setAttribute('closedby','any'); next?.();
+      }));
+      detailDrawer.footer.prepend(notice);
+    }
+    detailDrawer.dialog.setAttribute('closedby','none');
+    notice.querySelector('button')?.focus();
+    return false;
+  }
+  function runLeave(action) { if (requestLeave(action)) action(); }
+  function decorateDetailTools(documentRecord, selected, versions, detail) {
+    detailTools.replaceChildren(detailNotice);
+    const native = selected && typeof selected.body === 'string' && !isRecord(selected.source_ref);
+    const latest = documentRecord.current_version_id === selected?.version_id;
+    if (!native || !latest || documentRecord.withdrawal || !canEdit()) return;
+    const editing = state.editingMinutesId === documentRecord.minutes_id;
+    const toggle = workspaceKit.workspaceButton(doc, {
+      attrs: { 'aria-label': editing ? '編集をやめる' : '本文を編集する', title: editing ? '編集をやめる' : '本文を編集する' },
+      onClick: () => {
+        const act = () => {
+          state.editingMinutesId = editing ? null : documentRecord.minutes_id;
+          draft = editing ? null : { original: selected.body, body: selected.body };
+          rerender(detail, documentRecord, selected);
+        };
+        if (editing) runLeave(act); else act();
+      },
+    });
+    if (editing) toggle.classList.add('is-editing');
+    toggle.append(workspaceKit.workspaceActionIcon(doc, editing ? 'undo' : 'edit'));
+    detailTools.append(toggle);
+  }
+
 
   function currentHostFilters() {
     let filters = hostFilters;
@@ -925,7 +1006,14 @@ export function createMeetingMinutesUI({
   function setStatus(message, kind = '') {
     status.textContent = message;
     status.className = `bb-minutes-status${kind ? ` is-${kind}` : ''}`;
-    status.hidden = compact && kind !== 'error' && (/^(?:(?:\d+件の会議|会議詳細)を読み込みました。|まだ議事録はありません。)$/.test(message) || (Boolean(detailDrawer) && message === '会議詳細を読み込んでいます。'));
+    if (tablePage && detailDrawer.dialog.open) {
+      detailNotice.textContent = kind === 'success' ? '保存しました' : '';
+      if (kind === 'error' && !state.detailError) {
+        detailPane.querySelector('.mp-save-error')?.remove();
+        detailPane.prepend(makeElement(doc,'p',{className:'mp-save-error bb-minutes-warning',textContent:message,attrs:{role:'alert'}}));
+      }
+    }
+    status.hidden = (compact || tablePage) && kind !== 'error' && (/^(?:(?:\d+件の会議|会議詳細)を読み込みました。|まだ議事録はありません。)$/.test(message) || (Boolean(detailDrawer) && message === '会議詳細を読み込んでいます。'));
   }
 
   async function call(path, init = {}) {
@@ -1174,7 +1262,7 @@ export function createMeetingMinutesUI({
       return;
     }
     const row = makeElement(doc, 'div', { className: 'bb-minutes-participants-row' });
-    row.append(makeElement(doc, 'span', { className: 'bb-minutes-connection-label', textContent: '参加者' }));
+    if (!tablePage) row.append(makeElement(doc, 'span', { className: 'bb-minutes-connection-label', textContent: '参加者' }));
     if (!value) {
       row.append(makeElement(doc, 'p', { className: 'bb-minutes-connection-note', textContent: '読み込んでいます' }));
       slot.replaceChildren(row);
@@ -1469,7 +1557,14 @@ export function createMeetingMinutesUI({
   }
 
   function renderList() {
+    pageUI?.capture();
     clear(listPane);
+    if (tablePage) {
+      const meetings = state.meetings.filter(entry => isRecord(entry?.meeting) && typeof entry.meeting.meeting_id === 'string');
+      pageUI?.render(meetings);
+      if (state.listError) appendLoadError(listPane, `会議一覧を読み込めませんでした。理由: ${state.listError}`, () => loadMeetings({ restoreFocus: true }));
+      appendMore(listPane); return;
+    }
     const head = makeElement(doc, 'div', { className: 'bb-minutes-pane-head' });
     const meetings = state.meetings.filter((entry) => isRecord(entry?.meeting) && typeof entry.meeting.meeting_id === 'string');
     renderToolbar(meetings);
@@ -1596,7 +1691,8 @@ export function createMeetingMinutesUI({
     const withdrawal = isRecord(documentRecord.withdrawal) ? documentRecord.withdrawal : null;
     const native = isRecord(selected) && typeof selected.body === 'string' && !isRecord(selected.source_ref);
     const editing = state.editingMinutesId === documentRecord.minutes_id && native && !viewingOld && !withdrawal && canEdit();
-    const section = makeElement(doc, 'section', { className: 'bb-minutes-document' });
+    const section = makeElement(doc, 'section', { className: tablePage ? 'mp-detail-section' : 'bb-minutes-document' });
+    if (tablePage) decorateDetailTools(documentRecord, selected, versions, detail);
     if (withdrawal) {
       const when = formatStamp(withdrawal.withdrawn_at);
       const who = text(withdrawal.actor_id);
@@ -1625,11 +1721,13 @@ export function createMeetingMinutesUI({
             return;
           }
           confirm.disabled = true;
+          const generation = detailRequestGeneration;
           try {
             await mutate(`/${encodeURIComponent(detail.meeting.meeting_id)}/minutes/${encodeURIComponent(documentRecord.minutes_id)}/confirm`, {
               version_id: selected.version_id,
               expected_revision: documentRecord.revision,
             });
+            if (tablePage && (disposed || generation !== detailRequestGeneration)) return;
             await loadDetail(detail.meeting.meeting_id);
             if (!state.detailError) setStatus(`${selectedLabel}を確認済みにしました。`, 'success');
           } catch (error) {
@@ -1639,7 +1737,7 @@ export function createMeetingMinutesUI({
         }, { className: 'bb-minutes-button is-primary' });
         actions.append(confirm);
       }
-      if (native && !viewingOld && canEdit()) {
+      if (!tablePage && native && !viewingOld && canEdit()) {
         actions.append(button(doc, '編集', () => {
           state.editingMinutesId = documentRecord.minutes_id;
           state.withdrawingMinutesId = null;
@@ -1654,7 +1752,8 @@ export function createMeetingMinutesUI({
         }, { className: 'bb-minutes-button is-quiet' }));
       }
     }
-    section.append(actions);
+    if (tablePage) { detailDrawer.footer.replaceChildren(...actions.children); }
+    else section.append(actions);
     if (!withdrawal && canEdit() && !mayWithdraw(documentRecord)) {
       section.append(makeElement(doc, 'p', { className: 'bb-minutes-withdraw-guard', textContent: '取り下げられるのは、この議事録を作った人だけです。' }));
     }
@@ -1680,7 +1779,17 @@ export function createMeetingMinutesUI({
       textContent: [`${selectedLabel}${latestMark}`, historyStamp(selected, clock()), creatorFact(selected)].join('・'),
     }));
     section.append(meta);
-    if (versions.length >= 2) {
+    if (tablePage && versions.length >= 2) {
+      versionBox?.destroy();
+      versionBox = workspaceCombobox(doc, {
+        label: '版', appearance: 'compact', searchable: false, showHints: false, showCount: false,
+        value: selected?.version_id,
+        options: [...versions].reverse().map(v => ({ value: v.version_id, label: `${versionLabel(versions,v)}${v.version_id===latest?.version_id?'（最新）':''}` })),
+        onChange: value => runLeave(() => { state.editingMinutesId=null; draft=null; rerender(detail,documentRecord,versions.find(v=>v.version_id===value)); }),
+      });
+      meta.prepend(versionBox.root); meta.classList.add('mp-version-line');
+    }
+    if (!tablePage && versions.length >= 2) {
       const history = makeElement(doc, 'div', { className: 'bb-minutes-version-history is-collapsed', attrs: { 'aria-label': '版の履歴' } });
       const historyButton = button(doc, `版の履歴（${versions.length}件）`, () => {
         const collapsed = history.className.includes('is-collapsed');
@@ -1743,8 +1852,14 @@ export function createMeetingMinutesUI({
   function renderEditForm(detail, documentRecord, selected, versions) {
     const form = makeElement(doc, 'form', { className: 'bb-minutes-edit-form' });
     const field = labelInput(doc, '本文', { type: 'textarea', name: 'body', value: selected.body });
-    field.input.value = selected.body;
-    field.input.rows = 16;
+    field.input.value = draft?.body ?? selected.body;
+    field.input.rows = tablePage ? 10 : 16;
+    if (tablePage) {
+      field.input.className = 'mp-edit-body';
+      field.wrapper.querySelector('.bb-minutes-label')?.classList.add('bb-ws-visually-hidden');
+      field.input.addEventListener('input', () => { draft = { original: selected.body, body: field.input.value }; });
+    }
+    if (tablePage) form.classList.add('mp-edit-form');
     form.append(
       field.wrapper,
       makeElement(doc, 'p', { className: 'bb-minutes-edit-note', textContent: `保存すると第${versions.length + 1}版になります。前の版は残ります。` }),
@@ -1756,8 +1871,9 @@ export function createMeetingMinutesUI({
       rerender(detail, documentRecord, selected);
     });
     const row = makeElement(doc, 'div', { className: 'bb-minutes-actions' });
-    row.append(save, cancel);
-    form.append(row);
+    if (tablePage) {
+      form.id = 'bb-minutes-edit-body'; save.setAttribute('form',form.id); detailDrawer.footer.replaceChildren(save);
+    } else { row.append(save, cancel); form.append(row); }
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       if (!canEdit()) {
@@ -1766,16 +1882,26 @@ export function createMeetingMinutesUI({
         return;
       }
       save.disabled = true;
+      if (tablePage) {
+        draft.saving=true; field.input.readOnly=true;
+        detailTools.querySelector('button')?.setAttribute('disabled','');
+        versionBox?.update({disabled:true}); save.textContent='保存しています。';
+      }
+      const generation = detailRequestGeneration;
       try {
         await mutate(`/${encodeURIComponent(detail.meeting.meeting_id)}/minutes/${encodeURIComponent(documentRecord.minutes_id)}`, {
           body: field.input.value,
           expected_revision: documentRecord.revision,
         });
+        if (tablePage && (disposed || generation !== detailRequestGeneration)) return;
         state.editingMinutesId = null;
+        const savedDraft = draft; draft = null;
         await loadDetail(detail.meeting.meeting_id);
         if (!state.detailError) setStatus(`第${versions.length + 1}版として保存しました。確認待ちです。`, 'success');
+        else if (tablePage && savedDraft) { savedDraft.saving=false; draft=savedDraft; state.editingMinutesId=documentRecord.minutes_id; rerender(detail,documentRecord,selected); }
       } catch (error) {
         save.disabled = false;
+        if (tablePage) { draft.saving=false; field.input.readOnly=false; detailTools.querySelector('button')?.removeAttribute('disabled'); versionBox?.update({disabled:false}); save.textContent='新しい版として保存'; }
         setStatus(error instanceof Error ? error.message : '新しい版を保存できませんでした。', 'error');
       }
     });
@@ -1802,12 +1928,15 @@ export function createMeetingMinutesUI({
         return;
       }
       confirm.disabled = true;
+      const generation = detailRequestGeneration;
       try {
         await mutate(`/${encodeURIComponent(detail.meeting.meeting_id)}/minutes/${encodeURIComponent(documentRecord.minutes_id)}/withdraw`, {
           expected_revision: documentRecord.revision,
         });
+        if (tablePage && (disposed || generation !== detailRequestGeneration)) return;
         state.withdrawingMinutesId = null;
         await loadMeetings();
+        if (tablePage && (disposed || !detailDrawer.dialog.open)) return;
         await loadDetail(detail.meeting.meeting_id);
         if (!state.detailError) setStatus('議事録を取り下げました。', 'success');
       } catch (error) {
@@ -1829,6 +1958,8 @@ export function createMeetingMinutesUI({
 
   function renderDetail(detail, documentRecord = null, selectedVersion = null) {
     detailDrawer?.setTitle?.('議事録の詳細');
+    versionBox?.destroy(); versionBox = null;
+    if (tablePage) { detailDrawer.top.replaceChildren(); detailDrawer.footer.replaceChildren(); detailTools.replaceChildren(); }
     clear(detailPane);
     connectionsSlot = null;
     participantsSlot = null;
@@ -1863,15 +1994,34 @@ export function createMeetingMinutesUI({
       className: 'bb-minutes-item-meta',
       textContent: participants ? `${when} / ${participants}` : when,
     }));
-    detailPane.append(header);
-    participantsSlot = null;
+    if (tablePage) {
+      const context = pageUI.project(meeting);
+      const card = makeElement(doc, 'div', { className: 'mp-detail-card' });
+      card.style.setProperty('--mp-project-stripe', context.stripe);
+      card.append(makeElement(doc, 'h2', { textContent: text(meeting.title, '無題の会議') }));
+      const meta = makeElement(doc, 'div', { className: 'mp-card-meta' });
+      meta.append(minutesConfirmation(doc, minutesListState(detail)), context.root); card.append(meta);
+      detailDrawer.top.replaceChildren(card);
+      const facts = makeElement(doc, 'div', { className: 'mp-facts' });
+      facts.append(workspaceKit.workspaceFormRow(doc, { label: '日時', control: makeElement(doc, 'span', { textContent: when }), appearance: 'quiet' }));
+      const people = makeElement(doc, 'div', { className: 'mp-participant-choices' });
+      for (const name of meeting.participant_ids ?? []) people.append(makeElement(doc, 'span', { textContent: name }));
+      if (!people.children.length) people.textContent = '記録がありません';
+      facts.append(workspaceKit.workspaceFormRow(doc, { label: '参加した人', control: people, appearance: 'quiet' }));
+      if (hasParticipants()) { participantsSlot=people; participantsSlot.classList.add('mp-participants-control'); }
+      const currentDocument = (detail.minutes ?? []).find(d => d.minutes_id === selectedDocumentId) ?? detail.minutes?.[0];
+      const currentVersion = detail.versions.find(v => v.version_id === currentDocument?.current_version_id);
+      facts.append(workspaceKit.workspaceFormRow(doc, { label: '確認', control: makeElement(doc, 'span', { textContent: currentVersion?.confirmation ? confirmationDetail(currentVersion.confirmation) : 'まだだれも確認していません' }), appearance: 'quiet' }));
+      detailPane.append(facts);
+    } else detailPane.append(header);
+    if (!tablePage) participantsSlot = null;
     if (hasParticipants()) {
-      participantsSlot = makeElement(doc, 'section', {
+      if (!tablePage) participantsSlot = makeElement(doc, 'section', {
         className: 'bb-minutes-participants',
         attrs: { 'aria-label': '参加者' },
       });
       fillParticipants(participantsSlot, meeting);
-      detailPane.append(participantsSlot);
+      if (!tablePage) detailPane.append(participantsSlot);
     }
     if (hasConnections()) {
       connectionsSlot = makeElement(doc, 'section', {
@@ -1879,7 +2029,7 @@ export function createMeetingMinutesUI({
         attrs: { 'aria-label': 'この会議から' },
       });
       fillConnections(connectionsSlot, currentConnections(meeting));
-      detailPane.append(connectionsSlot);
+      if (!tablePage) detailPane.append(connectionsSlot);
     }
     const documents = Array.isArray(detail.minutes) ? detail.minutes : [];
     const noticeState = { placed: false };
@@ -1888,7 +2038,14 @@ export function createMeetingMinutesUI({
       appendReadOnlyNotice(detailPane, null);
       noticeState.placed = true;
     }
+    if (tablePage && documents.length > 1) {
+      const active = documentRecord?.minutes_id ?? selectedDocumentId ?? documents[0].minutes_id;
+      const controls = workspaceKit.workspacePills(doc, { label: '議事録', items: documents.map(d => ({ value: d.minutes_id, label: d.title || '議事録' })), value: active,
+        onChange: value => runLeave(() => { selectedDocumentId=value; state.editingMinutesId=null; draft=null; rerender(detail,documents.find(d=>d.minutes_id===value),null); }),
+      }); controls.classList.add('mp-document-tabs'); detailPane.append(controls);
+    }
     for (const documentRecordValue of documents) {
+      if (tablePage && documentRecordValue.minutes_id !== (documentRecord?.minutes_id ?? selectedDocumentId ?? documents[0]?.minutes_id)) continue;
       detailPane.append(renderVersion(
         detail,
         documentRecordValue,
@@ -1896,6 +2053,7 @@ export function createMeetingMinutesUI({
         noticeState,
       ));
     }
+    if (tablePage && connectionsSlot) { connectionsSlot.classList.add('mp-detail-section'); detailPane.append(connectionsSlot); }
   }
 
   function renderCreateUnavailable() {
@@ -1907,6 +2065,7 @@ export function createMeetingMinutesUI({
 
   function renderCreateForm() {
     detailDrawer?.setTitle?.('会議を作成');
+    if (tablePage) { detailTools.replaceChildren(); detailDrawer.top.replaceChildren(makeElement(doc, 'h2', { textContent: '会議を作成' })); detailDrawer.footer.replaceChildren(); }
     detailRequestGeneration += 1;
     detailDrawer?.open();
     clear(detailPane);
@@ -1917,13 +2076,17 @@ export function createMeetingMinutesUI({
     const form = makeElement(doc, 'form', { className: 'bb-minutes-create-form' });
     form.append(makeElement(doc, 'h2', { textContent: '会議を作成' }));
     const projectOptions = typeof createProjectOptions === 'function' ? createProjectOptions() : null;
-    const initialProject = typeof createProjectValue === 'function' ? createProjectValue() : '';
+    const ownIds = typeof participantIdentities === 'function' ? participantIdentities() : [typeof currentPrincipalId === 'function' ? currentPrincipalId() : currentPrincipalId];
+    const myProject = tablePage ? state.meetings.filter(e => (e.meeting?.participant_ids ?? []).some(id => ownIds.includes(id))).flatMap(e => e.meeting.project_codes ?? []).find(code => projectOptions?.some(o => o.value === code)) : '';
+    const initialProject = (typeof createProjectValue === 'function' ? createProjectValue() : '') || myProject || '';
+    let selectedParticipants = [];
+
     let projectCode = Array.isArray(projectOptions) && projectOptions.some(option => option.value === initialProject) ? initialProject : '';
     const projectError = makeElement(doc, 'p', { className: 'bb-minutes-warning', attrs: { role: 'alert' } }); projectError.hidden = true;
     if (Array.isArray(projectOptions)) {
       createProjectBox = workspaceCombobox(doc, { label: 'プロジェクト', options: [{ value: '', label: 'プロジェクトを選択' }, ...projectOptions], value: projectCode,
         showCount: false, searchable: true, onChange: value => { projectCode = value; projectError.hidden = true; } });
-      form.append(filterField('プロジェクト', createProjectBox.root), projectError);
+      if (!tablePage) form.append(filterField('プロジェクト', createProjectBox.root), projectError);
     }
     const title = labelInput(doc, '会議名', { name: 'title', placeholder: '例: 週次定例' });
     const date = labelInput(doc, '日時（任意）', { type: 'datetime-local', name: 'scheduled_at' });
@@ -1931,9 +2094,32 @@ export function createMeetingMinutesUI({
     const minutesTitle = labelInput(doc, '最初の議事録名', { name: 'minutes_title', value: '議事録' });
     const body = labelInput(doc, '本文（任意）', { type: 'textarea', name: 'initial_body', placeholder: '会議の本文を入力' });
     body.input.rows = 8;
-    const save = makeElement(doc, 'button', { className: 'bb-minutes-button is-primary', textContent: '会議を保存', type: 'submit' });
+    const save = makeElement(doc, 'button', { className: 'bb-minutes-button is-primary', textContent: tablePage ? '会議を作成' : '会議を保存', type: 'submit' });
     title.input.required = true;
-    form.append(title.wrapper, date.wrapper, participants.wrapper, minutesTitle.wrapper, body.wrapper, save);
+    if (tablePage) {
+      form.className = 'mp-new-form';
+      form.style.padding = '6px 28px 24px';
+      const field = (label, control, required=false, top=false) => workspaceKit.workspaceFormRow(doc,{label,control,required,top,appearance:'quiet'});
+      form.append(field('会議の名前',title.input,true));
+      if (createProjectBox) form.append(field('プロジェクト',createProjectBox.root,true),projectError);
+      createParticipantBox = workspaceCombobox(doc,{label:'人を足す',appearance:'compact',multiple:true,values:[],options:[...new Set(state.meetings.flatMap(e=>e.meeting?.participant_ids??[]))].map(value=>({value,label:value})),showHints:false,showCount:false,searchable:false,onChange:values=>{selectedParticipants=values;paintChosen();}});
+      const chosen = makeElement(doc,'div',{className:'mp-chosen-people'});
+      const paintChosen = () => {
+        chosen.replaceChildren(workspaceKit.workspaceConditionChips(doc,{items:selectedParticipants.map(value=>({label:value,onRemove:()=>{selectedParticipants=selectedParticipants.filter(id=>id!==value);createParticipantBox.update({values:selectedParticipants});paintChosen();}}))}));
+      };
+      const people = makeElement(doc,'div',{className:'mp-participant-choices'});people.append(chosen,createParticipantBox.root);
+      form.append(field('参加した人',people),field('ほかの人',participants.input),field('日時',date.input),field('議事録の名前',minutesTitle.input),field('本文',body.input,false,true));
+      const preview = makeElement(doc,'div',{className:'mp-create-preview'}); detailDrawer.top.append(preview);
+      const sync = () => {
+        const titleValue=title.input.value.trim();
+        preview.replaceChildren(pageUI.row({meeting:{title:titleValue||'会議の名前',scheduled_at:date.input.value,project_codes:projectCode?[projectCode]:[],participant_ids:[]},minutes:[{minutes_id:'preview-new',current_version_id:'preview-new'}],current_version_states:[{minutes_id:'preview-new',version_id:'preview-new',status:'pending'}]},{preview:true}));
+        save.disabled=!titleValue || (Array.isArray(projectOptions)&&!projectOptions.some(o=>o.value===projectCode));
+      };
+      form.addEventListener('input',sync);form.addEventListener('click',()=>{Promise.resolve().then(sync);});
+      const hint=makeElement(doc,'span',{className:'mp-hint',textContent:'※の2つを入れると作成できます'});
+      form.id='bb-minutes-create-body'; save.setAttribute('form',form.id); detailDrawer.footer.replaceChildren(hint,save);sync();
+      detailDrawer.fields.classList.add('mp-create-fields');
+    } else form.append(title.wrapper, date.wrapper, participants.wrapper, minutesTitle.wrapper, body.wrapper, save);
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       if (!canCreate()) {
@@ -1952,7 +2138,7 @@ export function createMeetingMinutesUI({
         const payload = {
           title: title.input.value,
           ...(scheduledAt ? { scheduled_at: scheduledAt } : {}),
-          participant_ids: participants.input.value.split(',').map((value) => value.trim()).filter(Boolean),
+          participant_ids: [...new Set([...selectedParticipants, ...participants.input.value.split(/[、,]/u).map((value) => value.trim()).filter(Boolean)])],
           ...(minutesTitle.input.value.trim() ? { minutes_title: minutesTitle.input.value } : {}),
           initial_body: body.input.value,
         };
@@ -1961,7 +2147,8 @@ export function createMeetingMinutesUI({
         setStatus('会議を保存しました。', 'success');
         await loadMeetings();
         if (typeof id === 'string') {
-          if (typeof shouldOpenCreatedMeeting !== 'function' || shouldOpenCreatedMeeting(created, projectCode) !== false) await loadDetail(id);
+          if (tablePage) { detailDrawer.close(); pageUI.highlightCreated(id); }
+          else if (typeof shouldOpenCreatedMeeting !== 'function' || shouldOpenCreatedMeeting(created, projectCode) !== false) await loadDetail(id);
           else { detailDrawer?.close(); renderDetail(null); if (!state.listError) setStatus('会議を保存しました。', 'success'); }
         }
       } catch (error) {
@@ -2048,6 +2235,8 @@ export function createMeetingMinutesUI({
 
   async function loadDetail(meetingId) {
     if (disposed) return null;
+    if (tablePage && draft && draft.body !== draft.original) { runLeave(() => loadDetail(meetingId)); return null; }
+    selectedDocumentId = null;
     cleanupCreateProject();
     detailDrawer?.open();
     const requestGeneration = ++detailRequestGeneration;
@@ -2066,6 +2255,17 @@ export function createMeetingMinutesUI({
       if (!isCurrentRequest()) return state.detail;
       if (!isRecord(detail) || !isRecord(detail.meeting) || !Array.isArray(detail.minutes) || !Array.isArray(detail.versions)) throw new Error('会議詳細の形式を確認できません。');
       state.detail = detail;
+      if (tablePage) {
+        const index = state.meetings.findIndex(e => e.meeting?.meeting_id === meetingId);
+        if (index >= 0) state.meetings[index] = {
+          ...state.meetings[index], meeting: detail.meeting, minutes: detail.minutes.filter(d => !d.withdrawal),
+          current_version_states: detail.minutes.filter(d => !d.withdrawal).map(d => {
+            const version = detail.versions.find(v => v.version_id === d.current_version_id);
+            return { minutes_id: d.minutes_id, version_id: d.current_version_id, status: !version ? 'unknown' : isRecord(version.confirmation) ? 'confirmed' : version.confirmation == null ? 'pending' : 'unknown' };
+          }),
+        };
+        renderList();
+      }
       state.detailError = null;
       if (hasConnections()) state.connections = { meetingId, rows: null };
       if (hasParticipants() && state.participants?.meetingId !== meetingId) state.participants = null;
@@ -2086,16 +2286,18 @@ export function createMeetingMinutesUI({
     return state.detail;
   }
 
-  renderToolbar([]);
+  if (!tablePage) renderToolbar([]);
   renderDetail(null);
   void loadMeetings();
   return {
     contractVersion: MEETING_MINUTES_UI_CONTRACT_VERSION,
     refresh: loadMeetings,
     openMeeting: loadDetail,
+    requestLeave: action => requestLeave(action),
     destroy() {
       disposed = true; listRequestGeneration += 1; detailRequestGeneration += 1;
       cleanupCreateProject();
+      pageUI?.destroy(); versionBox?.destroy();
       detailDrawer?.dispose();
       compactToolbar?.destroy();
       participantBox.destroy(); statusBox.destroy(); sortBox.destroy();

@@ -190,9 +190,17 @@ export interface WithdrawMinutesInput {
   readonly idempotency_fingerprint?: string;
 }
 
+export interface MeetingMinutesCurrentVersionState {
+  readonly minutes_id: MinutesId;
+  readonly version_id: MinutesVersionId;
+  readonly status: 'pending' | 'confirmed' | 'unknown';
+}
+
 export interface MeetingMinutesSummary {
   readonly meeting: MeetingRecord;
   readonly minutes: readonly MinutesDocumentRecord[];
+  /** Listing-only projection; detail callers may omit it. Contains no version content. */
+  readonly current_version_states?: readonly MeetingMinutesCurrentVersionState[];
 }
 
 export interface MeetingMinutesDetail extends MeetingMinutesSummary {
@@ -906,10 +914,17 @@ function detail(snapshot: MeetingMinutesSnapshot, meeting: MeetingRecord): Meeti
 
 function summary(snapshot: MeetingMinutesSnapshot, meeting: MeetingRecord): MeetingMinutesSummary {
   // A withdrawn document is taken back from listings; its detail stays readable for history.
-  return freezeClone({
-    meeting,
-    minutes: snapshot.documents.filter((candidate) => candidate.meeting_id === meeting.meeting_id && !candidate.withdrawal)
+  const minutes = snapshot.documents.filter((candidate) => candidate.meeting_id === meeting.meeting_id && !candidate.withdrawal);
+  const current_version_states: MeetingMinutesCurrentVersionState[] = minutes.map((document) => {
+    const version = snapshot.versions.find((candidate) => candidate.version_id === document.current_version_id
+      && candidate.minutes_id === document.minutes_id && candidate.meeting_id === meeting.meeting_id);
+    return {
+      minutes_id: document.minutes_id,
+      version_id: document.current_version_id,
+      status: version ? (version.confirmation ? 'confirmed' : 'pending') : 'unknown',
+    };
   });
+  return freezeClone({ meeting, minutes, current_version_states });
 }
 
 function assertNotWithdrawn(document: MinutesDocumentRecord): void {
