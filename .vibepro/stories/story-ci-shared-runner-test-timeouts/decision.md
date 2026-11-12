@@ -26,7 +26,15 @@ OSSのCIは、ほかの2つのリポジトリと1台の自前マシンを共有�
 
 `tests/vitest-shared-runner-timeouts.test.ts` が条件1・2を確かめ、Vitestが読む設定に今の環境の値が入っていることも確かめる。設定ファイルが無い状態では落ちる。条件3は、設定の有無で `vitest list --filesOnly` が同じ271件になることで確かめた。
 
+## 追加: 試験が自前で持つ短い待ち
+
+上限を延ばした最初のCIで、`tests/ssot-atomic.test.ts` が1件落ちた。Vitestの上限ではなく、試験の補助関数 `waitForFile` が2msを100回（約0.2秒）しか待たなかった。待ち方を回数から期限（10秒）に変えた。
+
+5. 補助関数の待ちは、回数ではなく期限で決める。
+
 ## Scope OUT
+
+- 同じ形の回数で数える待ちが、`tests/judgment-value-proof-journal-cache.test.ts` と `tests/judgment-event-outbox.test.ts` にもある。CIで落ちたことを確認していないので、今回は変えない。
 
 - 重い2つのジョブを同時に流さないようにする並べ方の変更。上限を延ばしても落ちるなら次に検討する。
 - 試験そのものを速くすること。
