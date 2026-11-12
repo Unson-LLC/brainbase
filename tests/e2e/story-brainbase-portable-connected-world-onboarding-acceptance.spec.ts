@@ -11,7 +11,9 @@ afterEach(async () => {
 });
 
 describe('connected-world onboarding acceptance', () => {
-  it('story-brainbase-portable-connected-world-onboarding ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7 ac:8 ac:9 ac:10 ac:11 ac:12 ac:13 completes the bounded reviewed first-value journey', async () => {
+  // This journey performs repeated real filesystem writes; shared CI runners
+  // can exceed Vitest's 5s default even when every assertion succeeds.
+  it('story-brainbase-portable-connected-world-onboarding ac:1 ac:2 ac:3 ac:4 ac:5 ac:6 ac:7 ac:8 ac:9 ac:10 ac:11 ac:12 ac:13 completes the bounded reviewed first-value journey', { timeout: 30_000 }, async () => {
     const dataDir = await mkdtemp(join(tmpdir(), 'brainbase-connected-e2e-'));
     dirs.push(dataDir);
     const started = await callBrainbaseTool('brainbase_onboarding_start', {
