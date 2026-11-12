@@ -654,7 +654,7 @@ function comboboxText(value) {
 export function workspaceCombobox(doc, {
   label, options = [], value = '', placeholder = '選択してください', searchLabel, searchPlaceholder = '絞り込む',
   emptyText = '一致する候補はありません', limit = 100, searchable = 'auto', className, onChange,
-  multiple = false, values = [], renderIcon, showCount = true, showHints = true, align = 'start', appearance,
+  multiple = false, values = [], selectionLabel = '', renderIcon, showCount = true, showHints = true, align = 'start', appearance,
 } = {}) {
   const sequence = nextWorkspaceSequence();
   const listId = `bb-ws-combobox-${sequence}-list`;
@@ -677,7 +677,7 @@ export function workspaceCombobox(doc, {
   popup.append(search, list, status);
   root.append(trigger, popup);
 
-  const state = { options: [], values: [...new Set((Array.isArray(values) ? values : []).map(String))].filter(Boolean), value: String(value ?? ''), query: '', active: -1, shown: [], open: false, disabled: false };
+  const state = { selectionLabel: String(selectionLabel ?? ''), options: [], values: [...new Set((Array.isArray(values) ? values : []).map(String))].filter(Boolean), value: String(value ?? ''), query: '', active: -1, shown: [], open: false, disabled: false };
   let exitTimer;
   const cancelExit = () => { clearTimeout(exitTimer); exitTimer = undefined; popup.removeEventListener?.('animationend', exitEnded); toggleWorkspaceClass(popup, 'is-closing', false); };
   const finishExit = () => { cancelExit(); if (!state.open) popup.hidden = true; };
@@ -696,9 +696,9 @@ export function workspaceCombobox(doc, {
   function renderTrigger() {
     const option = multiple ? (state.values.length === 1 ? state.options.find(option => option.value === state.values[0]) : state.options.find(option => !option.value)) : chosen();
     const summary = multiple && state.values.length > 1 ? `${state.values.length}件選択中` : null;
-    const text = summary || (option ? option.label : multiple ? state.values.join('、') || placeholder : state.value || placeholder);
+    const text = state.selectionLabel || summary || (option ? option.label : multiple ? state.values.join('、') || placeholder : state.value || placeholder);
     triggerText.textContent = text;
-    if (!summary && option && typeof renderIcon === 'function') {
+    if (!state.selectionLabel && !summary && option && typeof renderIcon === 'function') {
       const icon = renderIcon(option);
       if (icon) { triggerText.textContent = ''; triggerText.append(icon, el(doc, 'span', { className: 'bb-ws-combobox-text', text })); }
     }
@@ -836,13 +836,14 @@ export function workspaceCombobox(doc, {
     get values() { return [...state.values]; },
     get isOpen() { return state.open; },
     open, close,
-    update({ options: nextOptions, value: nextValue, values: nextValues, disabled } = {}) {
-      const previous = JSON.stringify([state.options, state.value, state.values, state.disabled]);
+    update({ options: nextOptions, value: nextValue, values: nextValues, selectionLabel: nextSelectionLabel, disabled } = {}) {
+      const previous = JSON.stringify([state.options, state.value, state.values, state.selectionLabel, state.disabled]);
       if (nextOptions !== undefined) setOptions(nextOptions);
+      if (nextSelectionLabel !== undefined) state.selectionLabel = String(nextSelectionLabel ?? '');
       if (nextValue !== undefined) state.value = String(nextValue ?? '');
       if (nextValues !== undefined) state.values = [...new Set((Array.isArray(nextValues) ? nextValues : []).map(String))].filter(Boolean);
       if (disabled !== undefined) { state.disabled = Boolean(disabled); if (state.disabled) close(false); }
-      if (previous === JSON.stringify([state.options, state.value, state.values, state.disabled])) return;
+      if (previous === JSON.stringify([state.options, state.value, state.values, state.selectionLabel, state.disabled])) return;
       renderTrigger();
       if (state.open) { search.hidden = !usesSearch(); renderList(); }
     },

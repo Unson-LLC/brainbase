@@ -42,6 +42,18 @@ const optionLabels = box => box.list.children.map(item => item.children[0].textC
 const press = (node, key) => node.dispatch('keydown', { key });
 
 describe('workspaceCombobox', () => {
+  it('labels a derived selection without changing its checks and restores the default summary', () => {
+    const { box } = setup({ multiple: true, values: ['per_1', 'per_2'], selectionLabel: '自分の2つ' });
+    expect(box.trigger.getAttribute('aria-label')).toBe('担当: 自分の2つ');
+    box.open();
+    expect(box.list.children.filter(item => item.getAttribute('aria-selected') === 'true').map(item => item.getAttribute('data-value'))).toEqual(['per_1', 'per_2']);
+    box.update({ selectionLabel: '自分の3つ', values: ['per_1', 'per_2', 'per_3'] });
+    expect(box.trigger.getAttribute('aria-label')).toBe('担当: 自分の3つ');
+    box.update({ selectionLabel: '' });
+    expect(box.trigger.getAttribute('aria-label')).toBe('担当: 3件選択中');
+    expect(box.values).toEqual(['per_1', 'per_2', 'per_3']);
+  });
+
   it('opens from the trigger into a labelled search box that drives a listbox', () => {
     const { doc, box } = setup({ value: 'per_3' });
     expect(box.trigger.getAttribute('aria-haspopup')).toBe('listbox');

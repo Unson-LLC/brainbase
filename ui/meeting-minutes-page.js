@@ -6,6 +6,7 @@ import {
   workspaceCardRow, workspaceRowMotion,
 } from './workspace-kit.js?capability=search-band-v1';
 
+const MINE_PROJECTS = '__minutes_mine_projects__';
 const WD = ['日', '月', '火', '水', '木', '金', '土'];
 const VIEWS = [['recommend', 'おすすめ'], ['joined', '自分が出た会議'], ['waiting', '確認待ち'], ['all', 'すべて']];
 const SORTS = [
@@ -84,13 +85,48 @@ export function createMinutesPage({ doc, state, screen, toolbar, listPane, keywo
   const joined = e => (e.meeting.participant_ids ?? []).some(id => identities().includes(id));
   const isMine = (e, entries) => codes(e.meeting).some(code => allProjects(entries).includes(code));
   const hosts = () => hostFilters().filter(f => f.id);
+  const projectFilter = () => hosts().find(f => f.id === 'project' && f.multiple);
+  const selectionKey = values => JSON.stringify([...(values ?? [])].sort());
+  let lastProjectSelection, pendingProjectChange;
+  function syncProjectSelection() {
+    const filter = projectFilter();
+    if (!filter) return;
+    const key = selectionKey(filter.values);
+    if (lastProjectSelection === undefined) mine = !(filter.values ?? []).length;
+    else if (key !== lastProjectSelection) {
+      const accepted = pendingProjectChange?.key === key ? pendingProjectChange : null;
+      mine = accepted?.mine ?? false;
+      pendingProjectChange = null;
+      accepted?.after?.();
+    }
+    lastProjectSelection = key;
+  }
+  function changeProjects(filter, values, nextMine, after) {
+    if (selectionKey(values) === selectionKey(filter.values)) {
+      pendingProjectChange = null;
+      mine = nextMine; after?.(); onRender(); return;
+    }
+    // The host may defer the change behind its unsaved-edit guard. Keep the
+    // current preset and checks until the host actually accepts its values.
+    pendingProjectChange = { key: selectionKey(values), mine: nextMine, after };
+    filter.onChange?.(values);
+    onRender();
+  }
   function matchesPreset(entry, id, entries) {
     return id === 'joined' ? joined(entry) : id === 'waiting' ? listState(entry)?.code === 'pending' : id === 'recommend' ? isMine(entry, entries) : true;
   }
   function chooseView(value) {
+    const filter = projectFilter();
+    if (value === 'recommend' && filter?.values?.length) {
+      changeProjects(filter, [], true, () => applyView(value)); return;
+    }
+    pendingProjectChange = null;
+    applyView(value); onRender();
+  }
+  function applyView(value) {
     view = value; mine = value === 'recommend'; noDate = false; period = '';
     state.filters = { query: state.filters.query, from: '', to: '', participant: '', status: value === 'waiting' ? 'pending' : '' };
-    sort = value === 'recommend' ? 'pending-first' : 'scheduled-desc'; onRender();
+    sort = value === 'recommend' ? 'pending-first' : 'scheduled-desc';
   }
   const reset = () => chooseView(view);
   const box = (label, options, value, onChange, extra = {}) => {
@@ -171,6 +207,7 @@ export function createMinutesPage({ doc, state, screen, toolbar, listPane, keywo
     root.classList.add('mp-row');root.setAttribute('aria-expanded',String(state.meetingId===m.meeting_id));return root;
   }
   function render(entries) {
+    syncProjectSelection();
     const hasStates=entries.some(listState);
     for(let i=0;i<VIEWS.length;i++){
       const [value]=VIEWS[i],b=tabButtons[i]; b.setAttribute('aria-selected',String(view===value));b.querySelector('b').textContent=String(entries.filter(e=>matchesPreset(e,value,entries)).length);
@@ -182,15 +219,25 @@ export function createMinutesPage({ doc, state, screen, toolbar, listPane, keywo
     for(const filter of hosts()){
       let item=projectBoxes.get(filter.id);
       if(!item){
-        const ctl=box(filter.label,filter.options,filter.value,value=>{filter.onChange?.(value);onRender();},{multiple:filter.multiple,values:filter.values,renderIcon:filter.renderIcon});
+        const ctl=box(filter.label,filter.options,filter.value,(value, option)=>{
+          const current=hosts().find(f=>f.id===filter.id);
+          if(current?.id==='project'&&current.multiple){
+            const own=option?.value===MINE_PROJECTS;
+            changeProjects(current,own?[]:value.filter(v=>v!==MINE_PROJECTS),own);
+          }else{current?.onChange?.(value);onRender();}
+        },{multiple:filter.multiple,values:filter.values,renderIcon:option=>option.value===MINE_PROJECTS?null:filter.renderIcon?.(option)});
         const root=workspaceControlRow(doc,{label:filter.label,control:ctl.root,tight:true});item={ctl,root};projectBoxes.set(filter.id,item);hostSlot.append(root);
       }
-      item.ctl.update({value:filter.value,values:filter.values,options:filter.options,disabled:filter.disabled});
+      const ownProjects=allProjects(entries);
+      const isProject=filter.id==='project'&&filter.multiple;
+      const options=isProject?[filter.options?.find(o=>!o.value)??{value:'',label:'すべて'},
+        {value:MINE_PROJECTS,label:`自分の${ownProjects.length}つ`},...(filter.options??[]).filter(o=>o.value)]:filter.options;
+      item.ctl.update({value:filter.value,values:isProject&&mine?ownProjects:filter.values,selectionLabel:isProject&&mine?`自分の${ownProjects.length}つ`:'',options,disabled:filter.disabled});
     }
     const chipItems=[];
     if(mine)chipItems.push({label:'自分が関わっているプロジェクト',onRemove:()=>{mine=false;onRender();}});
     if(view==='joined'&&!state.filters.participant)chipItems.push({label:'自分が出た会議',onRemove:()=>chooseView('all')});
-    for(const f of hosts())for(const value of f.multiple?f.values??[]:f.value?[f.value]:[])chipItems.push({label:f.options?.find(o=>o.value===value)?.label??value,onRemove:()=>{f.onChange?.(f.multiple?(f.values??[]).filter(v=>v!==value):'');onRender();}});
+    for(const f of hosts())for(const value of f.multiple?f.values??[]:f.value?[f.value]:[])chipItems.push({label:f.options?.find(o=>o.value===value)?.label??value,onRemove:()=>{if(f.id==='project'&&f.multiple)changeProjects(f,(f.values??[]).filter(v=>v!==value),false);else{f.onChange?.(f.multiple?(f.values??[]).filter(v=>v!==value):'');onRender();}}});
     if(state.filters.participant)chipItems.push({label:`${state.filters.participant}が出た会議`,onRemove:()=>{state.filters.participant='';onRender();}});
     if(state.filters.status)chipItems.push({label:state.filters.status==='pending'?'確認待ち':'確認済み',onRemove:()=>{state.filters.status='';onRender();}});
     const periodText=period==='custom'?`${state.filters.from.replaceAll('-','/')}〜${state.filters.to.replaceAll('-','/')}`:({'week':'今週','month':'今月','last':'先月','none':'日時なし'}[period]||'すべて');
