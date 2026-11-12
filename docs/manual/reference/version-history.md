@@ -2,6 +2,12 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
+## 0.50.13 candidate — npm公開前
+
+- 0.50.12に、判断の枠組みの証拠判定を公開subpath `judgment-frame-evidence` として加える（#995）patch更新候補。組織版のHostにあった判定を移したもの。
+- `hasCompleteJudgmentFrame` は、同じ会話で読んだ一覧のdigestを受け取る。その依頼で一覧を読んでいなくても、本文の取得と記録が同じdigestで成功していれば完結と判定する。既存のHostとMCPツールの動きは変更しない。
+- npm公開と利用ホストへの配備は別途確認する。
+
 ## 0.50.12 candidate — npm公開前
 
 - 共通ヘッダーを52px・下線付きへそろえ、タブと右の道具を渡すslotを追加するpatch更新候補。
