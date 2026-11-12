@@ -110,7 +110,7 @@ describe('public CI self-hosted runner policy', () => {
     const workflow = await readRepoFile('.github/workflows/test.yml');
     const runs = workflow.match(/^[ \t]*run: npm (?:test|run test:integration)\b.*$/gmu) ?? [];
     expect(runs).toHaveLength(2);
-    for (const line of runs) expect(line).toMatch(/ -- --maxWorkers=4$/u);
+    for (const line of runs) expect(line).toMatch(/ -- --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000$/u);
   });
 
   it('AC-005 keeps secrets out of job env and on the steps that use them', async () => {
