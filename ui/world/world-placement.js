@@ -326,3 +326,159 @@ export function districtTaskActors(site, now = Date.now()) {
     return { ...actor, moving: site.work.status === 'in_progress' && actor.activity?.moving === true && actor.activity?.state === 'running' && Number.isFinite(age) && age >= 0 && age <= 300000 };
   });
 }
+
+/*
+ * The pulse of the work (story-world-three-scales-v1): what each scale of the world says about how the
+ * work is going.  The world says which businesses have work in progress; a district says how far each
+ * gathering of work (a street) has come and who is on it; a street says which agent is on which work and
+ * how.  All of it is counted from the same records the lots are drawn from.  "動いている" is said of an
+ * agent only on the evidence `districtTaskActors` asks for (an in-progress Task and a runtime heartbeat
+ * confirmed within five minutes); a count of in-progress Tasks stays "進行中", the record's own word.
+ */
+
+/** Soft colours an agent keeps wherever it appears (its figure in the street and its mark in the panel). */
+export const ACTOR_TONES = Object.freeze(['#e8927c', '#6fa8dc', '#8fbf7f', '#b39ddb', '#e6b655', '#5fb8b0']);
+
+export function actorTone(id) {
+  let h = 2166136261;
+  for (const char of String(id ?? '')) {
+    h ^= char.codePointAt(0);
+    h = Math.imul(h, 16777619);
+  }
+  return ACTOR_TONES[(h >>> 0) % ACTOR_TONES.length];
+}
+
+export const ACTOR_PRESENCE = Object.freeze({
+  running: Object.freeze({ key: 'running', label: '動いている', rank: 0 }),
+  quiet: Object.freeze({ key: 'quiet', label: '知らせが途絶えている', rank: 1 }),
+  waiting: Object.freeze({ key: 'waiting', label: '待っている', rank: 2 }),
+  unconfirmed: Object.freeze({ key: 'unconfirmed', label: '稼働は未確認', rank: 3 }),
+  queued: Object.freeze({ key: 'queued', label: 'これから', rank: 4 }),
+  done: Object.freeze({ key: 'done', label: '終えた', rank: 5 }),
+});
+
+const STALE_HEARTBEAT_MS = 300000;
+
+/** What the street a work stands on is called: its purpose, or '' for the unlabelled lots by the gate. */
+export function streetKeyOf(site) {
+  return typeof site?.purpose_label === 'string' && site.purpose_label.trim() ? site.purpose_label.trim() : '';
+}
+
+/**
+ * The agents on a work, each with how it is there now.  Only actors the host confirmed for this Task in
+ * its recorded state are returned (see `districtTaskActors`).
+ */
+export function siteActors(site, now = Date.now()) {
+  return districtTaskActors(site, now).map((actor) => {
+    const status = site.work?.status ?? null;
+    const at = Date.parse(actor.activity?.heartbeat_at ?? '');
+    const age = Number.isFinite(at) ? now - at : Number.NaN;
+    let presence = ACTOR_PRESENCE.unconfirmed;
+    if (status === 'completed') presence = ACTOR_PRESENCE.done;
+    else if (status === 'waiting') presence = ACTOR_PRESENCE.waiting;
+    else if (status === 'pending') presence = ACTOR_PRESENCE.queued;
+    else if (status === 'in_progress') presence = actor.moving ? ACTOR_PRESENCE.running : Number.isFinite(age) && age > STALE_HEARTBEAT_MS ? ACTOR_PRESENCE.quiet : ACTOR_PRESENCE.unconfirmed;
+    return {
+      id: actor.id,
+      name: actor.name,
+      kind: actor.kind ?? null,
+      tone: actorTone(actor.id),
+      task_id: site.task_id,
+      presence: presence.key,
+      label: presence.label,
+      heartbeat_at: Number.isFinite(at) ? actor.activity.heartbeat_at : null,
+      /** Whole minutes since the last confirmed heartbeat; null when there is none to count from. */
+      minutes: Number.isFinite(age) && age >= 0 ? Math.floor(age / 60000) : null,
+      waiting_on: status === 'waiting' ? site.work?.waiting_on ?? null : null,
+    };
+  });
+}
+
+const emptyCounts = () => ({ total: 0, done: 0, in_progress: 0, waiting: 0, pending: 0 });
+function countSite(counts, site) {
+  counts.total += 1;
+  const status = site.work?.status;
+  if (status === 'completed') counts.done += 1;
+  else if (status === 'in_progress') counts.in_progress += 1;
+  else if (status === 'waiting') counts.waiting += 1;
+  else counts.pending += 1;
+}
+
+function gatherActors(entries) {
+  const byId = new Map();
+  for (const { site, actor } of entries) {
+    if (!byId.has(actor.id)) byId.set(actor.id, { id: actor.id, name: actor.name, kind: actor.kind, tone: actor.tone, presence: actor.presence, label: actor.label, works: [] });
+    const entry = byId.get(actor.id);
+    entry.works.push({ task_id: site.task_id, title: site.title, street: streetKeyOf(site), presence: actor.presence, label: actor.label, minutes: actor.minutes, waiting_on: actor.waiting_on });
+    if (ACTOR_PRESENCE[actor.presence].rank < ACTOR_PRESENCE[entry.presence].rank) {
+      entry.presence = actor.presence;
+      entry.label = actor.label;
+    }
+  }
+  const actors = [...byId.values()];
+  for (const actor of actors) actor.works.sort((a, b) => ACTOR_PRESENCE[a.presence].rank - ACTOR_PRESENCE[b.presence].rank || a.title.localeCompare(b.title, 'ja'));
+  return actors.sort((a, b) => ACTOR_PRESENCE[a.presence].rank - ACTOR_PRESENCE[b.presence].rank || a.name.localeCompare(b.name, 'ja'));
+}
+
+/**
+ * How a district's work is going: its counts by recorded state, its agents with where each is, and the
+ * same for each street in the order the streets stand (`districtStreetLots`).  Cancelled work is left
+ * out, as it is from the streets.  `actors_unconfirmed` counts work whose agents the host could not
+ * confirm: for those, no agent is not "nobody".
+ */
+export function districtPulse(sites, now = Date.now()) {
+  const live = (Array.isArray(sites) ? sites : []).filter((site) => site?.work?.status !== 'cancelled');
+  const counts = emptyCounts();
+  const entries = [];
+  const streets = new Map();
+  const order = districtStreetLots(live.map((site) => ({ task_id: site.task_id, created_at: site.work?.created_at, purpose_label: site.purpose_label }))).streets;
+  for (const street of order) streets.set(street.key, { key: street.key, label: street.label, counts: emptyCounts(), task_ids: [], entries: [], actors_unconfirmed: 0 });
+  let unconfirmed = 0;
+  for (const site of live) {
+    countSite(counts, site);
+    const street = streets.get(streetKeyOf(site));
+    countSite(street.counts, site);
+    street.task_ids.push(site.task_id);
+    if (site.actors_state === 'unconfirmed') {
+      unconfirmed += 1;
+      street.actors_unconfirmed += 1;
+    }
+    for (const actor of siteActors(site, now)) {
+      entries.push({ site, actor });
+      street.entries.push({ site, actor });
+    }
+  }
+  const running = (list) => list.filter((actor) => actor.presence === 'running').length;
+  const actors = gatherActors(entries);
+  return {
+    counts,
+    actors,
+    running: running(actors),
+    actors_unconfirmed: unconfirmed,
+    streets: [...streets.values()].map(({ entries: own, ...street }) => {
+      const streetActors = gatherActors(own);
+      return { ...street, actors: streetActors, running: running(streetActors) };
+    }),
+  };
+}
+
+/**
+ * How a business's work stands as the world's summary records it (`by_status`), or null when the summary
+ * was not read: unread work is never shown as none.
+ */
+export function cityPulse(summary) {
+  if (!summary || (summary.state !== 'complete' && summary.state !== 'partial') || !summary.by_status || typeof summary.by_status !== 'object') return null;
+  const count = (key) => (Number.isInteger(summary.by_status[key]) && summary.by_status[key] > 0 ? summary.by_status[key] : 0);
+  return { in_progress: count('in_progress'), waiting: count('waiting'), pending: count('pending'), done: count('completed'), partial: summary.state === 'partial' };
+}
+
+/**
+ * The businesses of the world with their pulse, the ones with the most work in progress first (then the
+ * most waiting, then by name).  The order is a way to find where things move; it is not a score.
+ */
+export function worldPulse(businesses, summaries) {
+  const rows = (Array.isArray(businesses) ? businesses : []).map((business) => ({ code: business.code, name: business.name, pulse: cityPulse(summaries?.[business.code]) }));
+  rows.sort((a, b) => (b.pulse?.in_progress ?? -1) - (a.pulse?.in_progress ?? -1) || (b.pulse?.waiting ?? -1) - (a.pulse?.waiting ?? -1) || String(a.name).localeCompare(String(b.name), 'ja'));
+  const read = rows.filter((row) => row.pulse);
+  return { rows, read: read.length, active: read.filter((row) => row.pulse.in_progress > 0).length };
+}
