@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { projectWorldWork, summarizeWorldWork, WORLD_WORK_GAP_KINDS } from '../src/world-extension.js';
 // @ts-expect-error plain browser module without type declarations
-import { DISTRICT_STREETS, districtChanges, districtGroundPlan, districtSnapshot, districtStage, districtStreetLots } from '../ui/world/world-placement.js';
+import { DISTRICT_STREETS, districtChanges, districtRingLots, districtRingPlan, districtSnapshot, districtStage, districtStreetWeight } from '../ui/world/world-placement.js';
 
 // Fictional records in the shapes the Task API and the organization Graph return.
 const NOW = new Date('2026-10-06T03:00:00.000Z');
@@ -213,17 +213,20 @@ describe('world work summary: counts with the tasks behind them, and unreadable 
 describe('world work lots stay where they are', () => {
   it('places each task on a lot by its id, oldest first, so a new task or a new state never moves an older one', () => {
     const sites = Array.from({ length: 29 }, (_, index) => ({ task_id: `task-${index}`, created_at: `2026-09-${String(1 + index).padStart(2, '0')}` }));
-    const before = districtStreetLots(sites);
-    const after = districtStreetLots([...sites, { task_id: 'task-new', created_at: '2026-10-05' }]);
-    expect(after.rows).toBe(before.rows);
+    const before = districtRingLots(sites);
+    const after = districtRingLots([...sites, { task_id: 'task-new', created_at: '2026-10-05' }]);
+    expect(after.plaza).toBe(before.plaza);
     for (const site of sites) expect(after.lots[site.task_id]).toEqual(before.lots[site.task_id]);
     expect(new Set(Object.values(before.lots).map((lot: { x: number; z: number }) => `${lot.x},${lot.z}`)).size).toBe(29);
     // Reading the same tasks in another order gives the same lots.
-    expect(districtStreetLots([...sites].reverse()).lots).toEqual(before.lots);
-    // Every lot faces a street: the main street (|x| = 4) or a back street (|x| = 10).
-    for (const lot of Object.values(before.lots) as { x: number; facing: number }[]) {
-      expect([4, 10]).toContain(Math.abs(lot.x));
-      expect(lot.facing).toBe(lot.x < 0 ? 1 : -1);
+    expect(districtRingLots([...sites].reverse()).lots).toEqual(before.lots);
+    // Every lot stands beside a ring road and turns its front to it.
+    for (const lot of Object.values(before.lots) as { x: number; z: number; yaw: number }[]) {
+      const radius = Math.hypot(lot.x, lot.z);
+      const road = before.roads.reduce((near: number, r: number) => (Math.abs(r - radius) < Math.abs(near - radius) ? r : near));
+      expect(Math.abs(road - radius)).toBeCloseTo(DISTRICT_STREETS.setback, 1);
+      const front = { x: lot.x + Math.sin(lot.yaw), z: lot.z + Math.cos(lot.yaw) };
+      expect(Math.abs(Math.hypot(front.x, front.z) - road)).toBeLessThan(Math.abs(radius - road));
     }
   });
 });
@@ -245,8 +248,8 @@ describe('what the work is for decides its street', () => {
       { task_id: 'a3', created_at: '2026-09-09', purpose_label: ' Googleマップ強化 ' },
       { task_id: 'b2', created_at: '2026-09-14', purpose_label: '定例会議' },
     ];
-    const before = districtStreetLots(sites);
-    // Blocks run from the hall (-z) in the order of their oldest task; the unlabelled stand last, by the gate.
+    const before = districtRingLots(sites);
+    // Sectors run clockwise from the gate's avenue in the order of their oldest task; the unlabelled take the last, by the gate.
     expect(before.streets.map((street: { label: string | null; count: number }) => [street.label, street.count])).toEqual([
       ['定例会議', 2],
       ['Googleマップ強化', 3],
@@ -254,13 +257,15 @@ describe('what the work is for decides its street', () => {
     ]);
     for (const site of sites) {
       const street = before.streets.find((entry: { key: string }) => entry.key === before.lots[site.task_id].street);
-      expect(before.lots[site.task_id].z).toBeGreaterThan(street.z_from);
-      expect(before.lots[site.task_id].z).toBeLessThan(street.z_to);
+      const lot = before.lots[site.task_id];
+      const angle = (Math.atan2(lot.x, lot.z) + Math.PI * 2) % (Math.PI * 2);
+      expect(angle).toBeGreaterThan(street.from);
+      expect(angle).toBeLessThan(street.to);
     }
     expect(before.lots.b1.street).toBe(before.lots.b2.street);
     expect(before.lots.a1.street).not.toBe(before.lots.b1.street);
     // A new task with a label that already has room takes the next lot and moves nothing.
-    const after = districtStreetLots([...sites, { task_id: 'a4', created_at: '2026-10-01', purpose_label: 'Googleマップ強化' }]);
+    const after = districtRingLots([...sites, { task_id: 'a4', created_at: '2026-10-01', purpose_label: 'Googleマップ強化' }]);
     for (const site of sites) expect(after.lots[site.task_id]).toEqual(before.lots[site.task_id]);
     expect(after.lots.a4.street).toBe(before.lots.a1.street);
   });
@@ -336,17 +341,45 @@ describe('the town grows from evidenced outcomes and closed gaps, not from activ
 
 describe('district ground plan: the plaza, the street and the lots do not overlap', () => {
   const sites = (n: number) => Array.from({ length: n }, (_, i) => ({ task_id: `t${i}`, created_at: `2026-08-${String(10 + (i % 20)).padStart(2, '0')}`, purpose_label: i % 3 === 0 ? null : `L${i % 5}` }));
-  it.each([0, 3, 8, 25, 60])('keeps %i tasks clear of the plaza', (n) => {
-    const layout = districtStreetLots(sites(n));
-    const plan = districtGroundPlan(layout.length);
-    const plazaFar = plan.plazaZ + plan.plazaRadius;
-    // The main street starts at the plaza's edge, never under it.
-    expect(plan.street.from).toBeGreaterThanOrEqual(plazaFar);
-    // Every lot (and the first street sign) stands beyond the plaza.
-    for (const lot of Object.values(layout.lots)) expect(lot.z - DISTRICT_STREETS.lot / 2).toBeGreaterThan(plazaFar);
-    for (const street of layout.streets) expect(street.z_from - 0.9).toBeGreaterThan(plazaFar);
-    // The hall stands behind the plaza, the gate in front of the lots.
-    expect(plan.hallZ).toBeLessThan(plan.plazaZ - plan.plazaRadius);
-    expect(plan.gateZ).toBeGreaterThan(layout.length / 2);
+  it.each([0, 3, 8, 25, 60, 240])('keeps %i tasks clear of the plaza, the avenue and each other', (n) => {
+    const layout = districtRingLots(sites(n));
+    const plan = districtRingPlan(layout);
+    const half = DISTRICT_STREETS.lot / 2;
+    // The avenue starts at the plaza's rim, never under it, and runs out through the gate.
+    expect(plan.street.from).toBeGreaterThanOrEqual(plan.plazaRadius);
+    expect(plan.gateZ).toBeGreaterThan(layout.radius);
+    expect(plan.street.to).toBeGreaterThan(plan.gateZ);
+    const lots = Object.values(layout.lots) as { x: number; z: number }[];
+    expect(lots).toHaveLength(n);
+    for (const lot of lots) {
+      // Every lot stands beyond the plaza and inside the town, and none stands on the avenue.
+      expect(Math.hypot(lot.x, lot.z) - half * Math.SQRT2).toBeGreaterThan(plan.plazaRadius);
+      expect(Math.hypot(lot.x, lot.z) + half).toBeLessThan(layout.radius);
+      if (lot.z > 0) expect(Math.abs(lot.x) - half).toBeGreaterThan(DISTRICT_STREETS.main);
+    }
+    for (let i = 0; i < lots.length; i += 1) for (let j = i + 1; j < lots.length; j += 1) expect(Math.hypot(lots[i].x - lots[j].x, lots[i].z - lots[j].z)).toBeGreaterThan(DISTRICT_STREETS.lot);
+    // The signs stand inside the plaza; the places still open are no one's lot.
+    for (const street of layout.streets) expect(Math.hypot(street.sign.x, street.sign.z)).toBeLessThan(plan.plazaRadius);
+    for (const spot of layout.open as { x: number; z: number }[]) expect(lots.some((lot) => lot.x === spot.x && lot.z === spot.z)).toBe(false);
+  });
+
+  it('grows outward in rings: many times the work makes the town only a little wider', () => {
+    const few = districtRingLots(sites(25));
+    const many = districtRingLots(sites(240));
+    // Ten times the work, well under three times the width (a single street would be ten times as long).
+    expect(many.radius).toBeLessThan(few.radius * 3);
+    expect(many.roads.length).toBeGreaterThan(few.roads.length);
+  });
+
+  it('keeps the town round when one gathering is much larger, by a coarse step of its count', () => {
+    expect([1, 4, 5, 16, 17, 36, 37].map((count) => districtStreetWeight(count))).toEqual([1, 1, 2, 2, 3, 3, 4]);
+    const big = Array.from({ length: 30 }, (_, i) => ({ task_id: `b${i}`, created_at: `2026-08-01T${String(i).padStart(2, '0')}`, purpose_label: '大きい集まり' }));
+    const small = ['x', 'y', 'z'].map((id) => ({ task_id: id, created_at: '2026-09-01', purpose_label: `小さい集まり ${id}` }));
+    const layout = districtRingLots([...big, ...small]);
+    const width = (street: { from: number; to: number }) => street.to - street.from;
+    expect(width(layout.streets[0])).toBeCloseTo(width(layout.streets[1]) * 3, 2);
+    // A task added to the large gathering inside its step moves no site.
+    const after = districtRingLots([...big, ...small, { task_id: 'b-new', created_at: '2026-10-01', purpose_label: '大きい集まり' }]);
+    for (const site of [...big, ...small]) expect(after.lots[site.task_id]).toEqual(layout.lots[site.task_id]);
   });
 });
