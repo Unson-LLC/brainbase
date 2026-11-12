@@ -135,31 +135,47 @@ export function changesSince(lastVisit, businesses, judgmentsByBusiness, rows) {
 }
 
 /**
- * The lots inside a district (story-world-work-sites-and-gaps-v1, AC-12, AC-16, AC-17): a main street along
- * z, a back street on each side, and lots facing them in four columns.  Work with the same `purpose_label`
- * stands in one block (a street of its own); blocks run from the hall toward the gate in the order of their
- * oldest task, and work with no label stands last, by the gate.  Inside a block the lots fill in order of
- * creation (`created_at`, then id), row by row: left front, right front, left back, right back.  So a new
- * task never moves an older one and a change of state never moves any; only when a block's rows are full do
- * the blocks after it shift one row toward the gate.  A cross street separates the blocks.
- * Returns `{ lots: { [taskId]: { x, z, facing, street } }, streets: [{ key, label, count, z_from, z_to }],
- * rows, length }`, `facing` being +1 when the lot's front looks toward +x, `label` null for the unlabelled.
+ * Which lot a task's site stands on, in a district that grows in rings round its hall
+ * (story-world-district-rings-v1).  The hall and its plaza are the centre.  Work stated to be for the same
+ * thing (`purpose_label`, from the Task record) is one gathering and takes one sector of the circle; the
+ * sectors run clockwise from the gate's avenue in the order of their oldest task, and work with no label
+ * takes the last one, by the gate.  Inside a sector the lots fill ring by ring, from the plaza outward, in
+ * order of creation (`created_at`, then id): more work makes the town one ring wider, never one street
+ * longer.
+ *
+ * A sector's width follows a coarse step of its count (`districtStreetWeight`), so the town stays round
+ * when one gathering is much larger than the others.  A new task in a gathering, or a change of state,
+ * therefore never moves an older site; the sectors are re-divided only when a gathering begins or ends, or
+ * crosses a step.
+ *
+ * Returns `{ lots: { [taskId]: { x, z, yaw, street, ring } }, streets: [{ key, label, count, from, to,
+ * sign: { x, z }, name: { x, z }, box: { minX, maxX, minZ, maxZ } }], roads: [radius…], plaza, radius,
+ * open: [{ x, z, ring }] }`.  `open` are the places left on the rings the town already reaches.  Angles are
+ * measured clockwise from the gate's avenue (+z); `yaw` turns a lot's front to its ring road; `label` is
+ * null for the unlabelled; `radius` is how far the built town reaches.
  */
-export const DISTRICT_STREETS = Object.freeze({ main: 2, frontLot: 4, backStreet: 7, backLot: 10, lot: 2.8, row: 3.4, cross: 2.6 });
-
-const LOT_COLUMNS = Object.freeze([
-  { x: -DISTRICT_STREETS.frontLot, facing: 1 },
-  { x: DISTRICT_STREETS.frontLot, facing: -1 },
-  { x: -DISTRICT_STREETS.backLot, facing: 1 },
-  { x: DISTRICT_STREETS.backLot, facing: -1 },
-]);
+export const DISTRICT_STREETS = Object.freeze({ main: 2, lot: 2.8, pitch: 3.3, road: 1.6, spoke: 1.4, plaza: 7.5, setback: 2.5, band: 8.2 });
 
 function byCreation(a, b) {
   const at = String(a.created_at ?? '').localeCompare(String(b.created_at ?? ''));
   return at !== 0 ? at : String(a.task_id).localeCompare(String(b.task_id));
 }
 
-export function districtStreetLots(sites, { minRows = 4 } = {}) {
+/** How many shares of the circle a gathering of `count` tasks takes: 1 up to 4, 2 up to 16, 3 up to 36… */
+export function districtStreetWeight(count) {
+  return Math.max(1, Math.ceil(Math.sqrt(Math.max(count, 0) / 4)));
+}
+
+/** The radius of the `ring`th ring of lots (0 is the one facing the plaza's road), given the first road. */
+function lotRing(ring, firstRoad) {
+  if (ring === 0) return { radius: firstRoad + DISTRICT_STREETS.setback, road: 0, inward: true };
+  const road = Math.ceil(ring / 2);
+  const inward = ring % 2 === 0;
+  return { radius: firstRoad + road * DISTRICT_STREETS.band + (inward ? 1 : -1) * DISTRICT_STREETS.setback, road, inward };
+}
+
+export function districtRingLots(sites) {
+  const S = DISTRICT_STREETS;
   const groups = new Map();
   for (const site of sites ?? []) {
     const label = typeof site.purpose_label === 'string' && site.purpose_label.trim() ? site.purpose_label.trim() : null;
@@ -173,42 +189,87 @@ export function districtStreetLots(sites, { minRows = 4 } = {}) {
     const first = byCreation(a.sites[0], b.sites[0]);
     return first !== 0 ? first : a.key.localeCompare(b.key);
   });
-  const rowsOf = (block) => Math.max(1, Math.ceil(block.sites.length / LOT_COLUMNS.length));
-  const rows = blocks.reduce((sum, block) => sum + rowsOf(block), 0);
-  const used = rows * DISTRICT_STREETS.row + Math.max(0, blocks.length - 1) * DISTRICT_STREETS.cross;
-  const length = Math.max(used, minRows * DISTRICT_STREETS.row);
   const round = (value) => Math.round(value * 100) / 100;
+  // Shares are counted against the smallest gathering, so a town of equally large ones has no wider plaza.
+  const steps = blocks.map((block) => districtStreetWeight(block.sites.length));
+  const smallest = Math.min(...steps, Infinity);
+  const weights = steps.map((step) => step / smallest);
+  const units = weights.reduce((sum, weight) => sum + weight, 0);
+  // Kept clear on each side of a sector: half a lane between sectors.  The gate's avenue takes its own
+  // slice of the circle first, and the sectors share the rest.
+  const lane = S.spoke / 2 + 0.2;
+  const avenue = S.main + 0.8;
+  // The first ring holds at least one lot for each share, so a town of many gatherings has a wider plaza.
+  const around = units * (S.pitch + lane * 2) + avenue * 2;
+  const plaza = round(Math.max(S.plaza, around / (Math.PI * 2) - S.road / 2 - 0.1 - S.setback));
+  const firstRoad = plaza + S.road / 2 + 0.1;
+  const gap = avenue / (firstRoad + S.setback);
+  const share = (Math.PI * 2 - gap * 2) / Math.max(units, 1);
   const lots = {};
   const streets = [];
-  let cursor = -used / 2;
-  for (const block of blocks) {
-    const blockRows = rowsOf(block);
-    block.sites.forEach((site, index) => {
-      const row = Math.floor(index / LOT_COLUMNS.length);
-      const column = LOT_COLUMNS[index % LOT_COLUMNS.length];
-      lots[site.task_id] = { x: column.x, z: round(cursor + (row + 0.5) * DISTRICT_STREETS.row), facing: column.facing, street: block.key };
-    });
-    streets.push({ key: block.key, label: block.label, count: block.sites.length, z_from: round(cursor), z_to: round(cursor + blockRows * DISTRICT_STREETS.row) });
-    cursor += blockRows * DISTRICT_STREETS.row + DISTRICT_STREETS.cross;
-  }
-  return { lots, streets, rows, length };
+  const open = [];
+  let cursor = gap;
+  let lastRing = 0;
+  blocks.forEach((block, index) => {
+    const from = cursor;
+    const to = cursor + share * weights[index];
+    cursor = to;
+    const box = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
+    let placed = 0;
+    let reach = 0;
+    const spare = [];
+    for (let ring = 0; placed < block.sites.length && ring < 400; ring += 1) {
+      const { radius, inward } = lotRing(ring, firstRoad);
+      const usable = (to - from) * radius - lane * 2;
+      const slots = Math.floor(usable / S.pitch);
+      if (slots < 1) continue;
+      // Slots are fixed places on the ring; they fill from the middle of the sector outward.
+      const order = Array.from({ length: slots }, (_, slot) => slot).sort((a, b) => Math.abs(a - (slots - 1) / 2) - Math.abs(b - (slots - 1) / 2) || a - b);
+      for (const slot of order) {
+        const angle = from + (lane + (usable - slots * S.pitch) / 2 + (slot + 0.5) * S.pitch) / radius;
+        const x = round(Math.sin(angle) * radius);
+        const z = round(Math.cos(angle) * radius);
+        if (placed >= block.sites.length) {
+          spare.push({ x, z, ring });
+          continue;
+        }
+        lots[block.sites[placed].task_id] = { x, z, yaw: Math.round((inward ? angle + Math.PI : angle) * 10000) / 10000, street: block.key, ring };
+        box.minX = Math.min(box.minX, x); box.maxX = Math.max(box.maxX, x); box.minZ = Math.min(box.minZ, z); box.maxZ = Math.max(box.maxZ, z);
+        placed += 1;
+        reach = radius;
+        lastRing = Math.max(lastRing, ring);
+      }
+    }
+    open.push(...spare);
+    // The sign stands on the plaza's rim, in front of its sector.
+    const middle = (from + to) / 2;
+    const sign = { x: round(Math.sin(middle) * (plaza - 0.7)), z: round(Math.cos(middle) * (plaza - 0.7)) };
+    // Its name floats over the middle of its lots.
+    const heart = (firstRoad + S.setback + reach) / 2;
+    const name = { x: round(Math.sin(middle) * heart), z: round(Math.cos(middle) * heart) };
+    streets.push({ key: block.key, label: block.label, count: block.sites.length, name, from: Math.round(from * 10000) / 10000, to: Math.round(to * 10000) / 10000, sign, box });
+  });
+  const outer = lotRing(lastRing, firstRoad);
+  const roads = Array.from({ length: outer.road + 1 }, (_, road) => round(firstRoad + road * S.band));
+  const radius = round(Math.max(outer.radius + S.lot / 2, roads[roads.length - 1] + S.road / 2) + 0.8);
+  return { lots, streets, roads, plaza, radius, open };
 }
 
 /**
- * Where the gate, the plaza and the hall stand around the blocks of a district (`length` from
- * `districtStreetLots`).  The main street runs from beyond the gate to the plaza's edge and never into
- * it, and the plaza stays clear of the first row of lots.
+ * Where the hall, its forecourt and the gate stand in a district laid out by `districtRingLots`.  The hall
+ * is the centre of the plaza; the avenue runs from beyond the gate to the plaza's rim and never into it.
  */
-export function districtGroundPlan(length) {
-  const plazaRadius = 3.85;
-  const plazaZ = -length / 2 - 1.5 - plazaRadius;
+export function districtRingPlan(layout) {
   return {
-    gateZ: length / 2 + 4,
-    plazaZ,
-    plazaRadius,
-    hallZ: plazaZ - 5.4,
-    street: { from: plazaZ + plazaRadius, to: length / 2 + 12 },
+    plazaRadius: layout.plaza,
+    hallZ: -1.6,
+    courtZ: 3.4,
+    gateZ: round2(layout.radius + 3.5),
+    street: { from: layout.plaza, to: round2(layout.radius + 11.5) },
   };
+}
+function round2(value) {
+  return Math.round(value * 100) / 100;
 }
 
 /*
@@ -422,7 +483,7 @@ function gatherActors(entries) {
 
 /**
  * How a district's work is going: its counts by recorded state, its agents with where each is, and the
- * same for each street in the order the streets stand (`districtStreetLots`).  Cancelled work is left
+ * same for each street in the order the streets stand (`districtRingLots`).  Cancelled work is left
  * out, as it is from the streets.  `actors_unconfirmed` counts work whose agents the host could not
  * confirm: for those, no agent is not "nobody".
  */
@@ -431,7 +492,7 @@ export function districtPulse(sites, now = Date.now()) {
   const counts = emptyCounts();
   const entries = [];
   const streets = new Map();
-  const order = districtStreetLots(live.map((site) => ({ task_id: site.task_id, created_at: site.work?.created_at, purpose_label: site.purpose_label }))).streets;
+  const order = districtRingLots(live.map((site) => ({ task_id: site.task_id, created_at: site.work?.created_at, purpose_label: site.purpose_label }))).streets;
   for (const street of order) streets.set(street.key, { key: street.key, label: street.label, counts: emptyCounts(), task_ids: [], entries: [], actors_unconfirmed: 0 });
   let unconfirmed = 0;
   for (const site of live) {

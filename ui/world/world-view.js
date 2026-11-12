@@ -1264,7 +1264,7 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear, 
     if (overlayAge-- > 0) return overlayRects;
     overlayAge = 20;
     const origin = stage.getBoundingClientRect();
-    overlayRects = [...(stage.ownerDocument?.querySelectorAll?.('.bb-world-canvas-toolbar, .bb-world-canvas-quests') ?? [])]
+    overlayRects = [...(stage.ownerDocument?.querySelectorAll?.('.bb-world-canvas-toolbar, .bb-world-canvas-quests, .bb-world-pulse') ?? [])]
       .map((node) => node.getBoundingClientRect())
       .filter((rect) => rect.width > 0 && rect.height > 0)
       .map((rect) => ({ x: rect.left - origin.left, y: rect.top - origin.top, w: rect.width, h: rect.height }));
