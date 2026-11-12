@@ -1,6 +1,6 @@
 {
   "name": "@unson/brainbase-mcp",
-  "version": "0.50.12",
+  "version": "0.50.13",
   "description": "Local-first Brainbase judgment OS that lets supported AI agents reuse a user's approved goals, priorities, decisions, and judgment criteria.",
   "type": "module",
   "license": "MIT",
@@ -66,6 +66,10 @@
     "./judgment-node-evidence": {
       "types": "./dist/judgment-node-evidence.d.ts",
       "import": "./dist/judgment-node-evidence.js"
+    },
+    "./judgment-frame-evidence": {
+      "types": "./dist/judgment-frame-evidence.d.ts",
+      "import": "./dist/judgment-frame-evidence.js"
     },
     "./judgment-event-adapter": {
       "types": "./dist/judgment-event-adapter.d.ts",
