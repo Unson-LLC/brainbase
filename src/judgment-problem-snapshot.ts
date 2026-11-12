@@ -1226,6 +1226,7 @@ async function validateObjectiveDependencies(
 ): Promise<JudgmentProblemReferenceResolution | undefined> {
   for (const criterion of definition.criteria) {
     const dependency = criterion?.variableRef;
+    if (dependency === undefined) continue;
     if (!isVariableRevision(dependency)) {
       return { status: 'unresolved', message: 'Objective criterion does not reference a valid Variable revision' };
     }

@@ -144,14 +144,14 @@ function validEvidence(value) {
 
 function validCriterion(value) {
   return isRecord(value)
-    && validRef(value.variableRef)
+    && ((value.variableRef === undefined && value.variable === undefined) || (validRef(value.variableRef)
     && value.variableRef.type === 'variable'
     && isRecord(value.variable)
     && nonEmpty(value.variable.meaning)
     && nonEmpty(value.variable.subject)
     && nonEmpty(value.variable.valueKind)
     && nonEmpty(value.variable.aggregation)
-    && nonEmpty(value.variable.granularity)
+    && nonEmpty(value.variable.granularity)))
     && ['at_least', 'at_most', 'equals'].includes(value.operator)
     && (value.target === undefined || ['string', 'number', 'boolean'].includes(typeof value.target));
 }
@@ -370,7 +370,7 @@ function renderObjective(doc, root, section) {
     } else {
       const list = makeElement(doc, 'ul', { className: 'judgment-view-criteria' });
       for (const criterion of criteria.items) {
-        list.append(makeElement(doc, 'li', { text: `${refText(criterion.variableRef)} / ${label(criterion.operator)} / 目標: ${label(criterion.target)}` }));
+        list.append(makeElement(doc, 'li', { text: `${criterion.variableRef ? refText(criterion.variableRef) : '変数の参照なし'} / ${label(criterion.operator)} / 目標: ${label(criterion.target)}` }));
       }
       panel.append(list);
     }

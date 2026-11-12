@@ -113,6 +113,15 @@ afterEach(() => {
 });
 
 describe('Objective editor common UI contract', () => {
+  it('retains unbound criteria and rejects malformed supplied Variable references', () => {
+    const definition = { ...objectiveRecord().definition, criteria: [{ operator: 'equals', target: true }] };
+    const record = objectiveRecord({ definition });
+    expect(normalizeObjectiveRecord(record)?.criteria).toEqual(definition.criteria);
+    for (const variableRef of [null, {}, { id: 'bad', type: 'model', revision: '1' }]) {
+      expect(normalizeObjectiveRecord(objectiveRecord({ definition: { ...definition, criteria: [{ operator: 'equals', target: true, variableRef }] } }))).toBeNull();
+    }
+  });
+
   it('shows plain wording to the owner instead of internal type, store, or API names', async () => {
     const { readFile } = await import('node:fs/promises');
     const source = await readFile(new URL('../../ui/objective-editor.js', import.meta.url), 'utf8');

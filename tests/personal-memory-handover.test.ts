@@ -12,6 +12,7 @@ import {
 } from '../src/personal-knowledge.js';
 import { MEMORY_REGISTRATION_RECEIPTS_FILE, organizationMemoryEventId } from '../src/personal-memory-handover.js';
 import { createFixturePersonalOs } from './fixtures.js';
+import * as ssot from '../src/ssot.js';
 
 const localContext: PersonalKnowledgeContext = {
   contract_version: 1,
@@ -128,6 +129,7 @@ describe('H7 local memory re-registration', () => {
   });
 
   afterEach(async () => {
+    vi.restoreAllMocks();
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     await rm(dir, { recursive: true, force: true });
@@ -334,11 +336,15 @@ describe('H7 local memory re-registration', () => {
   });
 
   it('rejects a malformed receipt file instead of guessing registration state', async () => {
+    const loadLegacy = vi.spyOn(ssot, 'loadPersonalOs');
     await mkdir(join(dir, 'handover'), { recursive: true });
     await appendFile(join(dir, MEMORY_REGISTRATION_RECEIPTS_FILE), 'not json\n');
     const result = await run(['memory:list', '--dir', dir]);
     expect(result.code).toBe(1);
     expect(result.stderr).toContain(MEMORY_REGISTRATION_RECEIPTS_FILE);
+    // A rejected receipt must not leave legacy initialization running after
+    // the CLI has returned and teardown is allowed to remove the directory.
+    expect(loadLegacy).not.toHaveBeenCalled();
   });
 
   it('lists nothing and creates nothing for an empty data directory', async () => {

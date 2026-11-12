@@ -498,9 +498,13 @@ async function resolveDefinitions(
   const variableReferences = snapshot.references.filter((reference) => reference.kind === 'variable');
   const variables: ResolvedVariable[] = [];
   for (const [criterionIndex, criterion] of objective.criteria.entries()) {
+    if (!criterion.variableRef) {
+      throw new CompanyOsEvaluationError('incompatible_measurement', `Criterion ${criterionIndex} requires a Variable reference for quantitative evaluation`);
+    }
+    const criterionVariable = criterion.variableRef;
     const candidates = variableReferences.filter((reference) => (
-      reference.id === criterion.variableRef.id
-      && reference.revision === criterion.variableRef.revision
+      reference.id === criterionVariable.id
+      && reference.revision === criterionVariable.revision
     ));
     if (candidates.length !== 1) {
       throw new CompanyOsEvaluationError(
@@ -874,6 +878,9 @@ async function assertEvaluationRecordConsistency(
 
   const variables: ResolvedVariable[] = [];
   for (const [criterionIndex, criterion] of objective.criteria.entries()) {
+    if (!criterion.variableRef) {
+      throw new CompanyOsEvaluationError('incompatible_measurement', `Criterion ${criterionIndex} requires a Variable reference for quantitative evaluation`);
+    }
     const storedCriterion = record.criteria[criterionIndex];
     if (!storedCriterion || storedCriterion.criterionIndex !== criterionIndex
       || storedCriterion.variableRef.type !== 'variable'
