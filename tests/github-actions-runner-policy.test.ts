@@ -46,6 +46,19 @@ describe('public CI self-hosted runner policy', () => {
     expect(publishJob).not.toMatch(/github\.event\.pull_request/u);
   });
 
+  it('AC-011 posts verify-skill on a hosted runner for same-repository heads into develop only', async () => {
+    const workflow = await readRepoFile('.github/workflows/verify-skill.yml');
+    expect(workflow.match(/^[ \t]*runs-on:.*$/gmu)?.map((line) => line.trim())).toEqual(['runs-on: ubuntu-latest']);
+    expect(workflow).toMatch(/  pull_request:\n    branches: \[develop\]\n/u);
+    expect(workflow).toMatch(/github\.event\.pull_request\.head\.repo\.full_name == github\.repository/u);
+    expect(workflow).toMatch(/if \[ "\$base" != develop \]; then/u);
+    expect(workflow).not.toMatch(/pull_request_target:|secrets\.|id-token:\s*write|contents:\s*write/u);
+    expect(workflow).toMatch(/persist-credentials: false/u);
+    for (const line of workflow.match(/^[ \t]*-?[ \t]*uses:.*$/gmu) ?? []) {
+      expect(line).toMatch(/uses: [A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+@[0-9a-f]{40} # v\d+(?:\.\d+)*$/u);
+    }
+  });
+
   it('AC-002 runs pull_request jobs only for a head in this repository', async () => {
     const testWorkflow = await readRepoFile('.github/workflows/test.yml');
     const docsWorkflow = await readRepoFile('.github/workflows/docs-cloudflare-pages.yml');
