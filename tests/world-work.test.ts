@@ -383,3 +383,23 @@ describe('district ground plan: the plaza, the street and the lots do not overla
     for (const site of [...big, ...small]) expect(after.lots[site.task_id]).toEqual(layout.lots[site.task_id]);
   });
 });
+
+describe('world placement: names an older page may still import during a deploy', () => {
+  it('keeps the straight-street layout of 0.50.13 and earlier with its old results', async () => {
+    // @ts-expect-error plain browser module without type declarations
+    const placement = await import('../ui/world/world-placement.js');
+    const sites = [
+      { task_id: 'a', created_at: '2026-11-01', purpose_label: '予約' },
+      { task_id: 'b', created_at: '2026-11-02', purpose_label: '予約' },
+      { task_id: 'c', created_at: '2026-11-03', purpose_label: null },
+    ];
+    const layout = placement.districtStreetLots(sites);
+    expect(layout.rows).toBe(2);
+    expect(layout.length).toBe(13.6);
+    expect(layout.lots.a).toEqual({ x: -4, z: -3, facing: 1, street: '予約' });
+    expect(layout.lots.c).toEqual({ x: -4, z: 3, facing: 1, street: '' });
+    expect(placement.districtGroundPlan(layout.length)).toEqual({
+      gateZ: 10.8, plazaZ: -12.15, plazaRadius: 3.85, hallZ: -17.55, street: { from: -8.3, to: 18.8 },
+    });
+  });
+});
