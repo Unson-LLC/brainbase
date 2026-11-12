@@ -127,6 +127,21 @@ export function workspaceTopbar(doc, { title = '', query, tabs, tools } = {}) {
   return header;
 }
 
+/**
+ * Backdrop click closes a modal. Browsers with `closedby` do it natively and fire `cancel`,
+ * which the caller already handles; the pointer check is the fallback where it is missing (Safari).
+ */
+function workspaceLightDismiss(doc, dialog, close) {
+  dialog.setAttribute('closedby', 'any');
+  const NativeDialog = doc.defaultView?.HTMLDialogElement;
+  if (NativeDialog && 'closedBy' in NativeDialog.prototype) return;
+  dialog.addEventListener('click', event => {
+    if (event.target !== dialog) return;
+    const rect = dialog.getBoundingClientRect();
+    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) close();
+  });
+}
+
 /** A reusable right inspector whose content can refresh without replacing the modal. */
 export function workspaceDetailDrawer(doc, { title = '詳細', opener, onClose } = {}) {
   const dialog = workspaceApplyDrawer(el(doc, 'dialog', { className: 'bb-ws-dialog bb-ws-detail-drawer' }));
@@ -155,11 +170,7 @@ export function workspaceDetailDrawer(doc, { title = '詳細', opener, onClose }
   const button = workspaceButton(doc, { text: '閉じる', onClick: () => close() });
   head.append(label, button); dialog.append(head, body); doc.body.append(dialog);
   dialog.addEventListener('cancel', event => { event.preventDefault(); close(); });
-  dialog.addEventListener('click', event => {
-    if (event.target !== dialog) return;
-    const rect = dialog.getBoundingClientRect();
-    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) close();
-  });
+  workspaceLightDismiss(doc, dialog, () => close());
   return {
     dialog,
     setContent(...content) { if (!disposed) body.replaceChildren(...content); },
@@ -452,11 +463,7 @@ export function workspaceDialog(doc, { title, content, opener, presentation = 'c
   const body = el(doc, 'div', { className: 'bb-ws-dialog-body' }); appendContent(body, doc, content);
   dialog.append(head, body); doc.body.append(dialog);
   dialog.addEventListener('cancel', event => { event.preventDefault(); dialog.close(); });
-  dialog.addEventListener('click', event => {
-    if (event.target !== dialog) return;
-    const rect = dialog.getBoundingClientRect();
-    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close();
-  });
+  workspaceLightDismiss(doc, dialog, () => dialog.close());
   dialog.addEventListener('close', cleanup, { once: true });
   try { dialog.showModal(); close.focus(); } catch (error) { cleanup(); throw error; }
   return dialog;

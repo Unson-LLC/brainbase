@@ -53,6 +53,7 @@ Mana委任UI（`ui/outcome-mana`、そのCSSと`ui/icons/mana`）は、0.8.0の�
 - 継続して内容が更新される詳細は `workspaceDetailDrawer` を使う。`setContent` は内容更新、`open` は明示的なユーザー操作や詳細リンク、`close` は終了、`dispose` は画面破棄に対応する。
 - 単発の詳細は `workspaceDialog(..., { presentation: 'drawer' })`。ホスト所有のdialogは `workspaceApplyDrawer` / `workspaceCloseDrawer` を使い同じ幅・開閉モーション・reduced motionへ揃える。
 - Escape、背景クリック、閉じるボタン、モーダルのfocus制御、閉じた後の選択行へのfocus復帰を保持する。非同期応答が来ても、閉じたdrawerを勝手に開き直さない。画面離脱時は破棄して古い応答が前画面を復活させない。
+- 背景クリックで閉じる動作は `closedby="any"` をブラウザに任せる。未対応のブラウザ（Safari）だけ、機能検出のうえでポインタ位置の判定を使う。どちらも `cancel` と同じ終了処理を通る。
 - 知識・議事録は `detailPresentation: 'drawer'` を明示できる。互換性のため未指定時は既存のinline表示を保持する。会議作成、保存結果、失敗、再試行も到達可能な状態に保つ。
 
 ### 所有と変更手順
@@ -60,6 +61,16 @@ Mana委任UI（`ui/outcome-mana`、そのCSSと`ui/icons/mana`）は、0.8.0の�
 共通UIとトークンはこのOSSリポジトリ、組織のルーティング・認証・権限・監査は組織ホスト、テナントの値は設定リポジトリが所有する。[所有境界ADR](../architecture/oss-organization-ui-ownership.md)に従う。ブランド資料とトークンの役割も同ADRを参照する。
 
 共通部品の変更はOSSへ先に実装・テストし、正式公開npmのexact pinを組織ホストへ取り込む。ホストによるコピー、共通CSSの上書き、DOM監視での共通部品の移設は避け、明示的なオプションとライフサイクルで合成する。
+
+### Webの機能の選び方
+
+`ui/` のHTML・CSS・ブラウザ側JavaScriptを書く前に、`modern-web-guidance`（版は `package.json` のdevDependenciesに固定）で該当するガイドを読む。手順は `.claude/skills/modern-web-guidance/SKILL.md`。一部のブラウザが未対応の機能は、機能検出つきの代替を残す。`tests/ui/modern-web-legacy-scan.test.mjs` が `ui/` に古い書き方が入るのを止めるが、機械的に見るのはガイドの約20%である。
+
+対応ブラウザの基準は、機能ごとのBaselineの区分で決める。2026-11-12時点の `ui/` の使い方（`:has()`、`color-mix()`、`dvh`、`inert` を代替なしで使う）を追認したもので、変えるときはこの節を先に直す。
+
+- Widely available: そのまま使う。
+- Newly available: 使ってよい。無いブラウザで操作が止まる機能は、機能検出つきの代替を置く。
+- Limited availability（主要ブラウザのどれかが未対応）: 無くても操作が完結する上乗せとしてだけ使う。代替は既存の処理を機能検出で囲んで残す。例は `closedby`。
 
 ### 検証
 
@@ -159,7 +170,7 @@ The heading link's padding-top token replaces the top edge of the label padding,
 The shared review orange is `--bb-color-review`; the inbox approval stripe aliases this token. Knowledge directory type labels use explicit type tokens and retain their text. `judgment`/`decision` and `document`/`knowledge` aliases share their respective type color; missing or unrecognized types retain the neutral label.
 
 
-### これからの共通標準（0.50.11候補）
+### これからの共通標準（0.50.12候補）
 
 同じ目的で同じ動きをするものは同じ部品を使う。見た目が似ていても役目が違うものは区別する。業務データ、文言、取得・保存・権限判断はホストが渡す。既存ページの検索・プルダウン・主ボタンの置き換えは今回行わない。以下の明示選択以外は既定の見た目を維持する。ヘッダーの52px化だけは全利用画面へ適用する。世界のようにヘッダーを生成しない画面には影響しない。
 
