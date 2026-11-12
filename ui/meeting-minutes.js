@@ -1959,7 +1959,7 @@ export function createMeetingMinutesUI({
   function renderDetail(detail, documentRecord = null, selectedVersion = null) {
     detailDrawer?.setTitle?.('議事録の詳細');
     versionBox?.destroy(); versionBox = null;
-    if (tablePage) { detailDrawer.top.replaceChildren(); detailDrawer.footer.replaceChildren(); detailTools.replaceChildren(); }
+    if (tablePage) { detailDrawer.dialog.classList.add('has-tools'); detailDrawer.top.replaceChildren(); detailDrawer.footer.replaceChildren(); detailTools.replaceChildren(); }
     clear(detailPane);
     connectionsSlot = null;
     participantsSlot = null;
@@ -2065,7 +2065,7 @@ export function createMeetingMinutesUI({
 
   function renderCreateForm() {
     detailDrawer?.setTitle?.('会議を作成');
-    if (tablePage) { detailTools.replaceChildren(); detailDrawer.top.replaceChildren(makeElement(doc, 'h2', { textContent: '会議を作成' })); detailDrawer.footer.replaceChildren(); }
+    if (tablePage) { detailDrawer.dialog.classList.remove('has-tools'); detailTools.replaceChildren(); detailDrawer.top.replaceChildren(makeElement(doc, 'h2', { textContent: '会議を作成' })); detailDrawer.footer.replaceChildren(); }
     detailRequestGeneration += 1;
     detailDrawer?.open();
     clear(detailPane);

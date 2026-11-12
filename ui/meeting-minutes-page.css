@@ -134,3 +134,16 @@
 .mp-time { display:block; line-height:1.6; }
 .mp-nodate { line-height:1.6; }
 .mp-people { display:inline-flex; }
+
+/* Body hierarchy and quiet input for the opt-in table page. */
+.bb-minutes-screen.mp-drawer-content { font-size:13px; line-height:1.6; }
+.mp-detail-fields .mp-facts { padding-bottom:24px; box-shadow:inset 0 1px 0 var(--bb-color-border); }
+.mp-detail-section .bb-minutes-version-content .bb-minutes-md-heading { font-size:14px; font-weight:700; margin:18px 0 6px; color:var(--bb-color-action); }
+.mp-detail-section .bb-minutes-version-content .bb-minutes-md-heading:first-child { margin-top:0; }
+.mp-detail-section ul.bb-minutes-md-list { padding:0; list-style:none; }
+.mp-detail-section ul.bb-minutes-md-list li { position:relative; padding:3px 0 3px 16px; }
+.mp-detail-section ul.bb-minutes-md-list li::before { content:''; position:absolute; left:3px; top:14px; width:5px; height:5px; border-radius:50%; background:var(--bb-color-mint); }
+.bb-minutes-edit-form .mp-edit-body { border-radius:var(--bb-list-control-radius); }
+
+.mp-detail-section .bb-minutes-version-content .bb-minutes-md-heading { line-height:1.6; }
+.mp-detail-section .bb-minutes-version-content ul.bb-minutes-md-list { padding:0; }

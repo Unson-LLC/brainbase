@@ -1199,3 +1199,5 @@
 }
 
 .bb-ws-tabs--header .bb-ws-tab-count { font-feature-settings:normal; font-variant-numeric:normal; }
+
+.bb-ws-input-frame { font:13px/1.6 var(--bb-font-sans); }
