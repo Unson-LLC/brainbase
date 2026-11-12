@@ -273,6 +273,67 @@ function round2(value) {
 }
 
 /*
+ * The straight-street layout of 0.50.13 and earlier, kept only so that a hosting page which still holds
+ * an older world module can import these names from this file during a deploy.  Nothing in this package
+ * calls them; remove them once every host checks exports per screen rather than per file.
+ */
+const LEGACY_STREETS = Object.freeze({ frontLot: 4, backLot: 10, row: 3.4, cross: 2.6 });
+const LEGACY_LOT_COLUMNS = Object.freeze([
+  { x: -LEGACY_STREETS.frontLot, facing: 1 },
+  { x: LEGACY_STREETS.frontLot, facing: -1 },
+  { x: -LEGACY_STREETS.backLot, facing: 1 },
+  { x: LEGACY_STREETS.backLot, facing: -1 },
+]);
+
+/** @deprecated since 0.50.14; districts are laid out by `districtRingLots`. */
+export function districtStreetLots(sites, { minRows = 4 } = {}) {
+  const groups = new Map();
+  for (const site of sites ?? []) {
+    const label = typeof site.purpose_label === 'string' && site.purpose_label.trim() ? site.purpose_label.trim() : null;
+    const key = label ?? '';
+    if (!groups.has(key)) groups.set(key, { key, label, sites: [] });
+    groups.get(key).sites.push(site);
+  }
+  const blocks = [...groups.values()].map((group) => ({ ...group, sites: group.sites.sort(byCreation) }));
+  blocks.sort((a, b) => {
+    if ((a.label === null) !== (b.label === null)) return a.label === null ? 1 : -1;
+    const first = byCreation(a.sites[0], b.sites[0]);
+    return first !== 0 ? first : a.key.localeCompare(b.key);
+  });
+  const rowsOf = (block) => Math.max(1, Math.ceil(block.sites.length / LEGACY_LOT_COLUMNS.length));
+  const rows = blocks.reduce((sum, block) => sum + rowsOf(block), 0);
+  const used = rows * LEGACY_STREETS.row + Math.max(0, blocks.length - 1) * LEGACY_STREETS.cross;
+  const length = Math.max(used, minRows * LEGACY_STREETS.row);
+  const lots = {};
+  const streets = [];
+  let cursor = -used / 2;
+  for (const block of blocks) {
+    const blockRows = rowsOf(block);
+    block.sites.forEach((site, index) => {
+      const row = Math.floor(index / LEGACY_LOT_COLUMNS.length);
+      const column = LEGACY_LOT_COLUMNS[index % LEGACY_LOT_COLUMNS.length];
+      lots[site.task_id] = { x: column.x, z: round2(cursor + (row + 0.5) * LEGACY_STREETS.row), facing: column.facing, street: block.key };
+    });
+    streets.push({ key: block.key, label: block.label, count: block.sites.length, z_from: round2(cursor), z_to: round2(cursor + blockRows * LEGACY_STREETS.row) });
+    cursor += blockRows * LEGACY_STREETS.row + LEGACY_STREETS.cross;
+  }
+  return { lots, streets, rows, length };
+}
+
+/** @deprecated since 0.50.14; districts are laid out by `districtRingPlan`. */
+export function districtGroundPlan(length) {
+  const plazaRadius = 3.85;
+  const plazaZ = -length / 2 - 1.5 - plazaRadius;
+  return {
+    gateZ: length / 2 + 4,
+    plazaZ,
+    plazaRadius,
+    hallZ: plazaZ - 5.4,
+    street: { from: plazaZ + plazaRadius, to: length / 2 + 12 },
+  };
+}
+
+/*
  * The town grows (story-world-work-sites-and-gaps-v1, AC-22〜24).  It grows only from evidenced outcomes
  * and closed gaps, never from activity: counting completions or edits would let splitting work inflate it.
  */
