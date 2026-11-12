@@ -108,6 +108,7 @@ Application must be explicit: do not style every `role=tablist` globally. Task l
 - `workspaceDropdownChevron(document)` は10×6px、線幅1.2、丸端の浅いV字SVG。装飾として `aria-hidden`、クリック・focus・名前は親triggerが所有する。画面ごとの文字グリフ・上下位置補正を増やさない。
 
 `workspaceCombobox` の複数選択は `multiple: true, values: string[]` と `onChange(values, option)` で使う。空値の候補は全選択解除。選択後も開いたまま、選択はチェックのみ、背景はhover時のみ。Arrow/Home/End/PageキーとEnter/Space、Escape/Tab、外側クリックの閉じる操作を保持する。スクロールは候補一覧の内部だけを動かし、同じoptionsと値の `update` でDOMを作り直さない。
+派生した選択の名前には任意の `selectionLabel` をconstructor/updateへ渡せる。値と候補のチェックは変えず、triggerとaria-labelの表示名だけを揃える。省略・空文字では既存の選択要約を使う。
 
 - `renderIcon(option)` は表示用Nodeを返す。画像値・名称はホストの選択肢から渡す。
 - `showHints: false` で識別子などの補足表示を隠す。`showCount: false` は単純な件数のみ隠し、候補なし・表示上限の案内は残す。
@@ -234,3 +235,17 @@ The shared review orange is `--bb-color-review`; the inbox approval stripe alias
 #### 互換性と検証
 
 既存export/class/必須入力は削除・変更しない。未指定のtab、search、combobox、drawerの見た目と選択契約を保持する。共通tokenの既定色は変更せず、新しい影・slate・動きの値だけ追加する。合成fixtureで見た目・選択・キー・開閉・focus・reduced motionを検証し、npm tarballへ個人情報・ローカル照合資料を混ぜない。
+
+
+### 議事録の横一覧（0.50.16候補、明示選択）
+
+`createMeetingMinutesUI({ pagePresentation: 'table' })` は既存のHTTP・保存・readback・権限callbackを使い、共通topbar・header tabs・condition chips・combobox・filter popover・card row・row motion・input frameで表示する。省略時は既存表示を保持する。会議メタ情報の編集は追加しない。本文の保存は新版を作り、古い版は読み取り専用。
+
+- `participantIdentities()` は現在の本人を表す既存ID・表示名の候補、`meetingProject(meeting)` は既存project文脈の `{ label, icon, stripe }` を渡す。UIが組織の人物や権限を推測しない。
+- 一覧summaryの任意の `current_version_states` は文書ごとの `{ minutes_id, version_id, status: 'pending' | 'confirmed' | 'unknown' }`。既存snapshotから許可確認後に投影し、本文・外部参照・確認者ID・過去版を含めない。複数文書はpending優先、全現行版がconfirmedの時のみconfirmed、不明を確認済みや確認待ちに変換しない。古い応答でversionsも状態もない場合は確認条件を提供しない。
+- 日付の見出しを使わず、2桁の日付・曜日・時刻を各行に置く。未登録日時を取り込み日時で偽装せず、日時なしとして表示・範囲選択から区別する。件数と絞り込みは読み込み済みの範囲で計算し、続きありの表示を保持する。
+- 未保存本文のX・Escape・鉛筆・版/文書選択は破棄確認を通る。ホストの画面/プロジェクト切替は `requestLeave(action)` がfalseなら中断する。破棄を明示した時だけactionを呼ぶ。保存中は本文と切替を凍結し、readback成功前に保存済みと表示しない。失敗は本文と理由を保持する。
+- `workspaceDetailDrawer` / `workspaceInputFrame` の `beforeClose()` がfalseならX・Escape・背景・closeを中止。disposeは画面の清掃として常に実行する。未指定時は従来動作。`workspaceFormRow({ appearance: 'quiet' })` は入力時も細い区切りのみ、`workspaceTopbar({ wrap: true })` は狭い表示でタブと道具を2行にする。
+- 作成入力は会議名と保存先を必須にし、参加候補と自由入力を分ける。既存create callbackで保存/readbackした後、現在の表示条件を変えずに一覧へ戻る。選択範囲外の作成も既存host readbackを維持する。
+
+横一覧のおすすめは、参加記録から得た自分のプロジェクトを選択欄へ反映する。ホストの明示選択を維持している間は別の自分条件を重ねず、手動選択とおすすめ復帰は既存のホストcallbackと未保存保護を通す。取得・認可経路は変更しない。
