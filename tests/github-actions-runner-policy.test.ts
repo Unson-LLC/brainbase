@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
-const selfHostedRunner = 'runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]';
-const backupRunner = "runs-on: ${{ fromJSON(vars.CI_RUNNER_BACKUP == 'on' && '\"ubuntu-latest\"' || '[\"self-hosted\",\"Linux\",\"X64\",\"wsl-linux\",\"nucbox-evo-x2\"]') }}";
+const selfHostedRunner = 'runs-on: [self-hosted, Linux, X64, unson-ci-linux]';
+const backupRunner = "runs-on: ${{ fromJSON(vars.CI_RUNNER_BACKUP == 'on' && '\"ubuntu-latest\"' || '[\"self-hosted\",\"Linux\",\"X64\",\"unson-ci-linux\"]') }}";
 const workflowPaths = [
   '.github/workflows/adr-index.yml',
   '.github/workflows/test.yml',
@@ -31,7 +31,7 @@ describe('public CI self-hosted runner policy', () => {
     const formalValidationJob = workflows[workflowPaths.indexOf('.github/workflows/test.yml')]
       .slice(workflows[workflowPaths.indexOf('.github/workflows/test.yml')].indexOf('  formal-release-validate-linux:'));
     expect(formalValidationJob).toMatch(/^  formal-release-validate-linux:\n/u);
-    expect(formalValidationJob).toMatch(/^    runs-on: \$\{\{ fromJSON\(vars\.CI_RUNNER_BACKUP == 'on' && '"ubuntu-latest"' \|\| '\["self-hosted","Linux","X64","wsl-linux","nucbox-evo-x2"\]'\) \}\}$/mu);
+    expect(formalValidationJob).toMatch(/^    runs-on: \$\{\{ fromJSON\(vars\.CI_RUNNER_BACKUP == 'on' && '"ubuntu-latest"' \|\| '\["self-hosted","Linux","X64","unson-ci-linux"\]'\) \}\}$/mu);
     expect(formalValidationJob).toMatch(/^    permissions:\n      contents: read$/mu);
     expect(formalValidationJob).toMatch(/github\.event\.pull_request\.head\.sha/u);
     expect(formalValidationJob).toMatch(/persist-credentials: false/u);
@@ -104,6 +104,8 @@ describe('public CI self-hosted runner policy', () => {
     expect(guide).toContain('npm provenance（sigstoreの来歴署名）を付けて公開する`npm-publish.yml`のpublish job');
     expect(guide).toContain('`actions/setup-node`の`cache: npm`を使わない');
     expect(guide).toContain(selfHostedRunner);
+    expect(guide).toContain('`unson-ci-linux`は「CIの標準環境');
+    expect(guide).toContain('workflowで新しい目印を使う前に、必ずランナー側へ先に付ける。');
     expect(guide).toContain('github.event.pull_request.head.repo.full_name == github.repository');
     expect(guide).toContain('author_association');
     expect(guide).toContain('pull requestのheadをcheckoutしない');
