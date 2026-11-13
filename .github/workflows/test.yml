@@ -39,6 +39,9 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     strategy:
+      # Both matrix entries now run the full suite on the shared EVO-X2.
+      # Keep them sequential to avoid adding another four concurrent workers.
+      max-parallel: 1
       fail-fast: false
       matrix:
         include:
@@ -70,14 +73,18 @@ jobs:
       - name: Run complete package suite on Node 22
         if: ${{ matrix.suite == 'complete' }}
         env:
-          CANONICAL_TASK_PG_TEST_ADMIN_URL: postgresql://postgres:local-ci-test-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgres
-          CANONICAL_TASK_PG_TEST_URL: postgresql://postgres:local-ci-test-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgres
+          CANONICAL_TASK_PG_TEST_ADMIN_URL: postgresql://postgres:local-ci-test-only@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/postgres
+          CANONICAL_TASK_PG_TEST_URL: postgresql://postgres:local-ci-test-only@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/postgres
           CANONICAL_TASK_PG_TEST_REQUIRED: '1'
         run: npm test -- --maxWorkers=4
 
-      - name: Run representative integration suite on Node 20
+      - name: Run complete package suite on Node 20
         if: ${{ matrix.suite == 'representative' }}
-        run: npm run test:integration -- --maxWorkers=4
+        env:
+          CANONICAL_TASK_PG_TEST_ADMIN_URL: postgresql://postgres:local-ci-test-only@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/postgres
+          CANONICAL_TASK_PG_TEST_URL: postgresql://postgres:local-ci-test-only@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/postgres
+          CANONICAL_TASK_PG_TEST_REQUIRED: '1'
+        run: npm test -- --maxWorkers=4
 
       - name: Run routine runtime regression tests on Node 20
         if: ${{ matrix.suite == 'representative' }}
@@ -89,8 +96,8 @@ jobs:
           {
             echo '## Package CI failure/cancellation summary'
             echo
-            echo '- Protection: Node 22 complete package validation and Node 20 representative integration validation.'
-            echo '- Reproduce: `npm ci --ignore-scripts && npm run build && npm test -- --maxWorkers=4` (Node 22), or `npm ci --ignore-scripts && npm run build && npm run test:integration -- --maxWorkers=4 && npx vitest run tests/stage3c-runtime.test.ts --maxWorkers=1` (Node 20).'
+            echo '- Protection: Node 22 and Node 20 complete package validation.'
+            echo '- Reproduce: `npm ci --ignore-scripts && npm run build && npm test -- --maxWorkers=4` on Node 22 or Node 20.'
             echo '- Expected: package changes pass the build and required suite; docs-only changes use the docs workflow.'
             echo '- Unknown: inspect the failed step and runner log; this workflow has no release or deployment side effect.'
           } >> "$GITHUB_STEP_SUMMARY"
