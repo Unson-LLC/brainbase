@@ -150,6 +150,33 @@ function createServiceContext(id: string, org = 'org-techknight', key = `key-${i
 }
 
 describe.skipIf(!postgresIntegrationEnabled)('Canonical Task PostgreSQL adapter and Service integration', () => {
+  it('persists, reads, clears and replays start dates through the canonical service', async () => {
+    const task = await service.createTask({ title: 'Plan', project_codes: ['project-112'], start_at: '2026-11-20', due_at: '2026-11-30' },
+      createServiceContext('person-a', undefined, 'date-create'));
+    expect((await service.getTask(task.id, createServiceContext('person-a'))).start_at).toBe('2026-11-20T00:00:00.000Z');
+    const context = createServiceContext('person-a', undefined, 'date-clear');
+    const cleared = await service.updateTask(task.id, { start_at: null }, task.version, context);
+    expect((await service.getTask(task.id, createServiceContext('person-a'))).start_at).toBeNull();
+    expect((await service.updateTask(task.id, { start_at: null }, task.version, context)).version).toBe(cleared.version);
+    await expect(service.updateTask(task.id, { start_at: '2026-12-01' }, cleared.version,
+      createServiceContext('person-a', undefined, 'invalid-date'))).rejects.toMatchObject({ code: 'validation_error' });
+    expect((await service.getTask(task.id, createServiceContext('person-a'))).version).toBe(cleared.version);
+  });
+
+  it('keeps the date invariant when concurrent partial date mutations race', async () => {
+    const task = await service.createTask({ title: 'Race', project_codes: ['project-112'], start_at: '2026-11-01', due_at: '2026-11-30' },
+      createServiceContext('person-a', undefined, 'date-race-create'));
+    const results = await Promise.allSettled([
+      service.updateTask(task.id, { start_at: '2026-11-25' }, task.version, createServiceContext('person-a', undefined, 'date-race-start')),
+      service.updateTask(task.id, { due_at: '2026-11-10' }, task.version, createServiceContext('person-a', undefined, 'date-race-due')),
+    ]);
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+    expect(results.filter(result => result.status === 'rejected')).toHaveLength(1);
+    const readback = await service.getTask(task.id, createServiceContext('person-a'));
+    expect(Date.parse(readback.start_at!)).toBeLessThanOrEqual(Date.parse(readback.due_at!));
+    expect(readback.version).toBe(task.version + 1);
+  });
+
   beforeAll(async () => {
     let testConnectionString = connectionString;
     if (adminConnectionString) {

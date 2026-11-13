@@ -784,4 +784,55 @@ describe('CanonicalTaskService', () => {
       .rejects.toMatchObject({ code: 'task_audit_unavailable', status: 503 });
     expect(transactionalCalls).toBe(0);
   });
+  describe('start_at', () => {
+    it('stores, reads back and clears a planned start date', async () => {
+      const fixture = createCanonicalTaskServiceFixture();
+      const created = await fixture.service.createTask(
+        { title: 'Planned', start_at: '2026-11-20', due_at: '2026-11-30' },
+        fixture.context('start-create'),
+      );
+      expect(created.start_at).toBe('2026-11-20T00:00:00.000Z');
+      expect(fixture.tasks.get(created.id)?.start_at).toBe('2026-11-20T00:00:00.000Z');
+
+      const moved = await fixture.service.updateTask(created.id, { start_at: '2026-11-22' }, created.version, fixture.context('start-move'));
+      expect(moved).toMatchObject({ start_at: '2026-11-22T00:00:00.000Z', version: created.version + 1 });
+
+      const cleared = await fixture.service.updateTask(created.id, { start_at: null }, moved.version, fixture.context('start-clear'));
+      expect(cleared.start_at).toBeNull();
+      expect(fixture.tasks.get(created.id)?.start_at).toBeNull();
+    });
+
+    it('omits start_at from the stored row when not given and reads it back as null', async () => {
+      const fixture = createCanonicalTaskServiceFixture();
+      const created = await fixture.service.createTask({ title: 'Unplanned' }, fixture.context('start-omitted'));
+      expect(fixture.tasks.get(created.id)).not.toHaveProperty('start_at');
+      expect(created.start_at).toBeNull();
+    });
+
+    it('rejects an invalid start date without a row or audit', async () => {
+      const fixture = createCanonicalTaskServiceFixture();
+      await expect(fixture.service.createTask({ title: 'Bad', start_at: 'not a date' }, fixture.context('start-invalid')))
+        .rejects.toMatchObject({ code: 'validation_error', status: 400, details: { field: 'start_at' } });
+      expect(fixture.tasks.size).toBe(0);
+      expect(fixture.auditEntries).toEqual([]);
+    });
+
+    it('rejects a start date later than the due date given with it', async () => {
+      const fixture = createCanonicalTaskServiceFixture();
+      await expect(fixture.service.createTask(
+        { title: 'Backwards', start_at: '2026-12-02', due_at: '2026-12-01' },
+        fixture.context('start-after-due-create'),
+      )).rejects.toMatchObject({ code: 'validation_error', status: 400, details: { fields: ['start_at', 'due_at'] } });
+      expect(fixture.tasks.size).toBe(0);
+
+      const created = await fixture.service.createTask({ title: 'Ok' }, fixture.context('start-after-due-ok'));
+      await expect(fixture.service.updateTask(
+        created.id,
+        { start_at: '2026-12-02', due_at: '2026-12-01' },
+        created.version,
+        fixture.context('start-after-due-update'),
+      )).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+      expect(fixture.tasks.get(created.id)?.version).toBe(created.version);
+    });
+  });
 });
