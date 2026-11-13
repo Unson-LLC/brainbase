@@ -242,6 +242,7 @@ export async function handleRemoteJudgmentHookRequest(
           await Promise.race([
             Promise.resolve().then(() => request.journalTurnPublisher!({
               sessionId, turnId, projectCode: request.projectCode!, trustedToken: request.trustedToken!,
+              trustedPrincipal: { personId: request.trustedPrincipal!.personId, tenantId: request.trustedPrincipal!.tenantId! },
             })),
             new Promise<never>((_resolve, reject) => {
               timer = setTimeout(() => reject(new Error()), 1500);

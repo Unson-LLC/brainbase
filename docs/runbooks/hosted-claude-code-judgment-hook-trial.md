@@ -4,11 +4,16 @@ This trial requires a published package version exporting `remote-judgment-hook-
 
 The host must verify authentication before invoking the handler. Use `remoteJudgmentHookHostFlags(authKind, isOwnerLocalBridge)` with server-verified inputs: a person JWT sets `personHostedClaudeCodeAllowed`; shared-bearer authentication sets `localClaudeCodeAllowed` only on the owner's verified loopback bridge. Company-authority authentication sets neither flag. Never derive these flags or the trusted principal from request headers or body identity claims. The host must enforce the body limit while reading the request, too.
 
+On the person-JWT path, wire `isAuthorized: () => true` and `bearerToken: ''` only inside the branch reached after successful Host JWT verification; unverified requests must never reach this pass-through.
+
 For the hosted path, the verified principal must have a non-empty trimmed `tenantId` and include the selected project code in `projectCodes`. Pass the verified principal, token, and authentication kind through the handler request. A shared bearer token is not accepted for a remote `claude-code` declaration, even when the hosted flag is set.
 
 Import `createJudgmentJournalTurnPublisher` from `@unson/brainbase-mcp/judgment-journal-turn-publisher` and pass its result as the handler's optional `journalTurnPublisher`.
 Configure it with `{ apiBaseUrl, journalRoot, fetch?, onError? }`, using the same journal root as the canonical dispatcher.
 After an accepted hosted person-JWT Claude Code Stop, it reads the finished journal and posts to `/api/organization/judgment-journal/turns` with `trustedToken`.
+Publication includes `turn_input` prompt text and tool events, along with the episode, receipt, final record, and optional value proof.
+The publisher requires a nonblank trusted principal and checks `owner_person_id` and `tenant_id` against it when those episode fields are present; mismatches block publication with `judgment_journal_files_invalid`. Episodes without owner fields are published for compatibility with the current host writer.
+For the current host shape, the receiving API’s receipt-owner check is the binding: `POST /api/organization/judgment-journal/turns` (`packages/server-parts/judgment-journal-db/store.js`, `recordTurn`/`withOwner`) accepts a turn only when a `judgment_receipts` row has the same `resolution_id` and `owner_person_id` equal to the JWT person. B posting A’s turn is rejected and nothing is stored under B. Hosts should add `owner_person_id` and `tenant_id` from verified identity to episodes in a follow-up.
 Shared-bearer, owner-loopback, and remote hosts do not publish; missing configuration or publication failures preserve the hook response and report only a safe reason code.
 
 ## Person's trial settings

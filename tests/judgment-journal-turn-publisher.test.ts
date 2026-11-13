@@ -7,7 +7,8 @@ import { createJudgmentJournalTurnPublisher } from '../src/judgment-journal-turn
 import { handleRemoteJudgmentHookRequest } from '../src/remote-judgment-hook-http.js';
 
 const hash = (s: string) => createHash('sha256').update(s).digest('hex');
-const input = { sessionId: 'session', turnId: 'turn', projectCode: 'project', trustedToken: 'verified-user-jwt' };
+const input = { sessionId: 'session', turnId: 'turn', projectCode: 'project', trustedToken: 'verified-user-jwt',
+  trustedPrincipal: { personId: 'person', tenantId: 'tenant' } };
 const roots: string[] = [];
 afterEach(async () => { vi.restoreAllMocks(); await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 async function fixture(sequenceField = 'event_sequence') {
@@ -15,9 +16,9 @@ async function fixture(sequenceField = 'event_sequence') {
   roots.push(root);
   const prefix = join(root, hash(input.sessionId), hash(input.turnId));
   await mkdir(`${prefix}.events`, { recursive: true });
-  // The hosted reference journal binds identity through its path and route receipt.
+  // Owner fields are optional for the current host; newer hosts can supply them.
   const identity = sequenceField === 'sequence' ? { session_ref: hash(input.sessionId), turn_id: input.turnId } : {};
-  const episode = { ...identity, initial_route_receipt: { resolution_id: 'resolution', project_code: 'project', turn_id: input.turnId } };
+  const episode = { ...identity, owner_person_id: 'person', tenant_id: 'tenant', initial_route_receipt: { resolution_id: 'resolution', project_code: 'project', turn_id: input.turnId } };
   const final = { ...identity, event_count: 1, finalized_at: '2026-11-11T00:00:00.000Z' };
   const event = { [sequenceField]: sequenceField === 'sequence' ? 1 : 0,
     event_fingerprint: 'a'.repeat(64), tool_use_id: 'tool-1', content: 'private journal content' };
@@ -112,6 +113,55 @@ describe('judgment journal turn publisher', () => {
     expect(body).not.toHaveProperty('turn_input');
     expect(body).not.toHaveProperty('value_proof');
   });
+
+  for (const mode of ['person', 'tenant'] as const) {
+    it(`AC-W5 does not post a turn owned by another person: ${mode}`, async () => {
+      const { root } = await fixture();
+      const fetch = vi.fn<typeof globalThis.fetch>();
+      const onError = vi.fn();
+      const publisher = createJudgmentJournalTurnPublisher({ apiBaseUrl: 'https://api.example.test', journalRoot: root, fetch, onError });
+      const caller = { ...request(publisher), trustedPrincipal: { ...request().trustedPrincipal,
+        ...(mode === 'person' ? { personId: 'other-person' } : {}),
+        ...(mode === 'tenant' ? { tenantId: 'other-tenant' } : {}),
+      } };
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      expect(await handleRemoteJudgmentHookRequest(caller)).toEqual(
+        await handleRemoteJudgmentHookRequest({ ...caller, journalTurnPublisher: undefined }));
+      expect(fetch).not.toHaveBeenCalled();
+      expect(onError.mock.calls).toEqual([['judgment_journal_files_invalid']]);
+    });
+  }
+
+  for (const fields of ['none', 'person', 'tenant'] as const) {
+    it(`posts with a valid principal and optional episode owner fields: ${fields}`, async () => {
+      const { root, prefix, episode } = await fixture('sequence');
+      const owner = { ...episode } as Record<string, unknown>;
+      if (fields !== 'person') delete owner.owner_person_id;
+      if (fields !== 'tenant') delete owner.tenant_id;
+      await writeFile(`${prefix}.episode.json`, JSON.stringify(owner));
+      const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response(null, { status: 201 }));
+      const publisher = createJudgmentJournalTurnPublisher({ apiBaseUrl: 'https://api.example.test', journalRoot: root, fetch });
+      expect(await handleRemoteJudgmentHookRequest(request(publisher))).toEqual(await handleRemoteJudgmentHookRequest(request()));
+      expect(fetch).toHaveBeenCalledOnce();
+      expect(JSON.parse(String(fetch.mock.calls[0][1]?.body)).episode).toEqual(owner);
+    });
+  }
+
+  for (const principal of [undefined, { personId: ' ', tenantId: 'tenant' }, { personId: 'person', tenantId: ' ' }]) {
+    it(`does not post with a missing or blank principal: ${JSON.stringify(principal)}`, async () => {
+      const { root, prefix, episode } = await fixture();
+      const owner = { ...episode } as Record<string, unknown>;
+      delete owner.owner_person_id;
+      delete owner.tenant_id;
+      await writeFile(`${prefix}.episode.json`, JSON.stringify(owner));
+      const fetch = vi.fn<typeof globalThis.fetch>();
+      const onError = vi.fn();
+      const publisher = createJudgmentJournalTurnPublisher({ apiBaseUrl: 'https://api.example.test', journalRoot: root, fetch, onError });
+      await publisher({ ...input, trustedPrincipal: principal! });
+      expect(fetch).not.toHaveBeenCalled();
+      expect(onError.mock.calls).toEqual([['judgment_journal_files_invalid']]);
+    });
+  }
 
   for (const mode of ['missing', 'malformed', 'sequence', 'count', 'scope'] as const) {
     it(`AC-W4 rejects invalid journal files with a safe reason: ${mode}`, async () => {

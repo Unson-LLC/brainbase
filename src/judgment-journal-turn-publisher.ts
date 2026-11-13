@@ -7,6 +7,8 @@ export interface JudgmentJournalTurnInput {
   turnId: string;
   projectCode: string;
   trustedToken: string;
+  /** Identity verified by the Host JWT boundary, never client body fields. */
+  trustedPrincipal: { personId: string; tenantId: string };
 }
 
 export interface JudgmentJournalTurnPublisherOptions {
@@ -51,6 +53,10 @@ export function createJudgmentJournalTurnPublisher(options: JudgmentJournalTurnP
         return value;
       };
       const episode = (await read(`${prefix}.episode.json`))!;
+      // Check ownership when supplied; current hosts rely on the receiving API receipt-owner binding.
+      if (!input.trustedPrincipal?.personId?.trim() || !input.trustedPrincipal.tenantId?.trim()
+        || ('owner_person_id' in episode && episode.owner_person_id !== input.trustedPrincipal.personId)
+        || ('tenant_id' in episode && episode.tenant_id !== input.trustedPrincipal.tenantId)) throw new Error('invalid');
       const final = (await read(`${prefix}.final.json`))!;
       const receipt = episode.initial_route_receipt;
       if (!object(receipt) || typeof receipt.resolution_id !== 'string' || !receipt.resolution_id
