@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 const selfHostedRunner = 'runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]';
 const backupRunner = "runs-on: ${{ fromJSON(vars.CI_RUNNER_BACKUP == 'on' && '\"ubuntu-latest\"' || '[\"self-hosted\",\"Linux\",\"X64\",\"wsl-linux\",\"nucbox-evo-x2\"]') }}";
 const workflowPaths = [
+  '.github/workflows/adr-index.yml',
   '.github/workflows/test.yml',
   '.github/workflows/npm-publish.yml',
   '.github/workflows/docs-cloudflare-pages.yml',
@@ -71,6 +72,9 @@ describe('public CI self-hosted runner policy', () => {
     expect(docsJob).toMatch(
       /if: \$\{\{ github\.event_name != 'pull_request' \|\| github\.event\.pull_request\.head\.repo\.full_name == github\.repository \}\}/u
     );
+    const adrWorkflow = await readRepoFile('.github/workflows/adr-index.yml');
+    expect(adrWorkflow).toContain("if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}");
+    expect(adrWorkflow).not.toMatch(/pull_request_target:|paths:/u);
     expect(testWorkflow).not.toMatch(/pull_request_target:/u);
     expect(docsWorkflow).not.toMatch(/pull_request_target:/u);
   });
@@ -156,7 +160,7 @@ describe('public CI self-hosted runner policy', () => {
   it('AC-006 sets persist-credentials false on every checkout', async () => {
     const workflows = await Promise.all(workflowPaths.map((path) => readRepoFile(path)));
     const checkouts = workflows.flatMap((workflow) => checkoutSections(workflow));
-    expect(checkouts).toHaveLength(6);
+    expect(checkouts).toHaveLength(7);
     for (const section of checkouts) {
       expect(section).toMatch(/persist-credentials: false/u);
     }
