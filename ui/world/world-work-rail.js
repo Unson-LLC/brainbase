@@ -494,3 +494,273 @@ export function workGrowthBlock(doc, { stage, changes }) {
   }
   return workspaceRailBlock(doc, { title: '区画の育ち', content });
 }
+
+/*
+ * The pulse panel (story-world-three-scales-v1): one small panel over the map whose contents follow the
+ * scale the viewer is at.
+ *   - the world: which businesses have work in progress (a way into each);
+ *   - a business: how far its work has come, its agents, and each gathering of work (a street);
+ *   - a gathering of work: which agent is on which work and how, then the work without an agent.
+ * It is built only from the pulse (`worldPulse`, `districtPulse`) of the records already read; it keeps
+ * nothing and writes nothing.  Its breadcrumb is the way back up.
+ */
+const FLOW_SEGMENTS = Object.freeze([
+  { key: 'done', label: '終えた' },
+  { key: 'in_progress', label: '進行中' },
+  { key: 'waiting', label: '待ち' },
+  { key: 'pending', label: 'これから' },
+]);
+
+function flowBar(doc, counts, { legend = true } = {}) {
+  const wrap = el(doc, 'div', { className: 'bb-world-flow' });
+  const bar = el(doc, 'div', { className: 'bb-world-flow-bar', attrs: { role: 'img', 'aria-label': FLOW_SEGMENTS.map((segment) => `${segment.label}${counts[segment.key]}件`).join('、') } });
+  for (const segment of FLOW_SEGMENTS) {
+    if (!counts[segment.key]) continue;
+    const part = el(doc, 'span', { className: `bb-world-flow-part is-${segment.key}` });
+    part.style.flexGrow = String(counts[segment.key]);
+    bar.append(part);
+  }
+  wrap.append(bar);
+  if (legend) {
+    const list = el(doc, 'ul', { className: 'bb-world-flow-legend' });
+    for (const segment of FLOW_SEGMENTS) {
+      const item = el(doc, 'li', { className: `is-${segment.key}${counts[segment.key] ? '' : ' is-none'}` });
+      item.append(el(doc, 'span', { className: 'bb-world-flow-dot', attrs: { 'aria-hidden': 'true' } }), el(doc, 'span', { text: segment.label }), el(doc, 'strong', { text: String(counts[segment.key]) }));
+      list.append(item);
+    }
+    wrap.append(list);
+  }
+  return wrap;
+}
+
+/** The mark of an agent: its soft colour with the first letter of its name, and a light for how it is there. */
+export function actorMark(doc, actor, { small = false } = {}) {
+  const mark = el(doc, 'span', { className: `bb-world-actor-mark is-${actor.presence}${small ? ' is-small' : ''}`, text: [...String(actor.name)][0] ?? '?', attrs: { title: `${actor.name}：${actor.label}` } });
+  mark.style.setProperty('--bb-world-actor-tone', actor.tone);
+  return mark;
+}
+
+function presenceDetail(work) {
+  if (work.presence === 'running') return work.minutes === 0 ? 'たったいま稼働の知らせ' : `${work.minutes}分前に稼働の知らせ`;
+  if (work.presence === 'quiet') return `最後の稼働の知らせは${work.minutes >= 60 ? `${Math.floor(work.minutes / 60)}時間前` : `${work.minutes}分前`}`;
+  if (work.presence === 'waiting') return work.waiting_on ? `待ち：${work.waiting_on}` : '待ちの理由は未記録';
+  if (work.presence === 'unconfirmed') return '進行中の記録はあるが、稼働の知らせは確認できていない';
+  if (work.presence === 'queued') return 'まだ始めていない';
+  return '記録上は完了';
+}
+
+function pulseWords(counts) {
+  const parts = [];
+  if (counts.in_progress) parts.push(['in_progress', `進行中 ${counts.in_progress}`]);
+  if (counts.waiting) parts.push(['waiting', `待ち ${counts.waiting}`]);
+  if (!parts.length && counts.pending) parts.push(['pending', `これから ${counts.pending}`]);
+  return parts;
+}
+
+function pulseChips(doc, counts) {
+  const chips = el(doc, 'span', { className: 'bb-world-pulse-chips' });
+  for (const [key, text] of pulseWords(counts)) chips.append(el(doc, 'span', { className: `bb-world-pulse-chip is-${key}`, text }));
+  return chips;
+}
+
+/** The pulse of a business in a few words, for the city's nameplate; empty when nothing is open. */
+export function cityPulseChips(doc, pulse) {
+  return pulse ? pulseChips(doc, pulse) : null;
+}
+
+export function createPulsePanel(doc, { onWorld, onCity, onStreet, onSite, onEnterCity, onFold } = {}) {
+  const node = el(doc, 'section', { className: 'bb-world-pulse', attrs: { 'aria-label': 'いまの動き' } });
+  const top = el(doc, 'div', { className: 'bb-world-pulse-top' });
+  const crumbs = el(doc, 'nav', { className: 'bb-world-pulse-crumbs', attrs: { 'aria-label': '見ている階層' } });
+  const fold = el(doc, 'button', { className: 'bb-world-pulse-fold', attrs: { type: 'button', 'aria-expanded': 'true' } });
+  const body = el(doc, 'div', { className: 'bb-world-pulse-body' });
+  top.append(crumbs, fold);
+  node.append(top, body);
+  // Pointer activity in the panel must never start the map's drag or picking gesture underneath.
+  for (const name of ['pointerdown', 'pointerup', 'click', 'dblclick', 'wheel']) node.addEventListener?.(name, (event) => event.stopPropagation?.());
+  let folded = false;
+  try {
+    folded = globalThis.localStorage?.getItem('brainbase.world.pulse.folded') === '1';
+  } catch {
+    folded = false;
+  }
+  function applyFold() {
+    node.classList.toggle('is-folded', folded);
+    body.hidden = folded;
+    fold.setAttribute('aria-expanded', String(!folded));
+    fold.setAttribute('aria-label', folded ? 'いまの動きを開く' : 'いまの動きをたたむ');
+    fold.title = folded ? 'いまの動きを開く' : 'いまの動きをたたむ';
+    fold.textContent = folded ? '＋' : '－';
+  }
+  fold.addEventListener('click', () => {
+    folded = !folded;
+    try {
+      globalThis.localStorage?.setItem('brainbase.world.pulse.folded', folded ? '1' : '0');
+    } catch {
+      // Without storage the panel simply opens unfolded next time.
+    }
+    applyFold();
+    onFold?.(folded);
+  });
+  applyFold();
+
+  function setCrumbs(entries) {
+    const nodes = [];
+    entries.forEach((entry, index) => {
+      if (index) nodes.push(el(doc, 'span', { className: 'bb-world-pulse-sep', text: '›', attrs: { 'aria-hidden': 'true' } }));
+      const last = index === entries.length - 1;
+      if (last || !entry.onClick) {
+        nodes.push(el(doc, 'span', { className: 'bb-world-pulse-crumb is-current', text: entry.text, attrs: last ? { 'aria-current': 'location' } : {} }));
+      } else {
+        const button = el(doc, 'button', { className: 'bb-world-pulse-crumb', text: entry.text, attrs: { type: 'button', title: `${entry.text}に戻る` } });
+        button.addEventListener('click', () => entry.onClick());
+        nodes.push(button);
+      }
+    });
+    crumbs.replaceChildren(...nodes);
+  }
+  const heading = (title, sub) => {
+    const head = el(doc, 'div', { className: 'bb-world-pulse-head' });
+    head.append(el(doc, 'h2', { text: title }));
+    if (sub) head.append(el(doc, 'p', { text: sub }));
+    return head;
+  };
+  const section = (title, ...children) => {
+    const wrap = el(doc, 'div', { className: 'bb-world-pulse-section' });
+    if (title) wrap.append(el(doc, 'h3', { text: title }));
+    wrap.append(...children.filter(Boolean));
+    return wrap;
+  };
+  const note = (text) => el(doc, 'p', { className: 'bb-world-pulse-note', text });
+  const rowButton = (className, onClick, title) => {
+    const button = el(doc, 'button', { className, attrs: { type: 'button', title } });
+    button.addEventListener('click', onClick);
+    return button;
+  };
+
+  function actorsLine(pulse) {
+    if (!pulse.actors.length) {
+      return note(pulse.actors_unconfirmed ? `AIの担当を確認できていない仕事が${pulse.actors_unconfirmed}件あります（いないとは確認できません）。` : 'AIの担当が記録された仕事はありません。');
+    }
+    const line = el(doc, 'div', { className: 'bb-world-pulse-actors' });
+    const marks = el(doc, 'span', { className: 'bb-world-actor-marks' });
+    for (const actor of pulse.actors) marks.append(actorMark(doc, actor));
+    line.append(marks, el(doc, 'span', { text: `AI ${pulse.actors.length}体のうち${pulse.running}体が動いている` }));
+    const wrap = el(doc, 'div');
+    wrap.append(line);
+    if (pulse.actors_unconfirmed) wrap.append(note(`ほかに、AIの担当を確認できていない仕事が${pulse.actors_unconfirmed}件あります。`));
+    return wrap;
+  }
+
+  return {
+    node,
+    hide() { node.hidden = true; },
+    /** The world: `world` from `worldPulse`; `connected` false when the host has no task store. */
+    showWorld({ world, connected }) {
+      node.hidden = false;
+      node.dataset.level = 'world';
+      setCrumbs([{ text: '世界' }]);
+      const nodes = [];
+      if (connected === false) {
+        nodes.push(heading('世界のいま'), note('この画面は仕事の記録につながっていないため、事業ごとの動きは出していません（動きが無いとは確認できません）。'));
+      } else if (!world.rows.length) {
+        nodes.push(heading('世界のいま'), note('事業を読めていません。'));
+      } else {
+        nodes.push(heading('世界のいま', world.read ? `仕事が進行中の事業 ${world.active} / ${world.read}${world.read < world.rows.length ? `（読めない事業 ${world.rows.length - world.read}）` : ''}` : '仕事の動きを読んでいます'));
+        const list = el(doc, 'ul', { className: 'bb-world-pulse-list' });
+        for (const row of world.rows) {
+          const item = el(doc, 'li');
+          const button = rowButton('bb-world-pulse-row', () => onEnterCity?.(row.code), `${row.name}の中を見る`);
+          button.append(el(doc, 'span', { className: 'bb-world-pulse-name', text: row.name }));
+          if (!row.pulse) button.append(el(doc, 'span', { className: 'bb-world-pulse-quiet', text: world.read ? '読めない' : '' }));
+          else if (pulseWords(row.pulse).length) button.append(pulseChips(doc, row.pulse));
+          else button.append(el(doc, 'span', { className: 'bb-world-pulse-quiet', text: row.pulse.done ? '開いた仕事なし' : '仕事の記録なし' }));
+          item.append(button);
+          list.append(item);
+        }
+        nodes.push(list, note('事業を選ぶと、その中の動きを見られます。'));
+      }
+      body.replaceChildren(...nodes);
+    },
+    /** A business: `pulse` from `districtPulse`, or `state` saying why its work is not shown. */
+    showCity({ business, pulse = null, state = null, partial = false }) {
+      node.hidden = false;
+      node.dataset.level = 'city';
+      setCrumbs([{ text: '世界', onClick: onWorld }, { text: business.name }]);
+      const nodes = [heading(`${business.name}のいま`, business.purpose ?? null)];
+      if (!pulse) {
+        nodes.push(note(state ?? '仕事を読んでいます'));
+      } else if (!pulse.counts.total) {
+        nodes.push(note('この事業の仕事の記録はまだありません。'));
+      } else {
+        nodes.push(section(`仕事 ${pulse.counts.total}件${partial ? '（読めた範囲）' : ''}`, flowBar(doc, pulse.counts), actorsLine(pulse), partial ? note('仕事の記録は一部だけ読めています。件数は読めた範囲のものです。') : null));
+        const list = el(doc, 'ul', { className: 'bb-world-pulse-list' });
+        for (const street of pulse.streets) {
+          const item = el(doc, 'li');
+          const name = street.label ?? '何のためか未記録の仕事';
+          const button = rowButton('bb-world-pulse-row is-street', () => onStreet?.(street.key), `「${name}」の仕事とAIを見る`);
+          const line = el(doc, 'span', { className: 'bb-world-pulse-row-line' });
+          line.append(el(doc, 'span', { className: `bb-world-pulse-name${street.label ? '' : ' is-unlabelled'}`, text: name }), el(doc, 'span', { className: 'bb-world-pulse-count', text: `${street.counts.done} / ${street.counts.total}` }));
+          const second = el(doc, 'span', { className: 'bb-world-pulse-row-line' });
+          second.append(flowBar(doc, street.counts, { legend: false }));
+          const marks = el(doc, 'span', { className: 'bb-world-actor-marks' });
+          for (const actor of street.actors) marks.append(actorMark(doc, actor, { small: true }));
+          second.append(marks);
+          button.append(line, second, pulseChips(doc, street.counts));
+          item.append(button);
+          list.append(item);
+        }
+        nodes.push(section('仕事の集まり（通り）', list));
+      }
+      body.replaceChildren(...nodes);
+    },
+    /** A gathering of work: one `street` of the pulse and the `sites` standing on it. */
+    showStreet({ business, street, sites, partial = false }) {
+      node.hidden = false;
+      node.dataset.level = 'street';
+      const name = street.label ?? '何のためか未記録の仕事';
+      setCrumbs([{ text: '世界', onClick: onWorld }, { text: business.name, onClick: onCity }, { text: name }]);
+      const nodes = [heading(name, `${business.name}・${street.counts.total}件のうち${street.counts.done}件を終えた${partial ? '（読めた範囲）' : ''}`), flowBar(doc, street.counts)];
+      const byId = new Map(sites.map((site) => [site.task_id, site]));
+      if (street.actors.length) {
+        const cards = el(doc, 'ul', { className: 'bb-world-actor-cards' });
+        for (const actor of street.actors) {
+          const card = el(doc, 'li', { className: `bb-world-actor-card is-${actor.presence}` });
+          const head = el(doc, 'div', { className: 'bb-world-actor-head' });
+          head.append(actorMark(doc, actor), el(doc, 'strong', { text: actor.name }), el(doc, 'span', { className: `bb-world-presence is-${actor.presence}`, text: actor.label }));
+          card.append(head);
+          const works = el(doc, 'ul', { className: 'bb-world-actor-works' });
+          for (const work of actor.works) {
+            const item = el(doc, 'li');
+            const button = rowButton('bb-world-actor-work', () => onSite?.(work.task_id), 'この仕事の根拠を開く');
+            button.append(el(doc, 'span', { className: 'bb-world-actor-work-title', text: work.title }), el(doc, 'span', { className: `bb-world-actor-work-detail is-${work.presence}`, text: presenceDetail(work) }));
+            item.append(button);
+            works.append(item);
+          }
+          card.append(works);
+          cards.append(card);
+        }
+        nodes.push(section('ここにいるAI', cards));
+      } else {
+        nodes.push(section('ここにいるAI', note(street.actors_unconfirmed ? `AIの担当を確認できていない仕事が${street.actors_unconfirmed}件あります（いないとは確認できません）。` : 'この集まりに、AIの担当が記録された仕事はありません。')));
+      }
+      const withActor = new Set(street.actors.flatMap((actor) => actor.works.map((work) => work.task_id)));
+      const rest = street.task_ids.map((id) => byId.get(id)).filter((site) => site && !withActor.has(site.task_id));
+      if (rest.length) {
+        const list = el(doc, 'ul', { className: 'bb-world-pulse-list' });
+        const order = { in_progress: 0, waiting: 1, pending: 2, completed: 3 };
+        for (const site of [...rest].sort((a, b) => (order[a.work.status] ?? 2) - (order[b.work.status] ?? 2))) {
+          const item = el(doc, 'li');
+          const button = rowButton('bb-world-pulse-row is-work', () => onSite?.(site.task_id), 'この仕事の根拠を開く');
+          const people = site.people?.filter((person) => person.link === 'recorded').map((person) => person.name) ?? [];
+          const who = site.actors_state === 'unconfirmed' ? 'AIの担当は未確認' : people.length ? people.join('・') : '担当の記録なし';
+          button.append(el(doc, 'span', { className: 'bb-world-pulse-name', text: site.title }), el(doc, 'span', { className: 'bb-world-pulse-who', text: `${site.work.label}・${who}` }));
+          item.append(button);
+          list.append(item);
+        }
+        nodes.push(section('AIのいない仕事', list));
+      }
+      body.replaceChildren(...nodes);
+    },
+  };
+}

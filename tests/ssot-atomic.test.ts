@@ -425,16 +425,19 @@ async function canonicalSnapshot(dir: string): Promise<Record<string, string>> {
   return Object.fromEntries(await Promise.all(canonicalFiles.map(async (fileName) => [fileName, await readFile(join(dir, fileName), 'utf8')])));
 }
 
-async function waitForFile(path: string): Promise<void> {
-  for (let attempt = 0; attempt < 100; attempt += 1) {
+// Wait by a deadline, not a count of 2ms polls: on the shared CI machine 100 polls
+// (about 0.2s) ran out before initialization had published the file.
+async function waitForFile(path: string, timeoutMs = 10_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
     try {
       await access(path);
       return;
     } catch {
+      if (Date.now() >= deadline) throw new Error(`Timed out waiting for ${path}`);
       await new Promise((resolve) => setTimeout(resolve, 2));
     }
   }
-  throw new Error(`Timed out waiting for ${path}`);
 }
 
 function capture() {

@@ -83,6 +83,7 @@ describe('brainbase-mcp-only story acceptance', () => {
       'search_personal_kg',
       'personal_knowledge_context',
       'personal_knowledge_register',
+      'personal_knowledge_reject',
       'personal_knowledge_search',
       'onboarding_status',
       'brainbase_onboarding_start',
