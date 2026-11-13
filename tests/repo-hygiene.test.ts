@@ -27,7 +27,8 @@ const allowedWorkflowFiles = new Set([
   '.github/workflows/test.yml',
   '.github/workflows/pr-brainbase-line.yml',
   '.github/workflows/vibepro-producer-contract.yml',
-  '.github/workflows/adr-index.yml'
+  '.github/workflows/adr-index.yml',
+  '.github/workflows/verify-skill.yml'
 ]);
 
 async function exists(path: string): Promise<boolean> {
