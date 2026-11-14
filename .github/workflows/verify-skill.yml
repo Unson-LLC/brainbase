@@ -1,0 +1,50 @@
+name: Verification skill status
+
+# Posts the verify-skill commit status that the merge wrapper requires.
+# The decision logic is .github/scripts/verify_skill_status.py.
+on:
+  pull_request:
+    branches: [develop]
+    types: [opened, reopened, synchronize, edited, ready_for_review]
+  issue_comment:
+    types: [created, edited, deleted]
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: read
+  issues: read
+  statuses: write
+
+concurrency:
+  group: verify-skill-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  post-status:
+    # Fork heads are not merged by the wrapper, and their token cannot post statuses.
+    # Comments from anyone on this public repository start this job, so it runs on a
+    # GitHub-hosted runner and executes only the default-branch script for comments.
+    if: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'issue_comment' && github.event.issue.pull_request && github.event.issue.state == 'open') }}
+    name: Post verify-skill status
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Test the decision logic
+        run: python3 -m unittest discover -s .github/scripts -p 'test_verify_skill_status.py'
+      - name: Post verification decision
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: |
+          # Only pull requests into develop go through the merge wrapper.
+          base="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .base.ref)"
+          if [ "$base" != develop ]; then
+            echo "verify-skill: skipped for base $base"
+            exit 0
+          fi
+          python3 .github/scripts/verify_skill_status.py "$GITHUB_REPOSITORY" "$PR_NUMBER"

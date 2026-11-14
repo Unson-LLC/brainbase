@@ -43,6 +43,14 @@
       "types": "./dist/judgment-history.d.ts",
       "import": "./dist/judgment-history.js"
     },
+    "./judgment-journal-turn-publisher": {
+      "types": "./dist/judgment-journal-turn-publisher.d.ts",
+      "import": "./dist/judgment-journal-turn-publisher.js"
+    },
+    "./remote-judgment-hook-http": {
+      "types": "./dist/remote-judgment-hook-http.d.ts",
+      "import": "./dist/remote-judgment-hook-http.js"
+    },
     "./judgment-history-http": {
       "types": "./dist/judgment-history-http.d.ts",
       "import": "./dist/judgment-history-http.js"
@@ -66,6 +74,10 @@
     "./judgment-node-evidence": {
       "types": "./dist/judgment-node-evidence.d.ts",
       "import": "./dist/judgment-node-evidence.js"
+    },
+    "./judgment-frame-evidence": {
+      "types": "./dist/judgment-frame-evidence.d.ts",
+      "import": "./dist/judgment-frame-evidence.js"
     },
     "./judgment-event-adapter": {
       "types": "./dist/judgment-event-adapter.d.ts",
@@ -625,6 +637,7 @@
     "@types/node": "^22.15.29",
     "@types/pg": "^8.23.1",
     "esbuild": "0.28.2",
+    "modern-web-guidance": "1.0.0",
     "pg": "^8.23.1",
     "three": "0.186.1",
     "tsx": "^4.19.4",

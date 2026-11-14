@@ -1542,7 +1542,7 @@ describe('プロジェクトと関係者: host extensions', () => {
     await writeGraphV2(dataDir);
     const { rail } = await mountView({ renderRailExtensions: () => { throw new Error('欄が壊れています'); } });
     const notice = byClass(rail, 'bb-ws-notice').find((node) => node.className.includes('is-danger'));
-    expect(collectText(notice)).toBe('表示できませんホストが加えた欄を表示できませんでした（欄が壊れています）。');
+    expect(collectText(notice)).toBe('エラー：表示できませんホストが加えた欄を表示できませんでした（欄が壊れています）。');
     expect(section(rail, '概要')).toBeDefined();
     expect(participantItem(rail, '田中 太郎')).toBeDefined();
     await api.close();
