@@ -83,6 +83,8 @@ export interface CanonicalTaskRecord extends JsonRecord {
   priority: CanonicalTaskPriority;
   assignee_person_id?: string | null;
   assignee_display_name?: string | null;
+  /** When work is planned to begin; null when unplanned. Never later than due_at. */
+  start_at?: string | null;
   due_at?: string | null;
   waiting_on?: string | null;
   /** The Graph person a waiting task waits on; null when it waits on a condition or nobody in particular. */
@@ -109,6 +111,8 @@ export interface CanonicalTaskCreateInput extends JsonRecord {
   description?: string | null;
   priority?: CanonicalTaskPriority | string | null;
   assignee_person_id?: string | null;
+  /** When work is planned to begin; null when unplanned. Never later than due_at. */
+  start_at?: string | null;
   due_at?: string | null;
   waiting_on?: string | null;
   waiting_on_person_id?: string | null;
@@ -124,6 +128,8 @@ export interface CanonicalTaskUpdateInput extends JsonRecord {
   description?: string | null;
   priority?: CanonicalTaskPriority | string | null;
   assignee_person_id?: string | null;
+  /** When work is planned to begin; null when unplanned. Never later than due_at. */
+  start_at?: string | null;
   due_at?: string | null;
   waiting_on?: string | null;
   waiting_on_person_id?: string | null;
@@ -356,6 +362,7 @@ const CREATE_FIELDS = new Set([
   'description',
   'priority',
   'assignee_person_id',
+  'start_at',
   'due_at',
   'waiting_on',
   'waiting_on_person_id',
@@ -371,6 +378,7 @@ const MUTABLE_FIELDS = new Set([
   'description',
   'priority',
   'assignee_person_id',
+  'start_at',
   'due_at',
   'waiting_on',
   'waiting_on_person_id',
@@ -460,9 +468,27 @@ function normalizeCompletionContract(value: unknown): CanonicalTaskCompletionCon
   return { goal, criteria };
 }
 
+function assertStartNotAfterDue(startAt: string | null, dueAt: string | null): void {
+  if (startAt && dueAt && Date.parse(startAt) > Date.parse(dueAt)) {
+    fail('validation_error', 'start_at must not be later than due_at', 400, { fields: ['start_at', 'due_at'] });
+  }
+}
+
 function normalizeIsoDate(value: unknown, field: string): string | null {
   const text = normalizeString(value, field);
   if (text == null) return null;
+  if (field === 'start_at') {
+    const parts = /^(\d{4})-(\d{2})-(\d{2})(?:$|T)/.exec(text);
+    if (!parts) fail('validation_error', `${field} must be an ISO date`, 400, { field });
+    const year = Number(parts[1]);
+    const month = Number(parts[2]);
+    const day = Number(parts[3]);
+    const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+    const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    if (month < 1 || month > 12 || day < 1 || day > days[month - 1]) {
+      fail('validation_error', `${field} must be a valid calendar date`, 400, { field });
+    }
+  }
   const date = new Date(text);
   if (Number.isNaN(date.getTime())) fail('validation_error', `${field} must be an ISO date`, 400, { field });
   return date.toISOString();
@@ -1198,8 +1224,17 @@ export class CanonicalTaskService {
       candidate.version === expectedVersion + 1
       && candidate._last_operation_key === operation
       && candidate._last_operation_fingerprint === operationFingerprint;
+    const assertEffectiveDates = (candidate: CanonicalTaskRecord): void => {
+      if ('start_at' in input.patch || 'due_at' in input.patch) {
+        assertStartNotAfterDue(
+          ('start_at' in input.patch ? input.patch.start_at : candidate.start_at) as string | null,
+          ('due_at' in input.patch ? input.patch.due_at : candidate.due_at) as string | null,
+        );
+      }
+    };
     if (!wasApplied(current)) {
       this.assertVersion(current, expectedVersion);
+      assertEffectiveDates(current);
       if (input.transitionStatus && !canTransitionCanonicalTaskStatus(current.status, input.transitionStatus)) {
         throw new CanonicalTaskError('invalid_transition', `Cannot transition task from ${current.status} to ${input.transitionStatus}`, 409, {
           from: current.status,
@@ -1215,6 +1250,7 @@ export class CanonicalTaskService {
       this.assertGeneralMutationAllowed(latest);
       if (wasApplied(latest)) return { recovered: true, result: this.normalizeResponse(latest) };
       this.assertVersion(latest, expectedVersion);
+      assertEffectiveDates(latest);
       if (input.transitionStatus && !canTransitionCanonicalTaskStatus(latest.status, input.transitionStatus)) {
         throw new CanonicalTaskError('invalid_transition', `Cannot transition task from ${latest.status} to ${input.transitionStatus}`, 409, {
           from: latest.status,
@@ -1230,6 +1266,7 @@ export class CanonicalTaskService {
       this.assertGeneralMutationAllowed(latest);
       if (wasApplied(latest)) return this.normalizeResponse(latest);
       this.assertVersion(latest, expectedVersion);
+      assertEffectiveDates(latest);
       if (input.transitionStatus && !canTransitionCanonicalTaskStatus(latest.status, input.transitionStatus)) {
         throw new CanonicalTaskError('invalid_transition', `Cannot transition task from ${latest.status} to ${input.transitionStatus}`, 409, {
           from: latest.status,
@@ -1314,6 +1351,9 @@ export class CanonicalTaskService {
     const purposeLabel = normalizePurposeLabel(input.purpose_label);
     const waitingOnPersonId = normalizeWaitingOnPersonId(input.waiting_on_person_id);
     const completionContract = normalizeCompletionContract(input.completion_contract);
+    const startAt = normalizeIsoDate(input.start_at, 'start_at');
+    const dueAt = normalizeIsoDate(input.due_at, 'due_at');
+    assertStartNotAfterDue(startAt, dueAt);
     return {
       record_kind: recordKind,
       ...(input.ledger_attributes != null ? { ledger_attributes: input.ledger_attributes } : {}),
@@ -1323,13 +1363,15 @@ export class CanonicalTaskService {
       description: normalizeString(input.description, 'description', { max: 10000, multiline: true }),
       priority,
       assignee_person_id: normalizeString(input.assignee_person_id, 'assignee_person_id', { max: 200 }),
-      due_at: normalizeIsoDate(input.due_at, 'due_at'),
+      due_at: dueAt,
       waiting_on: normalizeString(input.waiting_on, 'waiting_on', { max: 500 }),
       review_at: normalizeIsoDate(input.review_at, 'review_at'),
       source_refs: normalizeSourceRefs(input.source_refs) ?? [],
       project_codes: normalizeProjectCodes(input.project_codes) ?? [],
       // Only a label that is there is written, so a store without the column still accepts unlabelled work.
       ...(purposeLabel ? { purpose_label: purposeLabel } : {}),
+      // Likewise only a start date that is there is written.
+      ...(startAt ? { start_at: startAt } : {}),
       // Likewise only a person that is there is written.
       ...(waitingOnPersonId ? { waiting_on_person_id: waitingOnPersonId } : {}),
     };
@@ -1364,7 +1406,9 @@ export class CanonicalTaskService {
       patch.priority = priority;
     }
     if ('assignee_person_id' in input) patch.assignee_person_id = normalizeString(input.assignee_person_id, 'assignee_person_id', { max: 200 });
+    if ('start_at' in input) patch.start_at = normalizeIsoDate(input.start_at, 'start_at');
     if ('due_at' in input) patch.due_at = normalizeIsoDate(input.due_at, 'due_at');
+    if ('start_at' in patch && 'due_at' in patch) assertStartNotAfterDue(patch.start_at as string | null, patch.due_at as string | null);
     if ('waiting_on' in input) patch.waiting_on = normalizeString(input.waiting_on, 'waiting_on', { max: 500 });
     if ('waiting_on_person_id' in input) patch.waiting_on_person_id = normalizeWaitingOnPersonId(input.waiting_on_person_id);
     if ('review_at' in input) patch.review_at = normalizeIsoDate(input.review_at, 'review_at');
@@ -1595,6 +1639,7 @@ export class CanonicalTaskService {
       ?? (fallbackBaseUrl ? `${fallbackBaseUrl.replace(/\/$/u, '')}/api/tasks/${encodeURIComponent(task.id)}` : null);
     if (response.description === undefined) response.description = null;
     if (response.assignee_person_id === undefined) response.assignee_person_id = null;
+    if (response.start_at === undefined) response.start_at = null;
     if (response.due_at === undefined) response.due_at = null;
     if (response.waiting_on === undefined) response.waiting_on = null;
     if (response.waiting_on_person_id === undefined) response.waiting_on_person_id = null;
