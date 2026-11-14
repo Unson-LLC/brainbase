@@ -4,7 +4,6 @@ name: Verification skill status
 # The decision logic is .github/scripts/verify_skill_status.py.
 on:
   pull_request:
-    branches: [develop]
     types: [opened, reopened, synchronize, edited, ready_for_review]
   issue_comment:
     types: [created, edited, deleted]
@@ -41,10 +40,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
         run: |
-          # Only pull requests into develop go through the merge wrapper.
-          base="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .base.ref)"
-          if [ "$base" != develop ]; then
-            echo "verify-skill: skipped for base $base"
-            exit 0
-          fi
+          # The merge policy requires verify-skill for every target branch.
           python3 .github/scripts/verify_skill_status.py "$GITHUB_REPOSITORY" "$PR_NUMBER"
