@@ -14,6 +14,7 @@ export default {
   cleanUrls: true,
   srcDir: 'manual',
   head: [
+    ['script', { src: '/marketing-analytics.js', defer: '' }],
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/assets/brainbase-mark.svg' }]
   ],
   themeConfig: {
