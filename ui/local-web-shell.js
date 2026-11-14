@@ -17,6 +17,8 @@
 
 import { createGraphProjectsView } from './graph-projects-view.js';
 import { createGraphRegistryView } from './graph-registry-view.js';
+import { createGraphOntologyView } from './graph-ontology-view.js';
+import { createPeopleAndCompaniesView } from './people-and-companies-view.js';
 import { createObjectiveEditorController } from './objective-editor.js';
 import { createObjectiveEditorHttpPort } from './objective-editor-http-port.js';
 import { createJudgmentHistoryUI } from './judgment-history.js';
@@ -24,7 +26,11 @@ import { createMeetingMinutesUI } from './meeting-minutes.js';
 import { createMeetingMinutesStorageExtension } from './meeting-minutes-storage.js';
 import { createMeetingMinutesLineageExtension } from './meeting-minutes-lineage-http.js';
 import { createWorldModelView } from './world-model-view.js';
+import { createPersonalMemoryUI, parsePersonalMemoryRoute, personalMemoryRouteTarget } from './personal-memory.js';
+import { createPersonalMemoryHttpPort } from './personal-memory-http-port.js';
 import { createGraphClient } from './graph-view-shared.js';
+import { installNativeScrollbars } from './native-scrollbars.js';
+import { browserAreaStorage, createAreaMemory, createAreaNav } from './area-nav.js';
 
 export const LOCAL_WEB_SHELL_CONTRACT_VERSION = 'brainbase.local-web-shell.v1';
 
@@ -42,18 +48,80 @@ const UNREADABLE_LABELS = Object.freeze({
 
 // Stroke icons from the organization edition's sprite (apps/web/public/index.html).
 const NAV_ICON_PATHS = Object.freeze({
-  today: ['M5 20V10m7 10V4m7 16v-7'],
+  'value-proofs': ['M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8', 'M3 3v5h5', 'M12 7v5l4 2'],
   objectives: ['M12 4 3 20h18z', 'M12 9v5m0 3h.01'],
   projects: ['M3 6.5h7l2 2h9v10H3z', 'M3 6.5v-2h7l2 2'],
   graph: ['M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.2 1.2', 'M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.2-1.2'],
   minutes: ['M6 3.5h9l3 3V20.5H6z', 'M15 3.5v4h3', 'M9 12h6m-6 3h6'],
+  // Two people (the organization edition's 人と会社 uses the same shape).
+  people: ['M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z', 'M2.5 20a6.5 6.5 0 0 1 13 0', 'M16 4.5a3.5 3.5 0 0 1 0 6.5', 'M18 14a6.5 6.5 0 0 1 3.5 6'],
+  // あなたの記憶 (ledger D15): one person and a lock, seen only by the owner.
+  memory: ['M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z', 'M3.5 20a6.5 6.5 0 0 1 10-5.5', 'M15 15h6v5h-6z', 'M16.5 15v-1.5a1.5 1.5 0 0 1 3 0V15'],
+  // Kinds of information and how they connect (settings, ledger D14): three linked boxes.
+  ontology: ['M4 4h6v6H4z', 'M14 14h6v6h-6z', 'M14 4h6v6h-6z', 'M10 7h4', 'M17 10v4'],
   // World view (extension id `world`, ledger P17).
   world: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M3 12h18', 'M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z'],
+  // 設定 (ledger D10): the organization edition's gear.
+  'area:settings': ['M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'],
 });
+// Screens without their own icon (for example a private product's extension).
+const DEFAULT_NAV_ICON_PATHS = Object.freeze(['M5 20V10m7 10V4m7 16v-7']);
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
+// The menu's sections (brainbase-project ledger D10, 2026-10-17 revision): the
+// destinations themselves under small headings, in the organization edition's
+// order, with 設定 at the bottom. Screens OSS Personal does not have are not
+// listed. `screenId` makes the heading open that screen (プロジェクトと関係者);
+// `area` turns the section's screens into one line with tabs (設定). Inside a
+// section, `order` lists the screens first in that order.
+const NAV_SECTIONS = Object.freeze([
+  Object.freeze({ id: 'meetings', label: '会議', order: ['minutes'] }),
+  Object.freeze({ id: 'project', label: 'プロジェクト', screenId: 'projects', order: ['objectives'] }),
+  Object.freeze({ id: 'explore', label: '調べる', order: ['value-proofs', 'graph', 'people', 'memory'] }),
+  Object.freeze({ id: 'settings', label: null, placement: 'footer', order: ['ontology'], area: Object.freeze({ label: '設定', defaultScreen: 'ontology', icon: 'area:settings' }) }),
+]);
+
+const sectionOf = (screen) => NAV_SECTIONS.find((section) => section.id === screen.section) ?? null;
+
+// Menu order only: the screens' own order (and so the first screen) stays as given.
+// Screens without a section keep their place — those before the first sectioned
+// screen come first (a leading extension such as the world), the rest come after
+// the sections and before 設定.
+function navAreas(screens) {
+  const own = (screen, section = null) => ({ id: screen.id, label: null, screenIds: [screen.id], icon: screen.id, ...(section ? { section } : {}) });
+  const firstSectioned = screens.findIndex((screen) => sectionOf(screen));
+  const leading = firstSectioned === -1 ? [...screens] : screens.slice(0, firstSectioned);
+  const trailing = firstSectioned === -1 ? [] : screens.slice(firstSectioned).filter((screen) => !sectionOf(screen));
+  const sectioned = NAV_SECTIONS.map((section) => {
+    const members = screens.filter((screen) => screen.section === section.id && screen.id !== section.screenId);
+    const rank = (screen) => {
+      const index = section.order.indexOf(screen.id);
+      return index === -1 ? section.order.length + members.indexOf(screen) : index;
+    };
+    const ordered = [...members].sort((a, b) => rank(a) - rank(b));
+    if (ordered.length === 0) return { section, areas: [] };
+    if (section.area) {
+      return { section, areas: [{ id: section.id, label: section.area.label, defaultScreen: section.area.defaultScreen, screenIds: ordered.map((screen) => screen.id), icon: section.area.icon, section: section.id }] };
+    }
+    return { section, areas: ordered.map((screen) => own(screen, section.id)) };
+  });
+  const main = sectioned.filter(({ section }) => section.placement !== 'footer').flatMap(({ areas }) => areas);
+  const footer = sectioned.filter(({ section }) => section.placement === 'footer').flatMap(({ areas }) => areas);
+  return [...leading.map((screen) => own(screen)), ...main, ...trailing.map((screen) => own(screen)), ...footer];
+}
+
+// The sections handed to the menu part; a heading opens its screen only when that screen exists.
+function navSections(screens) {
+  return NAV_SECTIONS.map((section) => ({
+    id: section.id,
+    label: section.label,
+    placement: section.placement ?? 'main',
+    ...(section.screenId && screens.some((screen) => screen.id === section.screenId) ? { screenId: section.screenId } : {}),
+  }));
+}
+
 function makeIcon(doc, id) {
-  const paths = NAV_ICON_PATHS[id] ?? NAV_ICON_PATHS.today;
+  const paths = NAV_ICON_PATHS[id] ?? DEFAULT_NAV_ICON_PATHS;
   const create = (tag) => (typeof doc.createElementNS === 'function' ? doc.createElementNS(SVG_NS, tag) : doc.createElement(tag));
   const svg = create('svg');
   svg.setAttribute('class', 'bb-shell-icon');
@@ -90,19 +158,24 @@ function isRecord(value) {
 export function parseLocalWebTarget(target) {
   const raw = typeof target === 'string' ? target.replace(/^#/, '') : '';
   const separator = raw.indexOf('?');
-  const screenId = separator < 0 ? raw : raw.slice(0, separator);
-  if (!screenId) return { screenId: null, entityId: null };
+  const requested = separator < 0 ? raw : raw.slice(0, separator);
+  if (!requested) return { screenId: null, entityId: null };
+  // 判断の履歴 was called 今日 (`#today`) until 2026-10-11; old links still open it.
+  const screenId = requested === 'today' ? 'value-proofs' : requested;
   const query = separator < 0 ? '' : raw.slice(separator + 1);
   const params = new URLSearchParams(query);
-  // 今日 accepts one judgment to open (`decision` = decision_attempt_id) and
+  // 判断の履歴 accepts one judgment to open (`decision` = decision_attempt_id) and
   // プロジェクトと関係者 one project (`project` = Graph project id); other screens ignore them.
-  const decisionId = screenId === 'today' ? params.get('decision')?.trim() || null : null;
+  const decisionId = screenId === 'value-proofs' ? params.get('decision')?.trim() || null : null;
   const projectId = screenId === 'projects' ? params.get('project')?.trim() || null : null;
+  // あなたの記憶 keeps its filters and the opened memory (never the search words).
+  const memoryRoute = screenId === 'memory' ? parsePersonalMemoryRoute(params) : null;
   return {
     screenId,
     entityId: screenId === 'graph' ? params.get('entity_id')?.trim() || null : null,
     ...(decisionId ? { decisionId } : {}),
     ...(projectId ? { projectId } : {}),
+    ...(memoryRoute ? { memoryRoute } : {}),
   };
 }
 
@@ -148,6 +221,41 @@ function makePage(container, context) {
   return page;
 }
 
+/** Names of judgment references from the local Graph, under the host's current access. */
+function judgmentReferenceLabelReader(context) {
+  const client = createGraphClient({ fetcher: context.fetcher, basePath: '/api/graph', token: context.token });
+  return async (references) => {
+    const labels = new Map();
+    await Promise.all(references.map(async ({ ref }) => {
+      const result = await client.read(`/entities/${encodeURIComponent(ref)}`);
+      const entity = result.state === 'ok' && isRecord(result.payload?.entity) ? result.payload.entity : null;
+      const name = entity && entity.id === ref && typeof entity.name === 'string' ? entity.name.trim() : '';
+      if (name) labels.set(ref, name);
+    }));
+    return labels;
+  };
+}
+
+function personalMemoryPort(context) {
+  return createPersonalMemoryHttpPort({ fetcher: context.fetcher, token: context.token });
+}
+
+/** The opening of each used memory, for 判断の履歴's 本人の考え; the local host has one owner. */
+function personalMemoryResolver(context) {
+  const port = personalMemoryPort(context);
+  return async (refs) => {
+    const list = await port.listMemories({});
+    if (list.status !== 'ok') throw new Error(list.reason);
+    const wanted = new Set(refs);
+    const found = new Map();
+    for (const item of list.items) {
+      if (!wanted.has(item.id)) continue;
+      found.set(item.id, { excerpt: item.text, href: `#${personalMemoryRouteTarget({ memoryId: item.id })}` });
+    }
+    return found;
+  };
+}
+
 function mountToday(container, context) {
   return createJudgmentHistoryUI({
     root: makePage(container, context),
@@ -157,6 +265,24 @@ function mountToday(container, context) {
     fetcher: context.fetcher,
     token: context.token,
     basePath: '/api/judgment-history',
+    resolveReferenceLabels: judgmentReferenceLabelReader(context),
+    resolvePersonalMemory: personalMemoryResolver(context),
+  });
+}
+
+function mountPersonalMemory(container, context) {
+  return createPersonalMemoryUI({
+    root: makePage(container, context),
+    rail: context.rail,
+    page: context.page,
+    document: context.document,
+    port: personalMemoryPort(context),
+    judgmentHref: (decisionId) => `#value-proofs?decision=${encodeURIComponent(decisionId)}`,
+    candidatesCommand: 'brainbase onboard:candidates',
+    route: context.initialEntityId ?? undefined,
+    onRouteChange: context.navigate
+      ? (route, options) => context.navigate(personalMemoryRouteTarget(route), options)
+      : undefined,
   });
 }
 
@@ -233,7 +359,7 @@ function mountObjectives(container, context) {
   return { editor, worldModel };
 }
 
-function mountGraphScreen(screenId, createView) {
+function mountGraphScreen(screenId, createView, extra = {}) {
   return (container, context) => {
     const viewRoot = makeElement(context.document, 'div');
     makePage(container, context).append(viewRoot);
@@ -245,16 +371,25 @@ function mountGraphScreen(screenId, createView) {
       fetcher: context.fetcher,
       token: context.token,
       initialEntityId: context.initialEntityId,
+      ...(typeof extra === 'function' ? extra(context) : extra),
     });
   };
 }
 
 export const LOCAL_WEB_SCREENS = Object.freeze([
-  Object.freeze({ id: 'today', label: '今日', usesGraph: false, rail: true, source: '判断の記録', mount: mountToday }),
-  Object.freeze({ id: 'minutes', label: '議事録', usesGraph: false, rail: true, source: '正本の議事録', mount: mountMeetingMinutes }),
-  Object.freeze({ id: 'objectives', label: '目的と現状', usesGraph: true, rail: true, source: '手元のGraph', mount: mountObjectives }),
-  Object.freeze({ id: 'projects', label: 'プロジェクトと関係者', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('projects', createGraphProjectsView) }),
-  Object.freeze({ id: 'graph', label: '情報と関係', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('graph', createGraphRegistryView) }),
+  Object.freeze({ id: 'value-proofs', label: '判断の履歴', section: 'explore', usesGraph: false, rail: true, source: '判断の記録', mount: mountToday }),
+  Object.freeze({ id: 'minutes', label: '議事録', section: 'meetings', usesGraph: false, rail: true, source: '正本の議事録', mount: mountMeetingMinutes }),
+  Object.freeze({ id: 'objectives', label: '目的と現状', section: 'project', usesGraph: true, rail: true, source: '手元のGraph', mount: mountObjectives }),
+  Object.freeze({ id: 'projects', label: 'プロジェクトと関係者', section: 'project', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('projects', createGraphProjectsView) }),
+  // A record of 情報と関係 opens as its own screen at `#graph?entity_id=…`; the list is `#graph`.
+  Object.freeze({ id: 'graph', label: '情報と関係', section: 'explore', usesGraph: true, rail: false, source: '手元のGraph', mount: mountGraphScreen('graph', createGraphRegistryView, (context) => ({
+    onRouteChange: (entityId, options) => context.navigate?.(entityId ? `graph?entity_id=${encodeURIComponent(entityId)}` : 'graph', options),
+  })) }),
+  Object.freeze({ id: 'people', label: '人と会社', section: 'explore', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('people', createPeopleAndCompaniesView, { canCorrect: true }) }),
+  // Only the owner sees it (ledger D15); the local host has one owner, so it is always listed here.
+  Object.freeze({ id: 'memory', label: 'あなたの記憶', section: 'explore', usesGraph: false, rail: true, ownerOnly: true, source: '手元の個人KG', mount: mountPersonalMemory }),
+  // The definitions behind 情報と関係: infrequent management work, so under settings (ledger D14).
+  Object.freeze({ id: 'ontology', label: '情報の種類とつながり方', section: 'settings', usesGraph: true, rail: false, source: '手元のGraph', mount: mountGraphScreen('ontology', createGraphOntologyView, { canCorrect: true }) }),
 ]);
 
 function renderGraphGate(doc, slot, status, onRecheck, label) {
@@ -338,19 +473,26 @@ export function createLocalWebShell({
   initialScreen,
   meetingMinutesStorage = null,
   meetingMinutesLineage = null,
+  areaMemory = createAreaMemory(browserAreaStorage()),
+  onNavigate,
+  // A host that serves more than one person passes false for anyone but the owner:
+  // owner-only screens (あなたの記憶) are then neither listed nor mounted.
+  isOwner = true,
 } = {}) {
   if (!root) throw new TypeError('root is required');
   const doc = explicitDocument ?? (typeof document === 'undefined' ? null : document);
   if (!doc || typeof doc.createElement !== 'function') throw new Error('document_unavailable');
+  screens = screens.filter((screen) => isOwner === true || screen.ownerOnly !== true);
   const request = typeof fetcher === 'function'
     ? fetcher
     : typeof globalThis.fetch === 'function' ? (path, init) => globalThis.fetch(path, init) : null;
-  const context = Object.freeze({ document: doc, fetcher: request, token, meetingMinutesStorage, meetingMinutesLineage });
+  // `navigate(target, { back })` lets a screen give its own state an address (the host's hash).
+  const navigate = typeof onNavigate === 'function' ? (target, options = {}) => onNavigate(target, options) : null;
+  const context = Object.freeze({ document: doc, fetcher: request, token, meetingMinutesStorage, meetingMinutesLineage, navigate });
 
   const status = { phase: 'loading', data: null, error: null };
   const mounted = new Map();
   const slots = new Map();
-  const links = new Map();
   const pendingEntityIds = new Map();
   let active = null;
 
@@ -371,23 +513,28 @@ export function createLocalWebShell({
   };
   menuButton.addEventListener('click', () => setMenuOpen(!sidebar.className.includes('is-open')));
   backdrop.addEventListener('click', () => setMenuOpen(false));
-  for (const screen of screens) {
-    const link = makeElement(doc, 'a', { className: 'bb-shell-nav-link', text: screen.label, attrs: { href: `#${screen.id}` } });
-    // The label stays the link's own text; the icon goes in front where the DOM allows it.
-    if (typeof link.prepend === 'function') link.prepend(makeIcon(doc, screen.id));
-    link.addEventListener('click', () => {
+  const areaList = navAreas(screens);
+  const areaNav = createAreaNav({
+    document: doc,
+    areas: areaList,
+    sections: navSections(screens),
+    screens: screens.map((screen) => ({ id: screen.id, label: screen.label })),
+    memory: areaMemory,
+    linkClassName: 'bb-shell-nav-link',
+    iconFor: (area) => makeIcon(doc, areaList.find((entry) => entry.id === area.id)?.icon ?? area.id),
+    onSelect: (screenId) => {
       setMenuOpen(false);
-      controller.show(screen.id);
-    });
-    links.set(screen.id, link);
-    nav.append(link);
-  }
+      controller.show(screenId);
+    },
+  });
+  nav.append(areaNav.nav);
   const source = makeElement(doc, 'section', { className: 'bb-shell-source', attrs: { 'aria-label': '出典' } });
   sidebar.append(brand, nav, source);
   const workspace = makeElement(doc, 'div', { className: 'bb-shell-workspace' });
   const mobileBar = makeElement(doc, 'div', { className: 'bb-shell-mobile-bar' });
   mobileBar.append(makeElement(doc, 'strong', { text: 'Brainbase' }), menuButton);
   const main = makeElement(doc, 'main', { className: 'bb-shell-main' });
+  main.append(areaNav.tabs);
   for (const screen of screens) {
     const slot = makeElement(doc, 'section', { className: 'bb-shell-screen', attrs: { 'data-screen': screen.id, 'aria-label': screen.label } });
     slot.hidden = true;
@@ -397,8 +544,11 @@ export function createLocalWebShell({
   workspace.append(mobileBar, main);
   const railAside = makeElement(doc, 'aside', { className: 'bb-shell-rail', attrs: { 'aria-label': '選択中の項目' } });
   const rails = new Map();
+  const nativeDrawers = Boolean(doc.body && typeof doc.createElement('dialog').showModal === 'function');
   for (const screen of screens) {
-    if (!screen.rail) continue;
+    // The built-in history uses a modal drawer in browsers, with a rail fallback
+    // for minimal hosts. Do not reserve an empty desktop column for the drawer.
+    if (!screen.rail || (nativeDrawers && screen.mount === mountToday)) continue;
     const railSlot = makeElement(doc, 'div', { className: 'bb-shell-rail-slot', attrs: { 'data-rail': screen.id } });
     railSlot.hidden = true;
     rails.set(screen.id, railSlot);
@@ -406,6 +556,7 @@ export function createLocalWebShell({
   }
   shell.append(sidebar, backdrop, workspace, railAside);
   root.replaceChildren(shell);
+  const stopScrollbars = doc.documentElement?.classList && doc.addEventListener ? installNativeScrollbars(doc) : () => {};
 
   // The rail column shows only while the active screen is mounted and has one.
   function updateRail() {
@@ -419,8 +570,11 @@ export function createLocalWebShell({
     if (mounted.has(screen.id)) {
       const view = mounted.get(screen.id);
       if (entityId && screen.id === 'graph' && typeof view?.openEntity === 'function') void view.openEntity(entityId);
-      if (entityId && screen.id === 'today' && typeof view?.openDecision === 'function') view.openDecision(entityId);
+      // `#graph` without a record is the list: a record still open there closes (the browser's back).
+      if (!entityId && screen.id === 'graph' && view?.state?.detail && typeof view.closeEntity === 'function') view.closeEntity();
+      if (entityId && screen.id === 'value-proofs' && typeof view?.openDecision === 'function') view.openDecision(entityId);
       if (entityId && screen.id === 'projects' && typeof view?.openProject === 'function') void view.openProject(entityId);
+      if (entityId && screen.id === 'memory' && typeof view?.applyRoute === 'function') view.applyRoute(entityId);
       return;
     }
     const slot = slots.get(screen.id);
@@ -434,12 +588,14 @@ export function createLocalWebShell({
     const page = Object.freeze({ crumbs: Object.freeze(['あなたのBrainbase', screen.label]), source: screen.source ?? null });
     const view = screen.mount(slot, Object.freeze({ ...context, rail, page, initialEntityId: entityId })) ?? true;
     mounted.set(screen.id, view);
-    if (entityId && screen.id === 'today' && typeof view?.openDecision === 'function') view.openDecision(entityId);
+    if (screen.id === 'memory' && typeof view?.load === 'function') void view.load();
+    if (entityId && screen.id === 'value-proofs' && typeof view?.openDecision === 'function') view.openDecision(entityId);
     if (entityId && screen.id === 'projects' && typeof view?.openProject === 'function') void view.openProject(entityId);
     updateRail();
   }
 
   const controller = {
+    destroy() { stopScrollbars(); for (const view of mounted.values()) view?.destroy?.(); root.replaceChildren(); },
     get state() {
       return { active, status, mounted: [...mounted.keys()] };
     },
@@ -447,14 +603,13 @@ export function createLocalWebShell({
       const parsed = parseLocalWebTarget(target);
       const screen = screens.find((candidate) => candidate.id === parsed.screenId) ?? screens[0];
       pendingEntityIds.set(screen.id, screen.id === 'graph' ? parsed.entityId
-        : screen.id === 'today' ? parsed.decisionId ?? null
-          : screen.id === 'projects' ? parsed.projectId ?? null : null);
+        : screen.id === 'value-proofs' ? parsed.decisionId ?? null
+          : screen.id === 'projects' ? parsed.projectId ?? null
+            // あなたの記憶 receives its whole route (filters and the opened memory).
+            : screen.id === 'memory' ? parsed.memoryRoute ?? null : null);
       active = screen.id;
       for (const [screenId, slot] of slots) slot.hidden = screenId !== screen.id;
-      for (const [screenId, link] of links) {
-        if (screenId === screen.id) link.setAttribute('aria-current', 'page');
-        else link.removeAttribute('aria-current');
-      }
+      areaNav.show(screen.id);
       ensureMounted(screen, pendingEntityIds.get(screen.id));
       updateRail();
       return controller;

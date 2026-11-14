@@ -29,6 +29,11 @@ import {
 import type { JudgmentHistoryEntrypoint } from './judgment-history.js';
 import { defaultJudgmentJournalRoot, JudgmentValueProofJournalCache } from './judgment-value-proof-review.js';
 import { createMeetingMinutesHttpHandler } from './meeting-minutes-http.js';
+import {
+  createPersonalMemoryHttpHandler,
+  createPersonalMemoryJudgmentIndex,
+  readLocalPersonalMemories
+} from './personal-memory.js';
 import { createMeetingMinutesLineageHttpHandler } from './meeting-minutes-lineage-http.js';
 import {
   createMeetingMinutesLineageCorrectionHook,
@@ -110,7 +115,7 @@ export const LOCAL_WEB_FOUNDATION_BODY_LIMIT_BYTES = 64 * 1024;
 export const LOCAL_WEB_PROVENANCE_SOURCE_ID = 'brainbase-local-web';
 
 const CANONICAL_FILES = ['graph.json', 'relationships.json', 'personal-kg.jsonl', 'decisions.jsonl'] as const;
-const BASE_UI_FILES = ['brainbase-tokens.css', 'local-web-shell.js', 'local-web-shell.css', 'workspace-kit.js', 'workspace-kit.css'] as const;
+const BASE_UI_FILES = ['brainbase-tokens.css', 'local-web-shell.js', 'local-web-shell.css', 'workspace-kit.js', 'workspace-kit.css', 'native-scrollbars.js', 'native-scrollbars.css', 'area-nav.js', 'area-nav.css'] as const;
 const CONTENT_TYPES: Readonly<Record<string, string>> = Object.freeze({
   '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8'
@@ -794,7 +799,7 @@ export function createObjectiveFoundationModule(context: LocalWebModuleContext):
 
   return {
     id: 'foundation-objectives',
-    uiFiles: ['objective-editor.js', 'objective-editor.css', 'objective-editor-http-port.js'],
+    uiFiles: ['objective-editor.js', 'objective-editor.css', 'objective-editor-http-port.js', 'objective-readback-contract.js'],
     async handle(request, response) {
       const path = requestUrl(request).pathname;
       if (path !== FOUNDATION_HTTP_PREFIX && !path.startsWith(`${FOUNDATION_HTTP_PREFIX}/`)) return false;
@@ -1093,9 +1098,45 @@ export function createGraphWebModule(context: LocalWebModuleContext): LocalWebMo
       'project-graph-entry.js',
       'project-graph-vendor.js',
       'graph-registry-view.js',
-      'graph-registry-view.css'
+      'graph-registry-view.css',
+      'graph-ontology-view.js',
+      'graph-ontology-view.css',
+      'people-and-companies-view.js',
+      'people-and-companies-view.css'
     ],
     handle: handler
+  };
+}
+
+/**
+ * 「あなたの記憶」: the owner's `personal-kg.jsonl`, read only.  The memory
+ * bodies are private, so these reads require the launch token and the same
+ * origin like every write on this host.
+ */
+export function createPersonalMemoryModule(context: LocalWebModuleContext): LocalWebModule {
+  const readMemories = () => readLocalPersonalMemories(context.dataDir);
+  const index = createPersonalMemoryJudgmentIndex({
+    source: createLocalJudgmentHistorySource({
+      root: context.journalRoot,
+      entrypoint: context.judgmentHistoryEntrypoint ?? 'codex'
+    }),
+    memoryIds: async () => {
+      const list = await readMemories();
+      return list.status === 'ok' ? list.items.map((item) => item.id) : null;
+    }
+  });
+  return {
+    id: 'personal-memory',
+    uiFiles: ['personal-memory.js', 'personal-memory-http-port.js', 'personal-memory.css'],
+    handle: createPersonalMemoryHttpHandler({
+      readMemories,
+      index,
+      authorize(request) {
+        if (isTrustedLocalWrite(request, context.token)) return;
+        throw rejectUntrustedWrite(request, context.token)
+          ?? new LocalWebHttpError(403, 'web_token_required', 'A valid launch token is required');
+      }
+    })
   };
 }
 
@@ -1108,7 +1149,8 @@ export function defaultLocalWebModules(context: LocalWebModuleContext): LocalWeb
     createMeetingMinutesModule(context),
     createObjectiveFoundationModule(context),
     createWorldModelReadModule(context),
-    createGraphWebModule(context)
+    createGraphWebModule(context),
+    createPersonalMemoryModule(context)
   ];
 }
 
@@ -1157,10 +1199,25 @@ const meta = (name) => document.querySelector(\`meta[name="\${name}"]\`)?.getAtt
 // Keep the query portion intact; the shell parses the Graph entity query and
 // only treats the entity id as a target of the Graph screen.
 const screenFromHash = () => location.hash.replace(/^#/, '') || undefined;
-const shell = createLocalWebShell({
+// A screen that opened its own address (a record of 情報と関係) goes back with the
+// browser's history, so 「一覧に戻る」 and the back button land on the same list.
+// Each entry remembers how many records deep it is, which stays right when the
+// owner also uses the browser's back and forward.
+const depth = () => (Number.isInteger(history.state?.bbDepth) ? history.state.bbDepth : 0);
+let shell = null;
+const navigate = (target, { back = false } = {}) => {
+  if (back && depth() > 0) {
+    history.go(-depth());
+    return;
+  }
+  history.pushState({ bbDepth: back ? 0 : depth() + 1 }, '', \`#\${target}\`);
+  shell?.show(target);
+};
+shell = createLocalWebShell({
   root: document.getElementById('brainbase-local-web'),
   token: meta('brainbase-web-token'),
   initialScreen: screenFromHash(),
+  onNavigate: navigate,
   meetingMinutesStorage: ${JSON.stringify(meetingMinutesStorage ?? null)},
   meetingMinutesLineage: ${JSON.stringify(meetingMinutesLineage ?? null)},
   screens: ${leading ? `[${leading}, ...LOCAL_WEB_SCREENS${trailing ? `, ${trailing}` : ''}]` : '[...LOCAL_WEB_SCREENS, ...extensionScreens]'}

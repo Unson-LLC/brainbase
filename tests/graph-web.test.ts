@@ -14,12 +14,14 @@ import {
   listGraphProjects,
   readGraphEntity,
   readGraphOntology,
+  readGraphPeopleAndCompanies,
   readGraphProject,
   readGraphWebStatus,
   searchGraphEntities
 } from '../src/graph-web.js';
+import { canonicalEdgeId } from '../src/canonical-graph.js';
 import { initializePersonalOs, loadPersonalOs } from '../src/ssot.js';
-import type { CanonicalEdge, GraphFileV2, RelationshipsFile } from '../src/types.js';
+import type { CanonicalEdge, CoreRelation, GraphFileV2, RelationshipsFile } from '../src/types.js';
 import { EDGES, ENTITIES, FIXTURE_NOW, REGISTRATION_PROJECTION, writeGraphV1, writeGraphV2 } from './graph-web-fixture.js';
 
 let root: string;
@@ -105,8 +107,27 @@ describe('local Graph web reads', () => {
       candidateId: 'cand-sato', candidateKind: 'relationship', label: '佐藤 花子'
     });
     expect(detail.participants[1]!.provenance.reference).toEqual({ status: 'unresolved', sourceId: 'relationship-reg1' });
+    expect(detail.participantsAbsenceConfirmed).toBe(false);
     expect(detail.issues).toEqual([]);
     await expect(readGraphProject(dataDir, 'person-sato')).rejects.toMatchObject({ kind: 'not_found', code: 'project_not_found' });
+  });
+
+  it('confirms participant absence only for a strictly validated Graph snapshot', async () => {
+    await writeGraphV2(dataDir, { edges: Object.values(EDGES).filter((edge) => edge.toId !== 'project-atlas') });
+    const empty = await readGraphProject(dataDir, 'project-atlas', { now: FIXTURE_NOW });
+    if (empty.status !== 'ok') throw new Error('expected ok');
+    expect(empty.participants).toEqual([]);
+    expect(empty.participantsAbsenceConfirmed).toBe(true);
+
+    const graph = await readGraph();
+    await writeFile(join(dataDir, 'graph.json'), `${JSON.stringify({
+      ...graph,
+      entities: [...graph.entities, ENTITIES.atlas]
+    }, null, 2)}\n`);
+    await expect(readGraphProject(dataDir, 'project-atlas', { now: FIXTURE_NOW })).rejects.toMatchObject({
+      kind: 'unavailable',
+      code: 'graph_unavailable'
+    });
   });
 
   it('reads an entity with incoming and outgoing relations and resolves onboarding run references', async () => {
@@ -179,6 +200,7 @@ describe('local Graph web reads', () => {
       participates_in: ['person', 'project', 2, 1],
       accountable_for: ['person', 'project', 1, 1],
       owned_by: ['project', 'org', 0, 0],
+      related_to: ['org', 'project', 0, 0],
       governs: ['decision', 'project', 1, 1],
       supersedes: ['decision', 'decision', 0, 0]
     });
@@ -211,7 +233,8 @@ describe('local Graph web reads', () => {
       readGraphProject(dataDir, 'project-legacy'),
       searchGraphEntities(dataDir, { q: 'Legacy' }),
       readGraphEntity(dataDir, 'person-legacy'),
-      readGraphOntology(dataDir)
+      readGraphOntology(dataDir),
+      readGraphPeopleAndCompanies(dataDir)
     ]);
     for (const result of reads) {
       expect(result).toMatchObject({
@@ -222,6 +245,7 @@ describe('local Graph web reads', () => {
       });
       expect(result).not.toHaveProperty('projects');
       expect(result).not.toHaveProperty('results');
+      expect(result).not.toHaveProperty('people');
       expect((result as { command: string }).command).toContain('brainbase ontology:migrate');
       expect((result as { writeCommand: string }).writeCommand).toContain('--write --expected-input-digest');
     }
@@ -458,5 +482,242 @@ describe('local Graph corrections', () => {
     expect(await readFile(join(dataDir, 'graph.json'), 'utf8')).toBe(graphBefore);
     expect(await readFile(join(dataDir, 'relationships.json'), 'utf8')).toBe(relationshipsBefore);
     expect(await readGraphCorrectionHistory(dataDir)).toEqual({ records: [], issues: [] });
+  });
+});
+
+describe('local Graph creation of people and companies', () => {
+  it('creates a person or a company with its reason in history, reads it back and keeps where it came from', async () => {
+    await writeGraphV2(dataDir);
+    const result = await applyGraphCorrection(dataDir, {
+      kind: 'create_entity',
+      reason: '取引先として記録する。',
+      entity: { type: 'org', name: '  Globex株式会社 ', aliases: ['Globex', 'Globex株式会社'], summary: '新しい取引先', validFrom: '2026-09-01T00:00:00Z' }
+    }, { now: FIXTURE_NOW });
+
+    expect(result.status).toBe('saved');
+    expect(result.recordType).toBe('entity');
+    const created = result.record as GraphFileV2['entities'][number];
+    expect(created).toEqual({
+      id: created.id,
+      type: 'org',
+      name: 'Globex株式会社',
+      aliases: ['Globex'],
+      summary: '新しい取引先',
+      validFrom: '2026-09-01T00:00:00Z',
+      metadata: { source: 'user_approved', sourceId: result.correction.id }
+    });
+    expect(created.id).toMatch(/^org-/u);
+    expect(result.readback).toEqual({ verified: true, digest: graphRecordDigest(created), historyRecorded: true });
+    expect(result.correction).toMatchObject({
+      kind: 'create_entity',
+      target: { recordType: 'entity', id: created.id },
+      reason: '取引先として記録する。',
+      beforeDigest: null,
+      afterDigest: graphRecordDigest(created),
+      projections: []
+    });
+    expect(result.correction.changes.name).toEqual({ before: null, after: 'Globex株式会社' });
+    expect((await readGraph()).entities.find((entity) => entity.id === created.id)).toEqual(created);
+    expect((await readGraphCorrectionHistory(dataDir)).records.map((record) => record.kind)).toEqual(['create_entity']);
+
+    const person = await applyGraphCorrection(dataDir, {
+      kind: 'create_entity', reason: '新しく関わる人。', entity: { type: 'person', name: '山田 次郎' }
+    }, { now: FIXTURE_NOW });
+    expect(person.record).toMatchObject({ type: 'person', name: '山田 次郎' });
+    // The new records are what the next read and membership use.
+    const membership = await applyGraphCorrection(dataDir, {
+      kind: 'create_edge', reason: 'Globexの人。', edge: { fromId: person.record.id, relation: 'member_of', toId: created.id }
+    }, { now: FIXTURE_NOW });
+    expect(membership.record).toMatchObject({ relation: 'member_of' });
+    const read = await readGraphPeopleAndCompanies(dataDir, { now: FIXTURE_NOW });
+    if (read.status !== 'ok') throw new Error('expected ok');
+    expect(read.people.find((item) => item.id === person.record.id)?.companyIds).toEqual([created.id]);
+    const detail = await readGraphEntity(dataDir, created.id, { now: FIXTURE_NOW });
+    if (detail.status !== 'ok') throw new Error('expected ok');
+    // Newest first: the membership added to it, then its creation.
+    expect(detail.history.map((record) => record.id)).toEqual([membership.correction.id, result.correction.id]);
+  });
+
+  it('creates only people and companies and refuses fields outside the creation contract', async () => {
+    await writeGraphV2(dataDir);
+    const graphBefore = await readFile(join(dataDir, 'graph.json'), 'utf8');
+    const cases: Array<[unknown, string]> = [
+      [{ kind: 'create_entity', reason: '作る。', entity: { type: 'project', name: '新しい案件' } }, 'correction_entity_type_not_allowed'],
+      [{ kind: 'create_entity', reason: '作る。', entity: { type: 'decision', name: '新しい判断' } }, 'correction_entity_type_not_allowed'],
+      [{ kind: 'create_entity', reason: '作る。', entity: { name: '種類なし' } }, 'correction_entity_type_not_allowed'],
+      [{ kind: 'create_entity', reason: '作る。', entity: { type: 'person', name: '  ' } }, 'correction_name_required'],
+      [{ kind: 'create_entity', reason: '作る。', entity: { type: 'person', name: 'ID指定', id: 'person-x' } }, 'correction_id_change_not_allowed'],
+      [{ kind: 'create_entity', reason: '作る。', entity: { type: 'org', name: '属性', metadata: { orgType: 'customer' } } }, 'correction_field_not_allowed'],
+      [{ kind: 'create_entity', reason: '作る。', entity: { type: 'org', name: '終了', validTo: '2026-01-01T00:00:00Z' } }, 'correction_field_not_allowed'],
+      [{ kind: 'create_entity', reason: '作る。', entity: { type: 'org', name: '印', tags: ['x'] } }, 'correction_field_not_allowed'],
+      [{ kind: 'create_entity', reason: '作る。', entity: { type: 'org', name: '日付', validFrom: '9月1日' } }, 'correction_invalid'],
+      [{ kind: 'create_entity', entity: { type: 'org', name: '理由なし' } }, 'correction_reason_required'],
+      [{ kind: 'create_entity', reason: '作る。', entity: { type: 'org', name: '余計' }, expectedDigest: 'x' }, 'correction_field_not_allowed']
+    ];
+    for (const [input, code] of cases) {
+      await expectCorrectionError(applyGraphCorrection(dataDir, input, { now: FIXTURE_NOW }), 'invalid', code);
+    }
+    expect(await readFile(join(dataDir, 'graph.json'), 'utf8')).toBe(graphBefore);
+    expect(await historyLines()).toEqual([]);
+  });
+
+  it('returns the existing record instead of creating a second one with the same name or alias', async () => {
+    await writeGraphV2(dataDir);
+    const graphBefore = await readFile(join(dataDir, 'graph.json'), 'utf8');
+    const byName = await expectCorrectionError(applyGraphCorrection(dataDir, {
+      kind: 'create_entity', reason: '作る。', entity: { type: 'org', name: 'ＡＣＭＥ' }
+    }, { now: FIXTURE_NOW }), 'conflict', 'entity_already_exists');
+    expect(byName.current).toEqual({ recordType: 'entity', record: ENTITIES.acme, digest: graphRecordDigest(ENTITIES.acme) });
+    // An alias and an ended record count too; a person and a company never collide.
+    await expectCorrectionError(applyGraphCorrection(dataDir, {
+      kind: 'create_entity', reason: '作る。', entity: { type: 'person', name: 'tanaka' }
+    }, { now: FIXTURE_NOW }), 'conflict', 'entity_already_exists');
+    await expectCorrectionError(applyGraphCorrection(dataDir, {
+      kind: 'create_entity', reason: '作る。', entity: { type: 'person', name: '鈴木一郎' }
+    }, { now: FIXTURE_NOW }), 'conflict', 'entity_already_exists');
+    expect(await readFile(join(dataDir, 'graph.json'), 'utf8')).toBe(graphBefore);
+    expect(await historyLines()).toEqual([]);
+    const company = await applyGraphCorrection(dataDir, {
+      kind: 'create_entity', reason: '同名の会社。', entity: { type: 'org', name: '田中 太郎' }
+    }, { now: FIXTURE_NOW });
+    expect(company.record).toMatchObject({ type: 'org', name: '田中 太郎' });
+  });
+
+  it('gives a new id when the name-based id is taken by a renamed record', async () => {
+    await writeGraphV2(dataDir, {
+      entities: [...Object.values(ENTITIES), { id: 'org-renamed', type: 'org', name: '改名後' }],
+      edges: Object.values(EDGES)
+    });
+    const first = await applyGraphCorrection(dataDir, { kind: 'create_entity', reason: '作る。', entity: { type: 'org', name: 'Initech' } }, { now: FIXTURE_NOW });
+    await applyGraphCorrection(dataDir, {
+      kind: 'update_entity', entityId: first.record.id, expectedDigest: first.digest, reason: '社名変更。', changes: { name: 'Initech Holdings' }
+    }, { now: FIXTURE_NOW });
+    const second = await applyGraphCorrection(dataDir, { kind: 'create_entity', reason: 'もう一度作る。', entity: { type: 'org', name: 'Initech' } }, { now: new Date('2026-09-27T00:00:00Z') });
+    expect(second.record.id).not.toBe(first.record.id);
+    expect(second.record.id.startsWith(`${first.record.id}-`)).toBe(true);
+  });
+});
+
+describe('local Graph people and companies', () => {
+  const globex = { id: 'org-globex', type: 'org', name: 'Globex' } as const;
+  const oldCo = { id: 'org-old', type: 'org', name: '旧社', validTo: '2026-01-01T00:00:00Z' } as const;
+  const link = (fromId: string, relation: CoreRelation, toId: string): CanonicalEdge => ({ id: canonicalEdgeId({ fromId, relation, toId }), fromId, relation, toId });
+  const selfAcme = link('self', 'member_of', 'org-acme');
+
+  it('lists people with their active companies and project counts, and companies with members and owned projects', async () => {
+    await writeGraphV2(dataDir, {
+      entities: [...Object.values(ENTITIES), globex, oldCo],
+      edges: [
+        ...Object.values(EDGES),
+        selfAcme,
+        link('person-sato', 'member_of', 'org-globex'),
+        link('person-sato', 'member_of', 'org-old'),
+        link('person-suzuki', 'member_of', 'org-acme'),
+        link('project-atlas', 'owned_by', 'org-acme')
+      ]
+    });
+    const result = await readGraphPeopleAndCompanies(dataDir, { now: FIXTURE_NOW });
+    if (result.status !== 'ok') throw new Error('expected ok');
+    expect(result.source).toEqual({ dataDir, graphFormat: 2, authority: 'local_graph' });
+    expect(result.ownCompany).toEqual({ id: 'org-acme', reason: 'resolved', candidateIds: ['org-acme'] });
+    expect(result.absenceConfirmed).toBe(false);
+    // No internal / external mark is stored or returned; the screen derives it.
+    expect(JSON.stringify(result)).not.toMatch(/internal|external/u);
+    expect(result.people.map((person) => [person.id, person.active, person.isOwner, person.companyIds, person.projectCount, person.accountableProjectCount])).toEqual([
+      ['self', true, true, ['org-acme'], 0, 0],
+      ['person-sato', true, false, ['org-globex'], 1, 1],
+      ['person-tanaka', true, false, ['org-acme'], 1, 0],
+      ['person-suzuki', false, false, [], 0, 0]
+    ]);
+    expect(result.companies.map((company) => [company.id, company.active, company.memberIds, company.projectIds])).toEqual([
+      ['org-acme', true, ['self', 'person-tanaka'], ['project-atlas']],
+      ['org-globex', true, ['person-sato'], []],
+      ['org-old', false, [], []]
+    ]);
+  });
+
+  it('splits a company\'s projects into owned_by and related_to with the role, and derives its kind only from records', async () => {
+    const withRole = (fromId: string, toId: string, role: string, extra: Partial<CanonicalEdge> = {}): CanonicalEdge => ({ ...link(fromId, 'related_to', toId), role, ...extra });
+    const companies = [
+      { id: 'org-globex', type: 'org', name: 'Globex', metadata: { orgType: 'customer' } },
+      { id: 'org-hooli', type: 'org', name: 'Hooli' },
+      { id: 'org-initech', type: 'org', name: 'Initech', metadata: { lifecycle_stage: 'opportunity', deals: [{ name: 'PoCの提案', stage: '提案中' }, '保守の相談', 42, { amount: 100 }] } },
+      { id: 'org-lead', type: 'org', name: 'Lead社', metadata: { lifecycle_stage: 'lead', orgType: 'vendor' } },
+      { id: 'org-plain', type: 'org', name: 'Plain社' }
+    ] as const;
+    await writeGraphV2(dataDir, {
+      entities: [...Object.values(ENTITIES), ...companies],
+      edges: [
+        ...Object.values(EDGES),
+        selfAcme,
+        link('project-atlas', 'owned_by', 'org-acme'),
+        withRole('org-globex', 'project-atlas', 'customer'),
+        withRole('org-hooli', 'project-atlas', 'partner'),
+        // An ended relation and a relation to an ended project are not counted.
+        withRole('org-plain', 'project-atlas', 'customer', { validTo: '2026-01-01T00:00:00Z' }),
+        withRole('org-lead', 'project-beta', 'customer')
+      ]
+    });
+    const result = await readGraphPeopleAndCompanies(dataDir, { now: FIXTURE_NOW });
+    if (result.status !== 'ok') throw new Error('expected ok');
+    // The own company first, then the companies with a recorded kind, then the rest.
+    expect(result.companies.map((company) => [company.id, company.projectIds, company.relatedProjects, company.kinds])).toEqual([
+      ['org-acme', ['project-atlas'], [], []],
+      ['org-globex', [], [{ projectId: 'project-atlas', role: 'customer' }], [{ kind: 'customer', sources: ['orgType', 'related_to'] }]],
+      ['org-hooli', [], [{ projectId: 'project-atlas', role: 'partner' }], [{ kind: 'partner', sources: ['related_to'] }]],
+      ['org-initech', [], [], [{ kind: 'prospect', sources: ['lifecycle_stage', 'deals'] }]],
+      ['org-lead', [], [], []],
+      ['org-plain', [], [], []]
+    ]);
+    const byId = new Map(result.companies.map((company) => [company.id, company]));
+    expect(byId.get('org-initech')).toMatchObject({ lifecycleStage: 'opportunity', orgType: null, deals: [{ name: 'PoCの提案', stage: '提案中' }, { name: '保守の相談', stage: null }, { name: null, stage: null }] });
+    // Values outside the known kinds are returned as recorded but give no kind.
+    expect(byId.get('org-lead')).toMatchObject({ lifecycleStage: 'lead', orgType: 'vendor', deals: [], kinds: [] });
+    expect(byId.get('org-plain')).toMatchObject({ orgType: null, lifecycleStage: null, deals: [], kinds: [] });
+  });
+
+  it('returns the company text recorded on a person as a note only, never as a membership', async () => {
+    await writeGraphV2(dataDir, {
+      entities: [
+        ...Object.values(ENTITIES).map((entity) => entity.id === 'person-sato' ? { ...entity, metadata: { org: ' 雲孫 / BAAO ', organization: '別の会社' } }
+          : entity.id === 'person-tanaka' ? { ...entity, metadata: { organization: 'Acme株式会社' } } : entity)
+      ],
+      edges: Object.values(EDGES)
+    });
+    const result = await readGraphPeopleAndCompanies(dataDir, { now: FIXTURE_NOW });
+    if (result.status !== 'ok') throw new Error('expected ok');
+    const byId = new Map(result.people.map((person) => [person.id, person]));
+    expect(byId.get('person-sato')).toMatchObject({ orgNote: '雲孫 / BAAO', companyIds: [] });
+    expect(byId.get('person-tanaka')).toMatchObject({ orgNote: 'Acme株式会社', companyIds: ['org-acme'] });
+    expect(byId.get('self')).toMatchObject({ orgNote: null });
+    // The note does not decide the own company.
+    expect(result.ownCompany).toEqual({ id: null, reason: 'owner_has_no_company', candidateIds: [] });
+  });
+
+  it('leaves the own company unset with the reason instead of guessing it', async () => {
+    await writeGraphV2(dataDir);
+    const none = await readGraphPeopleAndCompanies(dataDir, { now: FIXTURE_NOW });
+    expect(none).toMatchObject({ status: 'ok', ownCompany: { id: null, reason: 'owner_has_no_company', candidateIds: [] } });
+
+    await writeGraphV2(dataDir, {
+      entities: [...Object.values(ENTITIES), globex],
+      edges: [...Object.values(EDGES), selfAcme, link('self', 'member_of', 'org-globex')]
+    });
+    const several = await readGraphPeopleAndCompanies(dataDir, { now: FIXTURE_NOW });
+    expect(several).toMatchObject({ ownCompany: { id: null, reason: 'owner_has_several_companies', candidateIds: ['org-acme', 'org-globex'] } });
+
+    await writeGraphV2(dataDir, { entities: [ENTITIES.tanaka, ENTITIES.acme], edges: [EDGES.tanakaAcme] });
+    const ownerMissing = await readGraphPeopleAndCompanies(dataDir, { now: FIXTURE_NOW });
+    expect(ownerMissing).toMatchObject({ ownCompany: { id: null, reason: 'owner_not_found', candidateIds: [] } });
+  });
+
+  it('confirms absence only for a Graph v2 without people and companies, and never for a missing data set', async () => {
+    expect(await readGraphPeopleAndCompanies(join(root, 'missing'))).toMatchObject({ status: 'not_initialized' });
+    await writeGraphV2(dataDir, { entities: [ENTITIES.atlas], edges: [] });
+    expect(await readGraphPeopleAndCompanies(dataDir, { now: FIXTURE_NOW })).toMatchObject({
+      status: 'ok', people: [], companies: [], absenceConfirmed: true, ownCompany: { id: null, reason: 'owner_not_found' }
+    });
+    await writeFile(join(dataDir, 'graph.json'), '{ broken');
+    await expect(readGraphPeopleAndCompanies(dataDir)).rejects.toMatchObject({ kind: 'unavailable', code: 'graph_unavailable' });
   });
 });

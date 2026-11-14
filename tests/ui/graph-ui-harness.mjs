@@ -40,6 +40,7 @@ export class FakeElement {
     return previousChild;
   }
   setAttribute(name, value) { this.attributes[name] = String(value); }
+  getAttribute(name) { return Object.hasOwn(this.attributes, name) ? this.attributes[name] : null; }
   removeAttribute(name) { delete this.attributes[name]; }
   addEventListener(name, callback) { this.listeners.set(name, callback); }
   dispatch(name, event = {}) { return this.listeners.get(name)?.({ preventDefault() {}, target: this, ...event }); }

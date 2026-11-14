@@ -24,6 +24,9 @@ export const GRAPH_CORRECTION_ENTITY_FIELDS = ['name', 'aliases', 'summary', 'va
 export const GRAPH_CORRECTION_PROJECT_FIELDS = ['goal', 'status', 'icon'] as const;
 export const GRAPH_CORRECTION_EDGE_FIELDS = ['role', 'context', 'validTo'] as const;
 export const GRAPH_CORRECTION_NEW_EDGE_RELATIONS = ['participates_in', 'accountable_for', 'member_of'] as const;
+/** Kinds a correction may create (people and companies only). */
+export const GRAPH_CORRECTION_NEW_ENTITY_TYPES = ['person', 'org'] as const;
+export const GRAPH_CORRECTION_NEW_ENTITY_FIELDS = ['type', 'name', 'aliases', 'summary', 'validFrom'] as const;
 /** MCP tools that read the same graph.json on every call and therefore see a saved correction next time. */
 export const GRAPH_CORRECTION_APPLIES_TO = ['search', 'get_context', 'resolve_entity'] as const;
 
@@ -36,8 +39,9 @@ export const PROJECT_ICON_MAX_BYTES = 256 * 1024;
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const PROJECTED_RELATIONS: ReadonlySet<CoreRelation> = new Set(['participates_in', 'accountable_for']);
 
-export type GraphCorrectionKind = 'update_entity' | 'update_edge' | 'create_edge';
+export type GraphCorrectionKind = 'update_entity' | 'update_edge' | 'create_edge' | 'create_entity';
 export type GraphNewEdgeRelation = typeof GRAPH_CORRECTION_NEW_EDGE_RELATIONS[number];
+export type GraphNewEntityType = typeof GRAPH_CORRECTION_NEW_ENTITY_TYPES[number];
 
 export interface GraphEntityCorrectionChanges {
   name?: string;
@@ -69,10 +73,19 @@ export interface GraphEdgeCreation {
   validFrom?: string;
 }
 
+export interface GraphEntityCreation {
+  type: GraphNewEntityType;
+  name: string;
+  aliases?: string[];
+  summary?: string;
+  validFrom?: string;
+}
+
 export type GraphCorrectionInput =
   | { kind: 'update_entity'; entityId: string; expectedDigest: string; reason: string; changes: GraphEntityCorrectionChanges }
   | { kind: 'update_edge'; edgeId: string; expectedDigest: string; reason: string; changes: GraphEdgeCorrectionChanges }
-  | { kind: 'create_edge'; reason: string; edge: GraphEdgeCreation };
+  | { kind: 'create_edge'; reason: string; edge: GraphEdgeCreation }
+  | { kind: 'create_entity'; reason: string; entity: GraphEntityCreation };
 
 export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
@@ -165,7 +178,11 @@ export function parseGraphCorrectionInput(value: unknown): GraphCorrectionInput 
     assertOnlyKeys(value, ['kind', 'reason', 'edge'], '');
     return { kind, reason: requireReason(value.reason), edge: parseEdgeCreation(value.edge) };
   }
-  invalid('correction_kind_unsupported', 'kind must be update_entity, update_edge or create_edge');
+  if (kind === 'create_entity') {
+    assertOnlyKeys(value, ['kind', 'reason', 'entity'], '');
+    return { kind, reason: requireReason(value.reason), entity: parseEntityCreation(value.entity) };
+  }
+  invalid('correction_kind_unsupported', 'kind must be update_entity, update_edge, create_edge or create_entity');
 }
 
 /**
@@ -284,7 +301,7 @@ function isGraphCorrectionRecord(value: unknown): value is GraphCorrectionRecord
   const target = value.target;
   return typeof value.id === 'string'
     && typeof value.at === 'string'
-    && (value.kind === 'update_entity' || value.kind === 'update_edge' || value.kind === 'create_edge')
+    && (value.kind === 'update_entity' || value.kind === 'update_edge' || value.kind === 'create_edge' || value.kind === 'create_entity')
     && isRecord(target) && (target.recordType === 'entity' || target.recordType === 'edge') && typeof target.id === 'string'
     && typeof value.reason === 'string'
     && Array.isArray(value.changedFields) && value.changedFields.every((field) => typeof field === 'string')
@@ -309,7 +326,60 @@ function planCorrection(
 ): PlannedCorrection {
   if (correction.kind === 'update_entity') return planEntityUpdate(graph, relationships, correction, at);
   if (correction.kind === 'update_edge') return planEdgeUpdate(graph, relationships, correction, at);
+  if (correction.kind === 'create_entity') return planEntityCreation(graph, relationships, correction, at);
   return planEdgeCreation(graph, relationships, correction, at);
+}
+
+/**
+ * Creates a person or a company.  A record of the same kind whose name or
+ * alias already reads the same (ignoring spacing, case and full/half width) is
+ * returned as a conflict instead of creating a duplicate.  The new record
+ * keeps where it came from (`metadata.source`, `metadata.sourceId`).
+ */
+function planEntityCreation(
+  graph: GraphFileV2,
+  relationships: RelationshipRecord[],
+  correction: Extract<GraphCorrectionInput, { kind: 'create_entity' }>,
+  at: string
+): PlannedCorrection {
+  const input = correction.entity;
+  const names = new Set([input.name, ...(input.aliases ?? [])].map(comparableName));
+  const existing = graph.entities.find((entity) => entity.type === input.type
+    && [entity.name, ...(entity.aliases ?? [])].some((label) => names.has(comparableName(label))));
+  if (existing) {
+    throw new GraphCorrectionError(
+      'conflict',
+      'entity_already_exists',
+      'A record with the same name already exists; open it (and clear validTo if it has ended) instead of creating another',
+      { recordType: 'entity', record: existing, digest: graphRecordDigest(existing) }
+    );
+  }
+  const base = `${input.type}-${stableHash(input.name)}`;
+  const correctionId = graphCorrectionId(at, 'create_entity', base, null, correction.reason);
+  const id = graph.entities.some((entity) => entity.id === base) ? `${base}-${correctionId.slice(-8)}` : base;
+  if (graph.entities.some((entity) => entity.id === id)) {
+    invalid('entity_id_ambiguous', `Entity id ${id} is already used; repair graph.json with the CLI first`);
+  }
+  const entity: CanonicalEntity = compact({
+    id,
+    type: input.type,
+    name: input.name,
+    aliases: input.aliases && input.aliases.length > 0 ? input.aliases : undefined,
+    summary: input.summary,
+    validFrom: input.validFrom,
+    metadata: { source: 'user_approved', sourceId: correctionId }
+  });
+  const nextGraph = validatedGraph({ ...graph, entities: [...graph.entities, entity] });
+  const diff: GraphCorrectionRecord['changes'] = {};
+  for (const [key, value] of Object.entries(entity)) {
+    if (key === 'id') continue;
+    diff[key] = { before: null, after: value as JsonValue };
+  }
+  return finalize('create_entity', 'entity', null, entity, diff, correction.reason, at, nextGraph, { relationships, changes: [] }, correctionId);
+}
+
+function comparableName(value: string): string {
+  return value.normalize('NFKC').replace(/\s+/gu, '').toLowerCase();
 }
 
 function planEntityUpdate(
@@ -667,6 +737,32 @@ function parseEdgeCreation(value: unknown): GraphEdgeCreation {
     toId: requireId(value.toId, 'edge.toId'),
     role: role ?? undefined,
     context: context ?? undefined,
+    validFrom: validFrom ?? undefined
+  });
+}
+
+function parseEntityCreation(value: unknown): GraphEntityCreation {
+  if (!isRecord(value)) invalid('correction_invalid', 'entity must be an object');
+  const type = value.type;
+  if (typeof type !== 'string' || !(GRAPH_CORRECTION_NEW_ENTITY_TYPES as readonly string[]).includes(type)) {
+    invalid('correction_entity_type_not_allowed', `entity.type must be one of ${GRAPH_CORRECTION_NEW_ENTITY_TYPES.join(', ')}`);
+  }
+  const allowed = GRAPH_CORRECTION_NEW_ENTITY_FIELDS.filter((key) => key !== 'type');
+  for (const key of Object.keys(value)) {
+    if (key === 'type' || (allowed as readonly string[]).includes(key)) continue;
+    if (key === 'id') invalid('correction_id_change_not_allowed', 'entity.id is assigned by Brainbase');
+    invalid('correction_field_not_allowed', `entity.${key} cannot be set when creating a record`);
+  }
+  const name = value.name === undefined ? null : optionalText(value.name, 'entity.name', MAX_NAME_LENGTH);
+  if (name === null) invalid('correction_name_required', 'entity.name must be a non-empty string');
+  const aliases = value.aliases === undefined ? [] : parseAliases(value.aliases).filter((alias) => alias !== name);
+  const summary = value.summary === undefined ? null : optionalText(value.summary, 'entity.summary', MAX_TEXT_LENGTH);
+  const validFrom = value.validFrom === undefined ? null : optionalDateTime(value.validFrom, 'entity.validFrom');
+  return compact({
+    type: type as GraphNewEntityType,
+    name,
+    aliases: aliases.length > 0 ? aliases : undefined,
+    summary: summary ?? undefined,
     validFrom: validFrom ?? undefined
   });
 }

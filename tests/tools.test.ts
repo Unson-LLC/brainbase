@@ -29,7 +29,7 @@ describe('MCP tool functions', () => {
     });
     expect(JSON.stringify(context)).toContain('local canonical facts');
     expect(JSON.stringify(context)).toContain('Personal OS');
-    expect(JSON.stringify(context)).toContain('Otawara');
+    expect(JSON.stringify(context)).toContain('Jordan');
     expect(JSON.stringify(context)).toContain('local personal SSOT only');
   });
 
@@ -39,7 +39,7 @@ describe('MCP tool functions', () => {
 
     expect(results.every((result) => result.source === 'personal-kg')).toBe(true);
     expect(results.map((result) => result.text).join('\n')).toContain('local MCP context');
-    expect(results.map((result) => result.text).join('\n')).not.toContain('Otawara');
+    expect(results.map((result) => result.text).join('\n')).not.toContain('Jordan');
   });
 
   it('S-6 search_personal_kg ranks all-token compound matches across separators', async () => {

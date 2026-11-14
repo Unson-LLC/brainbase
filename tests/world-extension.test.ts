@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { JudgmentValueProofJournalCache } from '../src/judgment-value-proof-review.js';
 import { projectOrganizationWorld, projectWorldFromGraph, readJudgmentPlaces, readWorldBusinesses, readWorldVocabulary, resolveWorldVocabulary } from '../src/world-extension.js';
 
@@ -20,6 +20,10 @@ const valueProof = (id: string) => ({
 });
 // @ts-expect-error plain browser module without type declarations
 import { changesSince, cityMeasures, districtLots, groupJudgmentPlaces, placeJudgment, skyAt } from '../ui/world/world-placement.js';
+// The tools section builds its rail block with the host's workspace kit, served next to the world.
+vi.mock('../../workspace-kit.js', () => import('../ui/workspace-kit.js'));
+// @ts-expect-error plain browser module without type declarations
+import { attentionText, exitHrefKind, exitStateLabel, normalizeBusinessExits } from '../ui/world/world-exits.js';
 
 const project = (id: string, name: string, metadata: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) => ({
   id, type: 'project' as const, name, metadata, ...extra,
@@ -232,6 +236,32 @@ describe('world: businesses from any Graph', () => {
     await expect(readWorldVocabulary(await write('ok.json', { kinds: { product: { label: 'プロダクト', form: 'tower' } } }))).resolves.toEqual({ kinds: { product: { label: 'プロダクト', form: 'tower' } }, statuses: {} });
   });
 
+  it('names the states of a business\'s tools by the owner\'s words over the defaults (story-world-business-exits-v1 AC-04)', () => {
+    const businesses = projectWorldFromGraph({ entities: [project('a', 'A')] }).businesses;
+    expect(resolveWorldVocabulary(undefined, businesses).exit_states).toEqual([
+      { key: 'available', label: '使える' },
+      { key: 'restricted', label: '権限が必要' },
+      { key: 'unknown', label: '未確認' },
+      { key: 'unavailable', label: '読めない' },
+    ]);
+    const vocabulary = resolveWorldVocabulary({ exit_states: { restricted: { label: '申請が要る' } } }, businesses);
+    expect(vocabulary.exit_states.map((entry) => entry.label)).toEqual(['使える', '申請が要る', '未確認', '読めない']);
+    expect(exitStateLabel('restricted', vocabulary)).toBe('申請が要る');
+    expect(exitStateLabel('available', { kinds: [], statuses: [] })).toBe('使える');
+  });
+
+  it('refuses a vocabulary file that names a tool state the world does not draw', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'bb-world-vocab-exit-'));
+    const write = async (name: string, body: unknown) => {
+      const path = join(dir, name);
+      await writeFile(path, JSON.stringify(body));
+      return path;
+    };
+    await expect(readWorldVocabulary(await write('state.json', { exit_states: { open: { label: '開いている' } } }))).rejects.toThrow(/unknown exit state/u);
+    await expect(readWorldVocabulary(await write('shape.json', { exit_states: { available: '使える' } }))).rejects.toThrow(/must be an object/u);
+    await expect(readWorldVocabulary(await write('ok.json', { exit_states: { unavailable: { label: '開けない' } } }))).resolves.toEqual({ kinds: {}, statuses: {}, exit_states: { unavailable: { label: '開けない' } } });
+  });
+
   it('reports a missing local Graph as a state, not zero businesses', async () => {
     const dataDir = await mkdtemp(join(tmpdir(), 'bb-world-'));
     expect(await readWorldBusinesses({ dataDir })).toMatchObject({ status: 'not_initialized' });
@@ -302,5 +332,67 @@ describe('world: where a judgment stands', () => {
   it('reports an unreadable journal as unavailable, not as zero judgments', async () => {
     const result = await readJudgmentPlaces(join(tmpdir(), 'bb-world-no-such-journal'));
     expect(result).toMatchObject({ status: 'unavailable', reason: 'journal_unreadable' });
+  });
+});
+
+describe('world: the tools a business uses (story-world-business-exits-v1)', () => {
+  const exit = (fields: Record<string, unknown> = {}) => ({ id: 'hq', label: 'Tech Knight HQ · 候補の審査', href: 'https://hq.example.test/review', state: 'available', ...fields });
+
+  it('keeps each of the four read states and never reads a failed or unconnected answer as zero tools', () => {
+    expect(normalizeBusinessExits({ status: 'complete', read_at: '2026-10-09T06:00:00Z', exits: [exit()] })).toMatchObject({ status: 'complete', read_at: '2026-10-09T06:00:00Z', exits: [{ id: 'hq', state: 'available', target: 'external' }] });
+    expect(normalizeBusinessExits({ status: 'partial', exits: [exit()] })).toMatchObject({ status: 'partial', read_at: null, exits: [{ id: 'hq' }] });
+    expect(normalizeBusinessExits({ status: 'failed', reason: 'upstream_timeout', exits: [] })).toMatchObject({ status: 'failed', reason: 'upstream_timeout', exits: [] });
+    expect(normalizeBusinessExits({ status: 'not_connected', exits: [] })).toMatchObject({ status: 'not_connected', exits: [] });
+    // An answer the world cannot understand is a failed read, not an empty one.
+    expect(normalizeBusinessExits({ status: 'ok', exits: [] })).toMatchObject({ status: 'failed', reason: 'invalid_answer' });
+    expect(normalizeBusinessExits({ status: 'complete' })).toMatchObject({ status: 'failed', reason: 'invalid_answer' });
+    expect(normalizeBusinessExits(undefined)).toMatchObject({ status: 'failed', reason: 'invalid_answer' });
+  });
+
+  it('draws only https: and same-host links, and counts what it dropped', () => {
+    expect(exitHrefKind('https://hq.example.test/a')).toBe('external');
+    expect(exitHrefKind('/tools/hq')).toBe('internal');
+    expect(exitHrefKind('?screen=connections&tool=hq&request=1')).toBe('internal');
+    for (const href of ['http://hq.example.test', 'javascript:alert(1)', 'data:text/html,x', '//evil.example', '/\\evil.example', 'hq', ' https://hq.example.test', 'mailto:a@example.test', '', null]) {
+      expect(exitHrefKind(href), String(href)).toBeNull();
+    }
+    const answer = {
+      status: 'complete',
+      exits: [
+        exit({ id: 'ok', action: { label: '利用を申請', href: '?screen=connections&tool=ok&request=1' } }),
+        exit({ id: 'plain-http', href: 'http://hq.example.test' }),
+        exit({ id: 'script', href: 'javascript:alert(1)' }),
+        exit({ id: 'bad-action', action: { label: '申請', href: 'javascript:void(0)' } }),
+        exit({ id: '', label: '' }),
+        exit({ id: 'ok' }),
+      ],
+    };
+    const result = normalizeBusinessExits(answer);
+    expect(result.exits.map((entry: { id: string }) => entry.id)).toEqual(['ok', 'bad-action']);
+    expect(result.exits[0].action).toEqual({ label: '利用を申請', href: '?screen=connections&tool=ok&request=1', target: 'internal' });
+    expect(result.exits[1].action).toBeNull();
+    expect(result.dropped).toEqual({ exits: 4, actions: 1 });
+    // The world does not rewrite the host's records.
+    expect(answer.exits[0]).toEqual(exit({ id: 'ok', action: { label: '利用を申請', href: '?screen=connections&tool=ok&request=1' } }));
+  });
+
+  it('treats a state it does not know as unconfirmed, never as usable', () => {
+    expect(normalizeBusinessExits({ status: 'complete', exits: [exit({ state: 'open' })] }).exits[0].state).toBe('unknown');
+  });
+
+  it('says the count is unconfirmed when attention has no number, and never shows it as zero', () => {
+    const [counted, missing, text, zero] = normalizeBusinessExits({ status: 'complete', exits: [
+      exit({ id: 'a', attention: { count: 3, label: '未対応の申請', as_of: '2026-10-09T06:00:00Z' } }),
+      exit({ id: 'b', attention: { label: '未対応の申請' } }),
+      exit({ id: 'c', attention: { count: '3', label: '未読' } }),
+      exit({ id: 'd', attention: { count: 0, label: '未読', as_of: '2026-10-09T06:00:00Z' } }),
+    ] }).exits;
+    expect(counted.attention).toEqual({ count: 3, label: '未対応の申請', as_of: '2026-10-09T06:00:00Z' });
+    expect(attentionText(counted.attention)).toBe('未対応の申請 3件（10/9 15:00時点）');
+    expect(missing.attention.count).toBeNull();
+    expect(attentionText(missing.attention)).toBe('未対応の申請 件数は未確認（時点不明）');
+    expect(attentionText(text.attention)).toContain('件数は未確認');
+    expect(attentionText(text.attention)).not.toContain('0件');
+    expect(attentionText(zero.attention)).toBe('未読 0件（10/9 15:00時点）');
   });
 });

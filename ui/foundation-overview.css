@@ -90,7 +90,7 @@
 
 .bb-fov-current-state strong {
   color: var(--bb-color-ink);
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
   overflow-wrap: anywhere;
 }
 
@@ -151,14 +151,6 @@
   line-height: 1.55;
 }
 
-.bb-fov-record-id {
-  display: block;
-  margin-top: 7px;
-  color: var(--bb-color-quiet);
-  font-family: var(--bb-font-mono);
-  font-size: 10px;
-  overflow-wrap: anywhere;
-}
 
 .bb-fov-ref-list {
   display: grid;
@@ -177,7 +169,7 @@
 .bb-fov-model-search label {
   color: var(--bb-color-muted);
   font-size: 12px;
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-fov-search-input {
@@ -237,3 +229,32 @@
 
 /* Catalog provenance is secondary to the topic, but remains visible on every card. */
 .bb-fov-source { display: inline-block; margin: 0 0 12px; padding: 4px 10px; border-radius: 999px; background: var(--bb-surface-subtle, #f4f4f8); color: var(--bb-text-muted, #62626e); font-size: 12px; overflow-wrap: anywhere; }
+
+.bb-fov-objective-ledger .bb-ws-ledger-row { grid-template-columns: minmax(180px,1.2fr) minmax(200px,1.3fr) minmax(150px,1fr) 110px; }
+.bb-fov-objective-ledger .bb-ws-ledger-row > span { white-space: normal; line-height: 1.7; }
+.bb-fov-objective-ledger .bb-ws-ledger-row:is(.is-selected,:hover) { background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface); box-shadow: inset 3px 0 var(--bb-color-accent); }
+.bb-fov .bb-ws-section-title { display: flex; align-items: center; gap: 8px; }
+.bb-fov-philosophy-grid { grid-template-columns: minmax(0,1fr); }
+.bb-fov-philosophy-card { border-top: 0; width: 100%; box-sizing: border-box; }
+.bb-fov-reading { display: grid; gap: 26px; }
+.bb-fov-reading > section > h3 { margin: 0 0 10px; color: var(--bb-color-muted); font-size: 12px; font-weight: var(--bb-font-weight-medium); line-height: 1.5; }
+.bb-fov-reading .bb-ws-definition { margin: 0; grid-template-columns: 100px minmax(0,1fr); gap: 10px 20px; font-size: 14px; line-height: 1.8; }
+.bb-fov-reading .bb-fov-current-state { padding: 16px; border: 1px solid var(--bb-color-border); border-radius: 10px; background: var(--bb-color-canvas); gap: 12px; }
+.bb-fov-original { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--bb-color-border); font-size: 12px; color: var(--bb-color-muted); }
+.bb-fov-original > summary { cursor: pointer; }
+.bb-fov-missing { color: var(--bb-color-record-missing); }
+@media (max-width: 760px) { .bb-fov-objective-ledger { overflow-x: auto; } .bb-fov-objective-ledger .bb-ws-ledger-row { min-width: 760px; } }
+@media (max-width: 480px) { .bb-fov-reading .bb-ws-definition { grid-template-columns: 1fr; gap: 4px; } .bb-fov-reading dd { margin-bottom: 12px; } }
+.bb-fov-philosophy-card .bb-fov-original { border-top: 0; padding-top: 0; }
+.bb-fov-model-card .bb-fov-original { margin-top: 12px; padding-top: 10px; overflow-wrap: anywhere; }
+.bb-fov-objective-ledger .bb-ws-ledger-row:focus-visible { outline: 2px solid var(--bb-color-focus); outline-offset: 2px; }
+/* Whose what an objective waits for, and what can be done with it (story-objective-row-actions-v1). */
+.bb-fov-waiting { display: grid; gap: 2px; min-width: 0; }
+.bb-fov-waiting strong { font-weight: var(--bb-font-weight-medium); }
+.bb-fov-waiting small { color: var(--bb-color-muted); font-size: 12px; line-height: 1.4; }
+.bb-fov-ledger-hint { margin: 8px 0 0; color: var(--bb-color-muted); font-size: 12px; }
+.bb-fov-actions { display: grid; gap: 8px; justify-items: start; padding: 12px; border: 1px solid var(--bb-color-border); border-radius: 8px; background: var(--bb-color-surface-subtle, rgb(0 0 0 / 2%)); }
+.bb-fov-actions h3 { margin: 0; }
+.bb-fov-action-note { margin: 0; color: var(--bb-color-muted); font-size: 13px; }
+.bb-fov-action-note.is-unavailable { color: var(--bb-color-ink); }

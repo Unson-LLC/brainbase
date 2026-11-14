@@ -2,9 +2,339 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
+## 0.50.1 candidate — npm公開前
+
+- `develop` bb2a2fa4 までをまとめて公開するpatch更新候補。
+- UNS-264: 議事録一覧に `limit`（既定100、最大500）と `cursor` を足し、続きがあるときだけ `next_cursor` を返す。返す形 `{ state, meetings, absence_confirmed }` は維持し、一覧に版の本文は入れない。不正な `limit`・`cursor` は422。共通の議事録画面は `next_cursor` を辿って全件を表示する（#939）。
+- UNS-264: 引数なしの `list_meetings(context)` は今までどおり全件の配列を返し、options を渡したときだけ `{ meetings, next_cursor }` を返す（#943）。
+- UNS-291: judgment DAG を外部レビューagentに合わせ、契約ファイルのハッシュを更新する（#940, #944）。
+- UNS-36: VibePro producer の公開契約4つをCIで実行する（#937）。
+- これは公開候補の記録。npm公開と利用ホストの本番反映は、別の検証で確認する。
+
+## 0.50.0 candidate — npm公開前
+
+- `develop` 8d1449bc までをまとめて公開するminor更新候補。
+- UNS-59: 所有権サーベイの検証を `src/ownership-survey.ts` としてOSSへ移す（#936）。
+- 公開MCPにagent限定のTask queueの7つの道具と共通契約テストを追加する（#930）。ホストが `QueueTaskBackend` を注入したときだけ登録し、既存の道具は変えない。
+- OSS公開契約のfixtureと照合テストを追加する（#931・#932・#933）。
+- 議事録名が空のときは `minutes_title` を送らず既定名にする（#926）。stage3bのbundleでEXDEV時に同じディレクトリへのcopyとrenameへ戻す（#927）。
+- Growin UIの要望 RQ-151・152・153（#897）、会議要約の取り込み（#906）、開発依存の更新（#928）、PR本文のBrainbase行のCI（#925）。
+- これは公開候補の記録。npm公開と利用ホストの本番反映は、別の検証で確認する。
+
+## 0.49.1 candidate — npm公開前
+
+- 共通ナビゲーションに、ホストが見出しリンクのアイコン・クラスとグループの余白を指定できる後方互換の設定を追加する。未指定時の表示、行き先、選択状態、権限による非表示は維持する。
+- これは公開候補の記録。npm公開と利用ホストへの反映は別に確認する。
+
+## 0.49.0 candidate — npm公開前
+
+- RQ-113: ソースに依存しないentity index builderを `@unson/brainbase-mcp/entity-indexer` として公開するminor更新候補（#920）。
+- `buildIndex`・`createEmptyIndex`、lifecycle helpers、ontology registry、`EntitySource`・entity型、構造型の `RetrievalEvidence` を提供する。既存の `createEntityIndexCache` のbuildとして利用できる。
+- 配列でないcollection、空id、activeな重複idはエラーにする。`GraphAPISource`・認証・evidence関数はホスト側に残す。
+- これは公開候補の記録。npm公開と利用ホストの本番反映は、別の検証で確認する。
+
+## 0.48.4
+
+- ローカルshellのsidebarと世界canvasのdrawer・helpにfallback付きモーショントークンを適用し、durationとreduced motionの挙動を維持する（#909）。
+- 共有モーショントークンを追加し、drawer退場を150ms、通知消去を200msへ短縮。入場・検索帯・モバイル・reduced motionの挙動を維持する（#909）。
+- 受信箱・情報の「種類」・プロジェクトの記録のタブを矢印キーで切り替え、選択の下線をすべらせる（#903）。
+- 共通の主ボタンを目立たせ、パンくずと受信箱の期限切れの文字を読みやすくし、受信箱の取得失敗の理由を開いて見せる（#904）。
+- Workerの判断を共通の形式でローカルoutboxへ書く送り口の契約と骨格を追加する。既定では外部へ送信しない（#907）。
+- 用途に合う既存UI部品の再利用を推奨しつつ、資料の取得・部品利用・登録・デザイン確定を機能開発の前提にしない方針を明記する（#908）。
+- 正式リリース検証のVitest並列数を4から2へ下げる（#912）。
+- 判断ライフサイクルのHost builderとの一致を確かめるテストを、実行環境に左右されないようにする（#914）。
+- npm公開済み。`latest`は`0.48.4`を指し、`gitHead`は`28e45e4b`。利用ホストへの取り込みと本番反映は、別の検証で確認する。
+
+## 0.48.3 candidate — npm公開前
+
+- 共通UIのトークン（`ui/brainbase-tokens.css`）に `--bb-color-muted-on-surface` を追加する。色付きの背景では `--bb-color-muted` をこのトークンへ切り替え、小さな補助テキストを読みやすくする（#911）。
+- これは公開候補の記録。npm公開と利用ホストの本番反映は、別の検証で確認する。
+
+## 0.48.2 candidate — npm公開前
+
+- 共通UIのトークン（`ui/brainbase-tokens.css`）を紺・ミントのテーマとNoto Sans JPへ切り替える。フォントは `--bb-font-sans`・`--bb-font-weight-medium`・`--bb-font-weight-body` で指定する。状態色の意味を保ち、ホストは引き続きトークンを上書きできる（#910）。
+- これは公開候補の記録。npm公開と利用ホストの本番反映は、別の検証で確認する。
+
+## 0.48.1 candidate — npm公開前
+
+- 0.47.5以前の `workspace-kit.js` を読み込んだままの古いタブで、判断の履歴・目的と現状の画面が `workspaceLoadingStage` を取れず開かなかった。両画面は `workspace-kit.js?capability=loading-stage-v1` から読み込む。
+- これは公開候補の記録。npm公開と利用ホストの本番反映は、別の検証で確認する。
+
+## 0.48.0 candidate — npm公開前
+
+- `develop` をまとめて公開する。0.47.3〜0.47.6 で `main` にだけ出した変更も含む。
+- 受信箱に今日決めることの表示と元に戻すを追加し（#881）、取得元が使えないときの空表示を直す（#894）。行の操作で、送信中の停止・成功の表示・読み上げ・`facts`・行内の確認・期限の表示を扱う（#898）。
+- 共通UIに待ち時間の表示（#866）、薄いヘッダーと右詳細パネル（#874）、タブの見た目（#883）、議事録の検索帯（#886・#888）を加える。
+- Canonical Taskに `record_kind` と台帳列を加える（#870）。利用側は追加の列を先に適用してから取り込む。
+- リリースノートの下書きの抽出（#896）、埋め込みの上流エラー本文の記録（#869）、zod 4（#868）、npm audit の修正（#867・#899）。
+- これは公開候補の記録。npm公開と利用ホストの本番反映は、別の検証で確認する。
+
+## 0.47.2 candidate — npm公開前
+
+- 共通の1列操作帯 `workspaceCompactToolbar` を追加。議事録は `toolbarPresentation: 'compact'` の明示指定で、作成・文字検索・フィルター・並べ替えをまとめる。既存expanded/inlineの契約は維持する。
+- フィルターのcaret/解除、適用中の識別、neutralなcontrol状態を共通化。空状態は一覧内、失敗/再試行は操作帯の下、詳細ロードはdrawer内に保持する。更新順でもカード形式と日時未登録の順序を保つ。
+- これは公開候補の記録。npm公開と利用ホストの本番反映は、別の検証で確認する。
+
+## 0.47.1 candidate — npm公開前
+
+- 共通UIへタイトルだけの44px固定ヘッダーと継続更新できる右詳細drawerを追加する。世界などの没入型画面はヘッダーを出さない。
+- 知識・議事録で `detailPresentation: 'drawer'` を指定できる。未指定時のinline表示、認証・権限・保存後readbackは維持する。閉じた後の非同期応答で再openせず、保存結果の再表示とfocus復帰を保持する。
+- 共通UI Specへパーツ利用の規約をまとめ、AGENTS.md/CLAUDE.mdから参照する。
+- 公開候補の記録であり、npm公開・registry readback・組織ホストへの取り込み・本番反映は別途確認する。
+
+## 0.47.0 candidate — npm公開前
+
+- `canonical_tasks` に bot task queue 用の nullable 列 `claimed_by`・`claimed_until`・`status_detail` を追加する（`ADD COLUMN IF NOT EXISTS`）。`status_detail` の CHECK（started / waiting_for_review / blocked / NULL）、claim の組の CHECK、部分索引 `canonical_tasks_claimed_by_until_idx` を含む。状態の5値 CHECK と GRANT は変えない（#861）。
+- 公開CIの正式リリース検証ジョブ `formal-release-validate-linux` を self-hosted runner で実行する。npm publish ジョブは `ubuntu-latest` のまま（#860）。
+- これらは公開候補の記録であり、consumer検証、npm公開、registry readback、本番反映は未確認である。
+
+## 0.46.1 candidate — npm公開前
+
+- Plaud MCP 0.3.12+ の `untrusted-user-data` ラッパーを `payloadOf` で展開する。list の未知形状は空同期にせず失敗し、`listRevision` が 2 未満のときは 30 日分の再一覧を一度だけ行う（#856）。
+- `@modelcontextprotocol/sdk` と `hono` を npm audit 対応の版へ更新する（#857）。
+- これらは公開候補の記録であり、consumer検証、npm公開、registry readback、本番反映は未確認である。
+
+## 0.46.0 candidate — npm公開前
+
+- Canonical Taskの作成と監査の原子性を追加interfaceで提供する。`CanonicalTaskRepository.createWithAudit`（任意）、`CanonicalTaskAuditRepository.supportsTransactionClient`、`upsertAuditLog(entry, { client })`。両能力が揃う場合だけ同一DBトランザクションを使い、監査失敗時はTask INSERTをrollbackして `task_audit_unavailable` を返す。既存構成の挙動は変えない。
+- PostgreSQL storeに `createWithAudit` を追加し、BEGIN/INSERT/監査/COMMITと失敗時ROLLBACKを実装した。`CANONICAL_TASK_PG_TEST_URL` 指定時の統合テストでcommitとrollbackを検証する。
+- これらは公開候補の記録であり、consumer検証、npm公開、registry readback、本番反映は未確認である。
+
+## 0.45.0 candidate — npm公開前
+
+- 今回追加する公開subpathは `./run-receipt-port`、`./meeting-source-mcp-adapters`、`./meeting-source-sync-common-adapter` の3つ。`./run-receipt-port` は実行記録の保存・照会をホストのportへ差し込む `RunReceiptPort` と `assertRunReceiptPort`、`./meeting-source-mcp-adapters` は Tactiq・Plaud のMCP応答を共通の会議ソースへ整形するadapter、`./meeting-source-sync-common-adapter` は会議ソース同期の共通adapter契約を提供する。接続、OAuth、資格情報、保存はホストの責務とする。
+- 既存の公開subpath `./mesh` を拡張し、`parseMeshEnvelope` を追加する。既存の封筒・ノード・問い合わせの検査と整形、送信受付の `answer_status: "unknown"` の生成に加え、JSON文字列または値を同じ厳格な境界で検査できる。ネットワーク・認証・暗号・永続化は行わない。
+- 既存の公開subpath `./routines` を拡張し、3つのAPI（`assertRoutineProductionPorts`、`createRoutineProductionPorts`、`extractRoutinePersonalKgCandidates`）と、`RoutineProductionPorts` の11個のホストport（`reconcile`、`compress`、`buildNightOutput`、`verify`、`recallGraph`、`recallPersonalKg`、`generate`、`recordUsage`、`evaluateMetrics`、`createImprovementCandidates`、`listKnowledgeReviews`）を提供する。前者2つはportの組み立て時検査、後者は会議ごとのPersonal KG候補を `adopted`・`rejected`・`needs_review` に集計する。認証、保存、Personal KGへの昇格、外部送信はホストに委譲する。
+- これらは公開候補の記録であり、consumer検証、npm公開、registry readback、本番反映は未確認である。
+
+## 0.44.2 candidate — npm公開前
+
+- 世界の常設説明箱を除き、都市を選べない案内と見方・凡例は保持。
+- 空を1ボタンの自動→昼→夕方→夜の巡回へ変更。現在と次の状態を読み上げ、Enter/Spaceの標準操作を維持。
+- 共通通知surface `workspaceNotificationCard` を追加。世界の注意・重大なエラーを意味色で区別し、既存のエラー通知とロード表示も共通枠を利用。リンク・操作・理由・原文を保持。
+
 ## Unreleased — develop
 
+- agent 限定の queue tools（`list_my_tasks` / `get_task` / `claim_task` / `claim_next` / `renew_claim` / `attach_evidence` / `update_status`）と、stdio / Streamable HTTP で共通の契約テストを `@unson/brainbase-mcp/queue-task-tools` と test 専用の `@unson/brainbase-mcp/testing/queue-task-tools-contract` で追加する。host が `QueueTaskBackend` を注入したときだけ登録し、既存の local-first の18 tools は変えない。検証はローカルの fixture backend で行った。実 API の応答 schema、durable replay、agent の principal binding は未確認（`story-mcp-queue-task-tools-v1`）。
+
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
+- 「人と会社」で人・会社を選ぶと、一覧が詳細のページに切り替わる。上に一覧へ戻る道と「何件中の何件目」・前後の移動、見出しの下にできる操作（所属を付ける・所属を終える・所属する人を加える）をまとめ、「消す操作は無く、終了日を入れて終える」ことを添える。書けない閲覧者には操作を押せない状態で出し、理由を出す（ホストの `readOnlyNote`）。名前の訂正の案内はホストの `recordFixNote` で差し替えられる。区分・種類・有効期間・IDはホストの右の欄（無ければページの中）に出す。一覧の上に「人を加える」「会社を加える」を並べる。書き込みの経路と規則、段の構成は変えない（`story-people-and-companies-detail-page-v1`）。
+
+## 0.44.1 candidate — npm公開前
+
+- 統合Canonical Taskの読み取り・保存処理と、段3の共通コアを追加する。共通コアは、ホストが渡す認証・テナント・保存portの境界を通して利用する。npm公開・本番配備・組織版ホストでの接続は未確認である。
+
+## 0.44.0 candidate — npm公開前
+
+- 議事録の画面（`createMeetingMinutesUI`）に任意の `meetingParticipants`（`read`・`candidates`・`link`・`unlink`）を足した。渡すと詳細の見出しの下に「参加者」の行を出す。結べた人は名前を `href` へのリンクにし、結べなかった人は「表示名（未確認）」の札、人ではない表示名は名前だけにする。札を押すとその場のパネルで候補（人物・名刺・会社）を根拠つきで出し、この人・名刺の名前で登録・新しい人として登録・会社に結ぶ・結ばない・あとで、を1件ずつ選ぶ。一括の操作は置かない。`status: 'none'` なら行を出さず、読めないときは「参加者を読み込めませんでした」と出す。渡さない呼び出しは今のまま（`story-meeting-participants-row-v1`、前提台帳 D17 段1、#832）。
+
+## 0.43.0 candidate — npm公開前
+
+- 新しい画面の部品「受信箱」（`ui/inbox.js`、`createInboxUI`）。タブは「対応待ち」と「お知らせ」。対応待ちは「答える・決める／承認する／振り分ける・取り込む／タスク」の区画に分け、止めているもの・期限の近いもの・新しいものの順に並べる。行に「あとで」（今日の夕方・明日の朝・来週の月曜の朝まで隠す）と「片付けた」を置き、ホストが付けた操作のボタンを出す。待っているものは種類ごとに読み、読めなかった種類は「読めませんでした」と出して0件に見せない。まだ集めていない種類は件数に数えずに1行で出す。待っているもの・片付けた・あとでの状態はホストの port が持ち、部品は書き込みの経路を持たない。左メニューの件数を同じ規則で数える `countInboxWaiting` も出す。段1の片付けた・あとでは閲覧者のブラウザに置く（`createLocalInboxDispositions`・`withLocalInboxDispositions`。段4で正本へ移す）（`story-inbox-stage1-v1`、前提台帳 D16 段1、#831）。
+- 新しいexports: `./ui/inbox`、`./ui/inbox.css`。
+- 左メニューは行き先そのものを小見出しで並べる。Personal Web は 会議（議事録）／プロジェクト（見出しから「プロジェクトと関係者」、目的と現状）／調べる（判断の履歴・情報と関係・人と会社・あなたの記憶）と並び、左下に「設定」を置く。領域の中のタブは、画面が2つ以上ある行き先（設定）だけに出す。共通部品 `createAreaNav` に任意の `sections`（小見出しと左下の置き場、見出しから開く画面）と `setLinks`（区画の頭に差し込む行。星を付けたプロジェクト用）を足した。`sections` を渡さない呼び出しは今のまま（`story-shell-nav-destinations-v1`、#830）。
+
+## 0.42.0 candidate — npm公開前
+
+- 新しい画面「あなたの記憶」（`ui/personal-memory.js`、`createPersonalMemoryUI`）。領域「情報と関係」のタブとして、本人だけに出す。一覧は種類・状態・出どころの組織・語句で絞り、詳細は本文・状態の移り変わり・出どころ・AIが使う範囲・この記憶を使った判断の順に出す。状態の記録が無い記憶は「状態の記録なし」とし、「有効」と書かない。読むだけで、編集の操作は無い。手元のWebホストは `personal-kg.jsonl` を `GET /api/personal-memory` から返し、判断の記録の個人KGの参照から使った判断を逆に引く。参照が手元の記憶のIDと一致しないときは「確認できない」と出す（`story-personal-memory-viewer-v1`、#826・#827）。
+- 判断の履歴の「本人の考え」に、任意の `resolvePersonalMemory` を足す。ホストが渡したときだけ、本人に記憶の本文の冒頭とリンクを出す。渡さないとき・本人以外には、これまでどおり件数だけを出す（#827）。
+- 新しいexports: `./personal-memory`、`./ui/personal-memory`、`./ui/personal-memory.css`、`./ui/personal-memory-http-port`。
+
+## 0.41.13 candidate — npm公開前
+
+- 新しい共通部品 `createAreaNav`（`ui/area-nav.js`）。左側は領域ごとに1行、本文の上に今の領域の画面のタブを出す。どちらも画面へのリンクで、画面のアドレスは変えない。領域のリンクは前回の画面（閲覧者のブラウザに保存）を開き、画面の件数はタブに、待っているものの件数は領域にも出す。Personal Web の左メニューをこの部品に載せ替え、見出しの区画を外す（`story-shell-nav-area-tabs-v1`、#821）。
+- 世界の札に意味を添え、押すと理由と次にすることを出す。目的の行でできることを出し、「確認待ち」を誰の何を待っているかで出す（`story-world-sign-meaning-v1`・`story-objective-row-actions-v1`、#822）。
+
+## 0.41.12 candidate — npm公開前
+
+- 情報と関係を「調べる」画面に作り直す。一覧はその場で絞り込み、押した記録は1画面の詳細で開く。根拠と履歴は詳細の中の共通の欄（`renderEvidenceAndHistory`）に出す（`story-graph-registry-immediate-feedback-v1`、#816）。
+- 情報と関係から、引き継いだ自分の分（`createOwnShareView`）と、情報の種類とつながり方の定義（新しい部品 `createGraphOntologyView`、`ui/graph-ontology-view.js`）を別の画面へ移す。記録の出典と読めない記録の案内は、記録の中へ下げる。つながりと種類の名前は日本語で出し、同じ意味のつながりは1行にまとめる（`story-graph-registry-move-ontology-own-share-v1`、#817）。
+- 人と会社で、選んだ人・会社を詳細のページで開き、できる操作を見出しの下に置く。書けない閲覧者には操作を押せない状態で理由を出す（`readOnlyNote`）。名前の訂正の案内はホストが `recordFixNote` で差し替えられる（`story-people-and-companies-detail-page-v1`、#818）。
+- 知識の組織全体の一覧で、経路の既存の条件を保ち、Graphの状態を日本語で出す（`story-knowledge-organization-overview-v1` AC-07・AC-08、#819）。
+
+## 0.41.11 candidate — npm公開前
+
+- 議事録の一覧の上に、会議名・議事録名のキーワード、期間、並べ替え（会議の日時の新旧・議事録の更新順）を足す。参加者と確認の状態の絞り込みは、その記録がある会議があるときだけ出す。ホストは `hostFilters` で自分の絞り込み（組織版ではプロジェクト）を足せる。会議を作れないときは、ホストが渡した理由を一言だけ添える。プルダウンは共通の `workspaceCombobox` を使う（`story-meeting-minutes-list-filters-v1`、#810）。
+- 判断の履歴を、初めて見た人にも意味と次の行動が分かる言葉にする。開発用の表示は既定で隠す（`story-judgment-history-readable-labels-v1`、#812）。
+- 判断の履歴の詳細の先頭に「判断の根拠」を置き、使った哲学・目的・世界モデルごとに、名前・使い方・判定・選んだ理由を出す。続けて「本人の考え」（個人KG）を使った・使っていない・記録なしの3つに分けて出す。名前はホストが渡す `resolveReferenceLabels` で閲覧者の権限で引き、引けないときはIDで代用しない。記録の型は変えない（`story-judgment-history-frame-basis-v1`、#813）。
+
+## 0.41.10 candidate — npm公開前
+
+- タスクの確認待ちに、待っている相手の人ID `waiting_on_person_id`（Graphの人、200文字以内）を任意で持たせる。待っている相手・条件の自由記述 `waiting_on` は引き続き必須。確認待ちへ移るたびに置き換え、確認待ちから出ると両方を消す。人を指定しない作成では欄を書かないので、列の無い保存先でもそのまま動く。保存先の列追加は組織側が担当する（#805）。
+- 議事録から、その会議で生まれたもの・残した場所・知らせた先へ移れるようにする（`story-meeting-minutes-connections-v1`、#807）。
+- 議事録の画面で、本文を Brainbase が持つ最新の版を直して新しい版として保存できるようにする。前の版は残す。議事録を作った本人が、残るものと取り消せないもの（Gitの書き出し・Slackの知らせ）を確かめてから取り下げられるようにする。`withdraw_minutes` は文書を作った本人だけを通す。ローカルのHTTPに取り下げの経路を足す。版の情報は本文の下へ移し、本文の先頭で題名をくり返す見出しは出さない（`story-meeting-minutes-edit-and-withdraw-ui-v1`、#809）。npm の 0.41.10 は #809 のマージ（9ea5345d）から公開されたため、この変更も含む。
+
+## 0.41.9 candidate — npm公開前
+
+- 共通部品 `workspace-kit` に、中で検索できるプルダウン（`workspaceCombobox`）を追加。候補を名前と補足で絞り込み、キーボード操作と読み上げ（combobox・listbox・aria-activedescendant）に対応し、候補が多いときは先頭だけ描いて残りの件数を伝える。候補に無い値は未選択に見せない（`story-workspace-searchable-dropdown-v1`、#804）。
+- 目的と現状で、判断の哲学を「無い」と見せず、取り下げた記録で一覧を壊さない（#800）。
+- 世界で押せそうな所は、行き先へ進むか、押せない理由を見せる（#803）。
+
+## 0.41.8 candidate — npm公開前
+
+- 知識の共通部品に、見られる範囲（全プロジェクトと組織共通）の知識・判断を所属プロジェクト付きで並べる一覧（`createKnowledgeOverviewController`）と、任意のプロジェクトの絞り込みを追加。全体の一覧は閲覧だけで、登録や改訂はプロジェクトを選んでから行う。見出しが無い記録は要旨・本文の最初の行を見出しにし、件数の上限と空の理由を分けて出す。単一プロジェクトの画面は `projectFilter` を渡さない限り今のまま（`story-knowledge-organization-overview-v1`）。
+
+## 0.41.7 candidate — npm公開前
+
+- 議事録の一覧を会議日時の新しい順にし、今日は Asia/Tokyo の暦日でまとめる。日時が無い会議は、使っている日付の意味に合わせて表示し、まったく無い会議は末尾にまとめる。版の画面は読み取り専用で、未選択の詳細には案内を出す。
+- 未確認の最新版は「確認待ち」。古い版では最新版への案内を1回出す。編集できない案内は灰色で1回。Markdown の本文は見出しと箇条書きとして表示する。版の履歴は2行で、作成者と確認者を主体 ID で出す。予定との相互リンクは出さない。
+- npm 公開後の readback は、registry のキャッシュと反映遅延に対して収束するまで待つ。認証・権限・正本データの契約は変更しない。
+
+## 0.41.6 candidate — npm公開前
+
+- 判断の履歴の絞り込みを共通の詳細検索パネルへまとめ、更新アイコンの隣に確認時刻を表示。履歴の詳細は右から開く共通パネルで読み、閉じると右へフェードして一覧へ戻る。
+- 読み込み・取得失敗の通知を右上へまとめ、読み込み完了後は右へフェードして消す。目的と現状の取得範囲の重複注意を除き、取得失敗の理由と再試行を維持する。認証・権限・保存データの契約は変更しない。
+
+## 0.41.5 candidate — npm公開前
+
+- 共通部品「人と会社」に、人・会社の頭文字の印、会社の種類（顧客・協業先・提案中）のバッジ、段ごとの人数、上部の人・会社の件数と段への移動を追加。一覧の行から内部IDを外す。種類の記録が無い会社にはバッジを出さない。段の構成・並び順・書き込みの操作は変更しない（`story-people-and-companies-marks-v1`）。
+
+## 0.41.4 candidate — npm公開前
+
+- 判断履歴のjournal再読をキャッシュし、読み取りを並列化して新しい記録から返す。複数の判断をまとめて照合する `findByResolutionIds` と `GET /api/judgment-history/resolutions` を追加（範囲外と未存在はどちらも空）。判断履歴の画面を、一部だけ表示中・読み込み中が分かる見た目に作り直す。認証・権限・正本データの契約は変更しない。
+
+## 0.41.3 candidate — npm公開前
+
+- 目的・現状・確認待ち・確認日の一覧、達成条件・確認の根拠・出典を読む共通モーダルへ整理。哲学を初期展開し、世界モデルと補足説明を折りたたむ。
+- 取得失敗と一部取得の通知、本人の目的の出典を保つコンパクト表示、スクロール後にふわっと消える標準スクロールバーを共通部品として追加。認証・権限・正本データの契約は変更しない。
+
+## 0.41.2 candidate — npm公開前
+
+- 知識の「この判断を改訂」を開いたとき、改訂の詳細と入力欄が利用可能な表示幅を使うよう共通UIのレイアウトを調整。入力内容と保存契約は変更しない。
+
+## 0.41.1 candidate — npm公開前
+
+- 議事録の一覧と詳細に、ホストが解決した所属プロジェクトのラベルを表示。ラベルは安全なテキストとして扱い、共有UIが所属先を推測しない。
+- 会議の作成と議事録の編集の可否を画面に反映し、作成・保存・文書追加・版の確定の直前にも許可状態を再確認する。
+- 一覧・詳細のリクエストを世代管理し、逆順で返った古い応答による上書きと、絞り込み後の対象外会議の詳細復活を抑止する。認証・認可と所属の解決はホストの責務として維持する。
+
+## 0.41.0 candidate — npm公開前
+
+- 知識の保存競合時に入力・出典・提案を保持し、最新版の確認後に明示的に再適用して保存する復旧操作を追加。
+- 目的の正本の読取に `brainbase.objective-readback.v1` を追加。不完全な定義や参照先の不一致を拒否し、確認済み・取得失敗・確認できない状態を区別。
+- プロジェクトの関係者の取得状態を区別し、Graph・判断履歴・議事録・世界の読取表示と再試行の案内を改善。
+
+## 0.40.0 candidate — npm公開前
+
+- 共通部品「人と会社」は、読み取り結果に `personProjects`（`[{ code, name }]`）があるとき、「人を加える」に「関わるプロジェクト」の選択欄を出し、選んだものを `entity.projectCode` で送る。選ばないと送らない。`personProjects` の形が正しくなければ読み取りを失敗として扱う。無いとき（手元のホスト）は選択欄も `projectCode` も出さない（`story-people-and-companies-person-project-v1`）
+
+## 0.39.0 candidate — npm公開前
+
+- 関係の定義に `related_to`（会社→プロジェクト、役割は関係の `role`）を追加。「人と会社」の読み取りは、会社ごとに `related_to` で関わるプロジェクトと役割、記録どおりの `orgType`・`lifecycle_stage`・`deals`、記録だけから導いた種類（顧客・協業先・提案中）を返す（`story-people-and-companies-read-v1`）
+- 訂正に `create_entity` を追加。作れるのは人（`person`）と会社（`org`）だけで、理由と履歴を残し、保存後に読み戻して確かめる。同じ名前か別名の記録があれば作らず、今の記録を返す。共通部品「人と会社」は、ホストが `canCorrect: true` を渡したときだけ、人・会社を作る、所属を付ける、所属を終える（終了日）を出す。読み取りは人ごとに文字の属性 `org`（無ければ `organization`）を `orgNote` として返し、画面は所属未確認の人にだけ「記録上のメモ」として出す（`story-people-and-companies-write-v1`）
+- 保守の計画の `upsert_edge` で、同じ組織の人→会社の所属（`member_of`）をプロジェクトが違っても張れるようにする。別の組織の参照・終わった記録・人以外・会社以外は今までどおり断る（`story-people-and-companies-write-v1` AC-10）
+
+## 0.38.0 candidate — npm公開前
+
+- Personal Web のメニューを組織版と同じ6つの領域（目的と現状・仕事・成果・情報と関係）の見出しで束ねる。画面IDと初期画面は変えない（`story-shell-nav-six-areas-v1`）
+- 読み取り `GET /api/graph/people-and-companies` と共通部品 `ui/people-and-companies-view`（「人と会社」）を追加。人を所属（`member_of`）と自社から社内・社外・所属未確認に分け、自社は本人の所属がちょうど1社のときだけ決める。社内・社外の印は持たない（`story-people-and-companies-read-v1`）
+
+## 0.37.0 candidate — npm公開前
+
+- Taskの更新で既存の参照を保持したまま参照を追加する `source_refs_append` を追加。Unicodeを含むキーの順序だけが違う同じ参照は重複させず、同じ操作の再送では版を増やさない。置換の `source_refs` との同時指定は断る（`story-canonical-task-source-refs-append`）
+
+## 0.36.0 candidate — npm公開前
+
+- 議事録の文書を取り下げる `withdraw_minutes` を追加。版と本文は消さず、取り下げた人と時刻を記録する。取り下げた文書は一覧の要約から外れ、詳細では履歴として読め、新しい版の保存と確定は断る（`story-meeting-minutes-withdraw-v1`）
+
+## 0.35.0 candidate — npm公開前
+
+- 世界の部品に、判断のほかの待ち行列（会議の振り分けなど）の件数と降り口を受け取る `waitingQueues` を追加。件数が1以上の行列だけを「待っている」に出し、読めない行列は0件と出さない。渡されなければ今までと同じ（前提台帳P17・D9、`story-world-waiting-queues-v1`）
+
+## 0.34.0 candidate — npm公開前
+
+- Graphのオントロジーの公開subpath `ontology-kernel`・`ontology-registry`・`ontology-publication`・`ontology-release-trust` を追加。brainbase-unsonの実装と同じ振る舞いで、版の登録簿は渡された設定フォルダから読む（`story-ontology-kernel-registry-exit-v1`）
+
+## 0.33.0 candidate — npm公開前
+
+- 世界に「あなたを待っている」判断の短い一覧を追加。新しい順に最大3件、本来の質問と「判断の履歴」への降り口を出し、超えた分は「ほかN件」と数える。0件なら出さず、判断の記録を読めないときは0件とも出さない（前提台帳U2、`story-world-waiting-list-v1`）
+- Graphの保守エンジン（変更計画の組み立て・適用・スナップショットの検査とハッシュ）の公開subpath `graph-maintenance-engine` と、記憶の記録を見てよい範囲の判定の公開subpath `memory-scope-policy` を追加。brainbase-unsonの実装と同じ振る舞い（`story-graph-maintenance-memory-scope-exit-v1`）
+
+## 0.32.0 candidate — npm公開前
+
+- 世界の部品に、夜の記憶の整理の状態と記憶の候補の件数を受け取る `memoryStatus` を追加。整理できなかった夜を目立たせ、候補があれば「候補の確認」へのリンクを出す。渡されなければ「記憶の整理：未接続」（前提台帳P18、`story-world-memory-status-v1`）
+
+## 0.31.0 candidate — npm公開前
+
+- 判断の解決のエラーの型・正規JSON（キーを符号位置の順に並べる）・要求digestの公開subpath `judgment-resolution-contract` を追加。brainbase-unsonの判断のサービスと同じ実装で、判断Hookの同じ写しもここから読む（`story-judgment-resolution-contract-exit-v1`）
+
+## 0.30.0 candidate — npm公開前
+
+- Personal Webのナビの「今日」を「判断の履歴」（画面ID `value-proofs`）に改め、組織版と表示語をそろえる。古い `#today`・`#today?decision=<id>` は同じ判断へ転送する（前提台帳U1）
+- 世界の部品に、判断を開くリンクの行き先を差し替える `judgmentHref` を追加。既定は `#value-proofs?decision=<id>`
+
+## 0.29.0 candidate — npm公開前
+
+- 所有repoへのチームの文書の書き込みの検査と読み戻しの照合（`canonical-document-writer`）、知識の取り込みの提案と下書きの回答の検証（`knowledge-capture-preview`）、会議ソースのカタログ（`meeting-source-integration-catalog`）の公開subpathを追加。brainbase-unsonの部品を処理を変えずに移したもので、Node.jsの標準モジュール以外に依存しない（`story-document-and-meeting-source-exits-v1`）
+- 会議ソースの接続ごとの同期で、期限の切れたアクセストークンをrefresh tokenで更新するよう修正。これまでは更新せずに同期が失敗していた（`meeting-source-connection`）
+
+## 0.28.0 candidate — npm公開前
+
+- 知識を探す正本（Graph・所有repo・チームのDrive・個人KG・作業場）を内容の種類と相手から決める部品の公開subpath `knowledge-resolution-service` を追加。brainbase-unsonの部品を処理を変えずに移したもので、外部サービスを呼ばない（`story-knowledge-resolution-service-exit-v1`）
+
+## 0.27.0 candidate — npm公開前
+
+- Graphの埋め込みの生成（Gemini、`gemini-embedding-001:768:v2`）の公開subpath `graph-embedding-provider` を追加。brainbase-unsonの部品を処理を変えずに移したもので、APIキーを渡したときだけ呼ぶ（`story-graph-embedding-provider-exit-v1`）
+
+## 0.26.1 candidate — npm公開前
+
+- `brainbase_judgment_frame_record` の予測のuseに任意の `check`（falsified_if・status held/failed/unchecked・evidence）を追加。held・failedはevidence必須。予測以外へのcheckや形の崩れは `frame_check_invalid`
+- 採用案が確かめて外れた予測に頼るとき `chosen_relies_on_failed_prediction` を返し、応答に採用案の予測の確認件数 `prediction_checks` を返す。記録の版は変えない
+
+## 0.26.0 candidate — npm公開前
+
+- 世界に任意の `businessExits(business)` を追加。都市の詳細（canvasの右端・standardのrail）と3Dなしの一覧に「この事業の道具」の欄を出す（`story-world-business-exits-v1`）
+- canvasの区画の門の外に、道具ごとの駅を置く。明かり＝使える、閉じた改札＝権限が必要、霧＝未確認・読めない。駅を選ぶと都市の詳細の該当行を選び、外へは直接移らない
+- 語彙に `exit_states` を追加。既定は「使える」「権限が必要」「未確認」「読めない」
+- `failIfMajorPerformanceCaveat` でWebGLを作れない環境（GPUなし）では一覧で出す
+
+## 0.25.0 candidate — npm公開前
+
+- 新しい出口 `@unson/brainbase-mcp/meeting-source-connection` を追加。接続の記録の型（接続IDはBrainbaseが発行、秘密値を拒否）、`ConnectionRuntime` とMCP SDKで呼ぶ `NativeMcpRuntime`、接続IDごとの資格情報の差し込み口（メモリ・0600のファイル）
+- 接続の確認は一覧と全文の1ページ目を実際に読み、読めたものだけを能力として返す。読み出しに1ページ目だけを読む `probeTranscript` を追加
+- 接続ごとの同期。全文待ちの保留、失敗の記録、`digest` での重複防止と版、Tactiqの1時間10件の枠、止まっていた期間の取り直し。別のproviderの同じ会議は同じテナント・持ち主の中だけで候補として示す
+- MCPのOAuth（RFC 9728/8414の探索・動的なクライアント登録・PKCE・token交換）を組織接続の共通部品の `providerAdapter` として差し込む
+
+## 0.24.1 candidate — npm公開前
+
+- 判断履歴の通常判断で、詳細取得が待機中または失敗しても一覧で取得できた当時の参照を表示し、正本の詳細取得に成功した場合は詳細の参照を優先
+- 部分取得・未接続・取得失敗の通知で、判断履歴画面の再読み込み操作を内容幅で左寄せ
+- npm公開、組織版の依存更新、本番反映と本人の画面確認は別途検証する
+
+## 0.24.0 candidate — npm公開前
+
+- 新しい出口 `@unson/brainbase-mcp/meeting-source-reader` を追加。Plaudの全文を `next_cursor` が無くなるまで、Tactiqの全文を `hasMore` が偽になるまで読み、最後まで読めたときだけ全文として返す
+- 一覧はPlaudを最後のページまで、Tactiqを上限50件に達した期間を分けて取り直す。Tactiqの全文の取得枠（1時間に異なる会議10件、読み直しは数えない）を呼ぶ前に数える
+- 読めない会議を、認可切れ・許可不足（Tactiqは `get_access_options` で理由を取得）・取得枠・時間切れ・生成待ち・途中停止に分けて返す。要約は全文と別の結果にする
+
+## 0.23.9 candidate — npm公開前
+
+- 知識・判断の一覧に種類・範囲・有効状態を添え、選択した項目の本文・出典・適用範囲・変更履歴へ進む階層を整備。モバイルには選択中の詳細へ移動する導線を追加
+- 詳細・履歴の取得失敗を正本未確認として表示し、再試行を提供。確認できるまで版の変更・失効を実行できず、検索結果が空または利用できない場合は前の選択・詳細を解除
+- Worldの事業・仕事・判断などで、取得できた件数を総数とみなさず、件数未確認を0件と区別。ホスト全体が利用できない理由は対象欄ごとに折りたたんで確認できる
+
+## 0.23.8 candidate — npm公開前
+
+- Worldの任意の全画面キャンバス表示、実データ由来の警告、右端の区画詳細、仕事に追従する詳細とキーボード・タッチ操作を追加
+- 取得失敗と未確認を0件にせず、遅い応答・再読込・選択解除時の状態を保持。npm公開、利用側の依存更新、実ブラウザ確認と本番反映は別途検証する
+
+## 0.23.7 candidate — npm公開前
+
+- Canonical Taskに任意の `completion_contract` を追加し、ゴールと一意な条件ID・条件本文を作成・取得・更新・一覧・検索で保持する。既存のversion/CAS・冪等性・監査を適用し、空・重複・不正型・未知項目・過大入力を拒否する
+- 条件別の証拠照合、完了遷移の保護、Hostの停滞・予算制御は今回の範囲に含めない。npm公開、利用側の依存更新、実行中のHostでの確認は別に実施する
+
+## 0.23.6 candidate — npm公開前
+
+- 判断履歴の取得済み件数と全件数を区別。全件取得と有効な総数を確認できた場合だけ全件数を表示し、検索結果・ページ分割・総数不明の空応答も区別
+
+## 0.23.5 candidate — npm公開前
+
+- 明示的なprivate Philosophyの現在・履歴に保存されたowner ACLを読み取りへ適用し、呼び手を所有者として投影する問題を修正
+- 同じowner、private ACL、空の追加reader/writer、正確なversionとproject適用を検証する共通Graph writer契約を追加。ACLのない既存の哲学は互換を維持
+
+## 0.23.4 candidate — npm公開前
+
+- 判断履歴へ、呼び手が明示した公開用の要約と理由を受け付ける厳密な入力契約を追加。公開用digestを返し、回答・ツール出力・内部推論から公開内容を生成せず、全体digestにも公開入力を含める
 
 ## 0.23.3 candidate — npm公開前
 
@@ -320,7 +650,7 @@
 - Judgment DAGの利用者向け説明とReleased / Develop / Plannedの状態ページを追加
 - `public-message.json`からREADME、manual、Core Philosophy、agent instructions、package descriptionを同期
 - Brainbase Graphのsnapshot hash付きcandidateから、review用PRを作るpromotion workflowを追加
-- pull requestでdocs check / build / smokeを行い、`develop` merge後にCloudflare Pagesへ自動deploy
+- pull requestと`develop` pushでdocs check / build / smokeを行い、`main`昇格後にCloudflare Pagesへ自動deploy
 - 配信後に公開URLをreadbackし、コピーとbuild SHAを確認
 
 ## 0.4.0

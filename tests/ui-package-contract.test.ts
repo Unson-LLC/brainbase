@@ -37,6 +37,10 @@ describe('OSS共通UIの公開契約', () => {
       './ui/objective-editor-http-port': './ui/objective-editor-http-port.js',
       './ui/world-model-view': './ui/world-model-view.js',
       './ui/world-model-view.css': './ui/world-model-view.css',
+      './ui/area-nav': './ui/area-nav.js',
+      './ui/area-nav.css': './ui/area-nav.css',
+      './ui/inbox': './ui/inbox.js',
+      './ui/inbox.css': './ui/inbox.css',
       './ui/local-web-shell': './ui/local-web-shell.js',
       './ui/local-web-shell.css': './ui/local-web-shell.css',
       './ui/meeting-minutes': './ui/meeting-minutes.js',
@@ -55,6 +59,8 @@ describe('OSS共通UIの公開契約', () => {
       './ui/project-graph-vendor.js': './ui/project-graph-vendor.js',
       './ui/graph-registry-view': './ui/graph-registry-view.js',
       './ui/graph-registry-view.css': './ui/graph-registry-view.css',
+      './ui/graph-ontology-view': './ui/graph-ontology-view.js',
+      './ui/graph-ontology-view.css': './ui/graph-ontology-view.css',
       './ui/brainbase-tokens.css': './ui/brainbase-tokens.css',
     });
   });
@@ -81,6 +87,8 @@ describe('OSS共通UIの公開契約', () => {
       'objective-editor-http-port.js',
       'world-model-view.js',
       'world-model-view.css',
+      'area-nav.js',
+      'area-nav.css',
       'local-web-shell.js',
       'local-web-shell.css',
       'meeting-minutes.js',
@@ -99,6 +107,8 @@ describe('OSS共通UIの公開契約', () => {
       'project-graph.js',
       'graph-registry-view.js',
       'graph-registry-view.css',
+      'graph-ontology-view.js',
+      'graph-ontology-view.css',
     ].map((file) => readFile(new URL(`../ui/${file}`, import.meta.url), 'utf8')));
 
     for (const source of sources) {
@@ -108,28 +118,28 @@ describe('OSS共通UIの公開契約', () => {
 
   it('新しい部品とホストの外枠は共通の見た目の定義だけで色・文字・余白を決める', async () => {
     const tokens = await readFile(new URL('../ui/brainbase-tokens.css', import.meta.url), 'utf8');
-    // The values are the current white UI design (the visual source of truth).
+    // Standard navy/mint surfaces and Noto Sans JP; semantic status colors stay stable.
     for (const [name, value] of Object.entries({
-      '--bb-color-ink': '#202124', '--bb-color-muted': '#6b6b73', '--bb-color-border': '#e5e5e9', '--bb-color-panel': '#ffffff',
-      '--bb-color-paper': '#ffffff', '--bb-color-canvas': '#f6f6f8', '--bb-color-surface': '#f6f6f8',
-      '--bb-color-accent': '#5b4bd8', '--bb-color-accent-soft': '#efedff', '--bb-color-action': '#5b4bd8',
+      '--bb-color-ink': '#202939', '--bb-color-muted': '#6b7280', '--bb-color-border': '#dce4e7', '--bb-color-panel': '#ffffff',
+      '--bb-color-paper': '#ffffff', '--bb-color-canvas': '#f6f8fa', '--bb-color-surface': '#f1f5f4',
+      '--bb-color-accent': '#24324b', '--bb-color-accent-soft': '#eaf6f3', '--bb-color-action': '#24324b',
       '--bb-color-success': '#18794e', '--bb-color-success-soft': '#e4f5eb', '--bb-color-warning': '#8a631d',
       '--bb-color-warning-soft': '#fff0c7', '--bb-color-danger': '#d92335', '--bb-color-danger-soft': '#fde9eb',
-      '--bb-color-rail': '#ffffff', '--bb-color-rail-active': '#efedff',
-      '--bb-font-sans': 'Geist, "Noto Sans JP", "Hiragino Sans", system-ui, sans-serif',
+      '--bb-color-rail': '#ffffff', '--bb-color-rail-active': '#eaf6f3',
+      '--bb-font-sans': '"Noto Sans JP", "Hiragino Sans", system-ui, sans-serif',
       '--bb-radius-sm': '7px', '--bb-radius-md': '14px', '--bb-radius-lg': '16px', '--bb-space-1': '4px', '--bb-space-2': '8px', '--bb-space-3': '12px',
       '--bb-space-4': '16px', '--bb-space-5': '24px', '--bb-space-6': '32px',
     })) {
       expect(tokens).toContain(`${name}: ${value};`);
     }
-    for (const file of ['world-model-view.css', 'local-web-shell.css', 'meeting-minutes.css', 'workspace-kit.css', 'graph-view-shared.css', 'graph-projects-view.css', 'project-workspace.css', 'graph-registry-view.css']) {
+    for (const file of ['world-model-view.css', 'area-nav.css', 'inbox.css', 'local-web-shell.css', 'meeting-minutes.css', 'workspace-kit.css', 'graph-view-shared.css', 'graph-projects-view.css', 'project-workspace.css', 'graph-registry-view.css', 'graph-ontology-view.css']) {
       const css = await readFile(new URL(`../ui/${file}`, import.meta.url), 'utf8');
       // Colors and font families come only from the shared tokens.
       expect(css, file).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);
       expect(css, file).not.toMatch(/font-family:(?!\s*var\(--bb-font-)/);
     }
     const defined = new Set([...tokens.matchAll(/(--bb-[a-z0-9-]+):/g)].map((match) => match[1]));
-    for (const file of ['graph-view-shared.css', 'graph-projects-view.css', 'meeting-minutes.css', 'project-workspace.css', 'graph-registry-view.css']) {
+    for (const file of ['inbox.css', 'graph-view-shared.css', 'graph-projects-view.css', 'meeting-minutes.css', 'project-workspace.css', 'graph-registry-view.css', 'graph-ontology-view.css']) {
       const css = await readFile(new URL(`../ui/${file}`, import.meta.url), 'utf8');
       const used = [...css.matchAll(/var\((--[a-z0-9-]+)\)/g)].map((match) => match[1]);
       // The Graph screens read only tokens that brainbase-tokens.css defines.

@@ -57,8 +57,25 @@ export interface CanonicalTaskContext extends JsonRecord {
   storageScope?: string;
 }
 
+/** Conditions to review; this metadata is not evidence of completion. */
+export interface CanonicalTaskCompletionContract {
+  goal: string;
+  criteria: Array<{ id: string; condition: string }>;
+}
+
+export type CanonicalTaskRecordKind = 'work' | 'request' | 'requirement';
+
+export function isCanonicalTaskRecordKind(value: unknown): value is CanonicalTaskRecordKind {
+  return value === 'work' || value === 'request' || value === 'requirement';
+}
+
 export interface CanonicalTaskRecord extends JsonRecord {
   id: string;
+  /** Optional for older repository implementations; public responses always include it. */
+  record_kind?: CanonicalTaskRecordKind | 'unknown';
+  ledger_attributes?: JsonRecord | null;
+  /** NULL is unrecorded and must not be interpreted as false. */
+  ledger_agreed?: boolean | null;
   version: number;
   title: string;
   description?: string | null;
@@ -68,24 +85,33 @@ export interface CanonicalTaskRecord extends JsonRecord {
   assignee_display_name?: string | null;
   due_at?: string | null;
   waiting_on?: string | null;
+  /** The Graph person a waiting task waits on; null when it waits on a condition or nobody in particular. */
+  waiting_on_person_id?: string | null;
   review_at?: string | null;
   completed_at?: string | null;
   source_refs?: unknown[];
   project_codes?: string[];
   /** What the work is for, in a few words (one per task); null when unlabelled. */
   purpose_label?: string | null;
+  completion_contract?: CanonicalTaskCompletionContract | null;
   created_at?: string | null;
   updated_at?: string | null;
   web_url?: string | null;
 }
 
 export interface CanonicalTaskCreateInput extends JsonRecord {
+  record_kind?: CanonicalTaskRecordKind;
+  /** Host policy validates kind-specific keys and authority to set agreement. */
+  ledger_attributes?: JsonRecord | null;
+  ledger_agreed?: boolean | null;
+  completion_contract?: unknown;
   title: string;
   description?: string | null;
   priority?: CanonicalTaskPriority | string | null;
   assignee_person_id?: string | null;
   due_at?: string | null;
   waiting_on?: string | null;
+  waiting_on_person_id?: string | null;
   review_at?: string | null;
   source_refs?: unknown[];
   project_codes?: unknown;
@@ -93,14 +119,17 @@ export interface CanonicalTaskCreateInput extends JsonRecord {
 }
 
 export interface CanonicalTaskUpdateInput extends JsonRecord {
+  completion_contract?: unknown;
   title?: string;
   description?: string | null;
   priority?: CanonicalTaskPriority | string | null;
   assignee_person_id?: string | null;
   due_at?: string | null;
   waiting_on?: string | null;
+  waiting_on_person_id?: string | null;
   review_at?: string | null;
   source_refs?: unknown[];
+  source_refs_append?: unknown[];
   project_codes?: unknown;
   purpose_label?: string | null;
 }
@@ -160,18 +189,38 @@ export interface CanonicalTaskAuditEntry extends JsonRecord {
   source_refs: unknown[];
 }
 
+export interface CanonicalTaskTransactionClient {
+  query(text: string, values?: unknown[]): Promise<{ rows: Array<Record<string, unknown>> }>;
+}
+
 export interface CanonicalTaskRepository {
+  /** Durable PostgreSQL repositories require a release readiness binding. */
+  requiresReadiness?: boolean;
   list(filters: CanonicalTaskListFilters, storageScope?: string): Promise<CanonicalTaskPage>;
   search(filters: CanonicalTaskSearchFilters, storageScope?: string): Promise<CanonicalTaskPage>;
   get(taskId: string, storageScope?: string): Promise<CanonicalTaskRecord | null>;
   findByIdempotencyKey(key: string, storageScope?: string): Promise<CanonicalTaskRecord | null>;
   create(input: JsonRecord, storageScope?: string): Promise<CanonicalTaskRecord>;
+  /**
+   * Create a Task and run the audit writer inside one database transaction.
+   * A throwing writer must roll back the Task insert.
+   */
+  createWithAudit?(
+    input: JsonRecord,
+    runAudit: (created: CanonicalTaskRecord, client: CanonicalTaskTransactionClient) => Promise<void>,
+    storageScope?: string,
+  ): Promise<CanonicalTaskRecord>;
   update(taskId: string, patch: JsonRecord, storageScope?: string): Promise<CanonicalTaskRecord>;
   delete(taskId: string, expectedVersion: number, storageScope?: string): Promise<void>;
 }
 
 export interface CanonicalTaskAuditRepository {
-  upsertAuditLog(entry: CanonicalTaskAuditEntry): Promise<void>;
+  /** Declare support before offering the same-transaction audit contract. */
+  supportsTransactionClient?: boolean;
+  upsertAuditLog(
+    entry: CanonicalTaskAuditEntry,
+    options?: { client?: CanonicalTaskTransactionClient },
+  ): Promise<void>;
 }
 
 export interface CanonicalTaskAuthorizationRequest {
@@ -236,11 +285,20 @@ export interface CanonicalTaskPreparedDeleteRequest<T> {
   }>;
   findTask: () => Promise<CanonicalTaskRecord | null>;
   removeTask: (task?: CanonicalTaskRecord) => Promise<void>;
+  /** Reauthorize a completed or already-applied delete from its durable snapshot. */
+  authorizeReplay?: (authorizationSnapshot: JsonRecord, result: T) => Promise<void>;
   projectResult?: (result: T) => unknown;
   recover?: () => Promise<CanonicalTaskOperationRecovery<T>>;
 }
 
+export interface CanonicalTaskMutationReadiness {
+  /** Reject the mutation unless the persisted release readiness still matches. */
+  assertMutationReady(): Promise<void>;
+}
+
 export interface CanonicalTaskOperationRepository {
+  /** Durable PostgreSQL coordinators set this marker and require readiness binding. */
+  requiresReadiness?: boolean;
   execute<T>(request: CanonicalTaskOperationRequest<T>): Promise<T>;
   executePreparedDelete?<T>(request: CanonicalTaskPreparedDeleteRequest<T>): Promise<T>;
 }
@@ -250,6 +308,7 @@ export interface CanonicalTaskServiceOptions {
   auditRepository?: CanonicalTaskAuditRepository;
   policy?: CanonicalTaskPolicy;
   operationRepository?: CanonicalTaskOperationRepository;
+  readiness?: CanonicalTaskMutationReadiness | null;
   clock?: CanonicalTaskClock;
   baseUrl?: CanonicalTaskBaseUrl;
 }
@@ -285,20 +344,28 @@ const MAX_TITLE_LENGTH = 200;
 const MAX_SEARCH_LENGTH = 200;
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
+const MAX_JSON_DEPTH = 128;
+const MAX_LEDGER_ATTRIBUTES_JSON_BYTES = 64 * 1024;
 const RESERVED_IDEMPOTENCY_PREFIXES = ['api:', 'workflow:'];
 const CREATE_FIELDS = new Set([
+  'record_kind',
+  'ledger_attributes',
+  'ledger_agreed',
+  'completion_contract',
   'title',
   'description',
   'priority',
   'assignee_person_id',
   'due_at',
   'waiting_on',
+  'waiting_on_person_id',
   'review_at',
   'source_refs',
   'project_codes',
   'purpose_label',
 ]);
 const MUTABLE_FIELDS = new Set([
+  'completion_contract',
   'expected_version',
   'title',
   'description',
@@ -306,8 +373,10 @@ const MUTABLE_FIELDS = new Set([
   'assignee_person_id',
   'due_at',
   'waiting_on',
+  'waiting_on_person_id',
   'review_at',
   'source_refs',
+  'source_refs_append',
   'project_codes',
   'purpose_label',
 ]);
@@ -348,10 +417,47 @@ function normalizeString(
   return normalized;
 }
 
+/** A Graph person ID, as for the assignee; empty or null means no person. */
+function normalizeWaitingOnPersonId(value: unknown): string | null {
+  return normalizeString(value, 'waiting_on_person_id', { max: 200 });
+}
+
 /** A purpose label: a single line of at most 30 characters; empty or null clears it. */
 const MAX_PURPOSE_LABEL_LENGTH = 30;
 function normalizePurposeLabel(value: unknown): string | null {
   return normalizeString(value, 'purpose_label', { max: MAX_PURPOSE_LABEL_LENGTH });
+}
+
+function normalizeCompletionContract(value: unknown): CanonicalTaskCompletionContract | null {
+  if (value == null) return null;
+  const object = (candidate: unknown, keys: string[]): JsonRecord => {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)
+      || ![Object.prototype, null].includes(Object.getPrototypeOf(candidate))
+      || Object.keys(candidate).some((key) => !keys.includes(key))) {
+      fail('validation_error', 'completion_contract contains an invalid object');
+    }
+    return candidate as JsonRecord;
+  };
+  const text = (candidate: unknown, field: string): string => {
+    if (typeof candidate !== 'string') fail('validation_error', `${field} must be a string`);
+    return normalizeString(candidate, field, { required: true, max: 2000, multiline: true }) as string;
+  };
+  const contract = object(value, ['goal', 'criteria']);
+  const goal = text(contract.goal, 'completion_contract.goal');
+  if (!Array.isArray(contract.criteria) || contract.criteria.length < 1 || contract.criteria.length > 50) {
+    fail('validation_error', 'completion_contract.criteria must contain 1 to 50 conditions');
+  }
+  const ids = new Set<string>();
+  const criteria = Array.from(contract.criteria, (candidate) => {
+    const criterion = object(candidate, ['id', 'condition']);
+    if (typeof criterion.id !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/u.test(criterion.id)
+      || ids.has(criterion.id)) {
+      fail('validation_error', 'completion_contract criterion id is invalid or duplicated');
+    }
+    ids.add(criterion.id);
+    return { id: criterion.id, condition: text(criterion.condition, 'completion_contract.criteria.condition') };
+  });
+  return { goal, criteria };
 }
 
 function normalizeIsoDate(value: unknown, field: string): string | null {
@@ -369,6 +475,12 @@ function normalizeLimit(value: unknown, max = MAX_LIMIT): number {
     failValidation({ limit: [`must_be_between_1_and_${max}`] });
   }
   return limit;
+}
+
+// Optional list filters are only sent to the repository when they carry a value.
+// An empty value must mean "no filter", never "match IS NULL".
+function optionalFilter<K extends string>(key: K, value: string | null): Partial<Record<K, string>> {
+  return value == null ? {} : ({ [key]: value } as Record<K, string>);
 }
 
 function normalizeCursor(value: unknown): string | null {
@@ -402,6 +514,86 @@ function normalizeSourceRefs(value: unknown): unknown[] | undefined {
   return value;
 }
 
+function isPlainJsonObject(value: unknown): value is JsonRecord {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function assertJsonValue(value: unknown, field: string, ancestors = new Set<object>(), depth = 0): void {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
+  if (typeof value === 'number') {
+    if (Number.isFinite(value)) return;
+    fail('validation_error', `${field} must contain JSON-serializable values`, 400, { field });
+  }
+  if (typeof value !== 'object') {
+    fail('validation_error', `${field} must contain JSON-serializable values`, 400, { field });
+  }
+  if (depth >= MAX_JSON_DEPTH) {
+    fail('validation_error', `${field} exceeds the maximum JSON nesting depth`, 400, { field });
+  }
+  if (ancestors.has(value)) {
+    fail('validation_error', `${field} must contain JSON-serializable values`, 400, { field });
+  }
+  ancestors.add(value);
+  if (Array.isArray(value)) {
+    for (const key of Reflect.ownKeys(value)) {
+      if (key === 'length') continue;
+      if (typeof key !== 'string' || !/^(?:0|[1-9]\d*)$/u.test(key)
+        || Number(key) >= value.length
+        || !Object.prototype.propertyIsEnumerable.call(value, key)) {
+        fail('validation_error', `${field} must contain JSON-serializable values`, 400, { field });
+      }
+    }
+    for (let index = 0; index < value.length; index += 1) {
+      if (!Object.prototype.hasOwnProperty.call(value, index)) {
+        fail('validation_error', `${field} must contain JSON-serializable values`, 400, { field });
+      }
+      const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+      if (!descriptor || !('value' in descriptor)) {
+        fail('validation_error', `${field} must contain JSON-serializable values`, 400, { field });
+      }
+      assertJsonValue(descriptor.value, `${field}[${index}]`, ancestors, depth + 1);
+    }
+  } else if (isPlainJsonObject(value)) {
+    for (const key of Reflect.ownKeys(value)) {
+      if (typeof key !== 'string' || !Object.prototype.propertyIsEnumerable.call(value, key)) {
+        fail('validation_error', `${field} must contain JSON-serializable values`, 400, { field });
+      }
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (!descriptor || !('value' in descriptor)) {
+        fail('validation_error', `${field} must contain JSON-serializable values`, 400, { field });
+      }
+      assertJsonValue(descriptor.value, `${field}.${key}`, ancestors, depth + 1);
+    }
+  } else {
+    fail('validation_error', `${field} must contain plain JSON objects`, 400, { field });
+  }
+  ancestors.delete(value);
+}
+
+function normalizeSourceRefsAppend(value: unknown): unknown[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) {
+    fail('validation_error', 'source_refs_append must be an array of plain JSON objects', 400, { field: 'source_refs_append' });
+  }
+  // Validate the array container itself so sparse, symbol-keyed, accessor, or
+  // otherwise non-JSON properties cannot bypass the per-reference checks.
+  assertJsonValue(value, 'source_refs_append');
+  for (let index = 0; index < value.length; index += 1) {
+    if (!Object.prototype.hasOwnProperty.call(value, index)) {
+      fail('validation_error', 'source_refs_append must be an array of plain JSON objects', 400, { field: 'source_refs_append' });
+    }
+    const ref = value[index];
+    const field = `source_refs_append[${index}]`;
+    if (!isPlainJsonObject(ref)) {
+      fail('validation_error', 'source_refs_append must be an array of plain JSON objects', 400, { field: 'source_refs_append' });
+    }
+    assertJsonValue(ref, field);
+  }
+  return value;
+}
+
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalize);
   if (value && typeof value === 'object') {
@@ -415,6 +607,50 @@ function canonicalize(value: unknown): unknown {
 
 function fingerprint(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(canonicalize(value))).digest('hex');
+}
+
+/**
+ * Appended source references use code-unit key ordering so the same JSON
+ * object has one fingerprint across runtimes and locale settings. Keep the
+ * existing canonicalizer above unchanged because its fingerprints are already
+ * persisted for older create/update/transition operations.
+ */
+function canonicalizeSourceRefsAppend(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalizeSourceRefsAppend);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value as JsonRecord)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+      .map(([key, entry]) => [key, canonicalizeSourceRefsAppend(entry)]));
+  }
+  return value;
+}
+
+function sourceRefsAppendFingerprint(value: unknown): string {
+  return createHash('sha256').update(JSON.stringify(canonicalizeSourceRefsAppend(value))).digest('hex');
+}
+
+function mergeSourceRefs(existing: unknown, additions: unknown[]): unknown[] {
+  if (existing != null && !Array.isArray(existing)) {
+    fail('validation_error', 'source_refs must be an array', 400, { field: 'source_refs' });
+  }
+  const existingRefs = Array.isArray(existing) ? existing : [];
+  const merged = [...existingRefs];
+  const known = new Set<string>();
+  for (const ref of existingRefs) {
+    try {
+      known.add(sourceRefsAppendFingerprint(ref));
+    } catch {
+      // Preserve legacy references exactly, but do not block valid additions.
+    }
+  }
+  for (const addition of additions) {
+    const key = sourceRefsAppendFingerprint(addition);
+    if (known.has(key)) continue;
+    known.add(key);
+    merged.push(addition);
+  }
+  return merged;
 }
 
 function validHttpUrl(value: unknown): string | null {
@@ -491,6 +727,7 @@ export class CanonicalTaskService {
   private readonly auditRepository?: CanonicalTaskAuditRepository;
   private readonly policy: CanonicalTaskPolicy;
   private readonly operationRepository?: CanonicalTaskOperationRepository;
+  private readonly readiness?: CanonicalTaskMutationReadiness;
   private readonly clock: CanonicalTaskClock;
   private readonly baseUrl?: CanonicalTaskBaseUrl;
 
@@ -500,6 +737,14 @@ export class CanonicalTaskService {
     this.auditRepository = options.auditRepository;
     this.policy = options.policy ?? { authorize: () => undefined };
     this.operationRepository = options.operationRepository;
+    if (options.readiness != null && typeof options.readiness.assertMutationReady !== 'function') {
+      throw new Error('Canonical Task readiness must provide assertMutationReady()');
+    }
+    this.readiness = options.readiness ?? undefined;
+    if ((this.repository.requiresReadiness === true || this.operationRepository?.requiresReadiness === true)
+      && !this.readiness) {
+      throw new Error('Canonical Task readiness is required for durable persistence or operation coordination');
+    }
     this.clock = options.clock ?? (() => new Date());
     this.baseUrl = options.baseUrl;
     if (typeof options.baseUrl === 'string' && options.baseUrl && !validHttpUrl(options.baseUrl)) {
@@ -554,10 +799,16 @@ export class CanonicalTaskService {
     const normalizedContext = await this.normalizeContext(context);
     const clientKey = this.requireIdempotencyKey(normalizedContext);
     const payload = this.normalizeCreateInput(input);
+    await this.assertMutationReady();
     await this.authorize('create', normalizedContext, undefined, payload);
     const operation = operationKey(normalizedContext, clientKey, 'api:');
-    const inputFingerprint = fingerprint(payload);
+    // Preserve pre-record-kind create fingerprints, including persisted replays.
+    // Explicit work and omitted work describe the same command.
+    const fingerprintPayload = { ...payload };
+    if (fingerprintPayload.record_kind === 'work') delete fingerprintPayload.record_kind;
+    const inputFingerprint = fingerprint(fingerprintPayload);
     const recover = async (): Promise<CanonicalTaskOperationRecovery<CanonicalTaskRecord>> => {
+      await this.assertMutationReady();
       const existing = await this.read(() => this.repository.findByIdempotencyKey(operation, ...this.scopeArgs(normalizedContext)));
       if (!existing) return { recovered: false };
       const existingFingerprint = extractPersistedFingerprint(existing);
@@ -571,16 +822,36 @@ export class CanonicalTaskService {
       await this.authorize('read', normalizedContext, existing);
       return { recovered: true, result: this.normalizeResponse(existing) };
     };
+    const transactionalAudit = typeof this.repository.createWithAudit === 'function'
+      && this.auditRepository?.supportsTransactionClient === true;
+    let auditedInTransaction = false;
     const run = async (): Promise<CanonicalTaskRecord> => {
       const recovered = await recover();
       if (recovered.recovered && recovered.result) return recovered.result;
-      const created = await this.read(() => this.repository.create({
+      await this.assertMutationReady();
+      const input = {
         ...payload,
         status: 'pending',
         version: 1,
         idempotency_key: operation,
         payload_fingerprint: inputFingerprint,
-      }, ...this.scopeArgs(normalizedContext)));
+      };
+      if (transactionalAudit) {
+        return this.read(() => this.repository.createWithAudit!(input, async (created, client) => {
+          const normalizedCreated = this.normalizeResponse(created);
+          await this.audit(
+            normalizedContext,
+            'canonical_task.created',
+            normalizedCreated,
+            { before: null, after: normalizedCreated },
+            operation,
+            inputFingerprint,
+            client,
+          );
+          auditedInTransaction = true;
+        }, ...this.scopeArgs(normalizedContext)));
+      }
+      const created = await this.read(() => this.repository.create(input, ...this.scopeArgs(normalizedContext)));
       return this.normalizeResponse(created);
     };
     const result = await this.executeOperation({
@@ -593,17 +864,19 @@ export class CanonicalTaskService {
     });
     if (normalizedContext.storageScope !== undefined) await this.authorize('read', normalizedContext, result);
     const normalized = this.normalizeResponse(result);
-    // Audit each invocation, including a replay/recovery. The deterministic
-    // entry id lets an upsert sink collapse retries without losing evidence
-    // that the audit write was attempted again.
-    await this.audit(
-      normalizedContext,
-      'canonical_task.created',
-      normalized,
-      { before: null, after: normalized },
-      operation,
-      inputFingerprint,
-    );
+    if (!auditedInTransaction) {
+      // Audit each invocation, including a replay/recovery. The deterministic
+      // entry id lets an upsert sink collapse retries without losing evidence
+      // that the audit write was attempted again.
+      await this.audit(
+        normalizedContext,
+        'canonical_task.created',
+        normalized,
+        { before: null, after: normalized },
+        operation,
+        inputFingerprint,
+      );
+    }
     return normalized;
   }
 
@@ -628,16 +901,19 @@ export class CanonicalTaskService {
 
   async transitionTask(taskId: string, status: unknown, expectedVersion: number, context: CanonicalTaskContext, input?: {
     waitingOn?: unknown;
+    waitingOnPersonId?: unknown;
     reviewAt?: unknown;
   }): Promise<CanonicalTaskRecord>;
   async transitionTask(taskId: string, input: {
     to_status?: unknown;
     expected_version?: number;
     waiting_on?: unknown;
+    waiting_on_person_id?: unknown;
     review_at?: unknown;
   }, context: CanonicalTaskContext): Promise<CanonicalTaskRecord>;
   async transitionTask(taskId: string, statusOrInput: unknown, expectedVersionOrContext: number | CanonicalTaskContext, maybeContext?: CanonicalTaskContext, maybeInput: {
     waitingOn?: unknown;
+    waitingOnPersonId?: unknown;
     reviewAt?: unknown;
   } = {}): Promise<CanonicalTaskRecord> {
     const legacyInput = statusOrInput && typeof statusOrInput === 'object' ? statusOrInput as Record<string, unknown> : null;
@@ -645,7 +921,7 @@ export class CanonicalTaskService {
     const expectedVersion = legacyInput ? legacyInput.expected_version : expectedVersionOrContext;
     const context = legacyInput ? expectedVersionOrContext : maybeContext;
     const input = legacyInput
-      ? { waitingOn: legacyInput.waiting_on, reviewAt: legacyInput.review_at }
+      ? { waitingOn: legacyInput.waiting_on, waitingOnPersonId: legacyInput.waiting_on_person_id, reviewAt: legacyInput.review_at }
       : maybeInput;
     const normalizedContext = await this.normalizeContext(context as CanonicalTaskContext);
     const expected = this.requireExpectedVersion(expectedVersion);
@@ -656,9 +932,12 @@ export class CanonicalTaskService {
         failValidation({ waiting_on: ['required_for_waiting'] });
       }
       patch.waiting_on = normalizeString(input.waitingOn, 'waiting_on', { required: true, max: 500 });
+      // The person is optional and always replaced, so waiting on a condition clears an earlier person.
+      patch.waiting_on_person_id = normalizeWaitingOnPersonId(input.waitingOnPersonId);
       patch.review_at = normalizeIsoDate(input.reviewAt, 'review_at');
     } else {
       patch.waiting_on = input.waitingOn === undefined ? null : normalizeString(input.waitingOn, 'waiting_on', { max: 500 });
+      patch.waiting_on_person_id = input.waitingOnPersonId === undefined ? null : normalizeWaitingOnPersonId(input.waitingOnPersonId);
       patch.review_at = input.reviewAt === undefined ? null : normalizeIsoDate(input.reviewAt, 'review_at');
     }
     return this.versionedMutation({
@@ -680,17 +959,28 @@ export class CanonicalTaskService {
       ? expectedVersionOrInput
       : expectedVersionOrInput.expected_version);
     const clientKey = this.requireIdempotencyKey(normalizedContext);
+    await this.assertMutationReady();
     // A prepared-delete coordinator owns the durable operation lookup. Do not
     // require the row to remain visible before entering it: a completed
     // operation may legitimately recover after the delete removed the row.
     // The fallback path still performs the ordinary read and authorization
     // checks before invoking the local operation runner.
-    if (normalizedContext.storageScope !== undefined) await this.authorize('delete', normalizedContext);
     let task: CanonicalTaskRecord | null = null;
-    if (!this.operationRepository?.executePreparedDelete) {
+    if (this.operationRepository?.executePreparedDelete) {
+      // Read and authorize a visible task before entering the coordinator. A
+      // completed replay can legitimately have no row, so absence is left to
+      // the durable snapshot reauthorization below.
+      task = await this.read(() => this.repository.get(normalizedId, ...this.scopeArgs(normalizedContext)));
+      if (task) {
+        await this.authorize('delete', normalizedContext, task);
+        this.assertGeneralMutationAllowed(task);
+        this.assertVersion(task, version);
+      }
+    } else {
       task = await this.read(() => this.repository.get(normalizedId, ...this.scopeArgs(normalizedContext)));
       if (!task) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: normalizedId });
       await this.authorize('delete', normalizedContext, task);
+      this.assertGeneralMutationAllowed(task);
       this.assertVersion(task, version);
     }
     // The client key identifies the delete command. The task/version claim is
@@ -723,9 +1013,11 @@ export class CanonicalTaskService {
       task: CanonicalTaskRecord;
       authorizationSnapshot: JsonRecord;
     }> => {
+      await this.assertMutationReady();
       const current = await this.read(() => this.repository.get(normalizedId, ...this.scopeArgs(normalizedContext)));
       if (!current) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: normalizedId });
       await this.authorize('delete', normalizedContext, current);
+      this.assertGeneralMutationAllowed(current);
       this.assertVersion(current, version);
       task = current;
       return {
@@ -741,6 +1033,7 @@ export class CanonicalTaskService {
           ...(normalizedContext.storageScope === undefined ? {} : { storage_scope: normalizedContext.storageScope }),
           actor: normalizedContext.principal,
           auth_source: normalizedContext.authSource ?? null,
+          task: current,
         },
       };
     };
@@ -750,6 +1043,7 @@ export class CanonicalTaskService {
         return current;
       });
     const removeTask = async (current?: CanonicalTaskRecord): Promise<void> => {
+      await this.assertMutationReady();
       const taskToRemove = current ?? await this.read(() => this.repository.get(normalizedId, ...this.scopeArgs(normalizedContext)));
       if (!taskToRemove) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: normalizedId });
       task = taskToRemove;
@@ -757,8 +1051,38 @@ export class CanonicalTaskService {
       // Recheck the current policy at the destructive boundary so a revoked
       // actor cannot delete a task using a previously prepared authorization.
       await this.authorize('delete', normalizedContext, taskToRemove);
+      this.assertGeneralMutationAllowed(taskToRemove);
       this.assertVersion(taskToRemove, version);
       await this.read(() => this.repository.delete(normalizedId, version, ...this.scopeArgs(normalizedContext)));
+    };
+    const authorizeReplay = async (authorizationSnapshot: JsonRecord): Promise<void> => {
+      await this.assertMutationReady();
+      const snapshotTask = authorizationSnapshot?.task;
+      if (!snapshotTask || typeof snapshotTask !== 'object' || Array.isArray(snapshotTask)) {
+        throw new CanonicalTaskError(
+          'canonical_task_authorization_snapshot_unavailable',
+          'Completed Canonical Task delete operation has no authorization snapshot',
+          503,
+        );
+      }
+      const taskSnapshot = snapshotTask as CanonicalTaskRecord;
+      if (authorizationSnapshot.task_id !== normalizedId
+        || authorizationSnapshot.task_version !== version
+        || taskSnapshot.id !== normalizedId
+        || taskSnapshot.version !== version) {
+        throw new CanonicalTaskError(
+          'canonical_task_authorization_snapshot_unavailable',
+          'Completed Canonical Task delete operation has an invalid authorization snapshot',
+          503,
+        );
+      }
+      const snapshotScope = authorizationSnapshot.storage_scope;
+      if (snapshotScope !== normalizedContext.storageScope
+        && (snapshotScope !== undefined || normalizedContext.storageScope !== undefined)) {
+        throw new CanonicalTaskError('task_not_found', 'Task was not found', 404);
+      }
+      await this.authorize('delete', normalizedContext, taskSnapshot);
+      this.assertGeneralMutationAllowed(taskSnapshot);
     };
     let deleted: CanonicalTaskDeleteOperationResult;
     if (this.operationRepository?.executePreparedDelete) {
@@ -773,6 +1097,7 @@ export class CanonicalTaskService {
         prepare,
         findTask,
         removeTask,
+        authorizeReplay,
         projectResult: projectTaskResult,
       });
     } else {
@@ -836,9 +1161,13 @@ export class CanonicalTaskService {
   }): Promise<CanonicalTaskRecord> {
     const taskId = normalizeString(input.taskId, 'task_id', { required: true, max: 200 }) as string;
     const expectedVersion = this.requireExpectedVersion(input.expectedVersion);
+    await this.assertMutationReady();
     const current = await this.read(() => this.repository.get(taskId, ...this.scopeArgs(input.context)));
     if (!current) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: taskId });
     await this.authorize(input.action, input.context, current, input.patch);
+    // Reject known ledger records before claiming a coordinated operation.
+    // PostgreSQL also checks the kind in the UPDATE to close concurrent changes.
+    this.assertGeneralMutationAllowed(current);
     const operation = operationKey(input.context, `${taskId}:${expectedVersion}`, `${input.action}:`);
     const mutationTimestamp = this.clock().toISOString();
     const patch = {
@@ -852,7 +1181,11 @@ export class CanonicalTaskService {
     // Keep this fingerprint independent of the wall clock. A restart may
     // reconstruct the same command at a different instant, while the marker
     // must still identify the already-applied mutation.
-    const operationFingerprint = fingerprint({
+    const fingerprintOperation = input.action === 'update'
+      && Object.prototype.hasOwnProperty.call(input.patch, 'source_refs_append')
+      ? sourceRefsAppendFingerprint
+      : fingerprint;
+    const operationFingerprint = fingerprintOperation({
       action: input.action,
       taskId,
       expectedVersion,
@@ -875,9 +1208,11 @@ export class CanonicalTaskService {
       }
     }
     const recover = async (): Promise<CanonicalTaskOperationRecovery<CanonicalTaskRecord>> => {
+      await this.assertMutationReady();
       const latest = await this.read(() => this.repository.get(taskId, ...this.scopeArgs(input.context)));
       if (!latest) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: taskId });
       await this.authorize(input.action, input.context, latest, input.patch);
+      this.assertGeneralMutationAllowed(latest);
       if (wasApplied(latest)) return { recovered: true, result: this.normalizeResponse(latest) };
       this.assertVersion(latest, expectedVersion);
       if (input.transitionStatus && !canTransitionCanonicalTaskStatus(latest.status, input.transitionStatus)) {
@@ -889,8 +1224,10 @@ export class CanonicalTaskService {
       return { recovered: false };
     };
     const run = async (): Promise<CanonicalTaskRecord> => {
+      await this.assertMutationReady();
       const latest = await this.read(() => this.repository.get(taskId, ...this.scopeArgs(input.context)));
       if (!latest) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: taskId });
+      this.assertGeneralMutationAllowed(latest);
       if (wasApplied(latest)) return this.normalizeResponse(latest);
       this.assertVersion(latest, expectedVersion);
       if (input.transitionStatus && !canTransitionCanonicalTaskStatus(latest.status, input.transitionStatus)) {
@@ -899,8 +1236,17 @@ export class CanonicalTaskService {
           to: input.transitionStatus,
         }, { currentTask: this.normalizeResponse(latest) });
       }
+      const persistedPatch: JsonRecord = { ...patch };
+      if (input.action === 'update' && 'source_refs_append' in input.patch) {
+        const additions = input.patch.source_refs_append;
+        if (!Array.isArray(additions)) {
+          fail('validation_error', 'source_refs_append must be an array of plain JSON objects', 400, { field: 'source_refs_append' });
+        }
+        delete persistedPatch.source_refs_append;
+        persistedPatch.source_refs = mergeSourceRefs(latest.source_refs, additions);
+      }
       const updated = await this.read(() => this.repository.update(taskId, {
-        ...patch,
+        ...persistedPatch,
         _last_operation_key: operation,
         _last_operation_fingerprint: operationFingerprint,
       }, ...this.scopeArgs(input.context)));
@@ -931,6 +1277,7 @@ export class CanonicalTaskService {
           transition: {
             to_status: input.transitionStatus,
             ...(input.patch.waiting_on !== undefined ? { waiting_on: input.patch.waiting_on } : {}),
+            ...(input.patch.waiting_on_person_id !== undefined ? { waiting_on_person_id: input.patch.waiting_on_person_id } : {}),
             ...(input.patch.review_at !== undefined ? { review_at: input.patch.review_at } : {}),
           },
         };
@@ -942,11 +1289,36 @@ export class CanonicalTaskService {
     if (!input || typeof input !== 'object') fail('validation_error', 'Task input is required');
     const unknownFields = Object.keys(input).filter((field) => !CREATE_FIELDS.has(field));
     if (unknownFields.length > 0) fail('validation_error', 'Task input contains unsupported fields', 400, { fields: unknownFields });
+    const recordKind = input.record_kind === undefined ? 'work' : input.record_kind;
+    if (!isCanonicalTaskRecordKind(recordKind)) fail('validation_error', 'record_kind is invalid', 400, { field: 'record_kind' });
+    for (const field of ['ledger_attributes', 'ledger_agreed']) {
+      if (recordKind === 'work' && Object.prototype.hasOwnProperty.call(input, field)) {
+        fail('validation_error', `${field} requires a ledger record`, 400, { field });
+      }
+    }
+    if (input.ledger_attributes != null && !isPlainJsonObject(input.ledger_attributes)) {
+      fail('validation_error', 'ledger_attributes must be an object', 400, { field: 'ledger_attributes' });
+    }
+    if (input.ledger_attributes != null) {
+      assertJsonValue(input.ledger_attributes, 'ledger_attributes');
+      if (Buffer.byteLength(JSON.stringify(input.ledger_attributes), 'utf8') > MAX_LEDGER_ATTRIBUTES_JSON_BYTES) {
+        fail('validation_error', 'ledger_attributes exceeds the maximum JSON size', 400, { field: 'ledger_attributes' });
+      }
+    }
+    if (input.ledger_agreed != null && (typeof input.ledger_agreed !== 'boolean' || recordKind !== 'requirement')) {
+      fail('validation_error', 'ledger_agreed requires a requirement and a boolean or null', 400, { field: 'ledger_agreed' });
+    }
     const title = normalizeString(input.title, 'title', { required: true, max: MAX_TITLE_LENGTH }) as string;
     const priority = input.priority == null || input.priority === '' ? 'medium' : String(input.priority);
     if (!isCanonicalTaskPriority(priority)) fail('validation_error', 'priority is invalid', 400, { field: 'priority' });
     const purposeLabel = normalizePurposeLabel(input.purpose_label);
+    const waitingOnPersonId = normalizeWaitingOnPersonId(input.waiting_on_person_id);
+    const completionContract = normalizeCompletionContract(input.completion_contract);
     return {
+      record_kind: recordKind,
+      ...(input.ledger_attributes != null ? { ledger_attributes: input.ledger_attributes } : {}),
+      ...(input.ledger_agreed != null ? { ledger_agreed: input.ledger_agreed } : {}),
+      ...(completionContract ? { completion_contract: completionContract } : {}),
       title,
       description: normalizeString(input.description, 'description', { max: 10000, multiline: true }),
       priority,
@@ -958,14 +1330,32 @@ export class CanonicalTaskService {
       project_codes: normalizeProjectCodes(input.project_codes) ?? [],
       // Only a label that is there is written, so a store without the column still accepts unlabelled work.
       ...(purposeLabel ? { purpose_label: purposeLabel } : {}),
+      // Likewise only a person that is there is written.
+      ...(waitingOnPersonId ? { waiting_on_person_id: waitingOnPersonId } : {}),
     };
+  }
+
+  private assertGeneralMutationAllowed(task: CanonicalTaskRecord): void {
+    // Older host repositories may omit the field. They keep their historical
+    // mutation behavior; the PostgreSQL adapter rejects every persisted non-work value.
+    if (task.record_kind !== undefined && task.record_kind !== 'work') {
+      fail('ledger_record_use_ledger_api', 'Use the ledger API to mutate this record', 409);
+    }
   }
 
   private normalizeUpdateInput(input: CanonicalTaskUpdateInput): JsonRecord {
     if (!input || typeof input !== 'object') fail('validation_error', 'Task update is required');
+    const hasSourceRefsAppend = Object.prototype.hasOwnProperty.call(input, 'source_refs_append');
+    if ('source_refs_append' in input) {
+      const descriptor = Object.getOwnPropertyDescriptor(input, 'source_refs_append');
+      if (!hasSourceRefsAppend || !descriptor || !('value' in descriptor)) {
+        fail('validation_error', 'source_refs_append must be an own data property', 400, { field: 'source_refs_append' });
+      }
+    }
     const unknownFields = Object.keys(input).filter((field) => !MUTABLE_FIELDS.has(field));
     if (unknownFields.length > 0) fail('validation_error', 'Task update contains unsupported fields', 400, { fields: unknownFields });
     const patch: JsonRecord = {};
+    if ('completion_contract' in input) patch.completion_contract = normalizeCompletionContract(input.completion_contract);
     if ('title' in input) patch.title = normalizeString(input.title, 'title', { required: true, max: MAX_TITLE_LENGTH });
     if ('description' in input) patch.description = normalizeString(input.description, 'description', { max: 10000, multiline: true });
     if ('priority' in input) {
@@ -976,8 +1366,20 @@ export class CanonicalTaskService {
     if ('assignee_person_id' in input) patch.assignee_person_id = normalizeString(input.assignee_person_id, 'assignee_person_id', { max: 200 });
     if ('due_at' in input) patch.due_at = normalizeIsoDate(input.due_at, 'due_at');
     if ('waiting_on' in input) patch.waiting_on = normalizeString(input.waiting_on, 'waiting_on', { max: 500 });
+    if ('waiting_on_person_id' in input) patch.waiting_on_person_id = normalizeWaitingOnPersonId(input.waiting_on_person_id);
     if ('review_at' in input) patch.review_at = normalizeIsoDate(input.review_at, 'review_at');
+    if ('source_refs' in input && hasSourceRefsAppend) {
+      fail('validation_error', 'source_refs and source_refs_append cannot be combined', 400, {
+        fields: ['source_refs', 'source_refs_append'],
+      });
+    }
     if ('source_refs' in input) patch.source_refs = normalizeSourceRefs(input.source_refs) ?? [];
+    if (hasSourceRefsAppend) {
+      const descriptor = Object.getOwnPropertyDescriptor(input, 'source_refs_append');
+      // The descriptor was checked above before any value access. Reuse its
+      // data value so a getter cannot run between validation and normalization.
+      patch.source_refs_append = normalizeSourceRefsAppend(descriptor?.value) ?? [];
+    }
     if ('project_codes' in input) patch.project_codes = normalizeProjectCodes(input.project_codes) ?? [];
     if ('purpose_label' in input) patch.purpose_label = normalizePurposeLabel(input.purpose_label);
     if (Object.keys(patch).length === 0) fail('validation_error', 'Task update must include at least one mutable field');
@@ -990,6 +1392,10 @@ export class CanonicalTaskService {
       priority: _priority,
       projectCode: _projectCode,
       project_code: _project_code,
+      assigneePersonId: _assigneePersonId,
+      dueAfter: _dueAfter,
+      dueBefore: _dueBefore,
+      cursor: _cursor,
       ...canonicalFilters
     } = filters;
     const statuses = normalizeCollection(filters.statuses ?? filters.status, 'statuses');
@@ -1000,11 +1406,11 @@ export class CanonicalTaskService {
       statuses,
       priorities,
       projectCodes,
-      assigneePersonId: normalizeString(filters.assigneePersonId, 'assigneePersonId', { max: 200 }),
-      dueAfter: normalizeIsoDate(filters.dueAfter, 'dueAfter'),
-      dueBefore: normalizeIsoDate(filters.dueBefore, 'dueBefore'),
+      ...optionalFilter('assigneePersonId', normalizeString(filters.assigneePersonId, 'assigneePersonId', { max: 200 })),
+      ...optionalFilter('dueAfter', normalizeIsoDate(filters.dueAfter, 'dueAfter')),
+      ...optionalFilter('dueBefore', normalizeIsoDate(filters.dueBefore, 'dueBefore')),
       limit: normalizeLimit(filters.limit),
-      cursor: normalizeCursor(filters.cursor),
+      ...optionalFilter('cursor', normalizeCursor(filters.cursor)),
     };
   }
 
@@ -1056,6 +1462,10 @@ export class CanonicalTaskService {
     await this.policy.authorize({ action, context, task, input });
   }
 
+  private async assertMutationReady(): Promise<void> {
+    if (this.readiness) await this.readiness.assertMutationReady();
+  }
+
   private async scopeFilters<T extends CanonicalTaskListFilters | CanonicalTaskSearchFilters>(operation: 'list' | 'search', context: CanonicalTaskContext, filters: T): Promise<T> {
     if (!this.policy.scopeFilters) return filters;
     const scoped = await this.policy.scopeFilters({ operation, context, filters });
@@ -1091,15 +1501,15 @@ export class CanonicalTaskService {
       : request.run();
   }
 
-  private async audit(
+  private buildAuditEntry(
     context: CanonicalTaskContext,
     action: CanonicalTaskAuditAction,
     task: CanonicalTaskRecord,
     changes: JsonRecord,
     operationKey: string,
     operationFingerprint: string,
-  ): Promise<void> {
-    if (!this.auditRepository) return;
+  ): CanonicalTaskAuditEntry | null {
+    if (!this.auditRepository) return null;
     const actor = context.auditPrincipal
       ? normalizeCanonicalTaskPrincipal(context.auditPrincipal)
       : context.principal;
@@ -1121,8 +1531,22 @@ export class CanonicalTaskService {
       changes,
       source_refs: Array.isArray(task.source_refs) ? task.source_refs : [],
     };
+    return entry;
+  }
+
+  private async audit(
+    context: CanonicalTaskContext,
+    action: CanonicalTaskAuditAction,
+    task: CanonicalTaskRecord,
+    changes: JsonRecord,
+    operationKey: string,
+    operationFingerprint: string,
+    client?: CanonicalTaskTransactionClient,
+  ): Promise<void> {
+    const entry = this.buildAuditEntry(context, action, task, changes, operationKey, operationFingerprint);
+    if (!entry) return;
     try {
-      await this.auditRepository.upsertAuditLog(entry);
+      await this.auditRepository!.upsertAuditLog(entry, client ? { client } : undefined);
     } catch {
       throw new CanonicalTaskError('task_audit_unavailable', 'Task audit is unavailable', 503);
     }
@@ -1133,6 +1557,10 @@ export class CanonicalTaskService {
       return await operation();
     } catch (error) {
       if (error instanceof CanonicalTaskError) throw error;
+      if (error && typeof error === 'object'
+        && (error as { code?: unknown }).code === 'ledger_record_use_ledger_api') {
+        throw new CanonicalTaskError('ledger_record_use_ledger_api', 'Use the ledger API to mutate this record', 409);
+      }
       // Keep the fail-closed backend selection contract observable to the
       // host boundary while still hiding arbitrary storage details.
       if (error && typeof error === 'object'
@@ -1149,6 +1577,14 @@ export class CanonicalTaskService {
 
   private normalizeResponse(task: CanonicalTaskRecord): CanonicalTaskRecord {
     const response = { ...task } as CanonicalTaskRecord & JsonRecord;
+    if (!isCanonicalTaskRecordKind(response.record_kind)) {
+      response.record_kind = 'unknown';
+      const warnings = Array.isArray(response.normalization_warnings) ? [...response.normalization_warnings] : [];
+      if (!warnings.some((warning) => warningCode(warning) === 'unknown_record_kind')) {
+        warnings.push({ code: 'unknown_record_kind', message: 'Unknown Task record kind' });
+      }
+      response.normalization_warnings = warnings;
+    }
     delete response._payload_fingerprint;
     delete response._last_operation_key;
     delete response._last_operation_fingerprint;
@@ -1161,11 +1597,17 @@ export class CanonicalTaskService {
     if (response.assignee_person_id === undefined) response.assignee_person_id = null;
     if (response.due_at === undefined) response.due_at = null;
     if (response.waiting_on === undefined) response.waiting_on = null;
+    if (response.waiting_on_person_id === undefined) response.waiting_on_person_id = null;
     if (response.review_at === undefined) response.review_at = null;
     if (response.completed_at === undefined) response.completed_at = null;
     if (response.source_refs === undefined) response.source_refs = [];
     if (response.project_codes === undefined) response.project_codes = [];
     if (response.purpose_label === undefined) response.purpose_label = null;
+    try {
+      response.completion_contract = normalizeCompletionContract(response.completion_contract);
+    } catch {
+      fail('task_store_invalid', 'Stored Task completion contract is invalid', 503);
+    }
     return response;
   }
 }

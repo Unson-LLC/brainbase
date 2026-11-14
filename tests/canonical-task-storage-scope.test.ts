@@ -6,6 +6,7 @@ function fixture() {
   const calls: Array<[string, string | undefined]> = [];
   const audits: any[] = [];
   const replays = new Map<string, any>();
+  const replaySnapshots = new Map<string, any>();
   let allowed = true;
   const visible = (id: string, scope?: string) => rows.get(id)?.scope === scope ? rows.get(id)! : null;
   const repository = {
@@ -20,11 +21,16 @@ function fixture() {
   const operationRepository = {
     async execute(request: any) { return request.run(); },
     async executePreparedDelete(request: any) {
-      if (replays.has(request.operationKey)) return replays.get(request.operationKey);
+      if (replays.has(request.operationKey)) {
+        const result = replays.get(request.operationKey);
+        await request.authorizeReplay?.(replaySnapshots.get(request.operationKey), result);
+        return result;
+      }
       const prepared = await request.prepare();
       expect(prepared.authorizationSnapshot.storage_scope).toBe(prepared.result._storage_scope);
       await request.removeTask(prepared.task);
       replays.set(request.operationKey, prepared.result);
+      replaySnapshots.set(request.operationKey, prepared.authorizationSnapshot);
       return prepared.result;
     }
   };

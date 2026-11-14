@@ -1177,7 +1177,7 @@ async function webServe(parsed: ParsedArgs, io: CliIo, command: string): Promise
   const origin = `http://127.0.0.1:${actualPort}`;
   write(io, [
     `Brainbase: ${origin}/`,
-    `- 今日（判断の見返し）: ${origin}/#today`,
+    `- 判断の履歴: ${origin}/#value-proofs`,
     `- 目的と現状: ${origin}/#objectives`,
     `- プロジェクトと関係者: ${origin}/#projects`,
     `- 情報と関係: ${origin}/#graph`,

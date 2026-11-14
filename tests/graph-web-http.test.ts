@@ -89,6 +89,11 @@ describe('local Graph web HTTP handler', () => {
     expect(entity.entity.digest).toBe(graphRecordDigest(ENTITIES.tanaka));
     expect(entity.outgoing.map((edge: { relation: string }) => edge.relation)).toEqual(['member_of', 'participates_in']);
 
+    const people = await (await fetch(`${base}/api/graph/people-and-companies`)).json();
+    expect(people).toMatchObject({ status: 'ok', ownCompany: { id: null, reason: 'owner_has_no_company' } });
+    expect(people.companies.map((company: { id: string }) => company.id)).toEqual(['org-acme']);
+    expect(people.companies[0]).toMatchObject({ projectIds: [], relatedProjects: [], deals: [], kinds: [] });
+
     const ontology = await (await fetch(`${base}/api/graph/ontology`)).json();
     expect(ontology.relations.find((relation: { id: string }) => relation.id === 'participates_in')).toMatchObject({ count: 2, activeCount: 1 });
   });
@@ -115,7 +120,7 @@ describe('local Graph web HTTP handler', () => {
     await writeGraphV1(dataDir);
     const before = await readFile(join(dataDir, 'graph.json'), 'utf8');
     const base = await start();
-    for (const path of ['status', 'projects', 'projects/project-legacy', 'search?q=Legacy', 'entities/person-legacy', 'ontology']) {
+    for (const path of ['status', 'projects', 'projects/project-legacy', 'search?q=Legacy', 'entities/person-legacy', 'ontology', 'people-and-companies']) {
       const response = await fetch(`${base}/api/graph/${path}`);
       expect(response.status).toBe(200);
       const body = await response.json();
@@ -192,6 +197,24 @@ describe('local Graph web HTTP handler', () => {
       code: 'digest_conflict',
       current: { recordType: 'edge', record: { id: EDGES.tanakaAtlas.id, role: '技術顧問' }, digest: body.digest }
     });
+  });
+
+  it('creates a company over HTTP, shows it on the next people read and refuses another kind or a duplicate', async () => {
+    await writeGraphV2(dataDir);
+    const base = await start();
+    const created = await postCorrection(base, { kind: 'create_entity', reason: '取引先として記録する。', entity: { type: 'org', name: 'Globex' } });
+    expect(created.status).toBe(201);
+    const body = await created.json();
+    expect(body).toMatchObject({ status: 'saved', recordType: 'entity', record: { type: 'org', name: 'Globex' }, readback: { verified: true, historyRecorded: true } });
+    const people = await (await fetch(`${base}/api/graph/people-and-companies`)).json();
+    expect(people.companies.map((company: { id: string }) => company.id)).toContain(body.record.id);
+
+    const project = await postCorrection(base, { kind: 'create_entity', reason: '作る。', entity: { type: 'project', name: '新案件' } });
+    expect(project.status).toBe(400);
+    expect(await project.json()).toMatchObject({ error: { code: 'correction_entity_type_not_allowed' } });
+    const duplicate = await postCorrection(base, { kind: 'create_entity', reason: 'もう一度。', entity: { type: 'org', name: 'globex' } });
+    expect(duplicate.status).toBe(409);
+    expect((await duplicate.json()).error).toMatchObject({ code: 'entity_already_exists', current: { recordType: 'entity', record: { id: body.record.id } } });
   });
 
   it('answers invalid corrections with 400 and the specific rule', async () => {

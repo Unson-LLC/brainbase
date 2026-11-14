@@ -128,6 +128,23 @@ describe('Graph foundation history reader', () => {
     });
   });
 
+  it('projects only a world model\'s own applicability words beside its definition', async () => {
+    const definition = foundationDefinition({
+      id: 'model-1', type: 'model', beneficiaryIds: undefined, desiredState: undefined, criteria: undefined, evaluationPeriod: undefined,
+      epistemicState: 'hypothesis', validationState: 'unverified', inputVariableRefs: [], outputVariableRefs: [],
+      applicability: { subjectIds: ['project-1'], validFrom }, relationship: 'r', uncertainty: 'u'
+    } as Partial<FoundationDefinition>);
+    const payload = { foundation: definition, applicability_text: 'AI生成資料・要約・提案書', title: 'not a model detail', private_secret: 'never projected' };
+    const row = { ...foundationRow({ history: definition, current: definition }), payload, storage_digest: storageDigest(payload) };
+    const { store } = createGraphFoundationReaders({ context: trustedContext(), query: queryReturning(row) });
+
+    await expect(store.read({ id: 'model-1', type: 'model', revision: '1' }, trustedContext())).resolves.toEqual({
+      definition,
+      digest: digestFoundationDefinition(definition),
+      details: { applicability_text: 'AI生成資料・要約・提案書' }
+    });
+  });
+
   it('rejects a read whose supplied principal is different from the trusted context', async () => {
     const calls: Array<{ text: string; values: readonly unknown[] }> = [];
     const { store } = createGraphFoundationReaders({ context: trustedContext(), query: queryReturning(foundationRow(), calls) });
@@ -317,6 +334,31 @@ describe('Graph philosophy history reader', () => {
       current_visible: options.currentVisible ?? true
     };
   }
+
+  it.each(['alice', 'bob', 'ceo'])('checks stored owner ACL in canonical and pinned reads for %s', async principal => {
+    const payload = { ...philosophyPayload(), acl: { ownerId: 'alice', visibility: 'private', readerIds: [], writerIds: [] } };
+    const context = { ...trustedContext(), principal };
+    const { philosophyReader, listPhilosophies } = createGraphFoundationReaders({ context, selectedProjectCode: 'project-1', query: queryReturning(philosophyRow(payload, { currentPayload: payload })) });
+    const digest = philosophyRevisionDigest({ kind: 'philosophy', id: 'philosophy-1', revision: '4', payload, applicability: payload.judgmentApplicability });
+    const canonical = await philosophyReader.readCanonical!({ id: 'philosophy-1', revision: '4', context });
+    const pinned = await philosophyReader.read({ reference: { kind: 'philosophy', id: 'philosophy-1', revision: '4', digest, scope: projectScope, valid_from: validFrom }, phase: 'historical_read', context });
+    expect(canonical.status).toBe(principal === 'alice' ? 'resolved' : 'unauthorized');
+    expect(pinned.status).toBe(principal === 'alice' ? 'resolved' : 'unauthorized');
+    if (principal === 'alice') await expect(listPhilosophies(context)).resolves.toMatchObject([{ currentAcl: payload.acl }]);
+    else await expect(listPhilosophies(context)).rejects.toMatchObject({ code: 'authorization_denied' });
+  });
+
+  it('refuses history ACL downgrade, malformed ACL and historical owner mismatch', async () => {
+    for (const [historical, current] of [
+      [{ ...philosophyPayload(), acl: {ownerId: 'alice', visibility: 'private', readerIds: [], writerIds: []} }, philosophyPayload()],
+      [{ ...philosophyPayload(), acl: null }, philosophyPayload()],
+      [{ ...philosophyPayload(), acl: {ownerId: 'bob', visibility: 'private', readerIds: [], writerIds: []} }, { ...philosophyPayload(), acl: {ownerId: 'alice', visibility: 'private', readerIds: [], writerIds: []} }]
+    ]) {
+      const { philosophyReader } = createGraphFoundationReaders({ context: trustedContext(), query: queryReturning(philosophyRow(historical!, {currentPayload: current})) });
+      const result = await philosophyReader.readCanonical!({id: 'philosophy-1', revision: '4', context: trustedContext()});
+      expect(result.status).not.toBe('resolved');
+    }
+  });
 
   it('resolves philosophy with fixed applicability and a current Graph ACL projection', async () => {
     const payload = philosophyPayload();

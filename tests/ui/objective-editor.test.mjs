@@ -96,7 +96,7 @@ function objectiveRecord(overrides = {}) {
       provenance: [],
       scope: { subjectIds: ['org-1'], validFrom: '2026-01-01T00:00:00.000Z' },
     },
-    digest: 'sha256:objective-1',
+    digest: `sha256:${'1'.repeat(64)}`,
     ...overrides,
   };
 }
@@ -118,6 +118,118 @@ describe('Objective editor common UI contract', () => {
     for (const copy of visible) {
       expect(copy).not.toMatch(/Objective|Variable|Constraint|readiness|readback|FoundationRevisionStore|COMPANY OS|\bport\b|\bAPI\b|typed relation|Story/);
     }
+  });
+
+  it('carries canonical readback status, checked_at and source into the detail view', async () => {
+    globalThis.document = new FakeDocument();
+    const root = new FakeElement('div');
+    const record = objectiveRecord();
+    const readback = {
+      contract_version: 'brainbase.objective-readback.v1',
+      status: 'ready',
+      checked_at: '2026-10-12T01:02:03.000Z',
+      source: {
+        source_type: 'foundation_revision_store',
+        source_id: record.definition.id,
+        source_version: record.definition.revision,
+        digest: record.digest,
+        provenance: record.definition.provenance,
+      },
+      record,
+      objective: record,
+      reason: null,
+    };
+    const normalized = normalizeObjectiveRecord(readback);
+    expect(normalized).toMatchObject({
+      id: record.definition.id,
+      readback_status: 'ready',
+      checked_at: '2026-10-12T01:02:03.000Z',
+      source: { source_id: record.definition.id, source_version: record.definition.revision },
+    });
+
+    const controller = createObjectiveEditorController({
+      root,
+      port: { readObjective: async () => readback },
+      context: {},
+      canEdit: false,
+      autoLoad: false,
+    });
+    await controller.selectObjective({ id: record.definition.id, type: 'objective', revision: record.definition.revision });
+    expect(collectText(root)).toContain('確認済み');
+    expect(collectText(root)).toContain('2026-10-12T01:02:03.000Z');
+    expect(collectText(root)).toContain(record.definition.id);
+  });
+
+  it('shows checked_at and an explicit unconfirmed source when canonical readback is unknown', async () => {
+    globalThis.document = new FakeDocument();
+    const root = new FakeElement('div');
+    const readback = {
+      contract_version: 'brainbase.objective-readback.v1',
+      status: 'unknown',
+      checked_at: '2026-10-12T01:02:04.000Z',
+      source: null,
+      record: null,
+      objective: null,
+      reason: { code: 'not_found', message: '正本の目的を確認できません。' },
+    };
+    const controller = createObjectiveEditorController({
+      root,
+      port: { readObjective: async () => readback },
+      context: {},
+      canEdit: false,
+      autoLoad: false,
+    });
+    await controller.selectObjective({ id: 'objective-missing', type: 'objective', revision: '1' });
+    const visible = collectText(root);
+    expect(visible).toContain('確認できません');
+    expect(visible).toContain('正本の確認日時: 2026-10-12T01:02:04.000Z');
+    expect(visible).toContain('出典: 出典を確認できません。');
+  });
+
+  it('rejects a malformed canonical readback envelope instead of rendering a record', () => {
+    const record = objectiveRecord();
+    expect(normalizeObjectiveRecord({
+      contract_version: 'brainbase.objective-readback.v1',
+      status: 'ready',
+      checked_at: 'not-a-timestamp',
+      source: null,
+      record,
+      objective: record,
+      reason: null,
+    })).toBeNull();
+  });
+
+  it('does not select a ready readback whose identity differs from the requested Objective', async () => {
+    globalThis.document = new FakeDocument();
+    const root = new FakeElement('div');
+    const record = objectiveRecord({
+      definition: { ...objectiveRecord().definition, id: 'objective-other' },
+    });
+    const readback = {
+      contract_version: 'brainbase.objective-readback.v1',
+      status: 'ready',
+      checked_at: '2026-10-12T01:02:03.000Z',
+      source: {
+        source_type: 'foundation_revision_store',
+        source_id: record.definition.id,
+        source_version: record.definition.revision,
+        digest: record.digest,
+        provenance: record.definition.provenance,
+      },
+      record,
+      objective: record,
+      reason: null,
+    };
+    const controller = createObjectiveEditorController({
+      root,
+      port: { readObjective: async () => readback },
+      context: {},
+      canEdit: false,
+      autoLoad: false,
+    });
+
+    expect(await controller.selectObjective({ id: 'objective-requested', type: 'objective', revision: '1' })).toBeNull();
+    expect(controller.state.editor.state).toBe('missing');
   });
 
   it('keeps unknown, draft, and judgment-ready states distinct', () => {
@@ -340,6 +452,32 @@ describe('Objective editor common UI contract', () => {
     controller.state.view = 'list';
     await controller.loadObjectives();
     expect(collectText(root)).toContain('判断に使えない（不足1件）');
+  });
+
+  it('shows the host readiness message and next action when judgment is unavailable', async () => {
+    globalThis.document = new FakeDocument();
+    const root = new FakeElement('div');
+    const port = {
+      readObjective: async () => objectiveRecord(),
+      checkObjectiveReadiness: async () => ({
+        ready: false,
+        issues: [],
+        message: '評価に必要な変数の版を確認できません。',
+        next_action: '変数を読み直してから再確認してください。',
+      }),
+    };
+    const controller = createObjectiveEditorController({ root, port, context: {}, canEdit: true, autoLoad: false });
+
+    await controller.selectObjective({ id: 'objective-load', type: 'objective', revision: '1' });
+
+    expect(controller.state.readiness).toMatchObject({
+      state: 'ready',
+      ready: false,
+      message: '評価に必要な変数の版を確認できません。',
+      next_action: '変数を読み直してから再確認してください。',
+    });
+    expect(collectText(root)).toContain('評価に必要な変数の版を確認できません。');
+    expect(collectText(root)).toContain('次の対応: 変数を読み直してから再確認してください。');
   });
 
   describe('draft submissions and interrupted requests', () => {
@@ -583,6 +721,25 @@ describe('Objective editor common UI contract', () => {
       expect((await controller.saveObjective({ id: 'objective-new' })).state).toBe('permission_denied');
       expect(writes).toBe(0);
     });
+
+    it('turns an initially editable editor read-only after a canonical 403', async () => {
+      globalThis.document = new FakeDocument();
+      const root = new FakeElement('div');
+      const denied = Object.assign(new Error('foundation_permission_denied'), { status: 403 });
+      const controller = createObjectiveEditorController({
+        root,
+        port: { listObjectives: async () => { throw denied; } },
+        canEdit: true,
+        autoLoad: false,
+      });
+
+      await controller.loadObjectives();
+
+      expect(controller.state.permissionDenied).toBe(true);
+      expect(collectText(root)).toContain('権限不足');
+      expect(findButtons(root).map((button) => button.textContent)).not.toContain('新しい目的');
+      expect((await controller.saveObjective({ id: 'objective-new' })).state).toBe('permission_denied');
+    });
   });
 
   describe('workspace layout (the host gives a rail)', () => {
@@ -646,7 +803,7 @@ describe('Objective editor common UI contract', () => {
       expect(collectText(byClass(root, 'bb-ws-breadcrumb')[0])).toBe('あなたのBrainbase/目的と現状');
       expect(findAll(root, (node) => node.tagName === 'H1')[0].textContent).toBe('目的と現状');
       expect(byClass(root, 'bb-ws-source')[0].textContent).toBe('手元のGraph');
-      expect(findButtons(byClass(root, 'bb-ws-page-head')[0]).map((button) => [button.textContent, button.className]))
+      expect(findButtons(byClass(root, 'bb-ws-page-head')[0]).filter((button) => button.className !== 'bb-ws-help-button').map((button) => [button.textContent, button.className]))
         .toEqual([['再読込', 'bb-ws-button'], ['新しい目的', 'bb-ws-button is-primary']]);
       // No tabs in this layout.
       expect(byClass(root, 'objective-editor-tab')).toHaveLength(0);
@@ -681,6 +838,101 @@ describe('Objective editor common UI contract', () => {
       expect(findButtons(panel).map((button) => button.textContent)).toEqual(['目的を直す']);
       // The workspace itself holds no form.
       expect(findAll(root, (node) => node.tagName === 'FORM')).toHaveLength(0);
+    });
+
+    it('removes a stale usable label after readiness fails and exposes the retry action', async () => {
+      let checks = 0;
+      const failure = Object.assign(new Error('正本の確認に失敗しました'), { code: 'foundation_refresh_failed' });
+      const { root, rail, controller } = await mountWorkspace({
+        port: {
+          checkObjectiveReadiness: async () => {
+            checks += 1;
+            if (checks === 1) throw failure;
+            return { ready: true, issues: [] };
+          },
+        },
+      });
+      const row = rowsOf(byClass(root, 'bb-objective-ledger')[0])[0];
+      expect(collectText(row)).toContain('未確認');
+      expect(collectText(row)).not.toContain('使える');
+      expect(controller.state.objectives.records[0].readiness).toMatchObject({ state: 'error_retryable', ready: null });
+
+      const panel = byClass(rail, 'bb-objective-rail')[0];
+      expect(collectText(panel)).toContain('取得失敗');
+      const retry = findButtons(panel).find((button) => button.textContent === '再読込');
+      expect(retry).toBeDefined();
+      retry.dispatch('click');
+      await nextTick();
+      expect(checks).toBe(2);
+      expect(controller.state.objectives.records[0].readiness).toMatchObject({ state: 'ready', ready: true });
+      expect(collectText(rowsOf(byClass(root, 'bb-objective-ledger')[0])[0])).toContain('使える');
+    });
+
+    it('reflects a successful readiness check in the matching list record', async () => {
+      const { root, controller } = await mountWorkspace({
+        port: {
+          listObjectives: async () => ({
+            records: [
+              { ...objectiveRecord(), readiness: { ready: false, issues: [{ code: 'MISSING', path: 'criteria', message: '評価基準がありません' }] } },
+              { ...second(), readiness: { ready: false, issues: [{ code: 'MISSING', path: 'criteria', message: '評価基準がありません' }] } },
+            ],
+            absence_confirmed: true,
+          }),
+          checkObjectiveReadiness: async (id) => id === 'objective-load' ? { ready: true, issues: [] } : { ready: false, issues: [] },
+        },
+      });
+      expect(controller.state.objectives.records[0].readiness).toMatchObject({ state: 'ready', ready: true });
+      expect(controller.state.objectives.records[1].readiness).toMatchObject({ state: 'ready', ready: false });
+      expect(collectText(rowsOf(byClass(root, 'bb-objective-ledger')[0])[0])).toContain('使える');
+    });
+
+    it('removes a usable label when no readiness check method is available', async () => {
+      const { root, rail, controller } = await mountWorkspace({ port: { checkObjectiveReadiness: undefined } });
+      const record = controller.state.objectives.records[0];
+      expect(record.readiness).toMatchObject({ state: 'unknown', ready: null });
+      const row = rowsOf(byClass(root, 'bb-objective-ledger')[0])[0];
+      expect(collectText(row)).toContain('未確認');
+      expect(collectText(row)).not.toContain('使える');
+      expect(findButtons(byClass(rail, 'bb-objective-rail')[0]).map((button) => button.textContent)).toEqual(['目的を直す']);
+    });
+
+    it('isolates readiness by objective ID and revision when an older request finishes late', async () => {
+      const olderCheck = deferred();
+      const other = objectiveRecord({
+        definition: { ...objectiveRecord().definition, id: 'objective-other', revision: '2' },
+        readiness: { ready: false, issues: [] },
+      });
+      const targetOld = objectiveRecord({
+        definition: { ...objectiveRecord().definition, id: 'objective-target', revision: '1' },
+        readiness: { ready: false, issues: [] },
+      });
+      const targetCurrent = objectiveRecord({
+        definition: { ...objectiveRecord().definition, id: 'objective-target', revision: '2' },
+        readiness: { ready: false, issues: [] },
+      });
+      globalThis.document = new FakeDocument();
+      const root = new FakeElement('div');
+      const rail = new FakeElement('aside');
+      const port = {
+        listObjectives: async () => ({ records: [other, targetOld, targetCurrent], absence_confirmed: true }),
+        readObjective: async (id, _context, revision) => [other, targetOld, targetCurrent].find((item) => item.definition.id === id && item.definition.revision === revision),
+        checkObjectiveReadiness: async (id, _context, revision) => id === 'objective-other'
+          ? olderCheck.promise
+          : { ready: true, issues: [] },
+        listObjectiveConstraintRefs: async () => ({ refs: [], absence_confirmed: true }),
+      };
+      const controller = createObjectiveEditorController({ root, rail, port, context: {}, canEdit: true, autoLoad: false, constraintsEditable: false });
+      const loading = controller.loadObjectives();
+      await nextTick();
+      await controller.selectObjective({ id: 'objective-target', type: 'objective', revision: '2' });
+      olderCheck.resolve({ ready: true, issues: [] });
+      await loading;
+
+      const readiness = new Map(controller.state.objectives.records.map((item) => [`${item.id}@${item.revision}`, item.readiness]));
+      expect(readiness.get('objective-other@2')).toMatchObject({ state: 'ready', ready: false });
+      expect(readiness.get('objective-target@1')).toMatchObject({ state: 'ready', ready: false });
+      expect(readiness.get('objective-target@2')).toMatchObject({ state: 'ready', ready: true });
+      expect(controller.state.selected).toMatchObject({ id: 'objective-target', revision: '2' });
     });
 
     it('gives the rail the objective the owner selects', async () => {
@@ -752,7 +1004,7 @@ describe('Objective editor common UI contract', () => {
 
     it('offers no edit actions when the host does not allow writing', async () => {
       const { root, rail } = await mountWorkspace({ canEdit: false });
-      expect(findButtons(byClass(root, 'bb-ws-page-head')[0]).map((button) => button.textContent)).toEqual(['再読込']);
+      expect(findButtons(byClass(root, 'bb-ws-page-head')[0]).filter((button) => button.className !== 'bb-ws-help-button').map((button) => button.textContent)).toEqual(['再読込']);
       expect(findButtons(rail)).toHaveLength(0);
     });
 
@@ -800,7 +1052,8 @@ describe('Objective editor common UI contract', () => {
       const { root } = await mountWorkspace();
       const wrapper = byClass(root, 'bb-objective-workspace')[0];
       expect(wrapper.children.map((node) => node.className.split(' ')[0])).toEqual(['bb-ws-page', 'bb-ws-summary', 'bb-ws-ledger']);
-      expect(collectText(byClass(root, 'bb-ws-lead')[0])).toBe('目指す状態と評価基準を、版つきで確かめて直します。下の「現状と見通し」は、目的とは分けた、いまの理解（観測と仮説）です。');
+      expect(collectText(byClass(root, 'bb-ws-lead')[0])).toBe('目指す状態と評価基準を、版つきで確かめて直します。');
+      expect(collectText(byClass(root, 'bb-ws-help-bubble')[0])).toContain('下の「現状と見通し」');
     });
 
     it('without a rail ignores the host options and draws the same tabs layout', async () => {
@@ -821,7 +1074,7 @@ describe('Objective editor common UI contract', () => {
         const { port } = workspacePort();
         const controller = createObjectiveEditorController({ root, port, context: {}, canEdit: true, autoLoad: false, ...host });
         await controller.loadObjectives();
-        return JSON.stringify(shape(root));
+        return JSON.stringify(shape(root)).replace(/bb-ws-help-\d+/g, 'bb-ws-help-ID');
       };
       const plain = await draw({});
       const withHost = await draw({
@@ -844,10 +1097,24 @@ describe('Objective editor common UI contract', () => {
       expect(root.children[0].className).toBe('objective-editor-root');
       expect(findAll(root, (node) => node.tagName === 'H1')[0].textContent).toBe('目的と評価基準');
       expect(byClass(root, 'objective-editor-tab').map((tab) => tab.textContent)).toEqual(['目的一覧', '目的を編集', 'Story参照']);
-      expect(findAll(root, (node) => String(node.className).includes('bb-ws-'))).toHaveLength(0);
+      expect(byClass(root, 'bb-ws-ledger')).toHaveLength(0);
+      expect(byClass(root, 'bb-ws-page-head')).toHaveLength(1);
       // The first objective is not opened by itself in the tabs layout.
       expect(controller.state.view).toBe('list');
       expect(controller.state.selectedId).toBeNull();
     });
   });
+});
+
+it('places the downward page guide beside status outside header copy', () => {
+  globalThis.document = new FakeDocument();
+  const root = new FakeElement('div');
+  createObjectiveEditorController({ root, port: {}, context: {}, autoLoad: false });
+  const header = findAll(root, node => node.className.includes('objective-editor-header '))[0];
+  const side = header.children.find(node => node.className.includes('bb-ws-page-side'));
+  expect(side).toBeDefined();
+  const guide = findAll(side, node => node.className.includes('is-page-guide'))[0];
+  expect(guide).toBeDefined();
+  expect(guide.children[0].textContent).toBe('？');
+  expect(side.children).toHaveLength(2);
 });

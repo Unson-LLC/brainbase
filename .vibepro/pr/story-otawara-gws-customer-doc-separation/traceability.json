@@ -1,0 +1,679 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-otawara-gws-customer-doc-separation",
+  "story_doc_path": null,
+  "source": "pr_prepare",
+  "lifecycle": "in_progress",
+  "evidence": [
+    {
+      "type": "pr_artifact",
+      "ref": ".vibepro/pr/story-otawara-gws-customer-doc-separation/pr-body.md"
+    },
+    {
+      "type": "pr_artifact",
+      "ref": ".vibepro/pr/story-otawara-gws-customer-doc-separation/verification-evidence.json"
+    }
+  ],
+  "acceptance_criteria": [],
+  "scenario_clauses": [],
+  "scenario_lineage": {
+    "status": "mapped",
+    "story_scenario_ids": [],
+    "mapped_story_scenario_ids": [],
+    "missing_story_scenario_ids": [],
+    "unknown_story_scenario_ids": []
+  },
+  "accepted_spec_lineage": {
+    "status": "invalid",
+    "head_sha": "5e8565145c6c991dc3b1ee02b4e92e6c8aba3efa",
+    "spec_path": ".vibepro/spec/story-otawara-gws-customer-doc-separation/spec.json",
+    "spec_blob_oid": "9382d7f508f31f4cefa2ef2ee2b2b794fd774245",
+    "story_path": "docs/management/stories/active/story-otawara-gws-customer-doc-separation.md",
+    "story_blob_oid": null,
+    "mapping_source": "accepted_spec",
+    "clause_count": 4,
+    "resolved_clause_count": 0,
+    "reason_codes": [
+      "story_not_in_head",
+      "unknown_story_ac",
+      "story_ref_missing"
+    ],
+    "failures": [
+      {
+        "clause_id": "INV-001",
+        "reason_codes": [
+          "unknown_story_ac"
+        ]
+      },
+      {
+        "clause_id": "S-001",
+        "reason_codes": [
+          "unknown_story_ac"
+        ]
+      },
+      {
+        "clause_id": "S-002",
+        "reason_codes": [
+          "unknown_story_ac"
+        ]
+      },
+      {
+        "clause_id": "C-001",
+        "reason_codes": [
+          "story_ref_missing"
+        ]
+      }
+    ]
+  },
+  "semantic_assessment": {
+    "status": "unavailable",
+    "semantic_contract_status": "missing",
+    "semantic_contract_present": false,
+    "answer_status": "unavailable",
+    "answer_resolution": "unavailable",
+    "automatic_continuation": false,
+    "unresolved_behavior": {
+      "action": "ask_once",
+      "max_questions": 1,
+      "automatic_continuation": false
+    },
+    "counterexample": {
+      "status": "unavailable",
+      "declared": false,
+      "verified": false,
+      "happy_path_resolutions": []
+    },
+    "clause_assessments": [
+      {
+        "index": 0,
+        "clause_id": "INV-001",
+        "status": "unavailable",
+        "outcome_kind": "unknown",
+        "case_kind": "unknown",
+        "answer_status": "unavailable",
+        "answer_resolution": "unresolved",
+        "evaluation_declared": false,
+        "checks": {
+          "relevant": null,
+          "directly_answers": null,
+          "applicable": null,
+          "current": null,
+          "non_conflicting": null,
+          "unambiguous": null,
+          "sufficient": null
+        },
+        "supporting_record_ids": [],
+        "verification_status": "unknown",
+        "reason_codes": [
+          "semantic_outcome_kind_unknown",
+          "semantic_case_kind_unknown",
+          "semantic_evaluation_unavailable",
+          "semantic_answer_unavailable"
+        ],
+        "errors": [],
+        "warnings": []
+      },
+      {
+        "index": 1,
+        "clause_id": "S-001",
+        "status": "unavailable",
+        "outcome_kind": "unknown",
+        "case_kind": "unknown",
+        "answer_status": "unavailable",
+        "answer_resolution": "unresolved",
+        "evaluation_declared": false,
+        "checks": {
+          "relevant": null,
+          "directly_answers": null,
+          "applicable": null,
+          "current": null,
+          "non_conflicting": null,
+          "unambiguous": null,
+          "sufficient": null
+        },
+        "supporting_record_ids": [],
+        "verification_status": "unknown",
+        "reason_codes": [
+          "semantic_outcome_kind_unknown",
+          "semantic_case_kind_unknown",
+          "semantic_evaluation_unavailable",
+          "semantic_answer_unavailable"
+        ],
+        "errors": [],
+        "warnings": []
+      },
+      {
+        "index": 2,
+        "clause_id": "S-002",
+        "status": "unavailable",
+        "outcome_kind": "unknown",
+        "case_kind": "unknown",
+        "answer_status": "unavailable",
+        "answer_resolution": "unresolved",
+        "evaluation_declared": false,
+        "checks": {
+          "relevant": null,
+          "directly_answers": null,
+          "applicable": null,
+          "current": null,
+          "non_conflicting": null,
+          "unambiguous": null,
+          "sufficient": null
+        },
+        "supporting_record_ids": [],
+        "verification_status": "unknown",
+        "reason_codes": [
+          "semantic_outcome_kind_unknown",
+          "semantic_case_kind_unknown",
+          "semantic_evaluation_unavailable",
+          "semantic_answer_unavailable"
+        ],
+        "errors": [],
+        "warnings": []
+      },
+      {
+        "index": 3,
+        "clause_id": "C-001",
+        "status": "unavailable",
+        "outcome_kind": "unknown",
+        "case_kind": "unknown",
+        "answer_status": "unavailable",
+        "answer_resolution": "unresolved",
+        "evaluation_declared": false,
+        "checks": {
+          "relevant": null,
+          "directly_answers": null,
+          "applicable": null,
+          "current": null,
+          "non_conflicting": null,
+          "unambiguous": null,
+          "sufficient": null
+        },
+        "supporting_record_ids": [],
+        "verification_status": "unknown",
+        "reason_codes": [
+          "semantic_outcome_kind_unknown",
+          "semantic_case_kind_unknown",
+          "semantic_evaluation_unavailable",
+          "semantic_answer_unavailable"
+        ],
+        "errors": [],
+        "warnings": []
+      }
+    ],
+    "outcome_coverage": {
+      "status": "partial",
+      "internal_output": {
+        "status": "unknown",
+        "declared_count": 0,
+        "answer_resolved_count": 0,
+        "answer_unresolved_count": 0,
+        "invalid_count": 0,
+        "verification_status": "unknown",
+        "clause_ids": []
+      },
+      "downstream_outcome": {
+        "status": "unknown",
+        "declared_count": 0,
+        "answer_resolved_count": 0,
+        "answer_unresolved_count": 0,
+        "invalid_count": 0,
+        "verification_status": "unknown",
+        "clause_ids": []
+      },
+      "canonical_readback": {
+        "status": "unknown",
+        "declared_count": 0,
+        "answer_resolved_count": 0,
+        "answer_unresolved_count": 0,
+        "invalid_count": 0,
+        "verification_status": "unknown",
+        "clause_ids": []
+      },
+      "unknown": {
+        "status": "unknown",
+        "declared_count": 4,
+        "answer_resolved_count": 0,
+        "answer_unresolved_count": 4,
+        "invalid_count": 0,
+        "verification_status": "unknown",
+        "clause_ids": [
+          "INV-001",
+          "S-001",
+          "S-002",
+          "C-001"
+        ]
+      }
+    },
+    "reason_codes": [
+      "semantic_contract_missing"
+    ],
+    "errors": [],
+    "warnings": [
+      {
+        "code": "semantic_contract_missing",
+        "severity": "warning",
+        "path": "semantic_contract",
+        "message": "semantic_contract is absent; semantic sufficiency and answer resolution are unavailable"
+      }
+    ]
+  },
+  "semantic_assessments": [
+    {
+      "index": 0,
+      "clause_id": "INV-001",
+      "status": "unavailable",
+      "outcome_kind": "unknown",
+      "case_kind": "unknown",
+      "answer_status": "unavailable",
+      "answer_resolution": "unresolved",
+      "evaluation_declared": false,
+      "checks": {
+        "relevant": null,
+        "directly_answers": null,
+        "applicable": null,
+        "current": null,
+        "non_conflicting": null,
+        "unambiguous": null,
+        "sufficient": null
+      },
+      "supporting_record_ids": [],
+      "verification_status": "unknown",
+      "reason_codes": [
+        "semantic_outcome_kind_unknown",
+        "semantic_case_kind_unknown",
+        "semantic_evaluation_unavailable",
+        "semantic_answer_unavailable"
+      ],
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "index": 1,
+      "clause_id": "S-001",
+      "status": "unavailable",
+      "outcome_kind": "unknown",
+      "case_kind": "unknown",
+      "answer_status": "unavailable",
+      "answer_resolution": "unresolved",
+      "evaluation_declared": false,
+      "checks": {
+        "relevant": null,
+        "directly_answers": null,
+        "applicable": null,
+        "current": null,
+        "non_conflicting": null,
+        "unambiguous": null,
+        "sufficient": null
+      },
+      "supporting_record_ids": [],
+      "verification_status": "unknown",
+      "reason_codes": [
+        "semantic_outcome_kind_unknown",
+        "semantic_case_kind_unknown",
+        "semantic_evaluation_unavailable",
+        "semantic_answer_unavailable"
+      ],
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "index": 2,
+      "clause_id": "S-002",
+      "status": "unavailable",
+      "outcome_kind": "unknown",
+      "case_kind": "unknown",
+      "answer_status": "unavailable",
+      "answer_resolution": "unresolved",
+      "evaluation_declared": false,
+      "checks": {
+        "relevant": null,
+        "directly_answers": null,
+        "applicable": null,
+        "current": null,
+        "non_conflicting": null,
+        "unambiguous": null,
+        "sufficient": null
+      },
+      "supporting_record_ids": [],
+      "verification_status": "unknown",
+      "reason_codes": [
+        "semantic_outcome_kind_unknown",
+        "semantic_case_kind_unknown",
+        "semantic_evaluation_unavailable",
+        "semantic_answer_unavailable"
+      ],
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "index": 3,
+      "clause_id": "C-001",
+      "status": "unavailable",
+      "outcome_kind": "unknown",
+      "case_kind": "unknown",
+      "answer_status": "unavailable",
+      "answer_resolution": "unresolved",
+      "evaluation_declared": false,
+      "checks": {
+        "relevant": null,
+        "directly_answers": null,
+        "applicable": null,
+        "current": null,
+        "non_conflicting": null,
+        "unambiguous": null,
+        "sufficient": null
+      },
+      "supporting_record_ids": [],
+      "verification_status": "unknown",
+      "reason_codes": [
+        "semantic_outcome_kind_unknown",
+        "semantic_case_kind_unknown",
+        "semantic_evaluation_unavailable",
+        "semantic_answer_unavailable"
+      ],
+      "errors": [],
+      "warnings": []
+    }
+  ],
+  "outcome_coverage": {
+    "status": "partial",
+    "internal_output": {
+      "status": "unknown",
+      "declared_count": 0,
+      "answer_resolved_count": 0,
+      "answer_unresolved_count": 0,
+      "invalid_count": 0,
+      "verification_status": "unknown",
+      "clause_ids": []
+    },
+    "downstream_outcome": {
+      "status": "unknown",
+      "declared_count": 0,
+      "answer_resolved_count": 0,
+      "answer_unresolved_count": 0,
+      "invalid_count": 0,
+      "verification_status": "unknown",
+      "clause_ids": []
+    },
+    "canonical_readback": {
+      "status": "unknown",
+      "declared_count": 0,
+      "answer_resolved_count": 0,
+      "answer_unresolved_count": 0,
+      "invalid_count": 0,
+      "verification_status": "unknown",
+      "clause_ids": []
+    },
+    "unknown": {
+      "status": "unknown",
+      "declared_count": 4,
+      "answer_resolved_count": 0,
+      "answer_unresolved_count": 4,
+      "invalid_count": 0,
+      "verification_status": "unknown",
+      "clause_ids": [
+        "INV-001",
+        "S-001",
+        "S-002",
+        "C-001"
+      ]
+    }
+  },
+  "coverage_summary": {
+    "clause_count": 0,
+    "acceptance_criteria_count": 0,
+    "scenario_clause_count": 0,
+    "mapped_count": 0,
+    "weakly_mapped_count": 0,
+    "unmapped_count": 0,
+    "semantic_assessment": {
+      "status": "unavailable",
+      "semantic_contract_status": "missing",
+      "semantic_contract_present": false,
+      "answer_status": "unavailable",
+      "answer_resolution": "unavailable",
+      "automatic_continuation": false,
+      "unresolved_behavior": {
+        "action": "ask_once",
+        "max_questions": 1,
+        "automatic_continuation": false
+      },
+      "counterexample": {
+        "status": "unavailable",
+        "declared": false,
+        "verified": false,
+        "happy_path_resolutions": []
+      },
+      "clause_assessments": [
+        {
+          "index": 0,
+          "clause_id": "INV-001",
+          "status": "unavailable",
+          "outcome_kind": "unknown",
+          "case_kind": "unknown",
+          "answer_status": "unavailable",
+          "answer_resolution": "unresolved",
+          "evaluation_declared": false,
+          "checks": {
+            "relevant": null,
+            "directly_answers": null,
+            "applicable": null,
+            "current": null,
+            "non_conflicting": null,
+            "unambiguous": null,
+            "sufficient": null
+          },
+          "supporting_record_ids": [],
+          "verification_status": "unknown",
+          "reason_codes": [
+            "semantic_outcome_kind_unknown",
+            "semantic_case_kind_unknown",
+            "semantic_evaluation_unavailable",
+            "semantic_answer_unavailable"
+          ],
+          "errors": [],
+          "warnings": []
+        },
+        {
+          "index": 1,
+          "clause_id": "S-001",
+          "status": "unavailable",
+          "outcome_kind": "unknown",
+          "case_kind": "unknown",
+          "answer_status": "unavailable",
+          "answer_resolution": "unresolved",
+          "evaluation_declared": false,
+          "checks": {
+            "relevant": null,
+            "directly_answers": null,
+            "applicable": null,
+            "current": null,
+            "non_conflicting": null,
+            "unambiguous": null,
+            "sufficient": null
+          },
+          "supporting_record_ids": [],
+          "verification_status": "unknown",
+          "reason_codes": [
+            "semantic_outcome_kind_unknown",
+            "semantic_case_kind_unknown",
+            "semantic_evaluation_unavailable",
+            "semantic_answer_unavailable"
+          ],
+          "errors": [],
+          "warnings": []
+        },
+        {
+          "index": 2,
+          "clause_id": "S-002",
+          "status": "unavailable",
+          "outcome_kind": "unknown",
+          "case_kind": "unknown",
+          "answer_status": "unavailable",
+          "answer_resolution": "unresolved",
+          "evaluation_declared": false,
+          "checks": {
+            "relevant": null,
+            "directly_answers": null,
+            "applicable": null,
+            "current": null,
+            "non_conflicting": null,
+            "unambiguous": null,
+            "sufficient": null
+          },
+          "supporting_record_ids": [],
+          "verification_status": "unknown",
+          "reason_codes": [
+            "semantic_outcome_kind_unknown",
+            "semantic_case_kind_unknown",
+            "semantic_evaluation_unavailable",
+            "semantic_answer_unavailable"
+          ],
+          "errors": [],
+          "warnings": []
+        },
+        {
+          "index": 3,
+          "clause_id": "C-001",
+          "status": "unavailable",
+          "outcome_kind": "unknown",
+          "case_kind": "unknown",
+          "answer_status": "unavailable",
+          "answer_resolution": "unresolved",
+          "evaluation_declared": false,
+          "checks": {
+            "relevant": null,
+            "directly_answers": null,
+            "applicable": null,
+            "current": null,
+            "non_conflicting": null,
+            "unambiguous": null,
+            "sufficient": null
+          },
+          "supporting_record_ids": [],
+          "verification_status": "unknown",
+          "reason_codes": [
+            "semantic_outcome_kind_unknown",
+            "semantic_case_kind_unknown",
+            "semantic_evaluation_unavailable",
+            "semantic_answer_unavailable"
+          ],
+          "errors": [],
+          "warnings": []
+        }
+      ],
+      "outcome_coverage": {
+        "status": "partial",
+        "internal_output": {
+          "status": "unknown",
+          "declared_count": 0,
+          "answer_resolved_count": 0,
+          "answer_unresolved_count": 0,
+          "invalid_count": 0,
+          "verification_status": "unknown",
+          "clause_ids": []
+        },
+        "downstream_outcome": {
+          "status": "unknown",
+          "declared_count": 0,
+          "answer_resolved_count": 0,
+          "answer_unresolved_count": 0,
+          "invalid_count": 0,
+          "verification_status": "unknown",
+          "clause_ids": []
+        },
+        "canonical_readback": {
+          "status": "unknown",
+          "declared_count": 0,
+          "answer_resolved_count": 0,
+          "answer_unresolved_count": 0,
+          "invalid_count": 0,
+          "verification_status": "unknown",
+          "clause_ids": []
+        },
+        "unknown": {
+          "status": "unknown",
+          "declared_count": 4,
+          "answer_resolved_count": 0,
+          "answer_unresolved_count": 4,
+          "invalid_count": 0,
+          "verification_status": "unknown",
+          "clause_ids": [
+            "INV-001",
+            "S-001",
+            "S-002",
+            "C-001"
+          ]
+        }
+      },
+      "reason_codes": [
+        "semantic_contract_missing"
+      ],
+      "errors": [],
+      "warnings": [
+        {
+          "code": "semantic_contract_missing",
+          "severity": "warning",
+          "path": "semantic_contract",
+          "message": "semantic_contract is absent; semantic sufficiency and answer resolution are unavailable"
+        }
+      ]
+    },
+    "semantic_assessments": [],
+    "outcome_coverage": {
+      "status": "partial",
+      "internal_output": {
+        "status": "unknown",
+        "declared_count": 0,
+        "answer_resolved_count": 0,
+        "answer_unresolved_count": 0,
+        "invalid_count": 0,
+        "verification_status": "unknown",
+        "clause_ids": []
+      },
+      "downstream_outcome": {
+        "status": "unknown",
+        "declared_count": 0,
+        "answer_resolved_count": 0,
+        "answer_unresolved_count": 0,
+        "invalid_count": 0,
+        "verification_status": "unknown",
+        "clause_ids": []
+      },
+      "canonical_readback": {
+        "status": "unknown",
+        "declared_count": 0,
+        "answer_resolved_count": 0,
+        "answer_unresolved_count": 0,
+        "invalid_count": 0,
+        "verification_status": "unknown",
+        "clause_ids": []
+      },
+      "unknown": {
+        "status": "unknown",
+        "declared_count": 4,
+        "answer_resolved_count": 0,
+        "answer_unresolved_count": 4,
+        "invalid_count": 0,
+        "verification_status": "unknown",
+        "clause_ids": [
+          "INV-001",
+          "S-001",
+          "S-002",
+          "C-001"
+        ]
+      }
+    },
+    "scenario_lineage": {
+      "status": "mapped",
+      "story_scenario_ids": [],
+      "mapped_story_scenario_ids": [],
+      "missing_story_scenario_ids": [],
+      "unknown_story_scenario_ids": []
+    },
+    "examples": []
+  },
+  "created_at": "2026-10-17T05:49:21.960Z",
+  "updated_at": "2026-10-17T08:16:56.002Z"
+}

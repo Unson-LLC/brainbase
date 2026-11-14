@@ -1,0 +1,479 @@
+/*
+ * 「人と会社」. Load after workspace-kit.css and graph-view-shared.css.
+ * Column templates of the people and company ledgers, the group titles,
+ * the add buttons, the recorded company note, and a record's page (the way
+ * back, its head, the actions gathered under it and its relations), with a
+ * 760px variant.
+ * Uses only the shared tokens in brainbase-tokens.css.
+ */
+.bb-pc-people,
+.bb-pc-companies {
+  margin-bottom: 30px;
+}
+
+.bb-graph .bb-pc-group-title {
+  margin: 22px 0 10px;
+  color: var(--bb-color-ink);
+  font-size: 13px;
+}
+
+.bb-graph .bb-pc-company-title {
+  margin: 14px 0 8px;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  font-weight: var(--bb-font-weight-medium);
+}
+
+.bb-graph .bb-pc-empty,
+.bb-graph .bb-pc-ended,
+.bb-graph-rail .bb-pc-empty {
+  margin: 0 0 10px;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-pc-people-ledger .bb-ws-ledger-row {
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.bb-pc-company-ledger .bb-ws-ledger-row {
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, .8fr) 84px minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.bb-pc-relation-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bb-pc-relation {
+  display: grid;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--bb-color-border);
+}
+
+.bb-pc-relation.is-ended {
+  opacity: .62;
+}
+
+.bb-pc-relation-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bb-pc-relation-meta {
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-pc-relation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bb-pc-company-cell {
+  display: grid;
+  gap: 2px;
+}
+
+/* A note recorded as text on the person, never a membership: muted and dashed. */
+.bb-pc-org-note {
+  justify-self: start;
+  padding: 1px 6px;
+  border: 1px dashed var(--bb-color-border);
+  border-radius: 4px;
+  color: var(--bb-color-muted);
+  font-size: 11px;
+}
+
+@media (max-width: 760px) {
+  /* Below a host's top bar on a phone. */
+  .bb-pc-detail {
+    scroll-margin-top: 72px;
+  }
+
+  .bb-pc-people-ledger .bb-ws-ledger-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 84px;
+  }
+
+  .bb-pc-people-ledger .bb-ws-ledger-row > :nth-child(4) {
+    display: none;
+  }
+
+  .bb-pc-company-ledger .bb-ws-ledger-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, .7fr) 64px;
+  }
+
+  .bb-pc-company-ledger .bb-ws-ledger-row > :nth-child(4),
+  .bb-pc-company-ledger .bb-ws-ledger-row > :nth-child(5) {
+    display: none;
+  }
+}
+
+/* Marks, counts and badges (2026-10). A person is a round mark, a company a
+   rounded square; both keep one tone per id. Counts sit next to each group
+   title, and the jump links at the top move to the people or company part. */
+.bb-pc-jump {
+  display: flex;
+  gap: 4px;
+  margin: 4px 0 18px;
+  padding: 3px;
+  width: max-content;
+  border-radius: 9px;
+  background: var(--bb-color-canvas);
+}
+
+.bb-pc-jump-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--bb-color-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: var(--bb-font-weight-medium);
+  cursor: pointer;
+}
+
+.bb-pc-jump-link:hover {
+  background: var(--bb-color-paper);
+  box-shadow: 0 1px 2px rgb(32 33 36 / 10%);
+}
+
+.bb-pc-count {
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.bb-graph .bb-pc-group-title,
+.bb-graph .bb-pc-company-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bb-graph .bb-pc-company-title {
+  color: var(--bb-color-ink);
+  font-weight: var(--bb-font-weight-medium);
+}
+
+.bb-pc-mark {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-right: 10px;
+  color: var(--bb-pc-mark-ink);
+  background: var(--bb-pc-mark-bg);
+  font-size: 11px;
+  font-weight: var(--bb-font-weight-medium);
+  line-height: 1;
+}
+
+.bb-pc-person-mark { border-radius: 50%; }
+.bb-pc-company-mark { border-radius: 6px; }
+.bb-pc-company-title .bb-pc-mark,
+.bb-pc-company-chip .bb-pc-mark { width: 18px; height: 18px; margin-right: 0; border-radius: 5px; font-size: 10px; }
+
+.bb-pc-tone-0 { --bb-pc-mark-bg: #fde7e9; --bb-pc-mark-ink: #b4233a; }
+.bb-pc-tone-1 { --bb-pc-mark-bg: #e3effd; --bb-pc-mark-ink: #1f5fbf; }
+.bb-pc-tone-2 { --bb-pc-mark-bg: #e2f5ea; --bb-pc-mark-ink: #157046; }
+.bb-pc-tone-3 { --bb-pc-mark-bg: #fff1d6; --bb-pc-mark-ink: #9a5a00; }
+.bb-pc-tone-4 { --bb-pc-mark-bg: #efe7fd; --bb-pc-mark-ink: #6d36c9; }
+.bb-pc-tone-5 { --bb-pc-mark-bg: #e0f4f6; --bb-pc-mark-ink: #0d6e7a; }
+
+.bb-pc-people-ledger .bb-ws-ledger-object,
+.bb-pc-company-ledger .bb-ws-ledger-object {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.bb-pc-people-ledger .bb-ws-ledger-object strong,
+.bb-pc-company-ledger .bb-ws-ledger-object strong {
+  overflow: hidden;
+  font-weight: var(--bb-font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bb-pc-company-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.bb-pc-company-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.bb-pc-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.bb-pc-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 8px;
+  border-radius: 5px;
+  background: var(--bb-color-canvas);
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  font-weight: var(--bb-font-weight-medium);
+}
+
+.bb-pc-kind::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.bb-pc-kind-customer { background: #e2f5ea; color: #157046; }
+.bb-pc-kind-partner { background: #e3effd; color: #1f5fbf; }
+.bb-pc-kind-prospect { background: #fff1d6; color: #9a5a00; }
+
+.bb-pc-people-ledger .bb-ws-ledger-row:not(.bb-ws-ledger-head),
+.bb-pc-company-ledger .bb-ws-ledger-row:not(.bb-ws-ledger-head) {
+  align-items: center;
+  min-height: 46px;
+}
+
+/* A record's page (2026-10-16). Choosing a row turns the workspace into the
+   record's page, as a CRM does: the way back with the record's place, the
+   head, then what can be done to it, gathered in one place with what the page
+   says about it (nothing is deleted; why an action is disabled). */
+.bb-pc-action-group {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 20px;
+}
+
+.bb-pc-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bb-pc-action-row .bb-ws-button[data-adds]::before {
+  content: '＋';
+}
+
+.bb-pc-action-note,
+.bb-pc-action-reason {
+  margin: 0;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.bb-pc-action-reason {
+  justify-self: start;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--bb-color-warning-soft);
+  color: var(--bb-color-warning);
+}
+
+.bb-pc-action-note a {
+  color: var(--bb-color-accent-strong);
+}
+
+.bb-pc-add {
+  margin-top: -4px;
+}
+
+.bb-pc-detail {
+  display: grid;
+  gap: 0;
+  scroll-margin-top: 16px;
+}
+
+.bb-pc-detail-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--bb-color-border);
+}
+
+.bb-pc-detail-nav .bb-pc-back {
+  margin-right: auto;
+}
+
+.bb-pc-detail-place {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 4px;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-pc-detail-nav .bb-ws-button[aria-label='前へ'],
+.bb-pc-detail-nav .bb-ws-button[aria-label='次へ'] {
+  min-width: 32px;
+  padding-inline: 8px;
+}
+
+.bb-pc-detail-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin: 0 0 18px;
+  scroll-margin-top: 16px;
+}
+
+.bb-pc-mark.bb-pc-detail-mark {
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  font-size: 18px;
+}
+
+.bb-pc-company-mark.bb-pc-detail-mark {
+  border-radius: 10px;
+}
+
+.bb-pc-detail-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.bb-pc-detail-copy h2 {
+  margin: 0;
+  color: var(--bb-color-ink);
+  font-size: 22px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  scroll-margin-top: 16px;
+}
+
+.bb-pc-detail-copy h2:focus {
+  outline: none;
+}
+
+.bb-pc-detail-sub {
+  margin: 0;
+  color: var(--bb-color-muted);
+  font-size: 13px;
+}
+
+.bb-pc-detail-lead {
+  margin: 4px 0 0;
+  color: var(--bb-color-ink);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.bb-pc-detail-actions {
+  padding: 14px 16px;
+  border: 1px solid var(--bb-color-border);
+  border-radius: 10px;
+  background: var(--bb-color-canvas);
+}
+
+.bb-pc-detail-block {
+  margin: 0 0 22px;
+}
+
+.bb-pc-detail-block h3 {
+  margin: 0 0 6px;
+  color: var(--bb-color-ink);
+  font-size: 13px;
+}
+
+/* The compact directory is explicit; the original two-ledger view stays available. */
+.bb-pc-directory {
+  --bb-pc-directory-radius: 12px;
+  --bb-pc-directory-row-height: 60px;
+}
+.bb-pc-directory-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: var(--bb-space-4);
+}
+.bb-pc-directory-toolbar .bb-ws-filter-anchor { margin-left: auto; }
+.bb-pc-directory-create { min-height: 36px; }
+.bb-pc-directory-create::before { content: '＋'; }
+.bb-pc-directory-list {
+  overflow: hidden;
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-pc-directory-radius);
+  background: var(--bb-color-paper);
+  box-shadow: var(--bb-shadow-sm);
+}
+.bb-pc-directory-row {
+  display: grid;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) 220px 270px 110px;
+  column-gap: 20px;
+  width: 100%;
+  min-height: var(--bb-pc-directory-row-height);
+  padding: var(--bb-space-2) var(--bb-space-4);
+  border: 0;
+  border-bottom: 1px solid var(--bb-color-border-soft, var(--bb-color-border));
+  background: transparent;
+  color: var(--bb-color-ink);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.bb-pc-directory-row:last-child { border-bottom: 0; }
+.bb-pc-directory-row:hover { background: var(--bb-color-canvas); }
+.bb-pc-directory-row[aria-expanded='true'] { background: var(--bb-color-accent-soft); }
+.bb-pc-directory-row:focus-visible { outline: 2px solid var(--bb-color-accent); outline-offset: -2px; }
+.bb-pc-directory-list.is-companies .bb-pc-directory-row { grid-template-columns: minmax(0, 1fr) 120px 200px 250px; }
+.bb-pc-directory-who { display: flex; align-items: center; min-width: 0; }
+.bb-pc-directory-row .bb-pc-mark { width: 28px; height: 28px; font-size: 12px; }
+.bb-pc-directory-copy { display: grid; gap: 2px; min-width: 0; }
+.bb-pc-directory-copy strong { overflow: hidden; color: var(--bb-color-ink); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.bb-pc-directory-note,
+.bb-pc-directory-term,
+.bb-pc-directory-cell { min-width: 0; color: var(--bb-color-muted); font-size: 12px; overflow-wrap: anywhere; }
+.bb-pc-directory-row .bb-pc-company-chips { font-size: 12px; }
+.bb-pc-directory-row .bb-pc-company-chip .bb-pc-mark { width: 18px; height: 18px; font-size: 10px; }
+.bb-pc-directory-row .bb-pc-kind { font-size: 11px; }
+.bb-pc-directory-term { text-align: right; }
+.bb-pc-directory .bb-pc-group-title { margin: 28px 0 12px; font-size: 15px; font-weight: 600; }
+.bb-pc-directory .bb-pc-group-title:first-of-type { margin-top: 4px; }
+.bb-pc-directory-none { margin: 0; padding: var(--bb-space-3) var(--bb-space-4); border: 1px solid var(--bb-color-border); border-radius: var(--bb-pc-directory-radius); color: var(--bb-color-muted); font-size: 12px; }
+.bb-pc-directory-detail .bb-pc-detail-nav { margin-top: var(--bb-space-2); }
+@media (max-width: 1200px) {
+  .bb-pc-directory-row { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) 100px; gap: var(--bb-space-3); }
+  .bb-pc-directory-list.is-companies .bb-pc-directory-row { grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr) minmax(0, .8fr) minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .bb-pc-directory-row,
+  .bb-pc-directory-list.is-companies .bb-pc-directory-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); row-gap: var(--bb-space-2); }
+  .bb-pc-directory-row .bb-pc-directory-term { text-align: left; }
+  .bb-pc-directory-row .bb-pc-directory-who { min-height: 32px; }
+}
+
+.bb-pc-directory-source { margin-top: var(--bb-space-4); color: var(--bb-color-muted); font-size: 12px; }
+.bb-pc-directory-source > summary { width: fit-content; cursor: pointer; }
+.bb-pc-directory-source > summary:focus-visible { outline: 2px solid var(--bb-color-focus); outline-offset: 2px; }
+.bb-pc-directory-source[open] > summary { margin-bottom: var(--bb-space-2); }

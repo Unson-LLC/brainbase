@@ -49,7 +49,7 @@ describe('brainbase web:serve', () => {
         await waitFor(() => output.stdout().includes('終了: Ctrl+C'));
         const origin = /Brainbase: (http:\/\/127\.0\.0\.1:\d+)\//u.exec(output.stdout())?.[1];
         expect(origin).toBeDefined();
-        expect(output.stdout()).toContain(`- 今日（判断の見返し）: ${origin}/#today`);
+        expect(output.stdout()).toContain(`- 判断の履歴: ${origin}/#value-proofs`);
         expect(output.stdout()).toContain(`- 目的と現状: ${origin}/#objectives`);
         expect(output.stdout()).toContain(`- プロジェクトと関係者: ${origin}/#projects`);
         expect(output.stdout()).toContain(`- 情報と関係: ${origin}/#graph`);

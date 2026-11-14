@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import { Readable } from 'node:stream';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -13,6 +14,10 @@ import {
   runJudgmentHost,
   type JudgmentReceipt
 } from '../src/judgment-host.js';
+import {
+  createJudgmentKnowledgeEventOutboxSink,
+  resolveJudgmentKnowledgeEventOutboxPaths
+} from '../src/judgment-event-outbox.js';
 import { runCli } from '../src/cli.js';
 
 const dirs: string[] = [];
@@ -40,6 +45,7 @@ async function tempDir(): Promise<string> {
 
 afterEach(async () => {
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
   await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
@@ -352,6 +358,9 @@ describe('portable Judgment Resolver Host contract', () => {
       now: () => new Date('2026-08-09T00:00:00.000Z'),
       id: () => 'receipt-episode'
     }));
+    const knowledgeEventSink = createJudgmentKnowledgeEventOutboxSink({
+      paths: resolveJudgmentKnowledgeEventOutboxPaths({ root })
+    });
 
     const started = await processJudgmentHook({
       hook_event_name: 'UserPromptSubmit',
@@ -386,12 +395,12 @@ describe('portable Judgment Resolver Host contract', () => {
       hook_event_name: 'Stop',
       last_assistant_message: completeAnswer,
       ...identity
-    }, { env, resolver });
+    }, { env, resolver, knowledgeEventSink });
     const replayed = await processJudgmentHook({
       hook_event_name: 'Stop',
       last_assistant_message: completeAnswer,
       ...identity
-    }, { env, resolver });
+    }, { env, resolver, knowledgeEventSink });
 
     expect(resolver).toHaveBeenCalledTimes(1);
     expect(started).toMatchObject({ continue: true, receipt: { resolution_id: 'receipt-episode' } });
@@ -405,6 +414,9 @@ describe('portable Judgment Resolver Host contract', () => {
     const paths = episodePaths(journal, identity.session_id, identity.turn_id);
     const episode = JSON.parse(await readFile(paths.episode, 'utf8'));
     const final = JSON.parse(await readFile(paths.final, 'utf8'));
+    const outboxPaths = resolveJudgmentKnowledgeEventOutboxPaths({ root });
+    const outboxFiles = await readdir(outboxPaths.outboxDir);
+    const queuedKnowledgeEvent = JSON.parse(await readFile(join(outboxPaths.outboxDir, outboxFiles[0]), 'utf8'));
     const eventNames = (await readdir(paths.events)).sort();
     const events = await Promise.all(eventNames.map(async (name) => JSON.parse(await readFile(join(paths.events, name), 'utf8'))));
     expect(events.map((event) => event.sequence)).toEqual([1, 2]);
@@ -415,6 +427,15 @@ describe('portable Judgment Resolver Host contract', () => {
       event_count: 2
     });
     expect(final.event_set_digest).toBe(digest(canonicalJson(events)));
+    expect(queuedKnowledgeEvent).toMatchObject({
+      schema_version: 'judgment_event_outbox.v1',
+      event: {
+        schema_version: 'knowledge_event.v1',
+        parent_episode_id: expect.stringMatching(/:turn-1$/u),
+        decision_authority: { authorized: false, graph_promotion_allowed: false }
+      },
+      delivery: { attempt: 1 }
+    });
   });
 
   it('replays an identical tool_use_id idempotently', async () => {
@@ -757,10 +778,137 @@ describe('portable Judgment Resolver Host contract', () => {
     expect(recorded.systemMessage).not.toContain('input-must-not-be-used');
   });
 
+  it.each(['empty directory', 'empty file', 'invalid gitfile'])('does not bind a project from an ancestor with an %s as .git', async (kind) => {
+    const root = await tempDir();
+    const fixture = join(root, 'projectless');
+    await mkdir(fixture);
+    if (kind === 'empty directory') await mkdir(join(root, '.git'));
+    else await writeFile(join(root, '.git'), kind === 'empty file' ? '' : 'gitdir: missing-directory\n');
+    await writeFile(join(root, 'AGENTS.md'), 'unrelated ancestor instructions');
+    const request = buildJudgmentRequest({
+      prompt: 'Explain this', session_id: 'projectless-session', turn_id: 'turn-1', cwd: fixture
+    }, {
+      env: { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') },
+      trustedConversationMessages: []
+    });
+    expect(request.project_code).toBeUndefined();
+    expect(request.conversation_context.runtime.project_binding).toBeNull();
+    expect(request.conversation_context.instruction_bindings).toEqual([]);
+  });
+
+  it('does not discover a repository supplied through inherited Git environment variables', async () => {
+    const root = await tempDir();
+    const repository = join(root, 'repository');
+    const fixture = join(root, 'projectless');
+    execFileSync('git', ['init', '-q', repository]);
+    await mkdir(fixture);
+    await mkdir(join(root, '.git'));
+    vi.stubEnv('GIT_DIR', join(repository, '.git'));
+    vi.stubEnv('GIT_WORK_TREE', repository);
+    const request = buildJudgmentRequest({
+      prompt: 'Explain this', session_id: 'git-env-session', turn_id: 'turn-1', cwd: fixture
+    }, {
+      env: { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') },
+      trustedConversationMessages: []
+    });
+    expect(request.project_code).toBeUndefined();
+    expect(request.conversation_context.runtime.project_binding).toBeNull();
+    expect(request.conversation_context.instruction_bindings).toEqual([]);
+  });
+
+  it.skipIf(process.platform === 'win32').each(['ownership', 'timeout', 'once'] as const)(
+    'handles repository discovery %s through the Git executable', async (scenario) => {
+      const root = await tempDir();
+      const repository = join(root, 'repository');
+      execFileSync('git', ['init', '-q', repository]);
+      await writeFile(join(repository, 'AGENTS.md'), 'repository instructions');
+      const git = execFileSync('/bin/sh', ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+      const bin = join(root, 'bin');
+      await mkdir(bin);
+      const calls = join(root, 'git-calls');
+      const config = join(root, 'gitconfig');
+      await writeFile(config, '');
+      await writeFile(join(bin, 'git'), `#!${process.execPath}
+const { appendFileSync } = require('node:fs');
+const { execFileSync } = require('node:child_process');
+appendFileSync(${JSON.stringify(calls)}, 'call\\n');
+if (${JSON.stringify(scenario)} === 'timeout') Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 4000);
+const env = { ...process.env, GIT_CONFIG_GLOBAL: ${JSON.stringify(config)}, GIT_CONFIG_NOSYSTEM: '1',
+  ...(${JSON.stringify(scenario)} === 'ownership' ? { GIT_TEST_ASSUME_DIFFERENT_OWNER: '1' } : {}) };
+try {
+  process.stdout.write(execFileSync(${JSON.stringify(git)}, process.argv.slice(2), { env }));
+} catch (error) {
+  process.stderr.write(error.stderr);
+  process.exit(error.status || 1);
+}
+`, { mode: 0o755 });
+      vi.stubEnv('PATH', `${bin}${delimiter}${process.env.PATH}`);
+      const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+      const request = buildJudgmentRequest({
+        prompt: 'Explain this', session_id: 'discovery-session', turn_id: 'turn-1', cwd: repository
+      }, {
+        env: { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') },
+        trustedConversationMessages: []
+      });
+      if (scenario === 'once') {
+        expect(request.project_code).toBe('repository');
+        expect(request.conversation_context.instruction_bindings.map((binding) => binding.source_ref)).toEqual(['AGENTS.md']);
+        expect(stderr).not.toHaveBeenCalled();
+      } else {
+        expect(request.project_code).toBeUndefined();
+        expect(request.conversation_context.runtime.project_binding).toBeNull();
+        expect(request.conversation_context.instruction_bindings).toEqual([]);
+        expect(stderr).toHaveBeenCalledWith(`${JSON.stringify({
+          event: 'judgment_repository_discovery_failed',
+          reason: scenario === 'ownership' ? 'unsafe_repository' : 'timeout'
+        })}\n`);
+      }
+      expect((await readFile(calls, 'utf8')).trim().split('\n')).toEqual(['call']);
+    }, 15000
+  );
+
+  it('keeps an explicit project binding outside a Git repository', async () => {
+    const root = await tempDir();
+    await mkdir(join(root, '.git'));
+    const request = buildJudgmentRequest({
+      prompt: 'Explain this', session_id: 'explicit-session', turn_id: 'turn-1', cwd: root
+    }, {
+      env: { BRAINBASE_JUDGMENT_PROJECT_CODE: 'explicit-project', BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') },
+      trustedConversationMessages: []
+    });
+    expect(request.project_code).toBe('explicit-project');
+    expect(request.conversation_context.runtime.project_binding).toBe('explicit-project');
+    expect(request.conversation_context.instruction_bindings).toEqual([]);
+  });
+
+  it('discovers a linked worktree with a gitfile from its nested directory', async () => {
+    const root = await tempDir();
+    const repository = join(root, 'repository');
+    const worktree = join(root, 'linked-worktree');
+    const config = join(root, 'signing.gitconfig');
+    await writeFile(config, '[commit]\n\tgpgsign = true\n[gpg]\n\tprogram = false\n');
+    vi.stubEnv('GIT_CONFIG_GLOBAL', config);
+    execFileSync('git', ['init', '-q', repository]);
+    execFileSync('git', ['-C', repository, '-c', 'commit.gpgsign=false', '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '--allow-empty', '-m', 'fixture']);
+    execFileSync('git', ['-C', repository, 'worktree', 'add', '--detach', worktree]);
+    const nested = join(worktree, 'nested');
+    await mkdir(nested);
+    await writeFile(join(worktree, 'AGENTS.md'), 'worktree instructions');
+    const request = buildJudgmentRequest({
+      prompt: 'Explain this', session_id: 'worktree-session', turn_id: 'turn-1', cwd: nested
+    }, {
+      env: { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') },
+      trustedConversationMessages: []
+    });
+    expect(request.project_code).toBe('linked-worktree');
+    expect(request.conversation_context.runtime.project_binding).toBe('linked-worktree');
+    expect(request.conversation_context.instruction_bindings.map((binding) => binding.source_ref)).toEqual(['AGENTS.md']);
+  });
+
   it('binds every applicable AGENTS.md from repository root to cwd', async () => {
     const root = await tempDir();
     const nested = join(root, 'a', 'b');
-    await mkdir(join(root, '.git'));
+    execFileSync('git', ['init', '-q', root]);
     await mkdir(nested, { recursive: true });
     await writeFile(join(root, 'AGENTS.md'), 'root instructions');
     await writeFile(join(root, 'a', 'AGENTS.md'), 'a instructions');

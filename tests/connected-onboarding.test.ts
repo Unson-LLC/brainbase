@@ -5,6 +5,9 @@ import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   ConnectedOnboardingRuntime,
+  ONBOARDING_BLOCK_PATTERNS,
+  ONBOARDING_PII_PATTERNS,
+  scanOnboardingContent,
   type SourceInventoryInput
 } from '../src/connected-onboarding.js';
 import { initializePersonalOs, loadPersonalOs } from '../src/ssot.js';
@@ -739,5 +742,37 @@ describe('ConnectedOnboardingRuntime', () => {
     await expect(runtime.review(second.id, [{
       candidateId: secondIngested.candidates[0].id, decision: 'approve', reason: '確認済み'
     }])).rejects.toMatchObject({ code: 'ledger_schema_unsupported' });
+  });
+});
+
+describe('onboarding content scan contract', () => {
+  it('reports no findings for empty or non-text input', () => {
+    expect(scanOnboardingContent('')).toEqual({ block: false, review: false, findings: [] });
+    expect(scanOnboardingContent(null)).toEqual({ block: false, review: false, findings: [] });
+  });
+
+  it('blocks named secrets and preserves detector counts', () => {
+    const result = scanOnboardingContent(
+      'token sk-12345678901234567890 and sk-12345678901234567890, email owner@example.com'
+    );
+
+    expect(result.block).toBe(true);
+    expect(result.review).toBe(true);
+    expect(result.findings).toEqual([
+      { kind: 'block', name: 'openai_api_key', count: 2 },
+      { kind: 'review', name: 'email', count: 1 }
+    ]);
+    expect(ONBOARDING_BLOCK_PATTERNS.some(({ name }) => name === 'openai_api_key')).toBe(true);
+    expect(ONBOARDING_PII_PATTERNS.some(({ name }) => name === 'email')).toBe(true);
+  });
+
+  it('marks personally identifying content for review without blocking it', () => {
+    const result = scanOnboardingContent('担当: 090-1234-5678');
+
+    expect(result).toEqual({
+      block: false,
+      review: true,
+      findings: [{ kind: 'review', name: 'jp_phone', count: 1 }]
+    });
   });
 });

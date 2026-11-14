@@ -1,0 +1,50 @@
+name: Public VibePro producer contract
+
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  producer-contract:
+    name: Four public producer contract tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Fetch public consumer without credentials
+        env:
+          VIBEPRO_PIN: 203ddfeda6eeddb6c25c0e7bd65140e2ff1d0959
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_SYSTEM: /dev/null
+        run: |
+          set -euo pipefail
+          git init "$RUNNER_TEMP/vibepro"
+          git -C "$RUNNER_TEMP/vibepro" remote add origin https://github.com/Unson-LLC/vibepro.git
+          git -C "$RUNNER_TEMP/vibepro" fetch --depth 1 origin "$VIBEPRO_PIN"
+          git -C "$RUNNER_TEMP/vibepro" checkout --detach FETCH_HEAD
+          test "$(git -C "$RUNNER_TEMP/vibepro" rev-parse HEAD)" = "$VIBEPRO_PIN"
+      - name: Verify tenant authorization boundary
+        run: node --test scripts/vibepro-tenant-boundary.node.mjs
+      - name: Run all four consumer contracts and reject skips
+        env:
+          BRAINBASE_PRODUCER_MODULE: ${{ github.workspace }}/src/vibepro-contract/vibepro-managed-handoff.js
+          BRAINBASE_HANDOFF_ISSUER: ${{ github.workspace }}/src/vibepro-contract/vibepro-handoff-issuer.js
+          BRAINBASE_OUTCOME_CASE_SERVICE: ${{ github.workspace }}/src/vibepro-contract/outcome-case-service.js
+          GIT_CONFIG_GLOBAL: /dev/null
+          GIT_CONFIG_SYSTEM: /dev/null
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/vibepro"
+          node --test --test-reporter=tap test/brainbase-producer-contract.test.js | tee "$RUNNER_TEMP/contracts.tap"
+          node "$GITHUB_WORKSPACE/scripts/assert-node-test-tap.mjs" "$RUNNER_TEMP/contracts.tap" 4

@@ -27,6 +27,10 @@ describe('Graphの検索コアの公開契約', () => {
         types: './dist/embedding-provider.d.ts',
         import: './dist/embedding-provider.js',
       },
+      './graph-embedding-provider': {
+        types: './dist/graph-embedding-provider.d.ts',
+        import: './dist/graph-embedding-provider.js',
+      },
     });
 
     const portableGraph = await importExport(manifest, './portable-graph');
@@ -43,6 +47,13 @@ describe('Graphの検索コアの公開契約', () => {
     expect(embeddingProvider.createEmbeddingProviderFromEnv({})).toBeUndefined();
     expect(() => embeddingProvider.createEmbeddingProviderFromEnv({ BRAINBASE_EMBEDDING_URL: 'https://embeddings.example/v1/embeddings' }))
       .toThrow(embeddingProvider.EmbeddingProviderConfigError);
+
+    // 組織側は保存済みの索引をこのモデルIDで照合するため、IDと次元は版をまたいで変えない。
+    const graphEmbeddingProvider = await importExport(manifest, './graph-embedding-provider');
+    expect(graphEmbeddingProvider.GRAPH_EMBEDDING_MODEL_ID).toBe('gemini-embedding-001:768:v2');
+    expect(graphEmbeddingProvider.GRAPH_EMBEDDING_DIMENSIONS).toBe(768);
+    expect(() => graphEmbeddingProvider.createGraphEmbeddingProvider({ apiKey: '' }))
+      .toThrow(graphEmbeddingProvider.GraphEmbeddingProviderError);
   });
 });
 
@@ -57,6 +68,21 @@ describe('共通昇格処理の公開契約', () => {
     for (const name of ['KnowledgePromotionService', 'normalizePromotionPayload', 'ownerConsentReceipt', 'organizationReviewReceipt', 'candidateApprovalReceipt']) {
       expect(typeof promotion[name]).toBe('function');
     }
+  });
+});
+
+describe('接続オンボーディングの公開契約', () => {
+  it('ランタイムと候補スキャンをpackageの出口から取り込める', async () => {
+    const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+    expect(manifest.exports['./connected-onboarding']).toEqual({
+      types: './dist/connected-onboarding.d.ts',
+      import: './dist/connected-onboarding.js',
+    });
+    const onboarding = await importExport(manifest, './connected-onboarding');
+    expect(typeof onboarding.ConnectedOnboardingRuntime).toBe('function');
+    expect(typeof onboarding.scanOnboardingContent).toBe('function');
+    expect(Array.isArray(onboarding.ONBOARDING_BLOCK_PATTERNS)).toBe(true);
+    expect(Array.isArray(onboarding.ONBOARDING_PII_PATTERNS)).toBe(true);
   });
 });
 

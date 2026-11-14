@@ -105,7 +105,7 @@ brainbase onboard:candidates
 
 ### Google Workspace local-first adopter
 
-常時稼働のMac mini、Google Workspace、補助Gmail、許可したDrive/local folder、Calendar/notesに散在するタスクを対象にする例です。全Driveやhome directory全体は走査しません。
+常時稼働のローカルホスト（例: Mac mini）、Google Workspace、必要なら補助Gmail、許可したDrive/local folder、Calendar/notesに散在するタスクを想定した例です。使わないタスクツール（例: Notion）は`--inactive-task-tool`で非アクティブ扱いにできます。全Driveやhome directory全体は走査しません。
 
 ```bash
 brainbase onboard:plan --profile google-workspace-local --host mac-mini --email google-workspace --secondary-email gmail --calendar google-calendar --drive google-drive --drive-folder "<folder-id>" --local-folder "/Users/owner/Notes" --tasks scattered-calendar-notes --inactive-task-tool notion
@@ -247,8 +247,8 @@ Publication is serialized by the GitHub workflow. Direct local `release:publish`
 Dispatch the reviewed ref once when automatic publication needs recovery:
 
 ```bash
-RELEASE_REF="<reviewed-develop-commit>"
-gh workflow run npm-publish.yml --ref develop -f release_ref="$RELEASE_REF"
+RELEASE_REF="<reviewed-main-commit>"
+gh workflow run npm-publish.yml --ref main -f release_ref="$RELEASE_REF"
 ```
 
 After the workflow succeeds, verify npm `gitHead`, `dist.integrity`, and dist-tag, and verify that the GitHub Release targets the reviewed release commit. If npm already contains the version, treat that version as immutable; fix the source, increment the version, and run the reviewed workflow again.
@@ -265,3 +265,12 @@ After the workflow succeeds, verify npm `gitHead`, `dist.integrity`, and dist-ta
 - [Judgment DAG milestones](docs/management/judgment-dag-milestones.md)
 
 MIT License
+
+
+### Shared purpose overview presentation
+
+The read-only foundation overview uses a four-column ledger (purpose, recorded state, outstanding checks and check date). A row opens the shared native detail dialog. Philosophy starts expanded; world models start folded. Hosts can receive failure and partial-coverage notification descriptors through `onNotice` without replacing authenticated readers or catalog validation. Owner-private objectives support an optional compact view and preserve bundle provenance.
+
+Load `ui/native-scrollbars.css` and initialize `installNativeScrollbars(document)` from `ui/native-scrollbars.js` for native scrollbars that appear during scrolling and fade after inactivity. Dispose the returned callback when the host is destroyed. The local Web host serves and initializes this shared module.
+
+See [the presentation contract](docs/specs/story-foundation-overview-readability.md) for acceptance conditions. Display fixtures belong in tests and local previews; they are never inserted into canonical records.

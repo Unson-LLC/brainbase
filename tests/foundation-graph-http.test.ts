@@ -9,6 +9,7 @@ import {
   GRAPH_FOUNDATION_LATEST_SQL,
   GRAPH_FOUNDATION_LIST_SQL,
   GRAPH_PHILOSOPHY_LIST_SQL,
+  GRAPH_UNSCOPED_PHILOSOPHY_LIST_SQL,
   type GraphFoundationHistoryRow
 } from '../src/graph-foundation-reader.js';
 import type { FoundationDefinition } from '../src/ontology-foundation.js';
@@ -159,6 +160,18 @@ function philosophyRow(): GraphFoundationHistoryRow {
   };
 }
 
+function unscopedPhilosophyRow(): GraphFoundationHistoryRow {
+  return {
+    current_entity_id: 'philosophy-legacy',
+    current_entity_type: 'philosophy',
+    current_payload: { display_name: 'Visible or not', title: 'Visible Or Not Value', statement: 'Unseen work is not value', status: 'active', owner_person_id: 'per-1' },
+    current_project_id: 'project-a',
+    current_project_code: 'project-a',
+    current_lifecycle_status: 'active',
+    current_version: 3
+  };
+}
+
 function fixture(options: { ready?: boolean; csrfResult?: boolean; catalog?: boolean; failPhilosophyList?: boolean } = {}) {
   const ready = options.ready ?? true;
   const csrf = vi.fn(async () => options.csrfResult ?? true);
@@ -167,6 +180,9 @@ function fixture(options: { ready?: boolean; csrfResult?: boolean; catalog?: boo
     if (text === GRAPH_PHILOSOPHY_LIST_SQL) {
       if (options.failPhilosophyList) throw new Error('philosophy list unavailable');
       return { rows: options.catalog ? [philosophyRow()] : [] };
+    }
+    if (text === GRAPH_UNSCOPED_PHILOSOPHY_LIST_SQL) {
+      return { rows: options.catalog ? [unscopedPhilosophyRow()] : [] };
     }
     if (text === GRAPH_FOUNDATION_LIST_SQL) {
       if (values[0] === 'objective') return { rows: [objectiveRow({ details: options.catalog })] };
@@ -338,8 +354,17 @@ describe('Graph Foundation public HTTP adapter', () => {
       objectives: [{ definition: { id: 'objective-1', type: 'objective' } }],
       variables: [{ definition: { id: 'variable-1', type: 'variable' } }],
       models: [{ definition: { id: 'model-1', type: 'model' } }],
-      philosophies: [{ kind: 'philosophy', id: 'philosophy-1', revision: '2' }]
+      philosophies: [{ kind: 'philosophy', id: 'philosophy-1', revision: '2' }],
+      philosophies_without_applicability: [{
+        kind: 'philosophy',
+        id: 'philosophy-legacy',
+        version: 3,
+        applicability: null,
+        applicability_state: 'unrecorded',
+        payload: { title: 'Visible or not', statement: 'Unseen work is not value', status: 'active' }
+      }]
     });
+    expect(body.philosophies_without_applicability[0].payload.owner_person_id).toBeUndefined();
     expect(body.objectives[0].details).toEqual({
       title: 'Improve operator continuity',
       criteria_text: 'Operators can complete the workflow',
@@ -353,6 +378,7 @@ describe('Graph Foundation public HTTP adapter', () => {
     expect(f.query).toHaveBeenCalledWith(GRAPH_FOUNDATION_LIST_SQL, ['variable', 'project-a']);
     expect(f.query).toHaveBeenCalledWith(GRAPH_FOUNDATION_LIST_SQL, ['model', 'project-a']);
     expect(f.query).toHaveBeenCalledWith(GRAPH_PHILOSOPHY_LIST_SQL, ['project-a']);
+    expect(f.query).toHaveBeenCalledWith(GRAPH_UNSCOPED_PHILOSOPHY_LIST_SQL, ['project-a']);
   });
 
   it.each([

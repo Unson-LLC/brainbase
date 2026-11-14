@@ -39,7 +39,7 @@ async function cli(args: string[]) {
 describe('Onboarding routine registration acceptance', () => {
   it('covers every Story acceptance criterion', async () => {
     // ac:1 generates ohayo/oyasumi/retro; ac:2 codex target emits automation.toml
-    const codex = JSON.parse(await cli(['onboard:routines', '--target', 'codex', '--cwd', '/Users/otawara/brainbase', '--format', 'json']));
+    const codex = JSON.parse(await cli(['onboard:routines', '--target', 'codex', '--cwd', '/Users/example/brainbase', '--format', 'json']));
     expect(codex.routines.map((routine: { kind: string }) => routine.kind), 'onboarding-routine-registration ac:1 onboard:routines generates personal-scoped ohayo, oyasumi, and retro routine definitions.').toEqual(['ohayo', 'oyasumi', 'retro']);
     expect(codex.target, 'onboarding-routine-registration ac:2 --target codex emits Codex automation.toml content.').toBe('codex');
 
@@ -48,7 +48,7 @@ describe('Onboarding routine registration acceptance', () => {
     expect(subset.routines.map((routine: { kind: string }) => routine.kind), 'onboarding-routine-registration ac:1 --routines can select a subset.').toEqual(['ohayo', 'retro']);
 
     // ac:2 claude target emits scheduled-task definition with cron
-    const claude = JSON.parse(await cli(['onboard:routines', '--target', 'claude', '--cwd', '/Users/otawara/brainbase', '--format', 'json']));
+    const claude = JSON.parse(await cli(['onboard:routines', '--target', 'claude', '--cwd', '/Users/example/brainbase', '--format', 'json']));
     expect(claude.routines.every((routine: { cron: string }) => /^\d+ \d+ \* \* (\*|\d)$/.test(routine.cron)), 'onboarding-routine-registration ac:2 --target claude emits a Claude Code scheduled-task definition; ac:4 Claude output includes a cron expression.').toBe(true);
 
     // ac:3 ohayo/oyasumi daily, retro weekly; configurable hour/minute/dow
@@ -62,7 +62,7 @@ describe('Onboarding routine registration acceptance', () => {
     expect(byKind.oyasumi.schedule.hour, 'onboarding-routine-registration ac:3 routine hour is configurable.').toBe(22);
 
     // ac:4 codex output is valid automation.toml with kind=cron and rrule
-    const codexToml = await cli(['onboard:routines', '--target', 'codex', '--cwd', '/Users/otawara/brainbase']);
+    const codexToml = await cli(['onboard:routines', '--target', 'codex', '--cwd', '/Users/example/brainbase']);
     expect(codexToml, 'onboarding-routine-registration ac:4 Codex output is valid automation.toml with kind = "cron" and an RFC 5545 rrule.').toContain('kind = "cron"');
     expect(codexToml, 'onboarding-routine-registration ac:4 Codex output includes an RFC 5545 rrule.').toMatch(/rrule = "FREQ=(DAILY|WEEKLY);/);
     expect(codexToml, 'onboarding-routine-registration ac:4 Codex output is a per-file flat automation.toml, not a single merged table.').not.toContain('[automation]');
@@ -79,7 +79,7 @@ describe('Onboarding routine registration acceptance', () => {
     expect(lowered, 'onboarding-routine-registration ac:6 routine prompts require explicit confirmation/approval.').toMatch(/confirmation|approval/);
 
     // ac:8 deterministic output
-    const again = await cli(['onboard:routines', '--target', 'codex', '--cwd', '/Users/otawara/brainbase']);
+    const again = await cli(['onboard:routines', '--target', 'codex', '--cwd', '/Users/example/brainbase']);
     expect(again, 'onboarding-routine-registration ac:8 JSON and markdown output are deterministic, including stable routine ids and schedules.').toBe(codexToml);
     expect(codex.routines.map((routine: { id: string }) => routine.id), 'onboarding-routine-registration ac:8 routine ids are stable.').toEqual(['brainbase-ohayo', 'brainbase-oyasumi', 'brainbase-retro']);
   });

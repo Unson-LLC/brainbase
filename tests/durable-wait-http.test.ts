@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { DurableWaitStore } from '../src/durable-waits.js';
+import { DurableWaitStore, type DurableWaitRecord } from '../src/durable-waits.js';
 import {
   createDurableWaitHttpHandler,
   createDurableWaitHttpHost,
@@ -13,13 +13,20 @@ import {
 
 const servers: HttpServer[] = [];
 const roots: string[] = [];
+const TEST_TMP_ROOT = process.env.BRAINBASE_TEST_FIXTURE_ROOT ?? tmpdir();
 const snapshotId = `sha256:${'a'.repeat(64)}`;
+const unknownEffect = {
+  verify: ({ wait, claim_id, external_operation_id }: { wait: DurableWaitRecord; claim_id: string; external_operation_id: string }) => ({
+    wait_id: wait.wait_id, claim_id, run_id: wait.run_ref.run_id, external_operation_id, status: 'unknown' as const,
+  }),
+};
 
 function context(overrides: Partial<TrustedDurableWaitRequestContext> = {}): TrustedDurableWaitRequestContext {
   return {
     tenantId: 'tenant-a',
     principal: 'owner',
     scopeId: 'org-1',
+    scopeType: 'organization',
     verifiedMutationOrigin: 'https://mana.example.test',
     ...overrides,
   };
@@ -104,8 +111,90 @@ afterEach(async () => {
 });
 
 describe('durable wait canonical HTTP adapter', () => {
+  it('exposes scoped due candidates without accepting query identity or claiming them', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-wait-http-due-'));
+    roots.push(root);
+    const store = new DurableWaitStore({
+      dataDir: root,
+      clock: () => new Date('2026-09-24T00:00:00.000Z'),
+      problemSnapshot: { verify: () => true },
+    });
+    const baseUrl = await start(createDurableWaitHttpHandler({ storeFactory: () => store }), {
+      default: context(),
+      otherScope: context({ scopeId: 'org-2' }),
+      otherType: context({ scopeType: 'project' }),
+      otherTenant: context({ tenantId: 'tenant-b' }),
+      missingType: context({ scopeType: undefined }),
+      anonymous: null,
+    });
+    for (const waitId of ['due-a', 'due-b']) {
+      const created = await request(baseUrl, '/api/v1/durable-waits/create', {
+        method: 'POST',
+        body: createBody(waitId, { deadline: { due_at: '2026-09-23T00:00:00.000Z' } }),
+      });
+      expect(created.response.status).toBe(200);
+    }
+    const otherTenantCreated = await request(baseUrl, '/api/v1/durable-waits/create', {
+      method: 'POST',
+      headers: { 'x-test-context': 'otherTenant' },
+      body: createBody('due-other-tenant', { deadline: { due_at: '2026-09-23T00:00:00.000Z' } }),
+    });
+    expect(otherTenantCreated.response.status).toBe(200);
+    const first = await request(baseUrl, '/api/v1/durable-waits:due?limit=1', { method: 'GET' });
+    expect(first.response.status).toBe(200);
+    expect(first.body?.result?.candidates).toEqual([{ wait_id: 'due-a', due_at: '2026-09-23T00:00:00.000Z' }]);
+    expect(first.body?.result?.next_cursor).toBeTruthy();
+    const second = await request(baseUrl, `/api/v1/durable-waits:due?limit=1&cursor=${first.body?.result?.next_cursor}`, { method: 'GET' });
+    expect(second.body?.result?.candidates.map((candidate: { wait_id: string }) => candidate.wait_id)).toEqual(['due-b']);
+    const crossScope = await request(baseUrl, '/api/v1/durable-waits:due', { method: 'GET', headers: { 'x-test-context': 'otherScope' } });
+    expect(crossScope.body?.result?.candidates).toEqual([]);
+    const crossType = await request(baseUrl, '/api/v1/durable-waits:due', { method: 'GET', headers: { 'x-test-context': 'otherType' } });
+    expect(crossType.body?.result?.candidates).toEqual([]);
+    const crossTypeRead = await request(baseUrl, '/api/v1/durable-waits/due-a', { method: 'GET', headers: { 'x-test-context': 'otherType' } });
+    expect(crossTypeRead.response.status).toBe(403);
+    const crossTypeClaim = await request(baseUrl, '/api/v1/durable-waits/claim', {
+      method: 'POST', headers: { 'x-test-context': 'otherType' },
+      body: { wait_id: 'due-a', request_id: 'cross-scope-type', trigger: 'manual' },
+    });
+    expect(crossTypeClaim.response.status).toBe(403);
+    const missingType = await request(baseUrl, '/api/v1/durable-waits:due', { method: 'GET', headers: { 'x-test-context': 'missingType' } });
+    expect(missingType.response.status).toBe(400);
+    const missingTypeRead = await request(baseUrl, '/api/v1/durable-waits/due-a', { method: 'GET', headers: { 'x-test-context': 'missingType' } });
+    expect(missingTypeRead.response.status).toBe(403);
+    const wrongTypeCreate = await request(baseUrl, '/api/v1/durable-waits/create', {
+      method: 'POST', headers: { 'x-test-context': 'otherType' }, body: createBody('wrong-scope-type'),
+    });
+    expect(wrongTypeCreate.response.status).toBe(400);
+    await expect(store.read({ wait_id: 'wrong-scope-type', principal: 'owner' })).rejects.toMatchObject({ code: 'not_found' });
+    const crossTenant = await request(baseUrl, '/api/v1/durable-waits:due', { method: 'GET', headers: { 'x-test-context': 'otherTenant' } });
+    expect(crossTenant.body?.result?.candidates.map((candidate: { wait_id: string }) => candidate.wait_id)).toEqual(['due-other-tenant']);
+    const reusedCursor = await request(baseUrl, `/api/v1/durable-waits:due?cursor=${first.body?.result?.next_cursor}`, {
+      method: 'GET', headers: { 'x-test-context': 'otherTenant' },
+    });
+    expect(reusedCursor.response.status).toBe(400);
+    const crossTenantRead = await request(baseUrl, '/api/v1/durable-waits/due-a', { method: 'GET', headers: { 'x-test-context': 'otherTenant' } });
+    expect(crossTenantRead.response.status).toBe(403);
+    const crossTenantClaim = await request(baseUrl, '/api/v1/durable-waits/claim', {
+      method: 'POST', headers: { 'x-test-context': 'otherTenant' },
+      body: { wait_id: 'due-a', request_id: 'cross-tenant', trigger: 'timer' },
+    });
+    expect(crossTenantClaim.response.status).toBe(403);
+    const anonymous = await request(baseUrl, '/api/v1/durable-waits:due', { method: 'GET', headers: { 'x-test-context': 'anonymous' } });
+    expect(anonymous.response.status).toBe(401);
+    const queryIdentity = await request(baseUrl, '/api/v1/durable-waits:due?tenantId=tenant-b', { method: 'GET' });
+    expect(queryIdentity.response.status).toBe(400);
+    const duplicateLimit = await request(baseUrl, '/api/v1/durable-waits:due?limit=1&limit=2', { method: 'GET' });
+    expect(duplicateLimit.response.status).toBe(400);
+    const read = await request(baseUrl, '/api/v1/durable-waits/due-a', { method: 'GET' });
+    expect(read.body?.result?.state).toBe('waiting');
+    const reservedId = await request(baseUrl, '/api/v1/durable-waits/create', { method: 'POST', body: createBody('due') });
+    expect(reservedId.response.status).toBe(200);
+    const readReservedId = await request(baseUrl, '/api/v1/durable-waits/due', { method: 'GET' });
+    expect(readReservedId.body?.result?.wait_id).toBe('due');
+  });
+
   it('mounts a trusted host around the real store and returns a bounded route response', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-wait-http-host-'));
+    const root = await mkdtemp(join(TEST_TMP_ROOT, 'brainbase-durable-wait-http-host-'));
     roots.push(root);
     const baseUrl = await startCanonicalHost(() => new DurableWaitStore({
       dataDir: root,
@@ -128,7 +217,7 @@ describe('durable wait canonical HTTP adapter', () => {
   });
 
   it('fails closed when the host cannot resolve an authenticated context', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-wait-http-host-auth-'));
+    const root = await mkdtemp(join(TEST_TMP_ROOT, 'brainbase-durable-wait-http-host-auth-'));
     roots.push(root);
     const baseUrl = await startCanonicalHost(
       () => new DurableWaitStore({ dataDir: root, problemSnapshot: { verify: () => true } }),
@@ -144,12 +233,13 @@ describe('durable wait canonical HTTP adapter', () => {
   });
 
   it('uses the real store for create, read, claim and idempotent resume across a new store instance', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-wait-http-'));
+    const root = await mkdtemp(join(TEST_TMP_ROOT, 'brainbase-durable-wait-http-'));
     roots.push(root);
     const options = {
       dataDir: root,
       problemSnapshot: { verify: () => true },
-      defaultLeaseMs: 1000,
+      // Keep the normal lease path deterministic while HTTP and file I/O run.
+      clock: () => new Date('2026-10-18T00:00:00.000Z'),
     } as const;
     const handler = createDurableWaitHttpHandler({
       storeFactory: () => new DurableWaitStore(options),
@@ -218,11 +308,33 @@ describe('durable wait canonical HTTP adapter', () => {
     expect(readAfterRestart.body?.result?.resume_receipt?.resume_id).toBe(resumed.body?.result?.resume_id);
   });
 
-  it('records unknown external effects and refuses to report a resume success', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-wait-http-unknown-'));
+  it('keeps the previous unbound behavior when effect-unknown omits external_operation_id', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-wait-http-unbound-'));
     roots.push(root);
     const handler = createDurableWaitHttpHandler({
-      storeFactory: () => new DurableWaitStore({ dataDir: root, problemSnapshot: { verify: () => true } }),
+      storeFactory: () => new DurableWaitStore({ dataDir: root, problemSnapshot: { verify: () => true }, unknownEffect }),
+    });
+    const baseUrl = await start(handler);
+    const created = await request(baseUrl, '/api/v1/durable-waits/create', { method: 'POST', body: createBody('wait-unbound') });
+    expect(created.response.status).toBe(200);
+    const unknown = await request(baseUrl, '/api/v1/durable-waits/effect-unknown', {
+      method: 'POST', body: { wait_id: 'wait-unbound', reason: 'external effect response was lost' },
+    });
+    expect(unknown.response.status).toBe(200);
+    expect(unknown.body?.result?.state).toBe('reconciliation_wait');
+    expect(unknown.body?.result?.reconciliation?.external_operation_id).toBeUndefined();
+    expect(unknown.body?.result?.reconciliation?.binding_status).toBeUndefined();
+    const reconcile = await request(baseUrl, '/api/v1/durable-waits/reconcile-external-effect', {
+      method: 'POST', body: { wait_id: 'wait-unbound', request_id: 'check-1', external_operation_id: 'effect-1', evidence_ref: 'receipt-1' },
+    });
+    expect(reconcile.response.status).not.toBe(200);
+  });
+
+  it('records unknown external effects and refuses to report a resume success', async () => {
+    const root = await mkdtemp(join(TEST_TMP_ROOT, 'brainbase-durable-wait-http-unknown-'));
+    roots.push(root);
+    const handler = createDurableWaitHttpHandler({
+      storeFactory: () => new DurableWaitStore({ dataDir: root, problemSnapshot: { verify: () => true }, unknownEffect }),
     });
     const baseUrl = await start(handler);
     const created = await request(baseUrl, '/api/v1/durable-waits/create', {
@@ -231,9 +343,20 @@ describe('durable wait canonical HTTP adapter', () => {
     });
     expect(created.response.status).toBe(200);
 
+    const effectClaim = await request(baseUrl, '/api/v1/durable-waits/claim', {
+      method: 'POST', body: { wait_id: 'wait-unknown', request_id: 'effect-claim', trigger: 'manual' },
+    });
+    expect(effectClaim.response.status).toBe(200);
+
+    const invalidOperation = await request(baseUrl, '/api/v1/durable-waits/effect-unknown', {
+      method: 'POST', body: { wait_id: 'wait-unknown', reason: 'external effect response was lost', external_operation_id: '' },
+    });
+    expect(invalidOperation.response.status).toBe(400);
+    expect(invalidOperation.body?.error?.code).toBe('invalid_request');
+
     const unknown = await request(baseUrl, '/api/v1/durable-waits/effect-unknown', {
       method: 'POST',
-      body: { wait_id: 'wait-unknown', reason: 'external effect response was lost' },
+      body: { wait_id: 'wait-unknown', reason: 'external effect response was lost', external_operation_id: 'effect-1' },
     });
     expect(unknown.response.status).toBe(200);
     expect(unknown.body?.result?.state).toBe('reconciliation_wait');
@@ -246,10 +369,56 @@ describe('durable wait canonical HTTP adapter', () => {
     });
     expect(claim.response.status).toBe(409);
     expect(claim.body?.error?.code).toBe('reconciliation_required');
+
+    const noVerifier = await request(baseUrl, '/api/v1/durable-waits/reconcile-external-effect', {
+      method: 'POST',
+      body: { wait_id: 'wait-unknown', request_id: 'check-1', external_operation_id: 'effect-1', evidence_ref: 'receipt-1' },
+    });
+    expect(noVerifier.response.status).toBe(409);
+    expect(noVerifier.body?.error?.code).toBe('reconciliation_required');
+  });
+
+  it('accepts only trusted-scope verified reconciliation and preserves its receipt after restart', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-wait-http-reconcile-'));
+    roots.push(root);
+    const handler = createDurableWaitHttpHandler({
+      storeFactory: () => new DurableWaitStore({
+        dataDir: root,
+        problemSnapshot: { verify: () => true },
+        unknownEffect,
+        externalEffect: { verify: ({ wait, claim_id, external_operation_id, evidence_ref }) => ({
+          wait_id: wait.wait_id, claim_id, external_operation_id, evidence_ref,
+          outcome: external_operation_id === 'effect-1' && evidence_ref === 'receipt-1' ? 'performed' : 'unknown',
+        }) },
+      }),
+    });
+    const baseUrl = await start(handler, {
+      default: context(),
+      otherScope: context({ scopeId: 'org-2' }),
+      unverified: context({ verifiedMutationOrigin: undefined }),
+    });
+    await request(baseUrl, '/api/v1/durable-waits/create', { method: 'POST', body: createBody('wait-reconcile') });
+    await request(baseUrl, '/api/v1/durable-waits/claim', { method: 'POST', body: { wait_id: 'wait-reconcile', request_id: 'effect-claim', trigger: 'manual' } });
+    await request(baseUrl, '/api/v1/durable-waits/effect-unknown', { method: 'POST', body: { wait_id: 'wait-reconcile', reason: 'lost response', external_operation_id: 'effect-1' } });
+    const body = { wait_id: 'wait-reconcile', request_id: 'check-1', external_operation_id: 'effect-1', evidence_ref: 'receipt-1' };
+    const crossScope = await request(baseUrl, '/api/v1/durable-waits/reconcile-external-effect', { method: 'POST', body, headers: { 'x-test-context': 'otherScope' } });
+    expect(crossScope.response.status).toBe(403);
+    const unverified = await request(baseUrl, '/api/v1/durable-waits/reconcile-external-effect', { method: 'POST', body, headers: { 'x-test-context': 'unverified' } });
+    expect(unverified.response.status).toBe(403);
+    const result = await request(baseUrl, '/api/v1/durable-waits/reconcile-external-effect', { method: 'POST', body });
+    expect(result.response.status).toBe(200);
+    expect(result.body?.result?.state).toBe('effect_confirmed');
+    expect(result.body?.result?.reconciliation_receipts).toHaveLength(1);
+    const replay = await request(baseUrl, '/api/v1/durable-waits/reconcile-external-effect', { method: 'POST', body });
+    expect(replay.body?.result).toEqual(result.body?.result);
+    const read = await request(baseUrl, '/api/v1/durable-waits/wait-reconcile', { method: 'GET' });
+    expect(read.body?.result?.state).toBe('effect_confirmed');
+    const claim = await request(baseUrl, '/api/v1/durable-waits/claim', { method: 'POST', body: { wait_id: 'wait-reconcile', request_id: 'new-claim', trigger: 'manual' } });
+    expect(claim.response.status).toBe(409);
   });
 
   it('fails closed for body identity, current scope, ACL, and mutation-origin violations', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-wait-http-acl-'));
+    const root = await mkdtemp(join(TEST_TMP_ROOT, 'brainbase-durable-wait-http-acl-'));
     roots.push(root);
     const storeFactory = () => new DurableWaitStore({ dataDir: root, problemSnapshot: { verify: () => true } });
     const handler = createDurableWaitHttpHandler({ storeFactory });
@@ -292,7 +461,7 @@ describe('durable wait canonical HTTP adapter', () => {
   });
 
   it('checks owner scope before every mutation and leaves cross-scope state unchanged', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-wait-http-scope-mutation-'));
+    const root = await mkdtemp(join(TEST_TMP_ROOT, 'brainbase-durable-wait-http-scope-mutation-'));
     roots.push(root);
     const store = new DurableWaitStore({ dataDir: root, problemSnapshot: { verify: () => true } });
     const handler = createDurableWaitHttpHandler({ storeFactory: () => store });
@@ -364,6 +533,7 @@ describe('durable wait canonical HTTP adapter', () => {
     await rejectCrossScope('/api/v1/durable-waits/effect-unknown', {
       wait_id: effectWaitId,
       reason: 'cross scope effect uncertainty',
+      external_operation_id: 'effect-1',
     });
     expect(await readAsOwner(effectWaitId)).toEqual(effectBefore);
 
@@ -386,5 +556,5 @@ describe('durable wait canonical HTTP adapter', () => {
       lease_token: claimResult.claim?.lease?.token,
     });
     expect(await readAsOwner(resumeWaitId)).toEqual(resumeBefore);
-  });
+  }, 15_000);
 });

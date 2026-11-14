@@ -162,6 +162,7 @@ describe('CanonicalTaskService parity contracts', () => {
     const claimed = new Set<string>();
     const preparedDeletes: Array<Record<string, unknown>> = [];
     let completedDelete: { task_id: string; deleted: true; version: number } | undefined;
+    let completedDeleteSnapshot: Record<string, unknown> | undefined;
     let removeCalls = 0;
     const operationRepository: CanonicalTaskOperationRepository = {
       async execute<T>(request: CanonicalTaskOperationRequest<T>): Promise<T> {
@@ -175,7 +176,10 @@ describe('CanonicalTaskService parity contracts', () => {
       },
       async executePreparedDelete<T>(request) {
         preparedDeletes.push(request as unknown as Record<string, unknown>);
-        if (completedDelete) return completedDelete as T;
+        if (completedDelete) {
+          await request.authorizeReplay?.(completedDeleteSnapshot!, completedDelete as T);
+          return completedDelete as T;
+        }
         const prepared = await request.prepare();
         const current = await request.findTask();
         if (current) {
@@ -183,6 +187,7 @@ describe('CanonicalTaskService parity contracts', () => {
           await request.removeTask(current);
         }
         completedDelete = prepared.result as typeof completedDelete;
+        completedDeleteSnapshot = prepared.authorizationSnapshot;
         return prepared.result;
       },
     };
@@ -274,6 +279,167 @@ describe('CanonicalTaskService parity contracts', () => {
     expect(deleteAuthorizations).toBe(2);
     expect(deleteCalls).toBe(0);
     expect(fixture.tasks).toHaveLength(1);
+  });
+
+  it('rechecks authorization for an unscoped completed delete replay after access is revoked', async () => {
+    let allowed = true;
+    let completedDelete: { task_id: string; deleted: true; version: number } | undefined;
+    let completedDeleteSnapshot: Record<string, unknown> | undefined;
+    const fixture = createCanonicalTaskServiceFixture();
+    const operationRepository: CanonicalTaskOperationRepository = {
+      async execute<T>(request: CanonicalTaskOperationRequest<T>): Promise<T> {
+        return request.run();
+      },
+      async executePreparedDelete<T>(request): Promise<T> {
+        if (completedDelete) {
+          await request.authorizeReplay?.(completedDeleteSnapshot!, completedDelete as T);
+          return completedDelete as T;
+        }
+        const prepared = await request.prepare();
+        const current = await request.findTask();
+        if (current) await request.removeTask(current);
+        completedDelete = prepared.result as typeof completedDelete;
+        completedDeleteSnapshot = prepared.authorizationSnapshot;
+        return prepared.result;
+      },
+    };
+    const service = new CanonicalTaskService({
+      repository: fixture.repository,
+      auditRepository: fixture.auditRepository,
+      operationRepository,
+      policy: {
+        authorize({ action }) {
+          if (action === 'delete' && !allowed) {
+            throw new CanonicalTaskError('forbidden', 'Delete authorization was revoked', 403);
+          }
+        },
+      },
+      clock: () => new Date('2026-01-02T00:00:00.000Z'),
+      baseUrl: 'https://consumer.example.test',
+    });
+
+    await service.createTask({ title: 'Replay authorization task' }, taskContext('seed'));
+    const first = await service.deleteTask('task-1', { expected_version: 1 }, taskContext('delete-1'));
+    expect(first).toEqual({ task_id: 'task-1', deleted: true, version: 2 });
+    allowed = false;
+
+    await expect(service.deleteTask('task-1', { expected_version: 1 }, taskContext('delete-1')))
+      .rejects.toMatchObject({ code: 'forbidden', status: 403 });
+  });
+
+  it('closes every mutation and replay when release readiness is unavailable', async () => {
+    let open = true;
+    let readinessCalls = 0;
+    const readiness = {
+      async assertMutationReady() {
+        readinessCalls += 1;
+        if (!open) {
+          throw new CanonicalTaskError('canonical_task_mutation_not_ready', 'Canonical Task mutation is not ready', 503);
+        }
+      },
+    };
+    const fixture = createCanonicalTaskServiceFixture();
+    let completedDelete: { task_id: string; deleted: true; version: number } | undefined;
+    let completedDeleteSnapshot: Record<string, unknown> | undefined;
+    let closeDuringReplay = false;
+    const operationRepository: CanonicalTaskOperationRepository = {
+      requiresReadiness: true,
+      async execute<T>(request: CanonicalTaskOperationRequest<T>): Promise<T> {
+        return request.run();
+      },
+      async executePreparedDelete<T>(request): Promise<T> {
+        if (completedDelete) {
+          if (closeDuringReplay) open = false;
+          await request.authorizeReplay?.(completedDeleteSnapshot!, completedDelete as T);
+          return completedDelete as T;
+        }
+        const prepared = await request.prepare();
+        const current = await request.findTask();
+        if (current) await request.removeTask(current);
+        completedDelete = prepared.result as typeof completedDelete;
+        completedDeleteSnapshot = prepared.authorizationSnapshot;
+        return prepared.result;
+      },
+    };
+
+    expect(() => new CanonicalTaskService({
+      repository: fixture.repository,
+      operationRepository,
+    })).toThrow('Canonical Task readiness is required');
+    expect(() => new CanonicalTaskService({
+      repository: { ...fixture.repository, requiresReadiness: true },
+    })).toThrow('Canonical Task readiness is required');
+
+    const service = new CanonicalTaskService({
+      repository: fixture.repository,
+      auditRepository: fixture.auditRepository,
+      operationRepository,
+      readiness,
+      policy: { authorize() {} },
+      clock: () => new Date('2026-01-02T00:00:00.000Z'),
+      baseUrl: 'https://consumer.example.test',
+    });
+    const context = taskContext('readiness-create');
+    const created = await service.createTask({ title: 'Readiness task' }, context);
+
+    open = false;
+    await expect(service.updateTask(created.id, { title: 'blocked update' }, created.version, taskContext()))
+      .rejects.toMatchObject({ code: 'canonical_task_mutation_not_ready', status: 503 });
+    await expect(service.transitionTask(created.id, 'in_progress', created.version, taskContext()))
+      .rejects.toMatchObject({ code: 'canonical_task_mutation_not_ready', status: 503 });
+    await expect(service.deleteTask(created.id, { expected_version: created.version }, taskContext('blocked-delete')))
+      .rejects.toMatchObject({ code: 'canonical_task_mutation_not_ready', status: 503 });
+
+    open = true;
+    const updated = await service.updateTask(created.id, { title: 'Ready update' }, created.version, taskContext());
+    const transitioned = await service.transitionTask(created.id, 'in_progress', updated.version, taskContext());
+    const deleted = await service.deleteTask(created.id, { expected_version: transitioned.version }, taskContext('ready-delete'));
+    expect(deleted).toEqual({ task_id: created.id, deleted: true, version: transitioned.version + 1 });
+
+    open = true;
+    closeDuringReplay = true;
+    await expect(service.deleteTask(created.id, { expected_version: transitioned.version }, taskContext('ready-delete')))
+      .rejects.toMatchObject({ code: 'canonical_task_mutation_not_ready', status: 503 });
+    expect(readinessCalls).toBeGreaterThan(0);
+  });
+
+  it('closes create, update, and transition recovery when readiness changes before replay', async () => {
+    let open = true;
+    const readiness = {
+      async assertMutationReady() {
+        if (!open) {
+          throw new CanonicalTaskError('canonical_task_mutation_not_ready', 'Canonical Task mutation is not ready', 503);
+        }
+      },
+    };
+    const completedOperations = new Set<string>();
+    const operationRepository: CanonicalTaskOperationRepository = {
+      async execute<T>(request: CanonicalTaskOperationRequest<T>): Promise<T> {
+        if (!completedOperations.has(request.operationKey)) {
+          completedOperations.add(request.operationKey);
+          return request.run();
+        }
+        open = false;
+        const recovered = await request.recover?.();
+        return recovered?.recovered ? recovered.result as T : request.run();
+      },
+    };
+    const fixture = createCanonicalTaskServiceFixture({ readiness, operationRepository });
+    const service = fixture.service;
+
+    const created = await service.createTask({ title: 'Replay readiness task' }, taskContext('create-replay'));
+    await expect(service.createTask({ title: 'Replay readiness task' }, taskContext('create-replay')))
+      .rejects.toMatchObject({ code: 'canonical_task_mutation_not_ready', status: 503 });
+
+    open = true;
+    const updated = await service.updateTask(created.id, { title: 'Replay readiness update' }, created.version, taskContext());
+    await expect(service.updateTask(created.id, { title: 'Replay readiness update' }, created.version, taskContext()))
+      .rejects.toMatchObject({ code: 'canonical_task_mutation_not_ready', status: 503 });
+
+    open = true;
+    await service.transitionTask(created.id, 'in_progress', updated.version, taskContext());
+    await expect(service.transitionTask(created.id, 'in_progress', updated.version, taskContext()))
+      .rejects.toMatchObject({ code: 'canonical_task_mutation_not_ready', status: 503 });
   });
 
   it('preserves completed_at when an ordinary update follows a completed transition', async () => {

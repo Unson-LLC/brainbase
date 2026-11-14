@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { callBrainbaseTool } from '../src/server.js';
 import { loadPersonalOs } from '../src/ssot.js';
 
+const TEST_TMP_ROOT = process.env.BRAINBASE_TEST_FIXTURE_ROOT ?? tmpdir();
 const dirs: string[] = [];
 
 function stableHash(value: string): string {
@@ -14,13 +15,15 @@ function stableHash(value: string): string {
 }
 
 afterEach(async () => {
-  await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+  for (const dir of dirs.splice(0)) {
+    await rm(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+  }
 });
 
 describe('beginner-safe onboarding output contract', () => {
   it('keeps source state, review safety, decision meaning, and first-value completion intact across 32 fixtures', async () => {
     for (let index = 1; index <= 32; index += 1) {
-      const dataDir = await mkdtemp(join(tmpdir(), `brainbase-persona-${index}-`));
+      const dataDir = await mkdtemp(join(TEST_TMP_ROOT, `brainbase-persona-${index}-`));
       dirs.push(dataDir);
       const projectName = `Persona ${index} project`;
       const projectId = `project-${stableHash(projectName)}`;

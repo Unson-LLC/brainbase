@@ -1,11 +1,12 @@
 import { access, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { isActiveAt } from './canonical-graph.js';
+import { isActiveAt, validateCanonicalGraph } from './canonical-graph.js';
 import { assertFoundationCatalog, findFoundationRecord } from './foundation-catalog.js';
 import {
   GRAPH_CORRECTION_EDGE_FIELDS,
   GRAPH_CORRECTION_ENTITY_FIELDS,
   GRAPH_CORRECTION_NEW_EDGE_RELATIONS,
+  GRAPH_CORRECTION_NEW_ENTITY_TYPES,
   GRAPH_CORRECTION_PROJECT_FIELDS,
   GRAPH_CORRECTIONS_FILE,
   graphRecordDigest,
@@ -216,6 +217,8 @@ export interface GraphProjectDetail<S extends GraphWebAnySource = GraphWebSource
   participants: GraphEdgeView[];
   /** Other relations of the project (governs, owned_by, ...). */
   relations: GraphEdgeView[];
+  /** True only after the same Graph v2 was fully read and strictly validated with no participant edge. */
+  participantsAbsenceConfirmed: boolean;
   history: GraphCorrectionRecord[];
   issues: GraphReadIssue[];
 }
@@ -316,6 +319,8 @@ export interface GraphOntologySummary<S extends GraphWebAnySource = GraphWebSour
     projectFields: readonly string[];
     edgeFields: readonly string[];
     newEdgeRelations: readonly string[];
+    /** Kinds a correction may create (`create_entity`). */
+    newEntityTypes: readonly string[];
   };
 }
 
@@ -388,6 +393,185 @@ function projectListOf<S extends GraphWebAnySource>(graph: GraphFileV2, source: 
   return { status: 'ok', source, asOf, projects, absenceConfirmed: projects.length === 0 };
 }
 
+export type GraphOwnCompanyReason = 'resolved' | 'owner_not_found' | 'owner_has_no_company' | 'owner_has_several_companies';
+
+export interface GraphPersonSummaryView extends GraphEntityView {
+  type: 'person';
+  /** The owner of this Graph (the person whose companies decide the own company). */
+  isOwner: boolean;
+  /** Active companies of the person (active member_of to an active org), by company name. */
+  companyIds: string[];
+  /** Distinct active projects with an active participates_in or accountable_for relation. */
+  projectCount: number;
+  accountableProjectCount: number;
+  /**
+   * The company text recorded on the person (`org`, or `organization` when
+   * `org` is absent), as written; null when none.  A note only: it never
+   * decides the companies, the own company or internal / external.
+   */
+  orgNote: string | null;
+}
+
+export type GraphCompanyKind = 'customer' | 'partner' | 'prospect';
+export type GraphCompanyKindSource = 'orgType' | 'lifecycle_stage' | 'related_to' | 'deals';
+
+export interface GraphCompanyDealView {
+  /** The deal name as recorded (`name` or `title`), or null when the record has none. */
+  name: string | null;
+  /** The deal stage as recorded (`stage` or `status`), or null. */
+  stage: string | null;
+}
+
+export interface GraphCompanySummaryView extends GraphEntityView {
+  type: 'org';
+  /** Active people with an active member_of to the company, by name. */
+  memberIds: string[];
+  /** Active projects with an active owned_by to the company, by name. */
+  projectIds: string[];
+  /** Active projects the company is involved in through an active related_to, by name, with the edge role. */
+  relatedProjects: Array<{ projectId: string; role: string | null }>;
+  /** The recorded company attributes, as written; null when not recorded. */
+  orgType: string | null;
+  lifecycleStage: string | null;
+  /** Proposals in progress recorded on the company (`deals`). */
+  deals: GraphCompanyDealView[];
+  /**
+   * What kind of company this is for the owner, only from the records above
+   * (attributes, related_to roles and deals), with where each kind came from.
+   * Empty when nothing is recorded: the kind is never guessed.
+   */
+  kinds: Array<{ kind: GraphCompanyKind; sources: GraphCompanyKindSource[] }>;
+}
+
+export interface GraphPeopleAndCompanies<S extends GraphWebAnySource = GraphWebSource> {
+  status: 'ok';
+  source: S;
+  asOf: string;
+  /**
+   * The company the owner belongs to.  Null with the reason when the owner has
+   * no active company, several, or no record: the screen then does not tell
+   * internal from external people.  No internal / external mark is stored.
+   */
+  ownCompany: { id: string | null; reason: GraphOwnCompanyReason; candidateIds: string[] };
+  people: GraphPersonSummaryView[];
+  companies: GraphCompanySummaryView[];
+  /** True only when the readable Graph v2 holds no person and no company. */
+  absenceConfirmed: boolean;
+}
+
+export async function readGraphPeopleAndCompanies(
+  dataDir: string,
+  options: GraphWebReadOptions = {}
+): Promise<GraphPeopleAndCompanies | GraphWebUnavailable> {
+  const loaded = await loadForRead(dataDir);
+  if ('status' in loaded) return loaded;
+  return peopleAndCompaniesOf(loaded.graph, loaded.source, resolveAsOf(options));
+}
+
+function peopleAndCompaniesOf<S extends GraphWebAnySource>(graph: GraphFileV2, source: S, asOf: string): GraphPeopleAndCompanies<S> {
+  const entities = entityIndex(graph);
+  const name = (id: string) => entities.get(id)?.name ?? id;
+  const byName = (left: string, right: string) => name(left).localeCompare(name(right), 'ja') || left.localeCompare(right, 'en');
+  const live = graph.edges.filter((edge) => isActiveAt(edge, asOf)
+    && isEntityActive(entities.get(edge.fromId), asOf) && isEntityActive(entities.get(edge.toId), asOf));
+  const membership = live.filter((edge) => edge.relation === 'member_of' && entities.get(edge.toId)?.type === 'org');
+  const companiesOf = (personId: string) => [...new Set(membership.filter((edge) => edge.fromId === personId).map((edge) => edge.toId))].sort(byName);
+
+  const ownerId = graph.owner?.id ?? 'self';
+  const owner = entities.get(ownerId);
+  const ownCandidates = owner?.type === 'person' && isActiveAt(owner, asOf) ? companiesOf(ownerId) : [];
+  const ownCompany: GraphPeopleAndCompanies<S>['ownCompany'] = owner?.type !== 'person' || !isActiveAt(owner, asOf)
+    ? { id: null, reason: 'owner_not_found', candidateIds: [] }
+    : ownCandidates.length === 1
+      ? { id: ownCandidates[0]!, reason: 'resolved', candidateIds: ownCandidates }
+      : { id: null, reason: ownCandidates.length === 0 ? 'owner_has_no_company' : 'owner_has_several_companies', candidateIds: ownCandidates };
+
+  const people = graph.entities.filter((entity) => entity.type === 'person').map((person) => {
+    const work = live.filter((edge) => edge.fromId === person.id && PARTICIPATION.has(edge.relation) && entities.get(edge.toId)?.type === 'project');
+    return {
+      ...entityView(person, asOf),
+      type: 'person',
+      isOwner: person.id === ownerId,
+      companyIds: companiesOf(person.id),
+      projectCount: new Set(work.map((edge) => edge.toId)).size,
+      accountableProjectCount: new Set(work.filter((edge) => edge.relation === 'accountable_for').map((edge) => edge.toId)).size,
+      orgNote: metadataString(person, 'org')?.trim() || metadataString(person, 'organization')?.trim() || null
+    } satisfies GraphPersonSummaryView;
+  }).sort((left, right) => Number(right.active) - Number(left.active) || Number(right.isOwner) - Number(left.isOwner) || byActiveThenName(left, right));
+
+  const companies = graph.entities.filter((entity) => entity.type === 'org').map((company) => {
+    const relatedProjects = live.filter((edge) => edge.relation === 'related_to' && edge.fromId === company.id
+      && entities.get(edge.toId)?.type === 'project')
+      .map((edge) => ({ projectId: edge.toId, role: edge.role?.trim() || null }))
+      .sort((left, right) => byName(left.projectId, right.projectId));
+    const orgType = metadataString(company, 'orgType')?.trim() || null;
+    const lifecycleStage = metadataString(company, 'lifecycle_stage')?.trim() || null;
+    const deals = companyDeals(company.metadata?.deals);
+    return {
+      ...entityView(company, asOf),
+      type: 'org',
+      memberIds: [...new Set(membership.filter((edge) => edge.toId === company.id).map((edge) => edge.fromId))]
+        .sort((left, right) => Number(left !== ownerId) - Number(right !== ownerId) || byName(left, right)),
+      projectIds: [...new Set(live.filter((edge) => edge.relation === 'owned_by' && edge.toId === company.id
+        && entities.get(edge.fromId)?.type === 'project').map((edge) => edge.fromId))].sort(byName),
+      relatedProjects,
+      orgType,
+      lifecycleStage,
+      deals,
+      kinds: companyKinds({ orgType, lifecycleStage, roles: relatedProjects.map((item) => item.role), dealCount: deals.length })
+    } satisfies GraphCompanySummaryView;
+  }).sort((left, right) => Number(right.active) - Number(left.active)
+    || Number(right.id === ownCompany.id) - Number(left.id === ownCompany.id)
+    || Number(right.kinds.length > 0) - Number(left.kinds.length > 0)
+    || byActiveThenName(left, right));
+
+  return { status: 'ok', source, asOf, ownCompany, people, companies, absenceConfirmed: people.length === 0 && companies.length === 0 };
+}
+
+const COMPANY_KINDS: readonly GraphCompanyKind[] = ['customer', 'partner', 'prospect'];
+const RELATION_KIND: Readonly<Record<string, GraphCompanyKind>> = Object.freeze({ customer: 'customer', partner: 'partner' });
+const STAGE_KIND: Readonly<Record<string, GraphCompanyKind>> = Object.freeze({ customer: 'customer', partner: 'partner', opportunity: 'prospect' });
+
+/**
+ * The kinds of a company, only from what is recorded: `orgType` and
+ * related_to roles of `customer` / `partner`, `lifecycle_stage` of
+ * `customer` / `partner` / `opportunity`, and any recorded deal (prospect).
+ * Other values give no kind; nothing is guessed from names.
+ */
+function companyKinds(input: { orgType: string | null; lifecycleStage: string | null; roles: Array<string | null>; dealCount: number }): GraphCompanySummaryView['kinds'] {
+  const sources = new Map<GraphCompanyKind, Set<GraphCompanyKindSource>>();
+  const add = (kind: GraphCompanyKind | undefined, source: GraphCompanyKindSource) => {
+    if (!kind) return;
+    sources.set(kind, (sources.get(kind) ?? new Set<GraphCompanyKindSource>()).add(source));
+  };
+  const lookup = (table: Readonly<Record<string, GraphCompanyKind>>, value: string | null) => {
+    const key = value?.toLowerCase();
+    return key && Object.hasOwn(table, key) ? table[key] : undefined;
+  };
+  add(lookup(RELATION_KIND, input.orgType), 'orgType');
+  add(lookup(STAGE_KIND, input.lifecycleStage), 'lifecycle_stage');
+  for (const role of input.roles) add(lookup(RELATION_KIND, role), 'related_to');
+  if (input.dealCount > 0) add('prospect', 'deals');
+  return COMPANY_KINDS.filter((kind) => sources.has(kind)).map((kind) => ({ kind, sources: [...sources.get(kind)!] }));
+}
+
+function companyDeals(value: unknown): GraphCompanyDealView[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((deal): GraphCompanyDealView[] => {
+    if (typeof deal === 'string') return deal.trim() ? [{ name: deal.trim(), stage: null }] : [];
+    if (!deal || typeof deal !== 'object' || Array.isArray(deal)) return [];
+    const record = deal as Record<string, unknown>;
+    const text = (...keys: string[]) => {
+      for (const key of keys) {
+        const item = record[key];
+        if (typeof item === 'string' && item.trim()) return item.trim();
+      }
+      return null;
+    };
+    return [{ name: text('name', 'title'), stage: text('stage', 'status') }];
+  });
+}
+
 export async function readGraphProject(dataDir: string, projectId: string, options: GraphWebReadOptions = {}): Promise<GraphProjectDetail | GraphWebUnavailable> {
   const loaded = await loadForRead(dataDir);
   if ('status' in loaded) return loaded;
@@ -399,6 +583,13 @@ export async function readGraphProject(dataDir: string, projectId: string, optio
 }
 
 function projectDetailOf<S extends GraphWebAnySource>(graph: GraphFileV2, source: S, projectId: string, asOf: string, references: ReferenceIndex): GraphProjectDetail<S> {
+  try {
+    // loadPersonalOs intentionally preserves duplicate entity IDs for audit reads;
+    // participant absence must use a strict, same-snapshot Graph validation.
+    validateCanonicalGraph(graph);
+  } catch (error) {
+    throw new GraphWebError('unavailable', 'graph_unavailable', errorMessage(error));
+  }
   const project = graph.entities.find((entity) => entity.id === projectId && entity.type === 'project');
   if (!project) throw new GraphWebError('not_found', 'project_not_found', `No project ${projectId}`);
   const entities = entityIndex(graph);
@@ -417,6 +608,7 @@ function projectDetailOf<S extends GraphWebAnySource>(graph: GraphFileV2, source
     },
     participants,
     relations,
+    participantsAbsenceConfirmed: participants.length === 0,
     history: historyFor(references.history, touched),
     issues: references.issues
   };
@@ -538,7 +730,8 @@ function ontologyOf<S extends GraphWebAnySource>(graph: GraphFileV2, source: S, 
       entityFields: GRAPH_CORRECTION_ENTITY_FIELDS,
       projectFields: GRAPH_CORRECTION_PROJECT_FIELDS,
       edgeFields: GRAPH_CORRECTION_EDGE_FIELDS,
-      newEdgeRelations: GRAPH_CORRECTION_NEW_EDGE_RELATIONS
+      newEdgeRelations: GRAPH_CORRECTION_NEW_EDGE_RELATIONS,
+      newEntityTypes: GRAPH_CORRECTION_NEW_ENTITY_TYPES
     }
   };
 }

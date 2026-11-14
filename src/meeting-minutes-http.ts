@@ -6,9 +6,11 @@ import {
   type CreateMinutesInput,
   type MeetingMinutesDetail,
   type MeetingCreateInput,
+  type MeetingMinutesListOptions,
   type MeetingMinutesRequestContext,
   type MeetingMinutesStore,
-  type SaveMinutesVersionInput
+  type SaveMinutesVersionInput,
+  type WithdrawMinutesInput
 } from './meeting-minutes.js';
 import {
   LocalWebHttpError,
@@ -43,7 +45,7 @@ export interface MeetingMinutesHttpOptions {
 export type MeetingMinutesHttpHandler = (request: IncomingMessage, response: ServerResponse) => Promise<boolean>;
 
 interface Route {
-  readonly kind: 'collection' | 'meeting' | 'minutes' | 'save' | 'confirm' | 'version';
+  readonly kind: 'collection' | 'meeting' | 'minutes' | 'save' | 'confirm' | 'withdraw' | 'version';
   readonly meetingId?: string;
   readonly minutesId?: string;
   readonly versionId?: string;
@@ -83,6 +85,9 @@ function routeFor(pathname: string, basePath: string): Route | undefined {
   if (segments.length === 3 && noun === 'minutes' && minutesId) return { kind: 'save', meetingId, minutesId };
   if (segments.length === 4 && noun === 'minutes' && minutesId && action === 'confirm') {
     return { kind: 'confirm', meetingId, minutesId };
+  }
+  if (segments.length === 4 && noun === 'minutes' && minutesId && action === 'withdraw') {
+    return { kind: 'withdraw', meetingId, minutesId };
   }
   if (segments.length === 5 && noun === 'minutes' && minutesId && action === 'versions' && versionId) {
     return { kind: 'version', meetingId, minutesId, versionId };
@@ -207,6 +212,32 @@ function confirmInput(body: Record<string, unknown>, minutesId: string, key?: st
   };
 }
 
+function withdrawInput(body: Record<string, unknown>, minutesId: string, key?: string, fingerprint?: string): WithdrawMinutesInput {
+  return {
+    minutes_id: minutesId,
+    expected_revision: body.expected_revision as number,
+    ...idempotencyFields(key, fingerprint)
+  };
+}
+
+function listOptionsFromQuery(params: URLSearchParams): MeetingMinutesListOptions {
+  const result: { limit?: number; cursor?: string } = {};
+  const limitRaw = params.get('limit');
+  if (limitRaw !== null) {
+    const limit = Number(limitRaw);
+    if (!/^\d+$/u.test(limitRaw) || !Number.isInteger(limit) || limit < 1) {
+      throw new LocalWebHttpError(422, 'invalid_limit', 'limit must be a positive integer');
+    }
+    result.limit = limit;
+  }
+  const cursor = params.get('cursor');
+  if (cursor !== null) {
+    if (cursor.trim() === '') throw new LocalWebHttpError(422, 'invalid_cursor', 'cursor must not be empty');
+    result.cursor = cursor;
+  }
+  return result;
+}
+
 export function createMeetingMinutesHttpHandler(options: MeetingMinutesHttpOptions): MeetingMinutesHttpHandler {
   if (!options || !options.store || typeof options.resolveContext !== 'function') {
     throw new TypeError('store and resolveContext are required');
@@ -220,12 +251,24 @@ export function createMeetingMinutesHttpHandler(options: MeetingMinutesHttpOptio
     body: Record<string, unknown> | undefined,
     context: MeetingMinutesRequestContext,
     key?: string,
-    fingerprint?: string
+    fingerprint?: string,
+    listOptions: MeetingMinutesListOptions = {}
   ): Promise<OperationResult> {
     try {
       switch (route.kind) {
         case 'collection':
-          if (body === undefined) return { statusCode: 200, body: { state: 'ready', meetings: await options.store.list_meetings(context), absence_confirmed: true } };
+          if (body === undefined) {
+            const page = await options.store.list_meetings(context, listOptions);
+            return {
+              statusCode: 200,
+              body: {
+                state: 'ready',
+                meetings: page.meetings,
+                absence_confirmed: true,
+                ...(page.next_cursor === undefined ? {} : { next_cursor: page.next_cursor })
+              }
+            };
+          }
           return { statusCode: 201, body: await options.store.create_meeting(createInput(body, key, fingerprint), context) };
         case 'meeting':
           return { statusCode: 200, body: await options.store.get_meeting(route.meetingId ?? '', context) };
@@ -253,6 +296,13 @@ export function createMeetingMinutesHttpHandler(options: MeetingMinutesHttpOptio
           }
           return { statusCode: 200, body: await options.store.confirm_version(confirmInput(body, document.minutes_id, key, fingerprint), context) };
         }
+        case 'withdraw': {
+          if (body === undefined) throw new MeetingMinutesError('invalid_input', 'Request body is required');
+          const detail = await options.store.get_meeting(route.meetingId ?? '', context);
+          const document = detail.minutes.find((candidate) => candidate.minutes_id === route.minutesId);
+          if (!document) throw new MeetingMinutesError('not_found', `Minutes document ${route.minutesId} was not found`);
+          return { statusCode: 200, body: await options.store.withdraw_minutes(withdrawInput(body, document.minutes_id, key, fingerprint), context) };
+        }
         case 'version':
           return {
             statusCode: 200,
@@ -265,7 +315,8 @@ export function createMeetingMinutesHttpHandler(options: MeetingMinutesHttpOptio
   }
 
   return async (request, response) => {
-    const path = requestUrl(request).pathname;
+    const url = requestUrl(request);
+    const path = url.pathname;
     const route = routeFor(path, basePath);
     if (!route) return false;
     const method = (request.method ?? 'GET').toUpperCase();
@@ -285,10 +336,11 @@ export function createMeetingMinutesHttpHandler(options: MeetingMinutesHttpOptio
       const body = method === 'POST' ? await readJsonObjectBody(request, bodyLimitBytes) : undefined;
       const key = method === 'POST' ? idempotencyKey(request) : undefined;
       const fingerprint = key === undefined ? undefined : requestFingerprint({ method, path, body: body ?? null });
+      const listOptions = route.kind === 'collection' && method === 'GET' ? listOptionsFromQuery(url.searchParams) : {};
       // Idempotency is persisted by the domain store in the same CAS snapshot
       // as the mutation.  Keeping no result cache here ensures retries after a
       // restart, and retries after ACL changes, are reauthorized by the store.
-      const result = await execute(route, body, context, key, fingerprint);
+      const result = await execute(route, body, context, key, fingerprint, listOptions);
       writeJson(response, result.statusCode, result.body);
     } catch (error) {
       if (error instanceof LocalWebHttpError) writeHttpError(response, error);

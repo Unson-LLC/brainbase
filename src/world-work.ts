@@ -99,7 +99,19 @@ export interface WorldWorkAmbiguousMention {
   readonly candidates: readonly WorldWorkPersonRef[];
 }
 
+/** Optional current actors supplied by an authoritative host; the common UI owns no membership store. */
+export interface WorldWorkActor {
+  readonly id: string;
+  readonly name: string;
+  readonly task_id: string;
+  readonly kind?: string;
+  readonly state: WorldWorkStatus | null;
+  readonly activity?: { readonly state: string; readonly moving: boolean; readonly heartbeat_at?: string | null; readonly checked_at?: string };
+}
+
 export interface WorldWorkSite {
+  readonly actors_state?: 'confirmed' | 'unconfirmed';
+  readonly actors?: readonly WorldWorkActor[];
   readonly task_id: string;
   readonly title: string;
   /** What the work is for, as the task record states it (`purpose_label`); null when it states none. */

@@ -11,12 +11,19 @@
  *     colours (a review date passed), fog (the work could not be read).
  * People walking the streets and chimney smoke are the town's atmosphere: they come from no record,
  * never enter a lot, and the legend says so.  Nothing here writes.
+ *
+ * When the host gives the tools a business uses (story-world-business-exits-v1), each stands as a
+ * station in a yard outside the gate: lit when usable, its wicket closed when a permission is needed,
+ * in fog when its state is unconfirmed or could not be read.  A station's sign carries the count its
+ * tool asks attention for.  Picking a station selects its row in the city details; it never leaves
+ * the world.
  */
 
 import { THREE, MapControls } from './world-vendor.js';
-import { DISTRICT_STREETS, districtGroundPlan, districtStage, districtStreetLots, skyAt } from './world-placement.js';
+import { DISTRICT_STREETS, districtPulse, districtRingLots, districtRingPlan, districtStage, siteActors, skyAt } from './world-placement.js';
 import { canvasTexture, drawFacade, FACADE_SIZES, FACADE_UNITS, gableRoof, hashUnit, paintVertices, roundedPlate, valueNoise } from './world-scenery.js';
 import { makeWorkspaceElement as el } from '../../workspace-kit.js';
+import { attentionSignText } from './world-exits.js';
 
 export const WORLD_DISTRICT_CONTRACT_VERSION = 'brainbase.world-district.v0';
 
@@ -39,19 +46,65 @@ export const DISTRICT_LEGEND = Object.freeze([
   ['is-stakes', '杭と縄の空き地＝未着手（記録上）'],
   ['is-house', '明かりのついた家＝完了して、出典・成果の記録がある（本設の建物）'],
   ['is-prefab', 'プレハブ＝完了したが、出典・成果の記録が無い'],
-  ['is-worker', 'ヘルメットの人＝担当欄の担当'],
+  ['is-worker', 'ヘルメットの人＝記録された担当（人）'],
+  ['is-agent', '頭に明かりのついた丸い人形＝AI担当。色はAIごとに決まる。明かりが緑でゆれるのは、進行中Taskと5分以内の稼働の知らせが一致したときだけ。黄色＝待ち、灰色＝知らせが途絶えた・未確認'],
   ['is-empty', '誰もいない現場＝担当の記録なし'],
   ['is-outside', '柵の外の人（破線の輪）＝本文にだけ名前がある'],
   ['is-nopath', '通りへの道が無い＝出典リンクなし'],
   ['is-blueprint', '図面の看板だけ＝成果物の記録が未接続'],
   ['is-weeds', '雑草と色あせ＝見直し予定を過ぎた'],
   ['is-stone', '庁舎前の石碑＝方針の決定（枠だけ＝題名からの推定）'],
-  ['is-street', '通りの看板＝何のための仕事か（タスクの記録の言葉。言葉が無い仕事は門の近くの空き地）'],
+  ['is-street', '通りの看板＝何のための仕事か（タスクの記録の言葉。言葉が無い仕事は門の近くの空き地）。押すと、その仕事の集まりに寄って、どのAIがどの仕事にいるかを見られる'],
   ['is-stage', '区画の段階（更地・村・町・街・都市）＝本設の建物の数。石畳・街灯・噴水・時計塔が増える'],
   ['is-ambience', '通りを歩く人と煙＝街の雰囲気（記録とは関係しません）'],
 ]);
 
-export function createDistrictView({ doc, stage, reducedMotion = false, onPick, onClear, onEscape }) {
+/**
+ * A world-space anchor projected to CSS pixels relative to the district stage. The viewport may be
+ * inset within the stage. Invisible anchors retain their task id; a cleared selection has no anchor.
+ * Check camera space as well as every clip plane: a point behind a perspective camera can otherwise
+ * appear to have plausible screen coordinates.
+ */
+export function projectDistrictSelection({ taskId = null, anchor, camera, viewport, stage = viewport, visible = true }) {
+  const hidden = { taskId, x: null, y: null, visible: false };
+  if (!taskId || !anchor || !camera || !viewport?.width || !viewport?.height || !stage?.width || !stage?.height) return hidden;
+  camera.updateMatrixWorld(true);
+  const inCamera = anchor.clone().applyMatrix4(camera.matrixWorldInverse);
+  const point = anchor.clone().project(camera);
+  const x = ((point.x + 1) / 2) * viewport.width + (viewport.left ?? 0) - (stage.left ?? 0);
+  const y = ((1 - point.y) / 2) * viewport.height + (viewport.top ?? 0) - (stage.top ?? 0);
+  if (![x, y, point.z, inCamera.z].every(Number.isFinite)) return hidden;
+  return {
+    taskId,
+    x,
+    y,
+    visible: Boolean(visible && inCamera.z < 0 && point.z >= -1 && point.z <= 1
+      && Math.abs(point.x) <= 1 && Math.abs(point.y) <= 1
+      && x >= 0 && x <= stage.width && y >= 0 && y <= stage.height),
+  };
+}
+
+/** Where the station of the `index`th tool stands: rows of four in the yard outside the gate, to its right. */
+export function districtStationSpot(index, gateZ) {
+  return { x: 8 + (index % 4) * 3.4, z: gateZ + 3.6 + Math.floor(index / 4) * 3.2 };
+}
+const STATION_YARD = Object.freeze({ xFrom: 6, xTo: 21.5, zFrom: 1.5, zTo: 12.5 });
+
+/**
+ * `showChrome: false` is for hosts that present DISTRICT_LEGEND and the work's read warnings in their
+ * own overlay. `focusSelection: false` leaves navigation with the viewer when selecting a work site.
+ * `onProjectSelection` receives { taskId, x, y, visible } on each rendered frame and immediately when
+ * selection, visibility, size or records change. Coordinates are stage-local CSS pixels, never device
+ * pixels; a cleared selection is { taskId: null, x: null, y: null, visible: false }.
+ * `exitLegend` (lines as DISTRICT_LEGEND) turns on the station yard for the tools of a business:
+ * stations come from `setExits`, and a picked station calls `onPickExit(id)`.  Without it nothing of
+ * the yard is drawn or listed.
+ * `onPickStreet({ label, count })` makes each street's sign pressable (label null for the unlabelled work by
+ * the gate), and `onPickHall()` the hall, the plaza in front of it and the hall's name; without them they
+ * are scenery, as before (story-world-clickable-honesty-v1).
+ */
+export function createDistrictView({ doc, stage, reducedMotion = false, focusSelection = true, showChrome = true, onPick, onClear, onEscape, onProjectSelection, exitLegend = null, onPickExit, onPickStreet, onPickHall }) {
+  const stationsEnabled = Array.isArray(exitLegend);
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio ?? 1, 2));
   renderer.shadowMap.enabled = true;
@@ -68,7 +121,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
   const legend = el(doc, 'details', { className: 'bb-world-district-legend', attrs: { open: true } });
   legend.append(el(doc, 'summary', { text: '区画の見方' }));
   const legendList = el(doc, 'ul');
-  for (const [className, text] of DISTRICT_LEGEND) legendList.append(el(doc, 'li', { className, text }));
+  for (const [className, text] of [...DISTRICT_LEGEND, ...(stationsEnabled ? exitLegend : [])]) legendList.append(el(doc, 'li', { className, text }));
   legend.append(legendList);
   legend.hidden = true;
   stage.append(legend);
@@ -260,10 +313,10 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
   });
   dashTexture.wrapT = THREE.RepeatWrapping;
   /** A street along z (or along x when `across`): sidewalks, asphalt, and a dashed centre line if wide. */
-  function streetStrip(parent, { x = 0, z = 0, width, length, across = false, centreLine = false, dirt = false }) {
+  function streetStrip(parent, { x = 0, z = 0, width, length, across = false, angle = across ? Math.PI / 2 : 0, centreLine = false, dirt = false }) {
     const strip = (stripWidth, mat, y) => {
       const surface = mesh(new THREE.PlaneGeometry(stripWidth, length), mat, { x, y, z, shadow: false });
-      surface.rotation.set(-Math.PI / 2, 0, across ? Math.PI / 2 : 0);
+      surface.rotation.set(-Math.PI / 2, 0, angle);
       parent.add(surface);
     };
     // A dirt track on vacant land; sidewalks and asphalt once the district has grown.
@@ -279,6 +332,28 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
       dashes.repeat.set(1, Math.max(1, Math.round(length / 1.6)));
       strip(0.1, new THREE.MeshBasicMaterial({ map: dashes, transparent: true, opacity: 0.85, color: 0xf6f3e6 }), 0.055);
     }
+  }
+  /** A road round the hall: the same surfaces as a street, as a ring. */
+  function ringRoad(parent, { radius, width, dirt = false }) {
+    const ring = (ringWidth, mat, y) => {
+      const surface = mesh(new THREE.RingGeometry(radius - ringWidth / 2, radius + ringWidth / 2, 96), mat, { y, shadow: false });
+      surface.rotation.x = -Math.PI / 2;
+      parent.add(surface);
+    };
+    if (dirt) {
+      ring(width, material(0xb59d7a, { roughness: 1 }), 0.03);
+      return;
+    }
+    ring(width + 0.7, material(0xe4dfd2, { roughness: 1 }), 0.025);
+    ring(width, material(0x8e938f, { roughness: 0.95 }), 0.04);
+  }
+  /** A round plate with the same soft edge as `roundedPlate`. */
+  function roundPlate(radius, height) {
+    const shape = new THREE.Shape();
+    shape.absarc(0, 0, radius, 0, Math.PI * 2, false);
+    const geometry = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.12, bevelSegments: 2, curveSegments: 64 });
+    geometry.rotateX(-Math.PI / 2);
+    return geometry;
   }
   // A tarp, folded: vertical bands of light and shade on the blue sheet (the colour is the meaning).
   const tarpTexture = canvasTexture(doc, 64, 64, (ctx, w, h) => {
@@ -297,15 +372,31 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
   let root = null;
   let fountainJet = null;
   let lots = new Map();
+  let siteLabels = new Map();
+  // The tools of the business (from the host), and their stations once the district is built.
+  let exitsData = [];
+  let stations = new Map();
+  /** The hall and its plaza, pressable when the host listens (`onPickHall`). */
+  let civic = [];
+  let stationLayer = null;
+  let stationLabels = [];
+  let gateAt = 0;
   let labels = [];
   let walkers = [];
   let puffs = [];
   let open = false;
+  let noticeVisible = false;
   let selected = null;
   let hovered = null;
   let flight = null;
   let home = null;
   let focusIds = null;
+  /** The street the viewer has come close to (its key; '' is the unlabelled lots), or null. */
+  let streetView = null;
+  let streetBlocks = new Map();
+  let districtRect = null;
+  /** Pixels of the stage's left edge a host panel covers; views are framed clear of it. */
+  let insetLeft = 0;
   // What changed since the viewer was last here (AC-22, AC-23): a gold ring, a rising building, words.
   let celebrations = [];
   const RISING = new Set(['new', 'built', 'evidenced', 'started']);
@@ -324,13 +415,51 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     return label;
   }
 
+  /** A label that is a way in: pointer, a title saying where it goes, and a press. */
+  function enterable(label, title, onPress, enter) {
+    label.node.classList.add('is-enterable');
+    label.node.title = title;
+    label.node.setAttribute('data-enter', enter);
+    label.node.addEventListener('click', (event) => {
+      event.stopPropagation?.();
+      onPress();
+    });
+  }
+
   // --- people (records: worker, person named in the text; atmosphere: walkers) ---------------------
+  const taskActors = [];
   function person(clothes, { helmet = false } = {}) {
     const group = new THREE.Group();
     group.add(mesh(new THREE.CapsuleGeometry(0.2, 0.46, 4, 10), material(clothes), { y: 0.5 }));
     group.add(mesh(new THREE.SphereGeometry(0.17, 12, 10), material(0xf0cfae), { y: 1.0 }));
     if (helmet) group.add(mesh(new THREE.SphereGeometry(0.19, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), material(0xf2c230, { roughness: 0.5 }), { y: 1.05 }));
     return group;
+  }
+
+  /*
+   * An agent on a work: a small round figure in the agent's own soft colour with a light on its head.
+   * The light says how it is there (see PRESENCE_LIGHT); it is set from `siteActors` and follows the clock.
+   */
+  const ACTOR_Z = DISTRICT_STREETS.lot / 2 + 0.3;
+  const PRESENCE_LIGHT = Object.freeze({ running: 0x58d6a0, waiting: 0xf0b648, quiet: 0x9aa3a6, unconfirmed: 0xc3ccd0, queued: 0xa9cdea, done: 0xd9d4c6 });
+  function buddy(tone) {
+    const group = new THREE.Group();
+    group.add(mesh(new THREE.CapsuleGeometry(0.23, 0.3, 4, 12), material(tone, { roughness: 0.7 }), { y: 0.42 }));
+    group.add(mesh(new THREE.SphereGeometry(0.21, 14, 12), material(0xfbf7ee, { roughness: 0.6 }), { y: 0.93 }));
+    const eye = material(0x3a4450, { roughness: 0.4 });
+    for (const x of [-0.075, 0.075]) group.add(mesh(new THREE.SphereGeometry(0.028, 8, 6), eye, { x, y: 0.95, z: 0.19, shadow: false }));
+    group.add(mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.16, 5), material(0x6f7a80), { y: 1.2, shadow: false }));
+    const bulb = material(0xffffff, { emissive: new THREE.Color(PRESENCE_LIGHT.unconfirmed), emissiveIntensity: 0.8, roughness: 0.3 });
+    group.add(mesh(new THREE.SphereGeometry(0.075, 12, 10), bulb, { y: 1.31, shadow: false }));
+    group.userData.bulb = bulb;
+    group.scale.setScalar(1.45);
+    return group;
+  }
+  function lightBuddy(worker, presence) {
+    const bulb = worker.userData.bulb;
+    bulb.color.set(PRESENCE_LIGHT[presence] ?? PRESENCE_LIGHT.unconfirmed);
+    bulb.emissive.set(PRESENCE_LIGHT[presence] ?? PRESENCE_LIGHT.unconfirmed);
+    bulb.emissiveIntensity = presence === 'running' ? 1.6 : presence === 'waiting' ? 1.1 : 0.35;
   }
 
   // --- a lot, in local space: its front (the street) toward +z -------------------------------------
@@ -455,6 +584,19 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
       worker.position.set(0.55, 0.06, 0.55);
       group.add(worker);
     }
+    // Agents stand on the work they are on; a finished house keeps none (the panel lists who finished it).
+    (status === 'completed' ? [] : siteActors(site)).forEach((actor, index) => {
+      // In front of the lot, on the kerb: seen from afar, never behind the scaffold or its net.
+      const worker = buddy(actor.tone);
+      worker.position.set(0.25 + index * 0.85, 0.02, ACTOR_Z);
+      lightBuddy(worker, actor.presence);
+      group.add(worker);
+      // The agent's own colour on the ground under it, so it is found before its figure is read.
+      const spot = mesh(new THREE.CircleGeometry(0.5, 24), new THREE.MeshBasicMaterial({ color: actor.tone, transparent: true, opacity: 0.5, depthWrite: false }), { x: worker.position.x, y: 0.035, z: ACTOR_Z, shadow: false });
+      spot.rotation.x = -Math.PI / 2;
+      group.add(spot);
+      taskActors.push({ worker, site, id: actor.id, x: worker.position.x, presence: actor.presence, phase: hash(actor.id + site.task_id) });
+    });
     if (named && status !== 'completed') {
       const outside = person(0x6b5b95);
       outside.position.set(-0.95, 0, half + 0.65);
@@ -470,6 +612,83 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     return group;
   }
 
+  // --- a station for a tool of the business, in local space: its front toward +z ------------------
+  function stationGroup(exit) {
+    const group = new THREE.Group();
+    const state = exit.state;
+    const lit = state === 'available';
+    const fogged = state === 'unknown' || state === 'unavailable';
+    const part = (object, name) => {
+      object.userData.part = name;
+      group.add(object);
+      return object;
+    };
+    group.add(mesh(roundedPlate(2.8, 1.9, 0.22, 0.2), material(0xd9d3c6, { roughness: 1 })));
+    group.add(mesh(new THREE.BoxGeometry(2.8, 0.04, 0.12), material(0xe9d27a, { roughness: 0.8 }), { y: 0.24, z: 0.86, shadow: false }));
+    const house = block(1.8, 1.15, 1.0, { style: 'civic', wall: fogged ? 0xcfd2d0 : 0xeee6d6, lit, roof: 0x8a6d55 });
+    house.position.set(0, 0.22, -0.35);
+    group.add(house);
+    const roof = mesh(gableRoof(1.0, 1.8, 0.5), material(fogged ? 0x9aa0a0 : 0x8a5a44, { roughness: 0.75 }), { y: 1.37, z: -0.35 });
+    roof.rotation.y = Math.PI / 2;
+    group.add(roof);
+    if (lit) {
+      // The station's lamp: always on, whatever the sky (its light is its state).
+      part(mesh(new THREE.CylinderGeometry(0.05, 0.06, 1.7, 6), material(0x3f4844, { roughness: 0.6, metalness: 0.4 }), { x: 1.15, y: 1.07, z: 0.55 }), 'light-pole');
+      part(mesh(new THREE.SphereGeometry(0.2, 12, 10), material(0xfff3d6, { emissive: new THREE.Color(0xffc867), emissiveIntensity: 2.2 }), { x: 1.15, y: 1.98, z: 0.55, shadow: false }), 'light');
+      const pool = mesh(new THREE.CircleGeometry(1.1, 24), new THREE.MeshBasicMaterial({ color: 0xffd98a, transparent: true, opacity: 0.45, depthWrite: false }), { x: 1.15, y: 0.25, z: 0.55, shadow: false });
+      pool.rotation.x = -Math.PI / 2;
+      part(pool, 'light-pool');
+    }
+    if (state === 'restricted') {
+      // The wicket closed: posts and a striped bar across the way in.
+      const post = material(0x4b524e, { roughness: 0.6, metalness: 0.3 });
+      for (const x of [-0.95, 0.95]) part(mesh(new THREE.BoxGeometry(0.14, 0.8, 0.14), post, { x, y: 0.62, z: 0.55 }), 'gate-post');
+      part(mesh(new THREE.BoxGeometry(1.9, 0.12, 0.08), material(0xc8323c, { roughness: 0.6, emissive: new THREE.Color(0x3a0a0e) }), { y: 0.86, z: 0.55 }), 'gate');
+      for (const x of [-0.5, 0.1, 0.7]) group.add(mesh(new THREE.BoxGeometry(0.22, 0.125, 0.085), material(0xf4f1e8), { x, y: 0.86, z: 0.55, shadow: false }));
+    }
+    if (fogged) {
+      // Fog round the station: its state could not be seen, which is not "unusable" or "usable".
+      const fogMaterial = new THREE.MeshBasicMaterial({ color: 0xe9edf0, transparent: true, opacity: 0.68, depthWrite: false });
+      const fog = mesh(new THREE.SphereGeometry(1.9, 18, 12), fogMaterial, { y: 0.9, shadow: false });
+      fog.scale.set(1, 0.72, 0.9);
+      part(fog, 'fog');
+    }
+    // The sign by the platform: what the tool asks attention for, if anything.
+    group.add(mesh(new THREE.CylinderGeometry(0.04, 0.05, 1.6, 6), material(0x4b524e), { x: -1.2, y: 1.0, z: 0.75 }));
+    group.add(mesh(new THREE.BoxGeometry(0.9, 0.42, 0.05), material(exit.attention ? 0x1f5f8b : 0x8e9a95, { roughness: 0.6 }), { x: -1.2, y: 1.85, z: 0.75 }));
+    group.userData = { kind: 'exit', exit, state };
+    return group;
+  }
+
+  function clearStations() {
+    if (stationLayer) root?.remove(stationLayer);
+    for (const label of stationLabels) {
+      label.node.remove();
+      labels = labels.filter((entry) => entry !== label);
+    }
+    stationLayer = null;
+    stationLabels = [];
+    if (selected?.userData?.kind === 'exit') select(null, { focus: false });
+    stations = new Map();
+  }
+
+  function placeStations() {
+    clearStations();
+    if (!stationsEnabled || !root || exitsData.length === 0) return;
+    stationLayer = new THREE.Group();
+    exitsData.forEach((exit, index) => {
+      const spot = districtStationSpot(index, gateAt);
+      const group = stationGroup(exit);
+      group.position.set(spot.x, 0, spot.z);
+      stationLayer.add(group);
+      stations.set(exit.id, group);
+      const sign = attentionSignText(exit.attention);
+      const name = exit.label.length > 16 ? `${exit.label.slice(0, 15)}…` : exit.label;
+      stationLabels.push(addLabel(`駅：${name}${sign ? `・${sign}` : ''}`, new THREE.Vector3(spot.x, 2.9, spot.z), `is-exit is-${exit.state}${exit.attention ? ' has-attention' : ''}`, { priority: 2 }));
+    });
+    root.add(stationLayer);
+  }
+
   // --- the district -------------------------------------------------------------------------------
   function clear() {
     if (root) scene.remove(root);
@@ -479,6 +698,11 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     for (const label of labels) label.node.remove();
     labels = [];
     lots = new Map();
+    siteLabels = new Map();
+    stations = new Map();
+    civic = [];
+    stationLayer = null;
+    stationLabels = [];
     walkers = [];
     puffs = [];
     selected = null;
@@ -529,14 +753,20 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     scene.add(root);
     root.add(selectionRing);
     const readable = work?.status === 'ok' && (work.reads.tasks.state === 'complete' || work.reads.tasks.state === 'partial');
+    taskActors.length = 0;
     const shown = readable ? work.sites.filter((site) => site.work.status !== 'cancelled') : [];
-    const layout = districtStreetLots(shown.map((site) => ({ task_id: site.task_id, created_at: site.work.created_at, purpose_label: site.purpose_label })));
-    const L = layout.length;
+    const layout = districtRingLots(shown.map((site) => ({ task_id: site.task_id, created_at: site.work.created_at, purpose_label: site.purpose_label })));
+    const pulse = new Map(districtPulse(shown).streets.map((street) => [street.key, street]));
+    streetBlocks = new Map(layout.streets.map((street) => [street.key, street]));
+    if (streetView !== null && !streetBlocks.has(streetView)) setStreetView(null);
+    const R = layout.radius;
     // The stage of the district (AC-24): counted from permanent buildings, it sets how built-up it looks.
     const stage = districtStage(shown);
     const grown = stage.level;
-    const plan = districtGroundPlan(L);
-    const { gateZ, hallZ, plazaZ, plazaRadius } = plan;
+    const plan = districtRingPlan(layout);
+    const { gateZ, hallZ, courtZ, plazaRadius } = plan;
+    const plazaZ = courtZ;
+    gateAt = gateZ;
     // Land as in the world: gentle, non-repeating shades of grass (scenery).
     const grass = { low: new THREE.Color(0x9fbf8c), high: new THREE.Color(0xd3e4bd), warm: new THREE.Color(0xd9d6a6) };
     const land = mesh(paintVertices(new THREE.CircleGeometry(150, 96, 0, Math.PI * 2), (color, x, y) => {
@@ -546,46 +776,83 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     land.rotation.x = -Math.PI / 2;
     land.receiveShadow = true;
     root.add(land);
-    // The district's paving: a raised plate with a kerb, from the gate to the hall.
-    const pavingDepth = gateZ - hallZ + 14;
-    root.add(mesh(roundedPlate(28, pavingDepth, 0.04, 2.2), material(0xd4cec0, { roughness: 1 }), { z: (gateZ + hallZ) / 2, shadow: false }));
+    // The district's paving: a round raised plate with a kerb round the hall, and a forecourt out to the gate.
     const pavingColor = [0xd8cdb2, 0xe2dac6, 0xebe6d8, 0xefeadc, 0xf2eee2][grown];
-    root.add(mesh(roundedPlate(27, pavingDepth - 1, 0.06, 1.8), material(pavingColor, { roughness: 1 }), { z: (gateZ + hallZ) / 2, shadow: false }));
+    const court = stationsEnabled && exitsData.length ? { x: 7.5, width: 31 } : { x: 0, width: 13 };
+    const courtDepth = gateZ + 14 - (R - 4);
+    root.add(mesh(roundPlate(R + 1.9, 0.04), material(0xd4cec0, { roughness: 1 }), { shadow: false }));
+    root.add(mesh(roundedPlate(court.width + 1, courtDepth + 1, 0.04, 2.2), material(0xd4cec0, { roughness: 1 }), { x: court.x, z: R - 4 + courtDepth / 2, shadow: false }));
+    root.add(mesh(roundPlate(R + 1.4, 0.06), material(pavingColor, { roughness: 1 }), { shadow: false }));
+    root.add(mesh(roundedPlate(court.width, courtDepth, 0.06, 1.8), material(pavingColor, { roughness: 1 }), { x: court.x, z: R - 4 + courtDepth / 2, shadow: false }));
     const lift = new THREE.Group();
     lift.position.y = 0.17;
     root.add(lift);
-    // The main street ends at the plaza's edge; it never runs under the plaza (that overlap flickered).
+    const at = (angle, radius) => [Math.sin(angle) * radius, Math.cos(angle) * radius];
+    // The avenue runs from beyond the gate to the plaza's rim; it never runs under the plaza (that overlap flickered).
     streetStrip(lift, { x: 0, z: (plan.street.from + plan.street.to) / 2, width: DISTRICT_STREETS.main * 2, length: plan.street.to - plan.street.from, centreLine: grown >= 2, dirt: grown === 0 });
-    streetStrip(lift, { x: -DISTRICT_STREETS.backStreet, z: 0, width: 1.6, length: L + 2, dirt: grown < 2 });
-    streetStrip(lift, { x: DISTRICT_STREETS.backStreet, z: 0, width: 1.6, length: L + 2, dirt: grown < 2 });
-    // A cross street between the blocks, and at the hall end of each block a sign saying what its work is for.
-    const crossWidth = DISTRICT_STREETS.backLot * 2 + 4;
-    layout.streets.forEach((block, index) => {
-      if (index < layout.streets.length - 1) {
-        streetStrip(lift, { x: 0, z: block.z_to + DISTRICT_STREETS.cross / 2, width: DISTRICT_STREETS.cross * 0.62, length: crossWidth, across: true, dirt: grown < 2 });
-      }
-      const signZ = block.z_from - (index === 0 ? 0.9 : DISTRICT_STREETS.cross / 2);
-      root.add(mesh(new THREE.CylinderGeometry(0.06, 0.08, 2.5, 8), material(0x3f4844, { roughness: 0.6, metalness: 0.4 }), { x: -DISTRICT_STREETS.main - 0.5, y: 1.25, z: signZ }));
-      root.add(mesh(new THREE.BoxGeometry(1.1, 0.34, 0.05), material(block.label ? 0x2f6e4f : 0xbfb8a8, { roughness: 0.6 }), { x: -DISTRICT_STREETS.main - 0.5, y: 2.2, z: signZ }));
-      const text = block.label ? `${block.label}（${block.count}件）` : `未分類の空き地：何のための仕事か未記録（${block.count}件）`;
-      addLabel(text, new THREE.Vector3(-DISTRICT_STREETS.main - 0.5, 2.9, signZ), `is-street${block.label ? '' : ' is-unlabelled'}`, { priority: 2 });
+    // Ring roads round the hall: the town grows outward one ring at a time.
+    layout.roads.forEach((radius, index) => ringRoad(lift, { radius, width: DISTRICT_STREETS.road, dirt: index === 0 ? grown === 0 : grown < 2 }));
+    // A lane between two gatherings, from the plaza's road to the outermost ring road.
+    const lanes = { from: layout.roads[0], to: Math.max(layout.roads[layout.roads.length - 1], layout.roads[0] + 3.6) };
+    layout.streets.slice(1).forEach((block) => {
+      const [x, z] = at(block.from, (lanes.from + lanes.to) / 2);
+      streetStrip(lift, { x, z, width: DISTRICT_STREETS.spoke, length: lanes.to - lanes.from, angle: block.from, dirt: grown < 2 });
     });
-    // Trees along the main street and lamps between them; a belt of trees round the district (scenery).
+    // On the plaza's rim, in front of each gathering, a sign saying what its work is for.
+    layout.streets.forEach((block) => {
+      const signX = block.sign.x;
+      const signZ = block.sign.z;
+      root.add(mesh(new THREE.CylinderGeometry(0.06, 0.08, 2.5, 8), material(0x3f4844, { roughness: 0.6, metalness: 0.4 }), { x: signX, y: 1.25, z: signZ }));
+      const board = mesh(new THREE.BoxGeometry(1.1, 0.34, 0.05), material(block.label ? 0x2f6e4f : 0xbfb8a8, { roughness: 0.6 }), { x: signX, y: 2.2, z: signZ });
+      board.rotation.y = Math.atan2(signX, signZ);
+      root.add(board);
+      const text = block.label ? `${block.label}（${block.count}件）` : `未分類の空き地：何のための仕事か未記録（${block.count}件）`;
+      const sign = addLabel('', new THREE.Vector3(block.name.x, 3.6, block.name.z), `is-street${block.label ? '' : ' is-unlabelled'}`, { priority: 2 });
+      sign.node.append(el(doc, 'span', { className: 'bb-world-street-name', text }));
+      // How this gathering of work is going, in the record's words, and a dot for each agent on it.
+      const going = pulse.get(block.key);
+      if (going) {
+        for (const [key, word] of [['in_progress', '進行中'], ['waiting', '待ち']]) {
+          if (going.counts[key]) sign.node.append(el(doc, 'span', { className: `bb-world-street-chip is-${key}`, text: `${word} ${going.counts[key]}` }));
+        }
+        for (const actor of going.actors) {
+          const dot = el(doc, 'span', { className: `bb-world-street-actor is-${actor.presence}`, attrs: { title: `${actor.name}：${actor.label}` } });
+          dot.style.setProperty('--bb-world-actor-tone', actor.tone);
+          sign.node.append(dot);
+        }
+      }
+      sign.streetSign = block.key;
+      // The count is a way down: pressing the sign lists the work of this street (AC-05).
+      if (onPickStreet) enterable(sign, `${block.label ?? '何のための仕事か未記録の空き地'}の仕事${block.count}件と、そこにいるAIを見る`, () => onPickStreet({ key: block.key, label: block.label, count: block.count }), '寄って見る');
+    });
+    // Trees and lamps along the avenue and round the plaza; a belt of trees round the district (scenery).
     const trees = [];
     const lamps = [];
-    for (let z = -L / 2; z <= L / 2; z += DISTRICT_STREETS.row) {
-      const at = z + DISTRICT_STREETS.row / 2;
-      if (at > L / 2) continue;
-      for (const x of [-2.45, 2.45]) trees.push([x, at, 0.62]);
-      for (const x of [-2.45, 2.45]) lamps.push([x, at + DISTRICT_STREETS.row / 2]);
+    for (let z = plazaRadius + 2.6; z < gateZ - 1.5; z += 3.4) {
+      for (const x of [-2.45, 2.45]) trees.push([x, z, 0.62]);
+      for (const x of [-2.45, 2.45]) lamps.push([x, z + 1.7]);
     }
-    for (let i = 0; i < 90; i += 1) {
-      const angle = (i / 90) * Math.PI * 2 + hashUnit(`belt${i}a`) * 0.05;
-      const rx = 17 + hashUnit(`belt${i}r`) * 9;
-      const rz = pavingDepth / 2 + 3 + hashUnit(`belt${i}z`) * 8;
-      trees.push([Math.cos(angle) * rx, (gateZ + hallZ) / 2 + Math.sin(angle) * rz, 0.8 + hashUnit(`belt${i}s`) * 0.6]);
+    const rimTrees = Math.max(10, Math.round((plazaRadius * Math.PI * 2) / 4.2));
+    for (let i = 0; i < rimTrees; i += 1) {
+      const angle = ((i + 0.5) / rimTrees) * Math.PI * 2;
+      const [x, z] = at(angle, plazaRadius - 0.75);
+      // Clear of the avenue's mouth, the hall's steps and the signs.
+      if (Math.abs(x) < 3.4 && z > 0) continue;
+      if (layout.streets.some((block) => Math.hypot(block.sign.x - x, block.sign.z - z) < 1.3)) continue;
+      (i % 2 ? lamps : trees).push(i % 2 ? [x, z] : [x, z, 0.55]);
     }
-    plantTrees(root, trees.filter(([x, z]) => !(Math.abs(x) < 4.2 && z > gateZ - 1)));
+    // Places not built on yet, on the rings the town already reaches, are green: some have a tree.
+    for (const spot of layout.open) {
+      if (hashUnit(`open${spot.x},${spot.z}`) < 0.45) trees.push([spot.x + (hashUnit(`open${spot.x}x`) - 0.5) * 1.2, spot.z + (hashUnit(`open${spot.z}z`) - 0.5) * 1.2, 0.5 + hashUnit(`open${spot.x}s`) * 0.35]);
+    }
+    for (let i = 0; i < 110; i += 1) {
+      const angle = (i / 110) * Math.PI * 2 + hashUnit(`belt${i}a`) * 0.05;
+      const radius = R + 4.5 + hashUnit(`belt${i}r`) * 11;
+      trees.push([...at(angle, radius), 0.8 + hashUnit(`belt${i}s`) * 0.6]);
+    }
+    const inYard = (x, z) => stationsEnabled && x > STATION_YARD.xFrom && x < STATION_YARD.xTo && z > gateZ + STATION_YARD.zFrom && z < gateZ + STATION_YARD.zTo;
+    const inCourt = (x, z) => z > R - 4 && Math.abs(x - court.x) < court.width / 2 + 1.5;
+    plantTrees(root, trees.filter(([x, z]) => Math.abs(x) < 3 || (!inCourt(x, z) && !inYard(x, z))));
     // Lamps come with the district's growth: none on vacant land, every other one in a village.
     placeLamps(lift, grown === 0 ? [] : grown === 1 ? lamps.filter((_, i) => i % 4 === 0) : lamps);
     // The gate: stone pillars on plinths, a lintel with a cornice, lamps on its pillars.
@@ -616,11 +883,18 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     root.add(box(0.4, 0.9, 0.4, 0x9c7a62, { x: 2.8, y: 4.3, z: hallZ - 1.2 }));
     const hallChimney = new THREE.Vector3(2.8, 5.2, hallZ - 1.2);
     const purposeText = work?.status === 'ok' ? (work.purpose.text ?? '目的は未登録') : '目的を読めません';
-    addLabel(`庁舎：${business.name}（${purposeText}）`, new THREE.Vector3(0, 5.6, hallZ), 'is-plaza', { priority: 1 });
-    const plaza = mesh(new THREE.CircleGeometry(plazaRadius - 0.25, 48), material(0xf1ece1, { roughness: 1 }), { y: 0.24, z: plazaZ, shadow: false });
+    const hallLabel = addLabel(`庁舎：${business.name}（${purposeText}）`, new THREE.Vector3(0, 5.6, hallZ), 'is-plaza', { priority: 1 });
+    const plaza = mesh(new THREE.CircleGeometry(plazaRadius - 0.25, 72), material(0xf1ece1, { roughness: 1 }), { y: 0.24, shadow: false });
     plaza.rotation.x = -Math.PI / 2;
     root.add(plaza);
-    const ring = mesh(new THREE.RingGeometry(plazaRadius - 0.25, plazaRadius, 48), material(0xcfc8b8, { roughness: 1 }), { y: 0.25, z: plazaZ, shadow: false });
+    if (onPickHall) {
+      // The hall, its plaza and its name open what this business is for and its policies (AC-06).
+      hall.userData = { kind: 'hall' };
+      plaza.userData = { kind: 'hall' };
+      civic = [hall, plaza];
+      enterable(hallLabel, `${business.name}の目的と方針を見る`, () => onPickHall(), '目的と方針を見る');
+    }
+    const ring = mesh(new THREE.RingGeometry(plazaRadius - 0.25, plazaRadius, 72), material(0xcfc8b8, { roughness: 1 }), { y: 0.25, shadow: false });
     ring.rotation.x = -Math.PI / 2;
     root.add(ring);
     if (grown >= 3) {
@@ -681,23 +955,42 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
       const lot = layout.lots[site.task_id];
       const group = lotGroup(site);
       group.position.set(lot.x, 0.17, lot.z);
-      group.rotation.y = lot.facing > 0 ? Math.PI / 2 : -Math.PI / 2;
+      group.rotation.y = lot.yaw;
       group.userData = { kind: 'site', site, chimney: group.userData.chimney ?? null };
       root.add(group);
       lots.set(site.task_id, group);
       const title = site.title.length > 15 ? `${site.title.slice(0, 14)}…` : site.title;
-      addLabel(title, new THREE.Vector3(lot.x, 2.6, lot.z), `is-site${site.gaps.length ? ' is-check' : ''}`, { owner: group, near: 15, priority: 6 });
+      const full = site.title.length > 26 ? `${site.title.slice(0, 25)}…` : site.title;
+      const siteLabel = addLabel('', new THREE.Vector3(lot.x, 2.6, lot.z), `is-site${site.gaps.length ? ' is-check' : ''}`, { owner: group, near: 15, priority: 6 });
+      siteLabel.node.append(el(doc, 'span', { className: 'bb-world-site-title is-short', text: title }), el(doc, 'span', { className: 'bb-world-site-title is-full', text: full }));
+      siteLabel.street = lot.street;
+      // Who is on it: named from afar, and with how each is there once the viewer has come close to the street.
+      const here = siteActors(site);
+      if (here.length) {
+        const who = el(doc, 'span', { className: 'bb-world-site-actors' });
+        for (const actor of here) {
+          const chip = el(doc, 'span', { className: `bb-world-site-actor is-${actor.presence}`, attrs: { 'data-actor': actor.id } });
+          chip.style.setProperty('--bb-world-actor-tone', actor.tone);
+          chip.append(el(doc, 'span', { className: 'bb-world-site-actor-name', text: actor.name }), el(doc, 'span', { className: 'bb-world-site-actor-state', text: actor.label }));
+          who.append(chip);
+        }
+        siteLabel.node.append(who);
+      }
+      siteLabels.set(site.task_id, siteLabel);
     }
     // Atmosphere: walkers on the sidewalks and back streets, smoke from chimneys (no record behind them).
-    const routes = [-1.55, 1.55, -DISTRICT_STREETS.backStreet + 0.6, DISTRICT_STREETS.backStreet - 0.6];
     const palette = [0xc0504d, 0x4f81bd, 0x9bbb59, 0x8064a2, 0xf79646, 0x4bacc6, 0x7f7f7f, 0xd99694];
     for (let i = 0; i < 10; i += 1) {
       const walker = person(palette[i % palette.length]);
-      const x = routes[i % routes.length];
-      walker.userData = { x, from: -L / 2 - 1, to: L / 2 + (x === routes[0] || x === routes[1] ? 6 : 1), speed: 0.6 + hash(`walk${i}s`) * 0.6, phase: hash(`walk${i}p`) };
+      const speed = 0.6 + hash(`walk${i}s`) * 0.6;
+      const phase = hash(`walk${i}p`);
+      // Four walk the avenue's sidewalks; the others stroll round the ring roads.
+      if (i < 4) walker.userData = { x: i % 2 ? 1.55 : -1.55, from: plazaRadius + 1, to: gateZ + 5, speed, phase };
+      else walker.userData = { ring: layout.roads[i % layout.roads.length] + (i % 2 ? 1.05 : -1.05), turn: i % 3 ? 1 : -1, speed, phase };
       root.add(walker);
       walkers.push(walker);
     }
+    placeStations();
     root.updateMatrixWorld(true);
     const chimneys = [hallChimney];
     for (const group of lots.values()) {
@@ -715,33 +1008,96 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     }
     // Fog when the work could not be read: the district cannot be seen, which is not empty.
     scene.fog.color.set(sky.fog);
-    scene.fog.near = readable ? 70 : 6;
-    scene.fog.far = readable ? 170 : 34;
-    notice.hidden = readable;
+    districtRect = { cx: 0, cz: (gateZ + 2 - R - 1) / 2, w: R * 2 + 3, d: gateZ + 2 + R + 1 };
+    home = viewOf(districtRect, { yaw: 0.6, pitch: 0.8, height: 3.5, margin: 0.95 });
+    // A wider town is seen from further away: the reach of the camera, the fog and the shadows follow it.
+    const reach = home.position.distanceTo(home.target);
+    controls.maxDistance = Math.max(95, reach * 1.6);
+    scene.fog.near = readable ? Math.max(70, reach * 1.1) : 6;
+    scene.fog.far = readable ? Math.max(170, reach * 2.4 + R) : 34;
+    const shade = Math.max(48, R + 10);
+    Object.assign(sun.shadow.camera, { left: -shade, right: shade, top: shade, bottom: -shade });
+    sun.shadow.camera.updateProjectionMatrix();
+    noticeVisible = !readable;
+    notice.hidden = !showChrome || !open || !noticeVisible;
     if (!readable) {
       const reason = work?.status === 'ok' ? work.reads.tasks.reason ?? work.reads.tasks.state : work?.reason ?? work?.status ?? '理由不明';
-      notice.textContent = `仕事の記録を読めないため、区画の中は霧で見えません（${reason}）。仕事が0件という意味ではありません。`;
+      notice.textContent = `仕事の記録を読めないため、区画の中は霧で見えません（${reason}）。仕事の件数は未確認です。0件とは確認できません。`;
     }
-    home = { target: new THREE.Vector3(0, 0, -1.5), position: new THREE.Vector3(14, 30, gateZ + 24) };
+  }
+
+  /*
+   * A view that holds a rectangle of the ground (and what stands on it) in the part of the stage a host
+   * panel does not cover: the direction is given, the distance and the target are found by projecting the
+   * rectangle's corners.
+   */
+  function viewOf(rect, { yaw, pitch, height = 4.5, margin = 0.9 }) {
+    const size = stage.getBoundingClientRect();
+    const aspect = size.width && size.height ? size.width / size.height : camera.aspect || 1.6;
+    const inset = size.width > 760 ? Math.min(insetLeft / size.width, 0.45) : 0;
+    const probe = new THREE.PerspectiveCamera(camera.fov, aspect, camera.near, camera.far);
+    const direction = new THREE.Vector3(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));
+    const corners = [];
+    for (const x of [rect.cx - rect.w / 2, rect.cx + rect.w / 2]) for (const z of [rect.cz - rect.d / 2, rect.cz + rect.d / 2]) for (const y of [0, height]) corners.push(new THREE.Vector3(x, y, z));
+    const target = new THREE.Vector3(rect.cx, 0, rect.cz);
+    const bounds = (distance) => {
+      probe.position.copy(target).addScaledVector(direction, distance);
+      probe.lookAt(target);
+      probe.updateMatrixWorld(true);
+      let minX = Infinity; let maxX = -Infinity; let minY = Infinity; let maxY = -Infinity;
+      for (const corner of corners) {
+        const point = corner.clone().project(probe);
+        minX = Math.min(minX, point.x); maxX = Math.max(maxX, point.x); minY = Math.min(minY, point.y); maxY = Math.max(maxY, point.y);
+      }
+      return { minX, maxX, minY, maxY };
+    };
+    const fits = (box) => (box.maxX - box.minX) / 2 <= margin * (1 - inset) && (box.maxY - box.minY) / 2 <= margin * 0.86;
+    let distance = 60;
+    for (let pass = 0; pass < 3; pass += 1) {
+      let near = 6; let far = 420;
+      for (let i = 0; i < 18; i += 1) {
+        const middle = (near + far) / 2;
+        if (fits(bounds(middle))) far = middle; else near = middle;
+      }
+      distance = far;
+      // Slide the target along the ground so the rectangle sits in the middle of the uncovered part.
+      const box = bounds(distance);
+      const halfHeight = Math.tan((camera.fov * Math.PI) / 360) * distance;
+      const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+      const ahead = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
+      target.addScaledVector(right, ((box.minX + box.maxX) / 2 - inset) * halfHeight * aspect);
+      target.addScaledVector(ahead, (((box.minY + box.maxY) / 2 + 0.06) * halfHeight) / Math.max(Math.sin(pitch), 0.3));
+    }
+    return { target, position: target.clone().addScaledVector(direction, distance) };
+  }
+
+  function setStreetView(key) {
+    streetView = key;
+    labelsLayer.classList.toggle('is-street-mode', key !== null);
+    for (const label of labels) label.size = null;
   }
 
   // --- camera, picking, frame loop ------------------------------------------------------------------
-  function fly(target, position, duration = 900) {
+  function fly(target, position, duration = 900, { level = false } = {}) {
     if (reducedMotion) {
       controls.target.copy(target);
       camera.position.copy(position);
       return;
     }
     controls.enabled = false;
-    flight = { from: { target: controls.target.clone(), position: camera.position.clone() }, to: { target, position }, started: null, duration };
+    flight = { from: { target: controls.target.clone(), position: camera.position.clone() }, to: { target, position }, started: null, duration, level };
   }
 
   function resize() {
     const rect = stage.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
+    if (!rect.width || !rect.height) {
+      projectSelection();
+      return;
+    }
     renderer.setSize(rect.width, rect.height, false);
     camera.aspect = rect.width / rect.height;
     camera.updateProjectionMatrix();
+    projectSelection();
   }
   const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(resize) : null;
   observer?.observe(stage);
@@ -753,7 +1109,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
-    const targets = [...lots.values()];
+    const targets = [...lots.values(), ...stations.values(), ...civic];
     for (const hit of raycaster.intersectObjects(targets, true)) {
       let object = hit.object;
       while (object && !targets.includes(object)) object = object.parent;
@@ -771,7 +1127,14 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
   renderer.domElement.addEventListener('pointerup', (event) => {
     if (!downAt || Math.hypot(event.clientX - downAt.x, event.clientY - downAt.y) > 5) return;
     const group = pickAt(event.clientX, event.clientY);
-    if (group) {
+    if (group?.userData.kind === 'hall') {
+      select(null);
+      onPickHall?.();
+    } else if (group?.userData.kind === 'exit') {
+      // A station selects its tool in the city details; it never leaves the world.
+      select(group, { focus: false });
+      onPickExit?.(group.userData.exit.id);
+    } else if (group) {
       select(group);
       onPick?.(group.userData.site);
     } else {
@@ -780,19 +1143,41 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     }
   });
   renderer.domElement.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') onEscape?.();
+    if (event.key !== 'Escape' || event.defaultPrevented || !onEscape) return;
+    event.preventDefault();
+    onEscape();
   });
 
-  function select(group) {
+  function projectSelection() {
+    if (!onProjectSelection) return;
+    // Use the site's actual world transform, including any rising-building animation.
+    const anchor = selected?.localToWorld(new THREE.Vector3(0, 2.6, 0));
+    onProjectSelection(projectDistrictSelection({
+      taskId: selected?.userData?.site?.task_id ?? null,
+      anchor,
+      camera,
+      viewport: renderer.domElement.getBoundingClientRect(),
+      stage: stage.getBoundingClientRect(),
+      visible: open && selected?.visible !== false,
+    }));
+  }
+
+  function select(group, { focus = focusSelection } = {}) {
     selected = group;
     if (!group) {
       selectionRing.visible = false;
+      projectSelection();
       return;
     }
     selectionRing.position.set(group.position.x, 0.3, group.position.z);
     selectionRing.visible = true;
-    const at = group.position.clone();
-    fly(new THREE.Vector3(at.x, 0, at.z), new THREE.Vector3(at.x + (at.x > 0 ? 9 : -9), 11, at.z + 12));
+    if (focus) {
+      const at = group.position.clone();
+      fly(new THREE.Vector3(at.x, 0, at.z), new THREE.Vector3(at.x + (at.x > 0 ? 9 : -9), 11, at.z + 12));
+      // A reduced-motion selection changes the camera immediately rather than during a frame.
+      if (reducedMotion) camera.lookAt(controls.target);
+    }
+    projectSelection();
   }
 
   function applyFocus() {
@@ -813,12 +1198,21 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
   const projected = new THREE.Vector3();
   function placeLabels() {
     const rect = stage.getBoundingClientRect();
-    const placed = [];
+    // The host's own controls over the stage (the toolbar, the notices): a name never sits under them.
+    const placed = [...(stage.ownerDocument?.querySelectorAll?.('.bb-world-canvas-toolbar, .bb-world-canvas-quests, .bb-world-pulse') ?? [])]
+      .map((node) => node.getBoundingClientRect())
+      .filter((r) => r.width > 0 && r.height > 0)
+      .map((r) => ({ x: r.left - rect.left, y: r.top - rect.top, w: r.width, h: r.height }));
     const visible = [];
     for (const label of labels) {
       const owner = label.owner;
       const taskId = owner?.userData?.site?.task_id;
       const emphasised = owner && (owner === selected || owner === hovered || (focusIds && focusIds.has(taskId)));
+      // Close to a street, the signs of the other streets step back so this one's work can be read.
+      if (streetView !== null && label.streetSign !== undefined && label.streetSign !== streetView) {
+        label.node.hidden = true;
+        continue;
+      }
       const hiddenByFocus = owner && focusIds && !focusIds.has(taskId);
       const distance = camera.position.distanceTo(label.position);
       projected.copy(label.position).project(camera);
@@ -828,29 +1222,65 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
         continue;
       }
       label.screen = { x: ((projected.x + 1) / 2) * rect.width, y: ((1 - projected.y) / 2) * rect.height };
-      label.rank = emphasised ? 0 : label.priority;
+      // The selected or hovered name is always shown; the names of a focused gathering come first but give way to each other.
+      label.rank = owner && (owner === selected || owner === hovered) ? 0 : emphasised ? 0.5 : label.priority;
       visible.push(label);
     }
     visible.sort((a, b) => a.rank - b.rank);
     for (const label of visible) {
       label.node.hidden = false;
       label.size ??= { w: label.node.offsetWidth, h: label.node.offsetHeight };
-      const box2 = { x: label.screen.x - label.size.w / 2, y: label.screen.y - label.size.h, w: label.size.w, h: label.size.h };
+      // A name whose anchor is near an edge slides inward instead of being cut off by it.
+      const left = Math.min(Math.max(label.screen.x - label.size.w / 2, 6), Math.max(rect.width - label.size.w - 6, 6));
+      const box2 = { x: left, y: Math.max(label.screen.y - label.size.h, 6), w: label.size.w, h: label.size.h };
       if (label.rank > 0 && placed.some((other) => box2.x < other.x + other.w + 2 && box2.x + box2.w + 2 > other.x && box2.y < other.y + other.h + 2 && box2.y + box2.h + 2 > other.y)) {
         label.node.hidden = true;
         continue;
       }
       placed.push(box2);
       label.node.style.transform = `translate(${Math.round(box2.x)}px, ${Math.round(box2.y)}px)`;
-      label.node.classList.toggle('is-selected', label.rank === 0);
+      label.node.classList.toggle('is-selected', label.rank <= 0.5);
     }
   }
 
   let running = true;
+  let lastSkyMinute = -1;
+  let lastPresenceCheck = 0;
+  /** A heartbeat grows old while the district is open: the figures and their words follow the clock. */
+  function refreshPresence(now) {
+    for (const actor of taskActors) {
+      const current = siteActors(actor.site, now).find((entry) => entry.id === actor.id);
+      const presence = current?.presence ?? 'unconfirmed';
+      if (presence === actor.presence) continue;
+      actor.presence = presence;
+      lightBuddy(actor.worker, presence);
+      actor.worker.position.set(actor.x, 0.02, ACTOR_Z);
+      actor.worker.rotation.y = 0;
+      const label = siteLabels.get(actor.site.task_id);
+      const chip = [...(label?.node.querySelectorAll('.bb-world-site-actor') ?? [])].find((node) => node.getAttribute('data-actor') === actor.id);
+      if (chip && current) {
+        chip.className = `bb-world-site-actor is-${presence}`;
+        const state = chip.querySelector('.bb-world-site-actor-state');
+        if (state) state.textContent = current.label;
+        label.size = null;
+      }
+    }
+  }
   function frame(time) {
     if (!running) return;
     requestAnimationFrame(frame);
     if (!open) return;
+    // Use wall time so an open district also catches up after a suspended tab.
+    const now = new Date();
+    const minute = Math.floor(now.getTime() / 60_000);
+    if (skyMode === 'auto' && minute !== lastSkyMinute) {
+      if (skyAt(now.getHours(), 'auto').phase !== sky.phase) applySky();
+      lastSkyMinute = minute;
+    }
+    if (time - lastPresenceCheck > 5000) {
+      lastPresenceCheck = time;
+      refreshPresence(now.getTime());
+    }
     if (flight) {
       flight.started ??= time;
       const t = Math.min((time - flight.started) / flight.duration, 1);
@@ -867,7 +1297,26 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     }
     if (!reducedMotion) {
       const seconds = time / 1000;
+      for (const actor of taskActors) {
+        // Only an agent whose work is in progress with a fresh heartbeat moves; a waiting one's light breathes.
+        if (actor.presence === 'running') {
+          actor.worker.position.set(actor.x + Math.sin(seconds * 1.4 + actor.phase * 6) * 0.14, 0.02 + Math.abs(Math.sin(seconds * 3 + actor.phase * 6)) * 0.07, ACTOR_Z);
+          actor.worker.rotation.y = Math.sin(seconds * 1.4 + actor.phase * 6) * 0.4;
+          actor.worker.userData.bulb.emissiveIntensity = 1.3 + 0.5 * Math.sin(seconds * 4 + actor.phase * 6);
+        } else if (actor.presence === 'waiting') {
+          actor.worker.userData.bulb.emissiveIntensity = 0.8 + 0.4 * Math.sin(seconds * 1.2 + actor.phase * 6);
+        }
+      }
       for (const walker of walkers) {
+        // Close to a street the question is who is on which work: the passers-by (no record) step out.
+        walker.visible = streetView === null;
+        if (walker.userData.ring) {
+          const { ring, turn, speed, phase } = walker.userData;
+          const angle = turn * ((seconds * speed) / ring + phase * Math.PI * 2);
+          walker.position.set(Math.sin(angle) * ring, 0.2 + Math.abs(Math.sin(seconds * 8 * speed)) * 0.04, Math.cos(angle) * ring);
+          walker.rotation.y = angle + (turn > 0 ? Math.PI / 2 : -Math.PI / 2);
+          continue;
+        }
         const { x, from, to, speed, phase } = walker.userData;
         const span = to - from;
         const travel = ((seconds * speed) / span + phase) % 2;
@@ -899,6 +1348,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     if (selectionRing.visible) selectionRing.material.opacity = 0.6 + 0.3 * Math.sin(time / 300);
     renderer.render(scene, camera);
     placeLabels();
+    projectSelection();
   }
   requestAnimationFrame(frame);
 
@@ -906,24 +1356,32 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     open = visible;
     renderer.domElement.hidden = !visible;
     labelsLayer.hidden = !visible;
-    legend.hidden = !visible;
-    if (!visible) notice.hidden = true;
+    legend.hidden = !visible || !showChrome;
+    notice.hidden = !visible || !showChrome || !noticeVisible;
+    projectSelection();
   }
 
   return {
-    /** Enters the district of a business; `neighbours` maps other business codes to their names. */
-    show(business, work, { neighbours = new Map() } = {}) {
+    /**
+     * Enters the district of a business; `neighbours` maps other business codes to their names, and
+     * `exits` (normalized tools, see world-exits.js) are its stations when the yard is on.
+     */
+    show(business, work, { neighbours = new Map(), exits } = {}) {
+      if (exits !== undefined) exitsData = exits;
       build(business, work, neighbours);
       setVisible(true);
       resize();
       // Entering: from high over the gate down to the street.
-      camera.position.set(home.position.x * 2.2, home.position.y * 2.4, home.position.z + 40);
+      camera.position.copy(home.target).addScaledVector(home.position.clone().sub(home.target), 1.45);
       controls.target.copy(home.target);
       camera.lookAt(home.target);
       fly(home.target.clone(), home.position.clone(), 1300);
+      if (reducedMotion) camera.lookAt(controls.target);
+      projectSelection();
       renderer.domElement.focus({ preventScroll: true });
     },
     hide() {
+      setStreetView(null);
       setVisible(false);
     },
     /** The sky: the same modes as the world ('auto' follows the hour). */
@@ -935,6 +1393,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     /** Back to the view from the gate, keeping the district. */
     home() {
       select(null);
+      setStreetView(null);
       if (home) fly(home.target.clone(), home.position.clone());
     },
     select(taskId) {
@@ -950,18 +1409,66 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
       focusIds = taskIds ? new Set(taskIds) : null;
       applyFocus();
     },
+    /** Comes close to one street (its key; '' is the unlabelled lots); false when the district has no such street. */
+    enterStreet(key) {
+      const block = streetBlocks.get(key);
+      if (!block) return false;
+      select(null, { focus: false });
+      setStreetView(key);
+      // The gathering's lots, seen from the same side as the whole district.
+      const minX = block.box.minX - 2.6;
+      const maxX = block.box.maxX + 2.6;
+      const minZ = block.box.minZ - 2.6;
+      const maxZ = block.box.maxZ + 2.6;
+      const view = viewOf({ cx: (minX + maxX) / 2, cz: (minZ + maxZ) / 2, w: Math.max(maxX - minX, 12), d: Math.max(maxZ - minZ, 9) }, { yaw: 0.5, pitch: 0.85, height: 3, margin: 0.82 });
+      fly(view.target, view.position, 900, { level: true });
+      if (reducedMotion) camera.lookAt(controls.target);
+      return true;
+    },
+    /** Steps back from the street to the whole district. */
+    leaveStreet() {
+      if (streetView === null) return;
+      setStreetView(null);
+      if (home) fly(home.target.clone(), home.position.clone(), 900, { level: true });
+      if (reducedMotion) camera.lookAt(controls.target);
+    },
+    street: () => streetView,
+    /** How many pixels of the stage's left edge a host panel covers (views are framed clear of it). */
+    setViewInset({ left = 0 } = {}) {
+      insetLeft = Number.isFinite(left) && left > 0 ? left : 0;
+    },
     /** Shows what changed since the viewer's last visit (from `districtChanges`). */
     celebrate,
     /** Rebuilds the open district from fresh records, keeping the camera where it is. */
-    refresh(business, work, { neighbours = new Map() } = {}) {
-      const keep = { target: controls.target.clone(), position: camera.position.clone() };
+    refresh(business, work, { neighbours = new Map(), exits } = {}) {
+      if (exits !== undefined) exitsData = exits;
+      // A level the camera is still flying to (into or out of a street) is where the viewer asked to be: the
+      // rebuild lands there. Any other flight stops where it is.
+      const landing = flight?.level ? flight.to : null;
+      const keep = { target: (landing?.target ?? controls.target).clone(), position: (landing?.position ?? camera.position).clone(), taskId: selected?.userData?.site?.task_id };
+      flight = null;
+      controls.enabled = true;
       build(business, work, neighbours);
       controls.target.copy(keep.target);
       camera.position.copy(keep.position);
       camera.lookAt(keep.target);
+      select(lots.get(keep.taskId) ?? null, { focus: false });
+    },
+    /** The tools of the open business arrived (or changed): redraws only its stations. */
+    setExits(exits) {
+      exitsData = Array.isArray(exits) ? exits : [];
+      if (root) placeStations();
+    },
+    /** Marks a tool's station as selected (without moving the camera); false when it has none. */
+    selectExit(id) {
+      const group = stations.get(id);
+      if (!group) return false;
+      select(group, { focus: false });
+      return true;
     },
     dispose() {
       running = false;
+      setVisible(false);
       observer?.disconnect();
       controls.dispose();
       renderer.dispose();
