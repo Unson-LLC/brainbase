@@ -84,4 +84,7 @@ for (let attempt = 1; attempt <= attempts; attempt += 1) {
   }
 }
 
-throw new Error(`public readback failed: ${lastFailures.join('; ')}`);
+throw new Error(
+  `public readback failed: ${lastFailures.join('; ')}. ` +
+  `${baseUrl} is the production hostname. A preview alias such as https://main.brainbase.pages.dev does not satisfy this check, and waiting for npm publish does not promote a preview deployment.`
+);

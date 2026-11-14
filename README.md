@@ -244,6 +244,8 @@ npm run docs:smoke
 
 Publication is serialized by the GitHub workflow. Direct local `release:publish` is rejected; maintainers must not publish with a local npm token.
 
+A version-bump pull request must document that version before merge. Add `## Candidate — vX.Y.Z（npm公開前）` as the first Candidate heading in `docs/manual/guide/status.md`, and `## X.Y.Z candidate — npm公開前` in `docs/manual/reference/version-history.md`, in the same commit. `npm run docs:check` and the package test fail when `package.json` matches neither the first Released heading nor the first Candidate heading. The docs workflow runs that check on pull requests to `main` and does not deploy from the pull request.
+
 Dispatch the reviewed ref once when automatic publication needs recovery:
 
 ```bash
