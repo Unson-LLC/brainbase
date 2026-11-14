@@ -1,9 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
-const selfHostedRunner = 'runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]';
-const backupRunner = "runs-on: ${{ fromJSON(vars.CI_RUNNER_BACKUP == 'on' && '\"ubuntu-latest\"' || '[\"self-hosted\",\"Linux\",\"X64\",\"wsl-linux\",\"nucbox-evo-x2\"]') }}";
+const selfHostedRunner = 'runs-on: [self-hosted, Linux, X64, unson-ci-linux]';
+const backupRunner = "runs-on: ${{ fromJSON(vars.CI_RUNNER_BACKUP == 'on' && '\"ubuntu-latest\"' || '[\"self-hosted\",\"Linux\",\"X64\",\"unson-ci-linux\"]') }}";
 const workflowPaths = [
+  '.github/workflows/adr-index.yml',
   '.github/workflows/test.yml',
   '.github/workflows/npm-publish.yml',
   '.github/workflows/docs-cloudflare-pages.yml',
@@ -30,7 +31,7 @@ describe('public CI self-hosted runner policy', () => {
     const formalValidationJob = workflows[workflowPaths.indexOf('.github/workflows/test.yml')]
       .slice(workflows[workflowPaths.indexOf('.github/workflows/test.yml')].indexOf('  formal-release-validate-linux:'));
     expect(formalValidationJob).toMatch(/^  formal-release-validate-linux:\n/u);
-    expect(formalValidationJob).toMatch(/^    runs-on: \$\{\{ fromJSON\(vars\.CI_RUNNER_BACKUP == 'on' && '"ubuntu-latest"' \|\| '\["self-hosted","Linux","X64","wsl-linux","nucbox-evo-x2"\]'\) \}\}$/mu);
+    expect(formalValidationJob).toMatch(/^    runs-on: \$\{\{ fromJSON\(vars\.CI_RUNNER_BACKUP == 'on' && '"ubuntu-latest"' \|\| '\["self-hosted","Linux","X64","unson-ci-linux"\]'\) \}\}$/mu);
     expect(formalValidationJob).toMatch(/^    permissions:\n      contents: read$/mu);
     expect(formalValidationJob).toMatch(/github\.event\.pull_request\.head\.sha/u);
     expect(formalValidationJob).toMatch(/persist-credentials: false/u);
@@ -46,6 +47,19 @@ describe('public CI self-hosted runner policy', () => {
     expect(publishJob).not.toMatch(/github\.event\.pull_request/u);
   });
 
+  it('AC-011 posts verify-skill on a hosted runner for same-repository heads into develop only', async () => {
+    const workflow = await readRepoFile('.github/workflows/verify-skill.yml');
+    expect(workflow.match(/^[ \t]*runs-on:.*$/gmu)?.map((line) => line.trim())).toEqual(['runs-on: ubuntu-latest']);
+    expect(workflow).toMatch(/  pull_request:\n    branches: \[develop\]\n/u);
+    expect(workflow).toMatch(/github\.event\.pull_request\.head\.repo\.full_name == github\.repository/u);
+    expect(workflow).toMatch(/if \[ "\$base" != develop \]; then/u);
+    expect(workflow).not.toMatch(/pull_request_target:|secrets\.|id-token:\s*write|contents:\s*write/u);
+    expect(workflow).toMatch(/persist-credentials: false/u);
+    for (const line of workflow.match(/^[ \t]*-?[ \t]*uses:.*$/gmu) ?? []) {
+      expect(line).toMatch(/uses: [A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+@[0-9a-f]{40} # v\d+(?:\.\d+)*$/u);
+    }
+  });
+
   it('AC-002 runs pull_request jobs only for a head in this repository', async () => {
     const testWorkflow = await readRepoFile('.github/workflows/test.yml');
     const docsWorkflow = await readRepoFile('.github/workflows/docs-cloudflare-pages.yml');
@@ -58,6 +72,9 @@ describe('public CI self-hosted runner policy', () => {
     expect(docsJob).toMatch(
       /if: \$\{\{ github\.event_name != 'pull_request' \|\| github\.event\.pull_request\.head\.repo\.full_name == github\.repository \}\}/u
     );
+    const adrWorkflow = await readRepoFile('.github/workflows/adr-index.yml');
+    expect(adrWorkflow).toContain("if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}");
+    expect(adrWorkflow).not.toMatch(/pull_request_target:|paths:/u);
     expect(testWorkflow).not.toMatch(/pull_request_target:/u);
     expect(docsWorkflow).not.toMatch(/pull_request_target:/u);
   });
@@ -87,6 +104,8 @@ describe('public CI self-hosted runner policy', () => {
     expect(guide).toContain('npm provenance（sigstoreの来歴署名）を付けて公開する`npm-publish.yml`のpublish job');
     expect(guide).toContain('`actions/setup-node`の`cache: npm`を使わない');
     expect(guide).toContain(selfHostedRunner);
+    expect(guide).toContain('`unson-ci-linux`は「CIの標準環境');
+    expect(guide).toContain('workflowで新しい目印を使う前に、必ずランナー側へ先に付ける。');
     expect(guide).toContain('github.event.pull_request.head.repo.full_name == github.repository');
     expect(guide).toContain('author_association');
     expect(guide).toContain('pull requestのheadをcheckoutしない');
@@ -110,7 +129,7 @@ describe('public CI self-hosted runner policy', () => {
     const workflow = await readRepoFile('.github/workflows/test.yml');
     const runs = workflow.match(/^[ \t]*run: npm (?:test|run test:integration)\b.*$/gmu) ?? [];
     expect(runs).toHaveLength(2);
-    for (const line of runs) expect(line).toMatch(/ -- --maxWorkers=2$/u);
+    for (const line of runs) expect(line).toMatch(/ -- --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000$/u);
   });
 
   it('AC-005 keeps secrets out of job env and on the steps that use them', async () => {
@@ -143,7 +162,7 @@ describe('public CI self-hosted runner policy', () => {
   it('AC-006 sets persist-credentials false on every checkout', async () => {
     const workflows = await Promise.all(workflowPaths.map((path) => readRepoFile(path)));
     const checkouts = workflows.flatMap((workflow) => checkoutSections(workflow));
-    expect(checkouts).toHaveLength(6);
+    expect(checkouts).toHaveLength(7);
     for (const section of checkouts) {
       expect(section).toMatch(/persist-credentials: false/u);
     }

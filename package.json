@@ -43,6 +43,14 @@
       "types": "./dist/judgment-history.d.ts",
       "import": "./dist/judgment-history.js"
     },
+    "./judgment-journal-turn-publisher": {
+      "types": "./dist/judgment-journal-turn-publisher.d.ts",
+      "import": "./dist/judgment-journal-turn-publisher.js"
+    },
+    "./remote-judgment-hook-http": {
+      "types": "./dist/remote-judgment-hook-http.d.ts",
+      "import": "./dist/remote-judgment-hook-http.js"
+    },
     "./judgment-history-http": {
       "types": "./dist/judgment-history-http.d.ts",
       "import": "./dist/judgment-history-http.js"
