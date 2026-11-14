@@ -628,6 +628,9 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
 .bb-pkw-dense-overview {
   display: grid;
   gap: 0;
+  /* The overview sits beside a rail and, in hosts, a detail panel, so its
+     width does not follow the viewport. Its metrics follow this width. */
+  container: bb-pkw-overview / inline-size;
 }
 
 .bb-pkw-dense-intro {
@@ -692,6 +695,36 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
   font-weight: var(--bb-font-weight-medium);
   line-height: 1.1;
   letter-spacing: -.03em;
+}
+
+/* Four 30px values need about 150px each. Below that the overview shows two
+   per row, whatever the viewport, so a value is never broken inside a word. */
+@container bb-pkw-overview (max-width: 600px) {
+  .bb-pkw-dense-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bb-pkw-dense-metric,
+  .bb-pkw-dense-metric:first-child {
+    padding: 14px 12px;
+  }
+
+  .bb-pkw-dense-metric:nth-child(odd) {
+    padding-left: 0;
+  }
+
+  .bb-pkw-dense-metric:nth-child(even) {
+    border-right: 0;
+    padding-right: 0;
+  }
+
+  .bb-pkw-dense-metric:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--bb-color-border);
+  }
+
+  .bb-pkw-dense-metric:last-child {
+    border-bottom: 0;
+  }
 }
 
 .bb-pkw-dense-grid {
@@ -1064,32 +1097,6 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
 
   .bb-pkw-header h2 {
     font-size: 34px;
-  }
-
-  .bb-pkw-dense-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .bb-pkw-dense-metric,
-  .bb-pkw-dense-metric:first-child {
-    padding: 14px 12px;
-  }
-
-  .bb-pkw-dense-metric:nth-child(odd) {
-    padding-left: 0;
-  }
-
-  .bb-pkw-dense-metric:nth-child(even) {
-    border-right: 0;
-    padding-right: 0;
-  }
-
-  .bb-pkw-dense-metric:nth-child(-n + 2) {
-    border-bottom: 1px solid var(--bb-color-border);
-  }
-
-  .bb-pkw-dense-metric:last-child {
-    border-bottom: 0;
   }
 
   .bb-pkw-dense-grid,

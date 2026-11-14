@@ -12,6 +12,106 @@ import {
 
 export const MEETING_AUTOMATION_RUNTIME_VERSION = 'brainbase.meeting-automation-runtime.v1' as const;
 
+/**
+ * Pre-generation seam. The personal host owns claiming, quotas and retries.
+ * This does not ingest a review package or publish/create tasks: those require
+ * a separately confirmed, published version and their existing human gates.
+ */
+export interface MeetingDraftGenerationInput {
+  readonly owner_id: string;
+  readonly source_id: string;
+  readonly draft_id: string;
+  readonly transcript_digest: string;
+  readonly transcript: string;
+  readonly claim_token: string;
+  readonly tenant_id: string;
+  readonly org_id: string;
+  readonly project_id: string;
+  readonly project_code: string;
+  readonly channel_id: string | null;
+}
+
+export interface MeetingDraftGenerationContext {
+  readonly tenant_id: string;
+  readonly org_id: string;
+  readonly project_id: string;
+  readonly digest: string;
+  readonly records: readonly unknown[];
+}
+
+export interface MeetingDraftGenerationReceipt {
+  readonly input_fingerprint: string;
+  readonly draft_fingerprint: string;
+}
+
+export interface MeetingDraftGenerationPorts<Draft> {
+  /** Recheck publish selection, canonical project mapping and current access. */
+  readonly authorize: (input: MeetingDraftGenerationInput) => MaybePromise<boolean>;
+  readonly resolveContext: (input: MeetingDraftGenerationInput) => MaybePromise<MeetingDraftGenerationContext>;
+  /** Includes candidate-name extraction and mention/glossary resolution. */
+  readonly generate: (input: MeetingDraftGenerationInput, context: MeetingDraftGenerationContext) => MaybePromise<unknown>;
+  /** Check shape, transcript quotations and names against the supplied context. */
+  readonly validate: (output: unknown, input: MeetingDraftGenerationInput, context: MeetingDraftGenerationContext) => MaybePromise<{ valid: true; draft: Draft } | { valid: false }>;
+  /**
+   * Atomically compare current publish selection, source digest, access and
+   * claim ownership before saving. Return null on any stale/unauthorized write.
+   * Receipts and readback live in the person's storage, not an organization ledger.
+   */
+  readonly saveIfCurrent: (input: MeetingDraftGenerationInput, draft: Draft, receipt: MeetingDraftGenerationReceipt) => MaybePromise<MeetingDraftGenerationReceipt | null>;
+  readonly readback: (input: MeetingDraftGenerationInput) => MaybePromise<MeetingDraftGenerationReceipt | null>;
+}
+
+/** Opt-in contract only; no host switches to this path implicitly or on failure. */
+export async function runMeetingDraftGeneration<Draft>(
+  input: MeetingDraftGenerationInput,
+  ports: MeetingDraftGenerationPorts<Draft>,
+): Promise<MeetingDraftGenerationReceipt> {
+  for (const field of ['owner_id', 'source_id', 'draft_id', 'transcript_digest', 'transcript', 'claim_token',
+    'tenant_id', 'org_id', 'project_id', 'project_code'] as const) {
+    if (typeof input?.[field] !== 'string' || !input[field].trim()) {
+      throw new MeetingAutomationRuntimeError('invalid_generation_input', `${field} is required`);
+    }
+  }
+  if (input.channel_id !== null && (typeof input.channel_id !== 'string' || !input.channel_id.trim())) {
+    throw new MeetingAutomationRuntimeError('invalid_generation_input', 'channel_id must be a channel or null');
+  }
+  for (const name of ['authorize', 'resolveContext', 'generate', 'validate', 'saveIfCurrent', 'readback'] as const) {
+    if (typeof ports?.[name] !== 'function') {
+      throw new MeetingAutomationRuntimeError('invalid_ports', `${name} is required`);
+    }
+  }
+  // Pin scalar identity fields before crossing asynchronous host boundaries.
+  const pinned = Object.freeze({ ...input });
+  if (await ports.authorize(pinned) !== true) {
+    throw new MeetingAutomationRuntimeError('generation_not_authorized', 'publish selection and access must be current');
+  }
+  const context = await ports.resolveContext(pinned);
+  if (!context || !['tenant_id', 'org_id', 'project_id'].every((field) =>
+    context[field as keyof MeetingDraftGenerationContext] === pinned[field as keyof MeetingDraftGenerationInput]) ||
+    typeof context.digest !== 'string' || !context.digest.trim() || !Array.isArray(context.records)) {
+    throw new MeetingAutomationRuntimeError('context_unavailable', 'verified context for the selected project is required');
+  }
+  const output = await ports.generate(pinned, context);
+  const verified = await ports.validate(output, pinned, context);
+  if (verified?.valid !== true || verified.draft == null) {
+    throw new MeetingAutomationRuntimeError('output_invalid', 'meeting draft verification failed');
+  }
+  const receipt = Object.freeze({
+    input_fingerprint: digest({ ...pinned, context_digest: context.digest }),
+    draft_fingerprint: digest(verified.draft),
+  });
+  const saved = await ports.saveIfCurrent(pinned, verified.draft, receipt);
+  if (!saved) {
+    throw new MeetingAutomationRuntimeError('generation_stale', 'draft selection, source or claim changed before save');
+  }
+  const readback = await ports.readback(pinned);
+  if (saved.input_fingerprint !== receipt.input_fingerprint || saved.draft_fingerprint !== receipt.draft_fingerprint ||
+    readback?.input_fingerprint !== receipt.input_fingerprint || readback.draft_fingerprint !== receipt.draft_fingerprint) {
+    throw new MeetingAutomationRuntimeError('readback_mismatch', 'generated draft was not durably saved');
+  }
+  return receipt;
+}
+
 type UnknownRecord = Record<string, unknown>;
 type MaybePromise<T> = T | Promise<T>;
 

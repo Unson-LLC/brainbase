@@ -803,7 +803,7 @@ describe('Objective editor common UI contract', () => {
       expect(collectText(byClass(root, 'bb-ws-breadcrumb')[0])).toBe('あなたのBrainbase/目的と現状');
       expect(findAll(root, (node) => node.tagName === 'H1')[0].textContent).toBe('目的と現状');
       expect(byClass(root, 'bb-ws-source')[0].textContent).toBe('手元のGraph');
-      expect(findButtons(byClass(root, 'bb-ws-page-head')[0]).map((button) => [button.textContent, button.className]))
+      expect(findButtons(byClass(root, 'bb-ws-page-head')[0]).filter((button) => button.className !== 'bb-ws-help-button').map((button) => [button.textContent, button.className]))
         .toEqual([['再読込', 'bb-ws-button'], ['新しい目的', 'bb-ws-button is-primary']]);
       // No tabs in this layout.
       expect(byClass(root, 'objective-editor-tab')).toHaveLength(0);
@@ -1004,7 +1004,7 @@ describe('Objective editor common UI contract', () => {
 
     it('offers no edit actions when the host does not allow writing', async () => {
       const { root, rail } = await mountWorkspace({ canEdit: false });
-      expect(findButtons(byClass(root, 'bb-ws-page-head')[0]).map((button) => button.textContent)).toEqual(['再読込']);
+      expect(findButtons(byClass(root, 'bb-ws-page-head')[0]).filter((button) => button.className !== 'bb-ws-help-button').map((button) => button.textContent)).toEqual(['再読込']);
       expect(findButtons(rail)).toHaveLength(0);
     });
 
@@ -1052,7 +1052,8 @@ describe('Objective editor common UI contract', () => {
       const { root } = await mountWorkspace();
       const wrapper = byClass(root, 'bb-objective-workspace')[0];
       expect(wrapper.children.map((node) => node.className.split(' ')[0])).toEqual(['bb-ws-page', 'bb-ws-summary', 'bb-ws-ledger']);
-      expect(collectText(byClass(root, 'bb-ws-lead')[0])).toBe('目指す状態と評価基準を、版つきで確かめて直します。下の「現状と見通し」は、目的とは分けた、いまの理解（観測と仮説）です。');
+      expect(collectText(byClass(root, 'bb-ws-lead')[0])).toBe('目指す状態と評価基準を、版つきで確かめて直します。');
+      expect(collectText(byClass(root, 'bb-ws-help-bubble')[0])).toContain('下の「現状と見通し」');
     });
 
     it('without a rail ignores the host options and draws the same tabs layout', async () => {
@@ -1073,7 +1074,7 @@ describe('Objective editor common UI contract', () => {
         const { port } = workspacePort();
         const controller = createObjectiveEditorController({ root, port, context: {}, canEdit: true, autoLoad: false, ...host });
         await controller.loadObjectives();
-        return JSON.stringify(shape(root));
+        return JSON.stringify(shape(root)).replace(/bb-ws-help-\d+/g, 'bb-ws-help-ID');
       };
       const plain = await draw({});
       const withHost = await draw({
@@ -1096,10 +1097,24 @@ describe('Objective editor common UI contract', () => {
       expect(root.children[0].className).toBe('objective-editor-root');
       expect(findAll(root, (node) => node.tagName === 'H1')[0].textContent).toBe('目的と評価基準');
       expect(byClass(root, 'objective-editor-tab').map((tab) => tab.textContent)).toEqual(['目的一覧', '目的を編集', 'Story参照']);
-      expect(findAll(root, (node) => String(node.className).includes('bb-ws-'))).toHaveLength(0);
+      expect(byClass(root, 'bb-ws-ledger')).toHaveLength(0);
+      expect(byClass(root, 'bb-ws-page-head')).toHaveLength(1);
       // The first objective is not opened by itself in the tabs layout.
       expect(controller.state.view).toBe('list');
       expect(controller.state.selectedId).toBeNull();
     });
   });
+});
+
+it('places the downward page guide beside status outside header copy', () => {
+  globalThis.document = new FakeDocument();
+  const root = new FakeElement('div');
+  createObjectiveEditorController({ root, port: {}, context: {}, autoLoad: false });
+  const header = findAll(root, node => node.className.includes('objective-editor-header '))[0];
+  const side = header.children.find(node => node.className.includes('bb-ws-page-side'));
+  expect(side).toBeDefined();
+  const guide = findAll(side, node => node.className.includes('is-page-guide'))[0];
+  expect(guide).toBeDefined();
+  expect(guide.children[0].textContent).toBe('？');
+  expect(side.children).toHaveLength(2);
 });

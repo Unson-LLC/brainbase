@@ -91,7 +91,9 @@ describe('meeting list is body-free and paginated (UNS-264)', () => {
     expect(new Set(seen).size).toBe(ids.length);
   });
 
-  it('returns the newest 50 meeting dates and keeps older pages stable when a new meeting is inserted', async () => {
+  // This journey performs repeated real filesystem writes; shared CI runners
+  // can exceed Vitest's 5s default even when every assertion succeeds.
+  it('returns the newest 50 meeting dates and keeps older pages stable when a new meeting is inserted', { timeout: 30_000 }, async () => {
     const { store } = await openStore();
     const older = await store.create_meeting({ title: 'Older', scheduled_at: '2026-10-01T00:00:00Z' }, OWNER);
     const ids: string[] = [];

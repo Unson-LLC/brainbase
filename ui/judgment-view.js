@@ -440,10 +440,10 @@ export function renderJudgmentView(root, input, options = {}) {
   const model = normalizeJudgmentView(input);
   clear(root);
   const surface = makeElement(doc, 'section', { className: 'judgment-view', attrs: { 'data-contract-version': JUDGMENT_VIEW_UI_CONTRACT_VERSION } });
-  const header = makeElement(doc, 'header', { className: 'judgment-view-header' });
+  const header = makeElement(doc, 'header', { className: 'judgment-view-header bb-ws-page-head' });
   header.append(makeElement(doc, 'div', { className: 'judgment-view-kicker', text: 'BRAINBASE / JUDGMENT TRACE' }));
   header.append(makeElement(doc, 'h1', { text: '判断の追跡' }));
-  header.append(makeElement(doc, 'p', { className: 'judgment-view-mode', text: '当時版（historical）を表示しています。現在版で補完しません。' }));
+  header.append(makeElement(doc, 'p', { className: 'judgment-view-mode', text: '現在版で補完せず、当時版（historical）を表示しています。' }));
   header.append(makeElement(doc, 'span', { className: `judgment-view-status is-${model.status}`, text: statusText(model.status), attrs: { role: 'status' } }));
   surface.append(header);
   if (nonEmpty(model.reason)) surface.append(makeElement(doc, 'p', { className: 'judgment-view-notice is-unknown', text: model.reason, attrs: { role: 'status' } }));

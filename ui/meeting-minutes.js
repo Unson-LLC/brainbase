@@ -746,7 +746,7 @@ export function createMeetingMinutesUI({
   const compact = searchBand || toolbarPresentation === 'compact';
   const screen = makeElement(doc, 'div', { className: `bb-minutes-screen${compact ? ' bb-minutes-compact bb-ws-neutral-controls' : ''}`, attrs: { 'data-contract-version': MEETING_MINUTES_UI_CONTRACT_VERSION } });
   if (searchBand) screen.classList.add('bb-minutes-search-band');
-  const heading = makeElement(doc, 'header', { className: 'bb-minutes-heading' });
+  const heading = makeElement(doc, 'header', { className: 'bb-minutes-heading bb-ws-page-head' });
   heading.append(
     makeElement(doc, 'div', { className: 'bb-minutes-eyebrow', textContent: page?.source ?? '正本の議事録' }),
     makeElement(doc, 'h1', { textContent: '議事録' }),
