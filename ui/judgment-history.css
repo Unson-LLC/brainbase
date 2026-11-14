@@ -776,3 +776,16 @@
   color: var(--bb-color-accent-strong);
   font-weight: var(--bb-font-weight-medium);
 }
+
+/* Explicit small warning/error treatments; details retain all coverage metadata. */
+.bb-jh-banner.is-warning {
+  padding: 6px 10px;
+  border-left: 3px solid var(--bb-color-notice-warning);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--bb-color-notice-warning) 18%, transparent), transparent), var(--bb-color-notice-background);
+}
+.bb-jh-notifications .bb-jh-banner.is-warning {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--bb-color-notice-warning) 18%, transparent), transparent), var(--bb-color-notice-background);
+}
+.bb-jh-notifications .bb-jh-banner.is-danger {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--bb-color-notice-danger) 18%, transparent), transparent), var(--bb-color-notice-background);
+}
