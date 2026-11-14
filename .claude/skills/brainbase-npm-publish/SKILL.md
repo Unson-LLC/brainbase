@@ -42,7 +42,26 @@ npm pack --dry-run
 git diff --check
 ```
 
-公開候補のread-only検証:
+### マージ前の VERIFY
+
+マージ前の検証依頼では、上の Brainbase checks を対象 PR の exact head で実行する。
+source 変更を含む、または同じ SHA の全体テスト証拠がない場合は `npm test` も実行する。
+公開前証拠の integration test は未公開の候補を対象にできる。
+検証 skill のパスと commit、対象 head、各チェックの結果と証拠を記録する。
+RUNNER_VERIFY の PASS はこの段階のチェックがすべて成功した場合だけ記録する。
+失敗、実行不能、head 不一致は PASS にしない。merge-line の必須条件は変更しない。
+
+`release:validate` の main 到達性、`release:verify` の registry 照合、registry 版の
+fresh install は後続段階で確認する。未マージ・未公開であること自体はマージ前 VERIFY の
+失敗理由にせず、これらを「未実施（マージ後・公開後）」と記録する。
+マージ前の PASS を公開完了やマージの許可と扱わない。
+
+### マージ後・公開後の read-only 検証
+
+マージ後、release SHA が main から到達可能になった段階で `release:validate` を実行する。
+公開後に `release:verify` と Brainbase Convergence を照合する。
+trusted-ref を develop や候補 head へ差し替えて main 到達性の条件を回避しない。
+
 
 ```bash
 npm run release:validate -- \
@@ -57,8 +76,8 @@ npm run release:verify -- --version <version> --sha <full-release-sha>
 ## Required Workflow
 
 1. `npm-package-publish`を読み、このprofileの全keyを渡す。
-2. Brainbase checksとread-only validationをcurrent release SHAで実行する。
-3. PR merge後の`npm-publish.yml`を同じSHAへ結び付けて監視する。
+2. マージ前の依頼では「マージ前の VERIFY」だけを current head で実行し、後続段階を別記する。
+3. マージ・公開が許可された作業では、PR merge後の`npm-publish.yml`と read-only validation を release SHA へ結び付けて監視する。
 4. Brainbase Convergenceを照合し、staging tagを含む部分失敗を残す。
 
 ## Publication Boundary
