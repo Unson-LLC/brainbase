@@ -49,7 +49,7 @@ describe('brainbase web:serve', () => {
         await waitFor(() => output.stdout().includes('終了: Ctrl+C'));
         const origin = /Brainbase: (http:\/\/127\.0\.0\.1:\d+)\//u.exec(output.stdout())?.[1];
         expect(origin).toBeDefined();
-        expect(output.stdout()).toContain(`- 今日（判断の見返し）: ${origin}/#today`);
+        expect(output.stdout()).toContain(`- 判断の履歴: ${origin}/#value-proofs`);
         expect(output.stdout()).toContain(`- 目的と現状: ${origin}/#objectives`);
         expect(output.stdout()).toContain(`- プロジェクトと関係者: ${origin}/#projects`);
         expect(output.stdout()).toContain(`- 情報と関係: ${origin}/#graph`);
@@ -72,6 +72,18 @@ describe('brainbase web:serve', () => {
     const output = capture();
     await expect(runCli(['review:serve', '--dir', directory, '--port', '70000'], output.io)).resolves.toBe(1);
     expect(output.stderr()).toContain('review:serve requires --port');
+  });
+
+  it('refuses the removed organization Graph flags instead of ignoring them, and never starts a server', async () => {
+    for (const args of [['--organization-graph'], ['--organization-web', 'https://org.example.com']]) {
+      const output = capture();
+      await expect(runCli(['web:serve', '--dir', directory, '--port', '0', ...args], output.io)).resolves.toBe(1);
+      expect(output.stderr()).toContain(`${args[0]} was removed; open the organization web`);
+      expect(output.stdout()).not.toContain('Brainbase: http://');
+    }
+    const help = capture();
+    await runCli(['--help'], help.io);
+    expect(help.stdout()).not.toContain('--organization-graph');
   });
 
   it('lists web:serve and keeps review:serve as its alias in the help', async () => {

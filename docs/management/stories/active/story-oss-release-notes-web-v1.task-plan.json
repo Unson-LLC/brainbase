@@ -1,0 +1,170 @@
+{
+  "schema_version": "0.2.0",
+  "repository": "brainbase",
+  "story_id": "story-oss-release-notes-web-v1",
+  "plan_version": "1",
+  "created_at": "2026-10-28",
+  "requirement_ledger": "RQ-139",
+  "intent": {
+    "purpose": "RQ-139: OSS の既存バージョン履歴を正にリリースノート作成を半自動化する",
+    "requirement_ledger": "RQ-139",
+    "approval_reason_id": "01M5ZZ1J2537G5W6536SWF89TT",
+    "approved_at": "2026-10-28T09:37:00+09:00",
+    "approval_scope": "A〜C の登録・実装まで。D 実装・本番配備・外への公開は含まない。今回は文書のみ。",
+    "source_report": "/workspace/logs/release-notes-web/REPORT.md",
+    "supporting_summary": "/workspace/logs/release-notes-web/DIRECTOR-SUMMARY.md",
+    "acceptance_criteria": [
+      "AC-1: PR テンプレに「## リリースノート」と変更概要・互換性・利用者操作の欄を設ける。",
+      "AC-2: PR 本文から追記下書きを生成し、人が確定できる。",
+      "AC-3: docs:check が候補版・公開版・status の既存整合を維持し欠落を検知する。",
+      "AC-4: 公開・配備につながるマージ前に別承認で止める。"
+    ]
+  },
+  "dependencies": [],
+  "execution_policy": {
+    "current_work": "読み取りと文書新規作成のみ",
+    "allowed_paths_base": "brainbase",
+    "production_and_publication": "別承認。公開・配備に至るマージ前に停止する。",
+    "prohibited": [
+      "brainbase-unson の変更",
+      "本番配備・Pages 公開・npm 公開・外への公開（別承認）",
+      "鍵・資格情報の取得、付与、変更、使用（必要なら別承認）",
+      "削除（別承認）",
+      "今回の git push・PR・マージ・デプロイ・外部送信・実装コード作成"
+    ]
+  },
+  "tasks": [
+    {
+      "task_id": "template",
+      "story_id": "story-oss-release-notes-web-v1",
+      "title": "PR テンプレを整備する",
+      "status": "pending",
+      "allowed_paths": [
+        ".github/PULL_REQUEST_TEMPLATE.md",
+        ".github/PULL_REQUEST_TEMPLATE/**"
+      ],
+      "acceptance_criteria": [
+        "AC-1: PR テンプレに「## リリースノート」と変更概要・互換性・利用者操作の欄を設ける。 既存項目を保持する。抽出範囲は当該見出し直下から次の同階層以上の見出しまで。"
+      ],
+      "depends_on": [],
+      "purpose": "PR テンプレを整備する",
+      "out_of_scope": [
+        "VibePro 全移植・post-merge 自動公開",
+        "docs/manual の直接更新・新規公開ページ・配備トリガー変更",
+        "npm リリース処理・版上げ",
+        "brainbase-unson の変更",
+        "本番配備・Pages 公開・npm 公開・外への公開（別承認）",
+        "鍵・資格情報の取得、付与、変更、使用（必要なら別承認）",
+        "削除（別承認）",
+        "今回の git push・PR・マージ・デプロイ・外部送信・実装コード作成"
+      ],
+      "dependencies": [],
+      "contracts": [
+        "実装 PR は develop 向け、または docs/manual を触らず scripts/テンプレ/check のみ。main へのマージで docs/manual が変わると Pages が自動配備される。いずれの構成でもマージ前に配備・公開トリガーを読み、Pages・npm 公開につながるマージは別承認まで停止する。配備 workflow を変更しない。",
+        "事実・設計案・未確認を区別し、本番配備・公開は別承認とする。"
+      ],
+      "assignment": {
+        "capabilities": [
+          "implement",
+          "test"
+        ],
+        "parallel_group": null,
+        "adjustable_scope": []
+      },
+      "integration": {
+        "order": 1,
+        "conflict_owner": "story-oss-release-notes-web-v1"
+      }
+    },
+    {
+      "task_id": "draft",
+      "story_id": "story-oss-release-notes-web-v1",
+      "title": "見出し抽出と追記下書きを実装する",
+      "status": "pending",
+      "allowed_paths": [
+        "scripts/draft-release-notes.mjs",
+        "tests/release-notes-draft.test.mjs"
+      ],
+      "acceptance_criteria": [
+        "AC-2: PR 本文から追記下書きを生成し、人が確定できる。 PR 番号・本文等をローカル入力として受け、標準出力へ下書きを出す。docs/manual を自動更新しない。見出し欠落・空欄は「要確認」とし本文全体へ fallback しない。同じ PR の再実行で同じマーカーを返し、重複を防ぐ。"
+      ],
+      "depends_on": [
+        "template"
+      ],
+      "purpose": "見出し抽出と追記下書きを実装する",
+      "out_of_scope": [
+        "VibePro 全移植・post-merge 自動公開",
+        "docs/manual の直接更新・新規公開ページ・配備トリガー変更",
+        "npm リリース処理・版上げ",
+        "brainbase-unson の変更",
+        "本番配備・Pages 公開・npm 公開・外への公開（別承認）",
+        "鍵・資格情報の取得、付与、変更、使用（必要なら別承認）",
+        "削除（別承認）",
+        "今回の git push・PR・マージ・デプロイ・外部送信・実装コード作成"
+      ],
+      "dependencies": [],
+      "contracts": [
+        "実装 PR は develop 向け、または docs/manual を触らず scripts/テンプレ/check のみ。main へのマージで docs/manual が変わると Pages が自動配備される。いずれの構成でもマージ前に配備・公開トリガーを読み、Pages・npm 公開につながるマージは別承認まで停止する。配備 workflow を変更しない。",
+        "事実・設計案・未確認を区別し、本番配備・公開は別承認とする。"
+      ],
+      "assignment": {
+        "capabilities": [
+          "implement",
+          "test"
+        ],
+        "parallel_group": null,
+        "adjustable_scope": []
+      },
+      "integration": {
+        "order": 2,
+        "conflict_owner": "story-oss-release-notes-web-v1"
+      }
+    },
+    {
+      "task_id": "check",
+      "story_id": "story-oss-release-notes-web-v1",
+      "title": "docs:check と公開ゲートを検証する",
+      "status": "pending",
+      "allowed_paths": [
+        "scripts/check-public-docs.mjs",
+        "tests/public-docs-release-notes.test.mjs",
+        "tests/fixtures/release-notes/**"
+      ],
+      "acceptance_criteria": [
+        "AC-3: docs:check が候補版・公開版・status の既存整合を維持し欠落を検知する。 package.json の版に対応する見出しを検査する既存契約を保つ。正常・見出し欠落・版不整合の fixture で終了コードを検証する。実文書を書き換えて検査を通さない。成功を npm 公開済みの根拠にしない。",
+        "AC-4: 公開・配備につながるマージ前に別承認で止める。 実装差分は scripts・テンプレ・check のみとする。docs/manual、配備 workflow、npm release スクリプト、package version は変更しない。develop 宛てでも将来の main 統合前には Pages・npm 公開ゲートを再確認する。"
+      ],
+      "depends_on": [
+        "draft"
+      ],
+      "purpose": "docs:check と公開ゲートを検証する",
+      "out_of_scope": [
+        "VibePro 全移植・post-merge 自動公開",
+        "docs/manual の直接更新・新規公開ページ・配備トリガー変更",
+        "npm リリース処理・版上げ",
+        "brainbase-unson の変更",
+        "本番配備・Pages 公開・npm 公開・外への公開（別承認）",
+        "鍵・資格情報の取得、付与、変更、使用（必要なら別承認）",
+        "削除（別承認）",
+        "今回の git push・PR・マージ・デプロイ・外部送信・実装コード作成"
+      ],
+      "dependencies": [],
+      "contracts": [
+        "実装 PR は develop 向け、または docs/manual を触らず scripts/テンプレ/check のみ。main へのマージで docs/manual が変わると Pages が自動配備される。いずれの構成でもマージ前に配備・公開トリガーを読み、Pages・npm 公開につながるマージは別承認まで停止する。配備 workflow を変更しない。",
+        "事実・設計案・未確認を区別し、本番配備・公開は別承認とする。"
+      ],
+      "assignment": {
+        "capabilities": [
+          "implement",
+          "test"
+        ],
+        "parallel_group": null,
+        "adjustable_scope": []
+      },
+      "integration": {
+        "order": 3,
+        "conflict_owner": "story-oss-release-notes-web-v1"
+      }
+    }
+  ]
+}

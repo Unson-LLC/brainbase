@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyGraphCorrection, graphRecordDigest } from '../../src/graph-corrections.js';
-import { createGraphProjectsView, GRAPH_PROJECT_LEDGER_COLUMNS, normalizeProjectList } from '../../ui/graph-projects-view.js';
+import { createGraphProjectsView, GRAPH_PROJECT_LEDGER_COLUMNS, normalizeProjectDetail, normalizeProjectList } from '../../ui/graph-projects-view.js';
+import { PROJECT_ICON_MAX_BYTES } from '../../ui/project-icon.js';
 import { EDGES, ENTITIES, FIXTURE_NOW, writeGraphV1, writeGraphV2 } from '../graph-web-fixture.js';
 import {
   buttonsNamed,
@@ -114,7 +115,7 @@ describe('プロジェクトと関係者: workspace', () => {
     expect(shell).toBeDefined();
     expect(findAll(shell, (node) => node.tagName === 'H2')[0].textContent).toBe('Atlas導入');
     expect(collectText(shell)).toContain('プロジェクトの記録を読み込んでいます。');
-    expect(detailReads).toBe(0);
+    expect(detailReads).toBe(1);
 
     listGate.resolve();
     await waitFor(() => detailReads === 1);
@@ -125,6 +126,102 @@ describe('プロジェクトと関係者: workspace', () => {
     expect(byClass(root, 'bb-pkw-loading')).toEqual([]);
     expect(findAll(byClass(root, 'bb-pkw')[0], (node) => node.tagName === 'H2')[0].textContent).toBe('Atlas導入');
     expect(collectText(root)).toContain('導入を完了する');
+  });
+
+  it('holds a prefetched detail until the host list confirms the selected project', async () => {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    const listGate = deferred();
+    const detailGate = deferred();
+    let detailStarted = false;
+    let detailDone = false;
+    const fetcher = async (path, init) => {
+      if (path === '/api/graph/projects') await listGate.promise;
+      if (path === '/api/graph/projects/project-atlas') {
+        detailStarted = true;
+        await detailGate.promise;
+        const response = await api.fetcher(path, init);
+        detailDone = true;
+        return response;
+      }
+      return api.fetcher(path, init);
+    };
+    const root = new FakeElement('div');
+    const view = createGraphProjectsView({
+      root,
+      rail: new FakeElement('div'),
+      page: PAGE,
+      document: new FakeDocument(),
+      fetcher,
+      token: TOKEN,
+      autoLoad: false,
+      selectedId: 'project-atlas',
+      projectSummaries: [{ id: 'project-atlas', name: 'Atlas導入' }],
+    });
+
+    const reading = view.load();
+    await waitFor(() => detailStarted);
+    detailGate.resolve();
+    await waitFor(() => detailDone);
+    expect(view.state.detail).toMatchObject({ id: 'project-atlas', state: 'loading' });
+    expect(collectText(root)).not.toContain('導入を完了する');
+
+    listGate.resolve();
+    await reading;
+    expect(view.state.detail).toMatchObject({ id: 'project-atlas', state: 'ok' });
+    expect(collectText(root)).toContain('導入を完了する');
+  });
+
+  it('cancels an unconfirmed initial gate when selection changes back to the same project', async () => {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    const listGate = deferred();
+    const atlasGates = [deferred(), deferred()];
+    let atlasReads = 0;
+    const fetcher = async (path, init) => {
+      if (path === '/api/graph/projects') await listGate.promise;
+      if (path === '/api/graph/projects/project-atlas') {
+        const gate = atlasGates[atlasReads++];
+        await gate.promise;
+      }
+      return api.fetcher(path, init);
+    };
+    const view = createGraphProjectsView({
+      root: new FakeElement('div'),
+      rail: new FakeElement('div'),
+      page: PAGE,
+      document: new FakeDocument(),
+      fetcher,
+      token: TOKEN,
+      autoLoad: false,
+      selectedId: 'project-atlas',
+      projectSummaries: [
+        { id: 'project-atlas', name: 'Atlas導入' },
+        { id: 'project-beta', name: 'Beta検証' },
+      ],
+    });
+
+    let initialDone = false;
+    const initial = view.load().then(() => { initialDone = true; });
+    await waitFor(() => atlasReads === 1);
+
+    const betaReading = view.select('project-beta');
+    await betaReading;
+    const atlasAgain = view.select('project-atlas');
+    await waitFor(() => atlasReads === 2);
+    atlasGates[1].resolve();
+    await atlasAgain;
+    expect(view.state.selectedId).toBe('project-atlas');
+    expect(view.state.detail).toMatchObject({ id: 'project-atlas', state: 'ok' });
+
+    listGate.resolve();
+    await waitFor(() => initialDone);
+    expect(initialDone).toBe(true);
+
+    // Release the stale prefetched read only after the list load has settled;
+    // the new selection must not remain coupled to that old request.
+    atlasGates[0].resolve();
+    await initial;
   });
 
   it('shows resolved context sections while Graph detail is pending, then keeps the graph tab during final context arrival', async () => {
@@ -165,6 +262,7 @@ describe('プロジェクトと関係者: workspace', () => {
 
     const reading = view.load();
     await waitFor(() => typeof progressContext === 'function');
+    await waitFor(() => view.state.list.state === 'ok');
     expect(collectText(root)).toContain('タスク1件取得済み');
     expect(byClass(root, 'bb-pkw-skeleton-bar').length).toBeGreaterThan(0);
     expect(findAll(root, (node) => node.attributes['aria-busy'] === 'true').length).toBeGreaterThan(0);
@@ -431,7 +529,7 @@ describe('プロジェクトと関係者: workspace', () => {
     });
 
     await view.load();
-    expect(detailReads).toBe(0);
+    expect(detailReads).toBe(1);
     expect(collectText(rail)).toContain('読み取り失敗');
     expect(collectText(rail)).toContain('一覧が利用できません');
     expect(collectText(rail)).not.toContain('読み込み中');
@@ -649,6 +747,176 @@ describe('プロジェクトと関係者: states', () => {
     expect(normalizeProjectList({ state: 'ok', payload: { projects: [], absenceConfirmed: true } })).toMatchObject({ state: 'ok' });
   });
 
+  describe('関係者の不在確認と取得状態', () => {
+    const project = {
+      id: 'project-x', type: 'project', name: 'X', aliases: [], summary: null, tags: [], validFrom: null, validTo: null,
+      active: true, digest: 'sha256:project-x', goal: 'g', status: '進行中', decisionPrinciples: [], metadata: {},
+      participantCount: 2, accountableCount: 1, people: [{ id: 'person-x', name: 'Xさん', accountable: true }],
+    };
+    const edge = {
+      id: 'edge-x', type: 'edge', fromId: 'person-x', toId: 'project-x', relation: 'accountable_for', direction: 'incoming',
+      counterpart: { id: 'person-x', type: 'person', name: 'Xさん', active: true }, role: '責任者', context: null,
+      validFrom: null, validTo: null, active: true, digest: 'sha256:edge-x', provenance: { reference: { sourceKind: 'fixture', sourceId: 'edge-x' } },
+    };
+    const source = { dataDir: '/data', graphFormat: 2, authority: 'local_preview' };
+    const payload = (detail = {}) => ({ status: 'ok', source, asOf: '2026-10-10T00:00:00Z', project, participants: [], relations: [], history: [], issues: [], ...detail });
+    const response = (detail) => async (path) => path.endsWith('/projects')
+      ? jsonResponse(200, { status: 'ok', source, asOf: '2026-10-10T00:00:00Z', projects: [project], absenceConfirmed: false })
+      : jsonResponse(200, payload(detail));
+
+    it('fails before the patch: unavailable plus an empty array must not become 登録なし', async () => {
+      const root = new FakeElement('div');
+      const rail = new FakeElement('div');
+      const view = createGraphProjectsView({ root, rail, document: new FakeDocument(), fetcher: response({ participants_status: 'unavailable', participants_unavailable_reason: 'Graphの関係エッジが未提供です。' }), autoLoad: false });
+      await view.load();
+      expect(collectText(rail)).not.toContain('まだ関係者の登録がありません');
+      expect(collectText(rail)).toContain('Graphの関係エッジが未提供です');
+      expect(buttonsNamed(rail, '再試行')[0]).toBeDefined();
+    });
+
+    it('fails before the patch: known rows remain visible while partial state explains the missing remainder', async () => {
+      const root = new FakeElement('div');
+      const rail = new FakeElement('div');
+      const view = createGraphProjectsView({ root, rail, document: new FakeDocument(), fetcher: response({ participants_status: 'partial', participants: [edge], participants_unavailable_reason: '一部の関係エッジを取得できません。' }), autoLoad: false });
+      await view.load();
+      expect(collectText(rail)).toContain('Xさん');
+      expect(collectText(rail)).toContain('一部の関係エッジを取得できません');
+      expect(collectText(rail)).not.toContain('まだ関係者の登録がありません');
+    });
+
+    it('fails before the patch: empty is reserved for the dedicated participant flag', async () => {
+      expect(normalizeProjectDetail({ state: 'ok', payload: payload({ participantsStatus: 'unknown' }) }).payload.participantStatus).toBe('unknown');
+      expect(normalizeProjectDetail({ state: 'ok', payload: payload({ participants_status: 'empty', participants: [] }) }).payload.participantStatus).toBe('empty');
+      expect(normalizeProjectDetail({ state: 'ok', payload: payload({ participants_status: 'unavailable', participantsStatus: 'unknown' }) })).toMatchObject({ state: 'invalid' });
+      expect(normalizeProjectDetail({ state: 'ok', payload: payload({ participants_status: 'never-a-status' }) })).toMatchObject({ state: 'invalid' });
+      const confirmed = normalizeProjectDetail({ state: 'ok', payload: payload({
+        participants_absence_confirmed: true,
+      }) });
+      expect(confirmed).toMatchObject({ state: 'ok', payload: { participantAbsenceConfirmed: true } });
+    });
+
+    it('fails before the patch: count or named people conflicts remain a discrepancy', async () => {
+      const root = new FakeElement('div');
+      const rail = new FakeElement('div');
+      const view = createGraphProjectsView({ root, rail, document: new FakeDocument(), fetcher: response({ participants_status: 'unavailable' }), autoLoad: false });
+      await view.load();
+      const text = collectText(rail);
+      expect(text).toContain('件数が一致しません');
+      expect(text).not.toContain('まだ関係者の登録がありません');
+    });
+
+    it('accepts a complete local Graph v2 empty response as a confirmed empty state', async () => {
+      const completeSource = { dataDir: '/data', graphFormat: 2, authority: 'local_graph' };
+      const root = new FakeElement('div');
+      const rail = new FakeElement('div');
+      const view = createGraphProjectsView({ root, rail, document: new FakeDocument(), fetcher: async (path) => path.endsWith('/projects')
+        ? jsonResponse(200, { status: 'ok', source: completeSource, asOf: '2026-10-10T00:00:00Z', projects: [project], absenceConfirmed: false })
+        : jsonResponse(200, { ...payload({ source: completeSource, project: { ...project, participantCount: 0, accountableCount: 0, people: [] }, participants: [], issues: [], participants_absence_confirmed: true }) }), autoLoad: false });
+      await view.load();
+      expect(collectText(rail)).toContain('まだ関係者の登録がありません');
+    });
+
+    it('does not let generic project absence or an empty status override unavailable data', async () => {
+      const root = new FakeElement('div');
+      const rail = new FakeElement('div');
+      const view = createGraphProjectsView({ root, rail, document: new FakeDocument(), fetcher: response({
+        participants_status: 'unavailable',
+        absenceConfirmed: true,
+        participants_unavailable_reason: 'Graphの関係エッジが未提供です。',
+      }), autoLoad: false });
+      await view.load();
+      expect(collectText(rail)).toContain('Graphの関係エッジが未提供です');
+      expect(collectText(rail)).not.toContain('まだ関係者の登録がありません');
+    });
+
+    it('keeps known rows when an empty status contradicts a non-empty participant array', async () => {
+      const root = new FakeElement('div');
+      const rail = new FakeElement('div');
+      const view = createGraphProjectsView({ root, rail, document: new FakeDocument(), fetcher: response({
+        participants_status: 'empty', participants: [edge], participants_absence_confirmed: false,
+      }), autoLoad: false });
+      await view.load();
+      expect(collectText(rail)).toContain('Xさん');
+      expect(collectText(rail)).toContain('取得した関係者と件数が一致しません');
+      expect(collectText(rail)).not.toContain('まだ関係者の登録がありません');
+    });
+
+    it('keeps known rows when the dedicated absence flag contradicts a non-empty participant array', async () => {
+      const root = new FakeElement('div');
+      const rail = new FakeElement('div');
+      const view = createGraphProjectsView({ root, rail, document: new FakeDocument(), fetcher: response({
+        participants_status: 'available', participants: [edge], participants_absence_confirmed: true,
+      }), autoLoad: false });
+      await view.load();
+      const text = collectText(rail);
+      expect(text).toContain('Xさん');
+      expect(text).toContain('取得した関係者と件数が一致しません');
+      expect(text).toContain('確認済みの件数: 関係者2人、責任者1人');
+      expect(text).not.toContain('まだ関係者の登録がありません');
+    });
+
+    it('retries an unavailable participant read through the actual button and renders the returned row', async () => {
+      let reads = 0;
+      const root = new FakeElement('div');
+      const rail = new FakeElement('div');
+      const view = createGraphProjectsView({ root, rail, document: new FakeDocument(), fetcher: async (path) => {
+        if (path.endsWith('/projects')) return jsonResponse(200, { status: 'ok', source, asOf: '2026-10-10T00:00:00Z', projects: [project], absenceConfirmed: false });
+        reads += 1;
+        return jsonResponse(200, payload(reads === 1
+          ? { participants_status: 'unavailable', participants_unavailable_reason: '一時的にGraphを読めません。' }
+          : { participants_status: 'available', participants: [edge] }));
+      }, autoLoad: false });
+      await view.load();
+      const retry = buttonsNamed(rail, '再試行')[0];
+      expect(retry).toBeDefined();
+      await retry.dispatch('click');
+      expect(reads).toBe(2);
+      expect(collectText(rail)).toContain('Xさん');
+      expect(collectText(rail)).not.toContain('一時的にGraphを読めません');
+    });
+
+    it('does not let a stale retry button reload the newly selected project', async () => {
+      await writeGraphV2(dataDir);
+      api = await startGraphApi(dataDir);
+      let atlasReads = 0;
+      const fetcher = async (path, init) => {
+        if (path === '/api/graph/projects/project-atlas' && ++atlasReads === 1) {
+          const response = await api.fetcher(path, init);
+          const body = await response.json();
+          return jsonResponse(200, {
+            ...body,
+            participants_status: 'unavailable',
+            participants_unavailable_reason: '一時的に関係者を読み取れません。',
+          });
+        }
+        return api.fetcher(path, init);
+      };
+      const root = new FakeElement('div');
+      const rail = new FakeElement('div');
+      const view = createGraphProjectsView({
+        root,
+        rail,
+        page: PAGE,
+        document: new FakeDocument(),
+        fetcher,
+        token: TOKEN,
+        autoLoad: false,
+      });
+
+      await view.load();
+      const staleRetry = buttonsNamed(rail, '再試行')[0];
+      expect(staleRetry).toBeDefined();
+
+      await view.select('project-beta');
+      expect(view.state.selectedId).toBe('project-beta');
+      const requestsAfterSelection = api.requests.length;
+
+      await staleRetry.dispatch('click');
+      expect(api.requests.length).toBe(requestsAfterSelection);
+      expect(view.state.selectedId).toBe('project-beta');
+    });
+  });
+
   it('shows the 関係者 count as 未確認, not zero, when the host does not name the people', async () => {
     const project = {
       id: 'project-x', type: 'project', name: 'X', aliases: [], summary: null, tags: [], validFrom: null, validTo: null,
@@ -840,6 +1108,154 @@ describe('プロジェクトと関係者: corrections in the rail', () => {
     // No longer 進行中.
     expect(metricValues(root)).toEqual(['1', '0', '2']);
     expect(ledgerRow(root, 'project-atlas').className).toContain('is-selected');
+  });
+
+  it('updates the project correction subject from the saved name read back for the same id', async () => {
+    await writeGraphV2(dataDir);
+    const { rail } = await mountView();
+    buttonsNamed(rail, 'プロジェクトを直す')[0].dispatch('click');
+    type(rail, 'name', 'Atlas導入（更新後）');
+    type(rail, 'reason', '表示名を現在の名称にそろえる。');
+    await submit(rail);
+
+    const panel = collectText(section(rail, 'プロジェクトを直す'));
+    expect(panel).toContain('プロジェクト「Atlas導入（更新後）」の名前・目的・状態・アイコン');
+    expect(panel).not.toContain('プロジェクト「Atlas導入」の名前・目的・状態・アイコン');
+    expect(panel).toContain('読み直した内容名前Atlas導入（更新後）');
+  });
+
+  it('registers, previews, removes and reads back a project icon through the correction form', async () => {
+    await writeGraphV2(dataDir);
+    const { root, rail, view } = await mountView();
+    buttonsNamed(rail, 'プロジェクトを直す')[0].dispatch('click');
+    const input = control(rail, 'icon');
+    expect(input.attributes.accept).toBe('image/png,image/jpeg,image/webp');
+    expect(byClass(rail, 'bb-project-icon').some((node) => node.className.includes('is-unregistered'))).toBe(true);
+
+    const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    input.files = [{ size: pngBytes.byteLength, type: 'image/png', arrayBuffer: async () => pngBytes.buffer }];
+    await input.dispatch('change', { target: input });
+    const icon = 'data:image/png;base64,iVBORw0KGgo=';
+    await waitFor(() => view.correction.form?.draft.icon === icon);
+    expect(byClass(rail, 'bb-project-icon').some((node) => node.className.includes('is-registered'))).toBe(true);
+    expect(visibleText(rail)).not.toContain(icon);
+    type(rail, 'reason', '一覧で見分けやすくする。');
+    await submit(rail);
+    const [registerPost] = api.posts();
+    expect(registerPost.body.changes).toEqual({ icon });
+    await waitFor(() => view.state.detail.payload.project.icon === icon);
+    expect(collectText(section(rail, 'プロジェクトを直す'))).toContain('PNG');
+    expect(visibleText(rail)).not.toContain(icon);
+
+    buttonsNamed(rail, '閉じる')[0].dispatch('click');
+    buttonsNamed(rail, 'プロジェクトを直す')[0].dispatch('click');
+    expect(buttonsNamed(rail, 'アイコンを外す')).toHaveLength(1);
+    buttonsNamed(rail, 'アイコンを外す')[0].dispatch('click');
+    expect(view.correction.form.draft.icon).toBeNull();
+    expect(byClass(rail, 'bb-project-icon').some((node) => node.className.includes('is-unregistered'))).toBe(true);
+    type(rail, 'reason', '既定のアイコンに戻す。');
+    await submit(rail);
+    const posts = api.posts();
+    expect(posts[1].body.changes).toEqual({ icon: null });
+    await waitFor(() => view.state.detail.payload.project.icon === null);
+    expect(await history()).toHaveLength(2);
+    expect(visibleText(rail)).not.toContain(icon);
+    expect(collectText(root)).toContain('未登録');
+  });
+
+  it('rejects an oversized file before reading and ignores stale icon reads after a later selection or cancellation', async () => {
+    await writeGraphV2(dataDir);
+    const { rail, view } = await mountView();
+    buttonsNamed(rail, 'プロジェクトを直す')[0].dispatch('click');
+    const input = control(rail, 'icon');
+    let oversizedRead = false;
+    input.files = [{ size: PROJECT_ICON_MAX_BYTES + 1, arrayBuffer: async () => { oversizedRead = true; return new ArrayBuffer(0); } }];
+    await input.dispatch('change', { target: input });
+    expect(oversizedRead).toBe(false);
+    expect(view.correction.form.draft.icon).toBe('');
+    expect(visibleText(rail)).toContain('アイコンは256KiB以下にしてください。');
+
+    let unsupportedTypeRead = false;
+    input.files = [{ size: 1, type: 'text/plain', arrayBuffer: async () => { unsupportedTypeRead = true; return new ArrayBuffer(0); } }];
+    await input.dispatch('change', { target: input });
+    expect(unsupportedTypeRead).toBe(false);
+    expect(visibleText(rail)).toContain('アイコンはPNG、JPEG、WebPの画像を選んでください。');
+    expect(buttonsNamed(rail, '保存する')[0].attributes.disabled).toBe('');
+    const invalidSubmit = await view.correction.submit();
+    expect(invalidSubmit.phase).toBe('editing');
+    expect(api.posts()).toHaveLength(0);
+    expect(visibleText(rail)).toContain('アイコンはPNG、JPEG、WebPの画像を選んでください。');
+    const cancelledInvalidInput = control(rail, 'icon');
+    cancelledInvalidInput.files = [];
+    await cancelledInvalidInput.dispatch('change', { target: cancelledInvalidInput });
+    expect(view.correction.form.fieldErrors.icon).toBeNull();
+    expect(buttonsNamed(rail, '保存する')[0].attributes.disabled).toBeUndefined();
+
+    const failedInput = control(rail, 'icon');
+    failedInput.files = [{ size: 8, type: 'image/png', arrayBuffer: async () => { throw new Error('read failed'); } }];
+    await failedInput.dispatch('change', { target: failedInput });
+    expect(view.correction.form.fieldErrors.icon).toBe('read failed');
+    expect(buttonsNamed(rail, '保存する')[0].attributes.disabled).toBe('');
+    type(rail, 'goal', '読み込み失敗後も保存させない。');
+    type(rail, 'reason', '画像の読み込み失敗を確認する。');
+    const failedSubmit = await view.correction.submit();
+    expect(failedSubmit.phase).toBe('editing');
+    expect(api.posts()).toHaveLength(0);
+    expect(visibleText(rail)).toContain('read failed');
+
+    const first = deferred();
+    const firstBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const staleInput = control(rail, 'icon');
+    staleInput.files = [{ size: firstBytes.byteLength, type: 'image/png', arrayBuffer: () => first.promise }];
+    const staleRead = staleInput.dispatch('change', { target: staleInput });
+    await waitFor(() => view.correction.form?.iconReadPending === true);
+    expect(buttonsNamed(rail, 'アイコンを読み込んでいます')).toHaveLength(1);
+    expect(buttonsNamed(rail, 'アイコンを読み込んでいます')[0].attributes.disabled).toBe('');
+    const guarded = await view.correction.submit();
+    expect(guarded.phase).toBe('editing');
+    expect(api.posts()).toHaveLength(0);
+    expect(visibleText(rail)).toContain('アイコンを読み込んでいます。読み込みが終わってから保存してください。');
+    const secondBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
+    const secondInput = control(rail, 'icon');
+    secondInput.files = [{ size: secondBytes.byteLength, type: 'image/png', arrayBuffer: async () => secondBytes.buffer }];
+    await secondInput.dispatch('change', { target: secondInput });
+    const secondIcon = `data:image/png;base64,${btoa(String.fromCharCode(...secondBytes))}`;
+    await waitFor(() => view.correction.form?.draft.icon === secondIcon);
+    expect(view.correction.form.iconReadPending).toBe(false);
+    expect(buttonsNamed(rail, '保存する')).toHaveLength(1);
+    expect(buttonsNamed(rail, '保存する')[0].attributes.disabled).toBeUndefined();
+    first.resolve(firstBytes.buffer);
+    await staleRead;
+    expect(view.correction.form.draft.icon).toBe(secondIcon);
+
+    const pending = deferred();
+    const pendingInput = control(rail, 'icon');
+    pendingInput.files = [{ size: firstBytes.byteLength, type: 'image/png', arrayBuffer: () => pending.promise }];
+    const pendingRead = pendingInput.dispatch('change', { target: pendingInput });
+    await waitFor(() => view.correction.form?.iconReadPending === true);
+    buttonsNamed(rail, 'アイコンを外す')[0].dispatch('click');
+    expect(view.correction.form.iconReadPending).toBe(false);
+    expect(view.correction.form.draft.icon).toBeNull();
+    pending.resolve(firstBytes.buffer);
+    await pendingRead;
+    expect(view.correction.form.draft.icon).toBeNull();
+
+    const restoredInput = control(rail, 'icon');
+    restoredInput.files = [{ size: secondBytes.byteLength, type: 'image/png', arrayBuffer: async () => secondBytes.buffer }];
+    await restoredInput.dispatch('change', { target: restoredInput });
+    await waitFor(() => view.correction.form?.draft.icon === secondIcon);
+
+    const cancelled = deferred();
+    const cancelInput = control(rail, 'icon');
+    cancelInput.files = [{ size: firstBytes.byteLength, type: 'image/png', arrayBuffer: () => cancelled.promise }];
+    const cancelledRead = cancelInput.dispatch('change', { target: cancelInput });
+    await waitFor(() => view.correction.form?.iconReadPending === true);
+    cancelInput.files = [];
+    await cancelInput.dispatch('change', { target: cancelInput });
+    expect(view.correction.form.iconReadPending).toBe(false);
+    cancelled.resolve(firstBytes.buffer);
+    await cancelledRead;
+    expect(view.correction.form.draft.icon).toBe(secondIcon);
   });
 
   it('says there is nothing to save when nothing changed', async () => {
@@ -1126,7 +1542,7 @@ describe('プロジェクトと関係者: host extensions', () => {
     await writeGraphV2(dataDir);
     const { rail } = await mountView({ renderRailExtensions: () => { throw new Error('欄が壊れています'); } });
     const notice = byClass(rail, 'bb-ws-notice').find((node) => node.className.includes('is-danger'));
-    expect(collectText(notice)).toBe('表示できませんホストが加えた欄を表示できませんでした（欄が壊れています）。');
+    expect(collectText(notice)).toBe('エラー：表示できませんホストが加えた欄を表示できませんでした（欄が壊れています）。');
     expect(section(rail, '概要')).toBeDefined();
     expect(participantItem(rail, '田中 太郎')).toBeDefined();
     await api.close();
@@ -1141,7 +1557,10 @@ describe('プロジェクトと関係者: host extensions', () => {
     const { root, rail, view } = await mountView({ selectedId: 'project-beta', onSelect: (id) => selected.push(id) });
     expect(railHead(rail)).toBe('プロジェクトBeta検証project-beta');
     expect(ledgerRow(root, 'project-beta').className).toContain('is-selected');
-    expect(api.requests.map((request) => request.path)).toEqual(['/api/graph/projects', '/api/graph/projects/project-beta']);
+    const initialRequests = api.requests.map((request) => request.path);
+    expect(initialRequests).toHaveLength(2);
+    expect(initialRequests).toContain('/api/graph/projects');
+    expect(initialRequests).toContain('/api/graph/projects/project-beta');
     expect(selected).toEqual([]);
 
     ledgerRow(root, 'project-atlas').dispatch('click');
@@ -1160,13 +1579,123 @@ describe('プロジェクトと関係者: host extensions', () => {
     expect(section(rail, 'プロジェクトを直す')).toBeDefined();
   });
 
-  it('selects the first project when the host asks for one that is not listed, and says so', async () => {
+  it('keeps an explicitly requested project when it is not listed and shows not found', async () => {
     await writeGraphV2(dataDir);
     const selected = [];
-    const { rail } = await mountView({ selectedId: 'project-gone', onSelect: (id) => selected.push(id) });
-    expect(railHead(rail)).toBe('プロジェクトAtlas導入project-atlas');
-    expect(selected).toEqual(['project-atlas']);
-    expect(api.requests.map((request) => request.path)).toEqual(['/api/graph/projects', '/api/graph/projects/project-atlas']);
+    const { rail, view } = await mountView({ selectedId: 'project-gone', onSelect: (id) => selected.push(id) });
+    expect(view.state.selectedId).toBe('project-gone');
+    expect(view.state.detail).toMatchObject({ id: 'project-gone', state: 'not_found' });
+    expect(railHead(rail)).toBe('プロジェクトproject-goneproject-gone');
+    expect(collectText(rail)).toContain('このプロジェクトは一覧から見つかりません');
+    expect(selected).toEqual([]);
+    const initialRequests = api.requests.map((request) => request.path);
+    expect(initialRequests).toHaveLength(2);
+    expect(initialRequests).toContain('/api/graph/projects');
+    expect(initialRequests).toContain('/api/graph/projects/project-gone');
+  });
+
+  it('keeps the selected project when a refreshed list no longer contains it', async () => {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    let listReads = 0;
+    const fetcher = async (path, init) => {
+      const response = await api.fetcher(path, init);
+      if (path !== '/api/graph/projects' || ++listReads !== 2) return response;
+      const payload = await response.json();
+      return jsonResponse(200, { ...payload, projects: payload.projects.filter((project) => project.id !== 'project-atlas') });
+    };
+    const selected = [];
+    const root = new FakeElement('div');
+    const rail = new FakeElement('div');
+    const view = createGraphProjectsView({
+      root,
+      rail,
+      page: PAGE,
+      document: new FakeDocument(),
+      fetcher,
+      token: TOKEN,
+      autoLoad: false,
+      selectedId: 'project-atlas',
+      onSelect: (id) => selected.push(id),
+    });
+
+    await view.load();
+    expect(view.state.detail?.state).toBe('ok');
+    const requestCountBeforeRefresh = api.requests.length;
+    await view.load({ keep: true });
+
+    expect(view.state.selectedId).toBe('project-atlas');
+    expect(view.state.detail).toMatchObject({ id: 'project-atlas', state: 'not_found' });
+    expect(selected).toEqual([]);
+    expect(api.requests.slice(requestCountBeforeRefresh).map((request) => request.path)).toEqual(['/api/graph/projects']);
+    expect(collectText(rail)).toContain('このプロジェクトは一覧から見つかりません');
+
+    const requestCountBeforeRestore = api.requests.length;
+    await view.load({ keep: true });
+    expect(view.state.selectedId).toBe('project-atlas');
+    expect(view.state.detail?.state).toBe('ok');
+    expect(api.requests.slice(requestCountBeforeRestore).map((request) => request.path)).toEqual([
+      '/api/graph/projects',
+      '/api/graph/projects/project-atlas',
+    ]);
+  });
+
+  it('does not let a pending detail read overwrite not found after the selected project disappears', async () => {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    const detailGate = deferred();
+    const firstListGate = deferred();
+    let detailStarted = false;
+    let firstListReturned = false;
+    let listReads = 0;
+    const fetcher = async (path, init) => {
+      if (path === '/api/graph/projects') {
+        // Count before the read. Two loads can be in flight together, and
+        // incrementing after the response lets the refresh see the full list
+        // and wait on the still-gated detail.
+        listReads += 1;
+        const read = listReads;
+        if (read === 1) await firstListGate.promise;
+        const response = await api.fetcher(path, init);
+        if (read === 1) firstListReturned = true;
+        if (read !== 1) {
+          const payload = await response.json();
+          return jsonResponse(200, { ...payload, projects: payload.projects.filter((project) => project.id !== 'project-atlas') });
+        }
+        return response;
+      }
+      if (path === '/api/graph/projects/project-atlas') {
+        detailStarted = true;
+        await detailGate.promise;
+      }
+      return api.fetcher(path, init);
+    };
+    const root = new FakeElement('div');
+    const rail = new FakeElement('div');
+    const view = createGraphProjectsView({
+      root,
+      rail,
+      page: PAGE,
+      document: new FakeDocument(),
+      fetcher,
+      token: TOKEN,
+      autoLoad: false,
+      selectedId: 'project-atlas',
+    });
+
+    const initial = view.load();
+    await waitFor(() => detailStarted);
+    firstListGate.resolve();
+    // The first load must apply the full list and park on the detail read
+    // before the refresh. waitFor wakes on a timer, after that apply.
+    await waitFor(() => firstListReturned);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await view.load({ keep: true });
+    expect(view.state.detail).toMatchObject({ id: 'project-atlas', state: 'not_found' });
+
+    detailGate.resolve();
+    await initial;
+    expect(view.state.detail).toMatchObject({ id: 'project-atlas', state: 'not_found' });
   });
 
   it('gives the knowledge graph the first viewport by collapsing legacy chrome and the rail', async () => {

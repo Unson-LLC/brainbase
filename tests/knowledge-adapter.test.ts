@@ -16,13 +16,16 @@ import type { DecisionAdapterConditions, DecisionAdapterContext } from '../src/d
 import { initializePersonalOs, mutatePersonalOs } from '../src/ssot.js';
 
 const dataDirs: string[] = [];
+const TEST_TMP_ROOT = process.env.BRAINBASE_TEST_FIXTURE_ROOT ?? tmpdir();
 
 afterEach(async () => {
-  await Promise.all(dataDirs.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
+  for (const directory of dataDirs.splice(0)) {
+    await rm(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+  }
 });
 
 async function makeDataDir(): Promise<string> {
-  const directory = await mkdtemp(join(tmpdir(), 'brainbase-knowledge-adapter-'));
+  const directory = await mkdtemp(join(TEST_TMP_ROOT, 'brainbase-knowledge-adapter-'));
   dataDirs.push(directory);
   await initializePersonalOs(directory);
   return directory;
@@ -204,7 +207,7 @@ describe('KnowledgeConditionReferenceAdapter', () => {
 
     expect(routeCalls).toContain('fallback:meeting_bridge_event');
     expect(routeCalls.filter((call) => call === 'primary:meeting_bridge_event')).toHaveLength(3);
-  });
+  }, 15_000);
 
   it('preserves a v1 adoption locator without reinterpreting it as a v2 locator', async () => {
     const dataDir = await makeDataDir();

@@ -1,5 +1,7 @@
+@import './native-scrollbars.css';
+@import './area-nav.css';
 /*
- * Shell of the local Web host, in the organization edition's layout: a dark
+ * Shell of the local Web host, in the organization edition's layout: a white
  * left rail (brand, navigation, source) and a paper workspace. Uses only the
  * shared tokens in brainbase-tokens.css.
  */
@@ -51,35 +53,37 @@ body {
   flex-direction: column;
   overflow: auto;
   border-right: 1px solid var(--bb-color-rail-border);
-  padding: 28px 12px 12px;
+  padding: 18px 12px 14px;
   background: var(--bb-color-rail);
   color: var(--bb-color-rail-text);
 }
 
 .bb-shell-brand {
-  padding: 0 12px 28px;
+  padding: 0 10px 22px;
   color: var(--bb-color-rail-strong);
-  font-size: 24px;
-  font-weight: 780;
+  font-size: 19px;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1;
   letter-spacing: -.035em;
 }
 
+/* The menu fills the rail so that 設定 sits at its bottom (ledger D10). */
 .bb-shell-nav {
-  display: grid;
-  gap: 4px;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .bb-shell-nav-link {
-  min-height: 42px;
+  min-height: 38px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  border-radius: 8px;
-  padding: 0 12px;
-  color: var(--bb-color-rail-text);
+  gap: 11px;
+  border-radius: 7px;
+  padding: 0 10px;
+  color: var(--bb-color-rail-muted);
   font-size: 13px;
-  font-weight: 620;
+  font-weight: var(--bb-font-weight-medium);
   text-decoration: none;
 }
 
@@ -90,8 +94,9 @@ body {
 
 .bb-shell-nav-link[aria-current="page"] {
   background: var(--bb-color-rail-active);
-  color: var(--bb-color-rail-strong);
-  box-shadow: inset 3px 0 var(--bb-color-accent);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
+  color: var(--bb-color-accent);
+  box-shadow: none;
 }
 
 .bb-shell-icon {
@@ -123,7 +128,7 @@ body {
 .bb-shell-fact-label {
   color: var(--bb-color-rail-muted);
   font-size: 10px;
-  font-weight: 620;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-shell-fact-value {
@@ -137,9 +142,12 @@ body {
   font-size: 11px;
 }
 
-.bb-shell-fact.is-warning .bb-shell-fact-value,
+.bb-shell-fact.is-warning .bb-shell-fact-value {
+  color: var(--bb-color-warning);
+}
+
 .bb-shell-source .is-danger {
-  color: var(--bb-color-warning-soft);
+  color: var(--bb-color-danger);
 }
 
 .bb-shell-source .bb-shell-link-button {
@@ -150,7 +158,7 @@ body {
 
 /* Right detail rail (the organization edition's decision rail) */
 .bb-shell.has-rail {
-  grid-template-columns: 240px minmax(0, 1fr) 380px;
+  grid-template-columns: 240px minmax(0, 1fr) 360px;
 }
 
 .bb-shell-rail {
@@ -160,8 +168,9 @@ body {
   min-width: 0;
   overflow: auto;
   border-left: 1px solid var(--bb-color-border);
-  padding: 44px 30px 48px;
+  padding: 28px 22px 36px;
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-shell-rail[hidden],
@@ -194,7 +203,7 @@ body {
   max-width: 1440px;
   min-width: 0;
   margin: 0 auto;
-  padding: 40px 48px 72px;
+  padding: 20px 24px 52px;
 }
 
 .bb-shell-objectives,
@@ -225,6 +234,7 @@ body {
   border-left: 3px solid var(--bb-color-warning);
   padding: var(--bb-space-5);
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-shell-gate h2,
@@ -269,7 +279,7 @@ body {
   background: var(--bb-color-panel);
   color: var(--bb-color-ink);
   font-size: 13px;
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
   cursor: pointer;
 }
 
@@ -330,7 +340,7 @@ body {
     left: 0;
     width: min(300px, 88vw);
     transform: translateX(-100%);
-    transition: transform .2s ease;
+    transition: transform .2s var(--bb-ease-drawer, cubic-bezier(0.32, 0.72, 0, 1));
   }
 
   .bb-shell-sidebar.is-open {
@@ -366,7 +376,7 @@ body {
     padding: 6px 12px;
     background: var(--bb-color-panel);
     color: var(--bb-color-ink);
-    font-weight: 680;
+    font-weight: var(--bb-font-weight-medium);
     cursor: pointer;
   }
 

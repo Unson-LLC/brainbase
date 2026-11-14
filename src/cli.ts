@@ -13,7 +13,7 @@ import {
 } from './personal-memory-handover.js';
 import { constants, realpathSync } from 'node:fs';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { delimiter, dirname, isAbsolute, join } from 'node:path';
+import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initializePersonalOs, loadPersonalOs, migrateCanonicalGraph, mutatePersonalOs } from './ssot.js';
 import { diagnoseGraph, type GraphDiagnosis } from './graph-diagnosis.js';
@@ -62,6 +62,7 @@ import { renderGuidedFirstRun, type GuidedTarget } from './guided-onboarding.js'
 import { blockedJudgmentOutput, processJudgmentHook, type JudgmentAutonomyMode, type JudgmentHookPayload } from './judgment-host.js';
 import { applyCanonicalWrites, buildCanonicalEdge } from './canonical-edge-builder.js';
 import { defaultJudgmentJournalRoot } from './judgment-value-proof-review.js';
+import { createWorldExtension, readWorldVocabulary } from './world-extension.js';
 import { createLocalWebHost, LOCAL_WEB_DEFAULT_PORT } from './local-web-host.js';
 import type { CanonicalEntity, DecisionRecord, PersonalKgEntry, PersonalOs, RelationshipRecord } from './types.js';
 
@@ -1150,7 +1151,23 @@ async function webServe(parsed: ParsedArgs, io: CliIo, command: string): Promise
   if (!Number.isInteger(port) || port < 0 || port > 65535) {
     throw new Error(`${command} requires --port to be an integer between 0 and 65535`);
   }
-  const { server } = createLocalWebHost({ dataDir, journalRoot });
+  // World view (ledger P17): the businesses as a city above the home. Off unless the flag is given.
+  const world = parsed.flags.has('world');
+  // The owner's words for project kinds and statuses (labels, buildings, lifecycle phases).
+  const worldVocabularyPath = first(parsed, 'world-vocabulary');
+  if (worldVocabularyPath !== undefined && !world) throw new Error(`${command} --world-vocabulary requires --world`);
+  const worldVocabulary = worldVocabularyPath === undefined ? undefined : await readWorldVocabulary(resolve(worldVocabularyPath));
+  // The organization Graph is shown by the organization web, not by this local host (C1 ended 2026-10-05).
+  for (const removed of ['organization-graph', 'organization-web']) {
+    if (parsed.flags.has(removed) || first(parsed, removed) !== undefined) {
+      throw new Error(`${command} --${removed} was removed; open the organization web to see the organization Graph`);
+    }
+  }
+  const { server } = createLocalWebHost({
+    dataDir,
+    journalRoot,
+    extensions: world ? [createWorldExtension(worldVocabulary ? { vocabulary: worldVocabulary } : {})] : []
+  });
   await new Promise<void>((resolveListen, rejectListen) => {
     server.once('error', rejectListen);
     server.listen(port, '127.0.0.1', () => resolveListen());
@@ -1160,10 +1177,11 @@ async function webServe(parsed: ParsedArgs, io: CliIo, command: string): Promise
   const origin = `http://127.0.0.1:${actualPort}`;
   write(io, [
     `Brainbase: ${origin}/`,
-    `- 今日（判断の見返し）: ${origin}/#today`,
+    `- 判断の履歴: ${origin}/#value-proofs`,
     `- 目的と現状: ${origin}/#objectives`,
     `- プロジェクトと関係者: ${origin}/#projects`,
     `- 情報と関係: ${origin}/#graph`,
+    ...(world ? [`- 世界: ${origin}/#world`] : []),
     `データ: ${dataDir}`,
     `判断journal: ${journalRoot}`,
     '終了: Ctrl+C',
@@ -1334,7 +1352,7 @@ function usage(): string {
   brainbase judgment:install --target codex [--autonomy-mode off|canary|on] [--autonomy-project code] [--dry-run] [--output path]
   brainbase judgment:hook [--autonomy-mode off|canary|on] [--autonomy-project code]
   brainbase doctor [--dir path] [--judgment-hooks path]
-  brainbase web:serve [--dir path] [--journal path] [--port n]
+  brainbase web:serve [--dir path] [--journal path] [--port n] [--world [--world-vocabulary file]]
   brainbase review:serve [--dir path] [--journal path] [--port n]  （web:serveの別名）
 `;
 }

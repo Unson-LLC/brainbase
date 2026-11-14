@@ -1,20 +1,114 @@
 /*
  * 「情報と関係」. Load after workspace-kit.css and graph-view-shared.css.
- * Column templates of the results and the two kinds-of-information ledgers,
- * with a 760px variant that keeps two or three columns.
+ * The list (tabs, conditions, results ledger) and the record's own screen,
+ * with a 760px variant.
  * Uses only the shared tokens in brainbase-tokens.css.
  */
 .bb-gr-search-section {
-  margin-bottom: 30px;
+  margin: 22px 0 30px;
 }
 
 .bb-gr-search {
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: end;
 }
 
-.bb-gr-search-submit {
-  min-height: 40px;
+/* The kinds as tabs, with their counts. */
+
+.bb-gr-tab-count {
+  color: var(--bb-color-quiet);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 詳しい条件: the day filter, kept out of the way. */
+.bb-gr-advanced {
+  margin-top: 10px;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-gr-advanced > summary {
+  width: fit-content;
+  cursor: pointer;
+}
+
+.bb-gr-advanced[open] > summary {
+  margin-bottom: 10px;
+}
+
+.bb-gr-as-of-field {
+  max-width: 280px;
+}
+
+.bb-graph .bb-gr-hint {
+  margin: 6px 0 0;
+  color: var(--bb-color-quiet);
+  font-size: 11px;
+}
+
+/* The conditions in force, each removable. */
+.bb-gr-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: 14px;
+}
+
+.bb-gr-filters-label {
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  font-weight: var(--bb-font-weight-medium);
+}
+
+.bb-gr-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  border: 1px solid var(--bb-color-accent);
+  border-radius: 999px;
+  padding: 3px 6px 3px 10px;
+  background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
+  color: var(--bb-color-ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.bb-gr-filter-chip > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bb-gr-filter-chip-x {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  color: var(--bb-color-muted);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.bb-gr-filter-chip:hover .bb-gr-filter-chip-x {
+  background: var(--bb-color-paper);
+  color: var(--bb-color-ink);
+}
+
+.bb-gr-filter-chip:focus-visible,
+.bb-gr-advanced > summary:focus-visible {
+  outline: 2px solid var(--bb-color-focus);
+  outline-offset: 2px;
+}
+
+.bb-gr-results[aria-busy='true'] .bb-graph-entity-ledger {
+  opacity: .6;
+  transition: opacity .12s ease;
 }
 
 .bb-graph .bb-gr-caption {
@@ -27,75 +121,169 @@
   margin-bottom: 0;
 }
 
-.bb-graph .bb-gr-subheading {
-  margin: 30px 0 10px;
+.bb-graph-entity-ledger .bb-ws-ledger-row {
+  grid-template-columns: minmax(0, 1.2fr) 112px minmax(0, 2fr);
+}
+
+.bb-graph-entity-ledger.has-updated .bb-ws-ledger-row {
+  grid-template-columns: minmax(0, 1.2fr) 112px minmax(0, 2fr) 112px;
+}
+
+@media (max-width: 760px) {
+  /* Name and kind on one line; the description under them; no last-updated column. */
+  .bb-graph-entity-ledger .bb-ws-ledger-row,
+  .bb-graph-entity-ledger.has-updated .bb-ws-ledger-row {
+    grid-template-columns: minmax(0, 1fr) 96px;
+  }
+
+  .bb-graph-entity-ledger .bb-ws-ledger-row > :nth-child(3) {
+    grid-column: 1 / -1;
+    padding-top: 0;
+    white-space: normal;
+  }
+
+  .bb-graph-entity-ledger .bb-ws-ledger-head > :nth-child(3),
+  .bb-graph-entity-ledger .bb-ws-ledger-row > :nth-child(4) {
+    display: none;
+  }
+
+  .bb-gr-fix-relation {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The open record as its own screen. */
+.bb-gr-detail-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin-bottom: 18px;
+  font-size: 13px;
+}
+
+.bb-gr-detail-head {
+  margin-bottom: 26px;
+  border-bottom: 1px solid var(--bb-color-border-strong);
+  padding-bottom: 20px;
+}
+
+.bb-gr-detail-kind {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--bb-color-accent);
+  font-size: 12px;
+  font-weight: var(--bb-font-weight-medium);
+}
+
+.bb-gr-detail-head h1 {
+  margin: 0 0 8px;
+  color: var(--bb-color-ink);
+  font-size: 28px;
+  letter-spacing: -.02em;
+  overflow-wrap: anywhere;
+  outline: none;
+}
+
+.bb-graph .bb-gr-detail-trail {
+  margin: 8px 0 0;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-gr-page-section {
+  margin-bottom: 30px;
+}
+
+.bb-graph .bb-gr-page-title {
+  margin: 0 0 12px;
+  color: var(--bb-color-ink);
+  font-size: 15px;
+}
+
+.bb-gr-connection-group + .bb-gr-connection-group {
+  margin-top: 16px;
+}
+
+.bb-graph .bb-gr-connection-kind {
+  margin: 0 0 6px;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  font-weight: var(--bb-font-weight-medium);
+}
+
+.bb-gr-connection-list,
+.bb-gr-evidence-list,
+.bb-gr-fix-relations {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bb-gr-connection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  border-bottom: 1px solid var(--bb-color-border);
+  padding: 8px 0;
+  font-size: 13px;
+}
+
+.bb-gr-connection.is-ended .bb-gr-sentence {
+  color: var(--bb-color-muted);
+}
+
+.bb-gr-sentence {
+  color: var(--bb-color-ink);
+  overflow-wrap: anywhere;
+}
+
+.bb-gr-sentence-note {
+  margin-left: 4px;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-gr-evidence-item {
+  border-left: 2px solid var(--bb-color-border);
+  padding: 4px 0 4px 12px;
+  font-size: 12px;
+}
+
+.bb-gr-fix .bb-ws-notice {
+  margin: 16px 0;
+  white-space: pre-line;
+}
+
+.bb-gr-reach {
+  margin: 8px 0 14px;
   color: var(--bb-color-ink);
   font-size: 13px;
 }
 
-.bb-gr-ontology > .bb-graph-plain-list {
-  color: var(--bb-color-muted);
+.bb-gr-fix-relations {
+  margin-top: 16px;
 }
 
-.bb-gr-ontology > .bb-graph-audit {
-  margin-top: 14px;
+.bb-gr-fix-relation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid var(--bb-color-border);
+  padding: 6px 0;
+  font-size: 13px;
 }
 
-.bb-graph-entity-ledger .bb-ws-ledger-row {
-  grid-template-columns: minmax(0, 1.2fr) 112px minmax(0, 1.6fr) minmax(0, 1fr);
+.bb-gr-fix-relation > :not(.bb-gr-sentence):not(.bb-ws-button) {
+  grid-column: 1 / -1;
 }
 
-.bb-graph-relation-type-ledger .bb-ws-ledger-row {
-  grid-template-columns: 88px minmax(0, 1fr) minmax(0, 2fr) minmax(0, .9fr);
+.bb-gr-connection-validity {
+  color: var(--bb-color-quiet);
+  font-size: 12px;
 }
 
-.bb-graph-entity-type-ledger .bb-ws-ledger-row {
-  grid-template-columns: 120px minmax(0, 1fr) 96px;
-}
-
-.bb-graph-relation-type-ledger .bb-ws-ledger-row,
-.bb-graph-entity-type-ledger .bb-ws-ledger-row {
-  min-height: 48px;
-}
-
-/* The meaning of a kind is read, not scanned: let it wrap. */
-.bb-graph-relation-type-ledger .bb-ws-ledger-row > span,
-.bb-graph-entity-type-ledger .bb-ws-ledger-row > span {
-  white-space: normal;
-}
-
-.bb-graph-relation-type-ledger .bb-ws-ledger-row:not(.bb-ws-ledger-head) > :first-child,
-.bb-graph-entity-type-ledger .bb-ws-ledger-row:not(.bb-ws-ledger-head) > :first-child {
-  color: var(--bb-color-ink);
-  font-weight: 690;
-}
-
-@media (max-width: 760px) {
-  .bb-gr-search {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .bb-gr-search-submit {
-    justify-self: start;
-  }
-
-  .bb-graph-entity-ledger .bb-ws-ledger-row {
-    grid-template-columns: minmax(0, 1fr) 96px minmax(0, .9fr);
-  }
-
-  .bb-graph-entity-ledger .bb-ws-ledger-row > :nth-child(3) {
-    display: none;
-  }
-
-  .bb-graph-relation-type-ledger .bb-ws-ledger-row {
-    grid-template-columns: 56px minmax(0, 1fr) minmax(0, 1fr);
-  }
-
-  .bb-graph-relation-type-ledger .bb-ws-ledger-row > :nth-child(3) {
-    display: none;
-  }
-
-  .bb-graph-entity-type-ledger .bb-ws-ledger-row {
-    grid-template-columns: 84px minmax(0, 1fr) 60px;
-  }
-}
+.bb-gr-tabs { margin-top: 14px; }

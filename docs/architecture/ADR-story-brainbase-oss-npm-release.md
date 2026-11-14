@@ -22,8 +22,12 @@ workflow.
 The release CLI is the single publication boundary and is split into two
 phases. Credential-free `release:validate` requires the fixed package identity,
 exact version and clean HEAD, proves that HEAD is reachable from an explicitly
-supplied trusted default-branch ref, and runs build, tests, production dependency
-audit, and creates the real tarball outside the repository. Before hashing it,
+supplied trusted default-branch ref, and runs build, the complete Vitest suite
+with a `--maxWorkers=2` ceiling to avoid shared self-hosted runner saturation,
+production dependency audit, and
+creates the real tarball outside the repository. The worker ceiling changes only
+Vitest concurrency; test selection, timeout, skip, and pass/fail rules remain
+the same as `npm test`. Before hashing it,
 the CLI stamps the final tarball manifest with the exact reviewed commit as
 `gitHead`. It writes a proof binding the tarball SHA-256, npm-compatible
 SHA-512 integrity, package identity, and commit.
@@ -37,11 +41,18 @@ is rejected so every supported registry mutation shares one package queue.
 
 GitHub Actions puts validation in a read-only job without OIDC or npm
 credentials. The immutable tarball and proof cross into a separate publication
-job through a one-day Actions artifact; only that job has `id-token: write` and
-`NPM_TOKEN`. The manual recovery path resolves an immutable SHA and rejects
-it unless it is reachable from `origin/develop`. It also fixes the package
-identity to `@unson/brainbase-mcp`. Only after those checks and validation does
-the workflow inject `NPM_TOKEN` into the publication step.
+job through a one-day Actions artifact; only that job has `id-token: write`.
+The publish job runs on a GitHub-hosted runner and authenticates to npm only
+through npm Trusted Publishing: the npm CLI (pinned to 11.21.1, the first line
+that supports OIDC dist-tag operations) exchanges the job's GitHub Actions OIDC
+token for a short-lived publish token. No long-lived npm token exists in the
+workflow. The same `id-token: write` serves the pre-publish OIDC guard
+(`assertSerializedPublicationContext()`) and npm provenance (`--provenance`).
+The manual recovery path resolves an immutable SHA and rejects it unless it is
+reachable from `origin/develop`. It also fixes the package identity to
+`@unson/brainbase-mcp`. The npm package's Trusted Publisher entry binds
+publication to `Unson-LLC/brainbase` and `npm-publish.yml`, and must allow
+`npm publish` and npm dist-tag.
 
 `release:verify` is a separate read-only operation. Publication may reconcile a
 dist-tag forward to the greatest compatible version, while verification only

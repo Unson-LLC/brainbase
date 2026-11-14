@@ -1,3 +1,4 @@
+import { workspaceTabStrip } from './workspace-kit.js';
 /*
  * Shared project knowledge workspace.
  *
@@ -25,6 +26,7 @@ import {
   validityText,
 } from './graph-view-shared.js';
 import { workspaceDefinition, workspaceNotice } from './workspace-kit.js';
+import { normalizeProjectOverview, renderProjectOverview } from './project-overview.js';
 
 export const PROJECT_WORKSPACE_CONTRACT_VERSION = 'brainbase.project-workspace.v1';
 
@@ -241,6 +243,31 @@ function graphEntityMap(detail) {
 
 function graphEvidenceEdges(detail) {
   return projectKnowledgeEdges(detail);
+}
+
+/**
+ * Keep overview-only canonical IDs available for the existing detail action.
+ * These are loading placeholders, not Graph entities or inferred relations;
+ * the host must still provide readEntity before a projection-only ID can be
+ * selected.
+ */
+function projectOverviewProjectionRecords(overview) {
+  const records = new Map();
+  if (!overview) return records;
+  const add = (id, title) => {
+    const target = cleanId(id);
+    if (!target || records.has(target)) return;
+    records.set(target, {
+      id: target,
+      type: 'unknown',
+      name: cleanName(title, target),
+    });
+  };
+  for (const check of overview.checks) add(check.recordId, check.title);
+  for (const material of [...overview.directMaterials.items, ...overview.relatedMaterials.items]) {
+    add(material.id, material.title);
+  }
+  return records;
 }
 
 function resultEntity(result) {
@@ -629,6 +656,145 @@ function todayActionItems(items, now = new Date()) {
   }));
 }
 
+const DENSE_PARTICIPANT_STATUS_VALUES = new Set(['available', 'empty', 'partial', 'unavailable', 'unknown', 'stale', 'failed']);
+const DENSE_PARTICIPANT_FRESHNESS_VALUES = new Set(['fresh', 'stale', 'unknown']);
+
+function denseProjectPeople(payload) {
+  const people = payload?.project?.people;
+  if (!Array.isArray(people)) return [];
+  return people.map((person) => {
+    const id = textOrNull(person?.id);
+    const name = textOrNull(person?.name) ?? textOrNull(person?.title);
+    if (!id || !name || typeof person?.accountable !== 'boolean') return null;
+    return { ...person, id, name };
+  }).filter(Boolean);
+}
+
+function denseParticipantStatus(payload) {
+  const raw = [payload?.participantStatus, payload?.participants_status, payload?.participantsStatus]
+    .find((value) => value !== undefined && value !== null);
+  if (raw === 'ready') return 'available';
+  if (typeof raw === 'string' && DENSE_PARTICIPANT_STATUS_VALUES.has(raw)) return raw;
+  return (Array.isArray(payload?.participants) && payload.participants.length > 0) || denseProjectPeople(payload).length > 0
+    ? 'available'
+    : 'unknown';
+}
+
+function denseParticipantFreshness(payload) {
+  const raw = [payload?.participantFreshness, payload?.participants_freshness, payload?.participantsFreshness]
+    .find((value) => value !== undefined && value !== null);
+  return typeof raw === 'string' && DENSE_PARTICIPANT_FRESHNESS_VALUES.has(raw) ? raw : null;
+}
+
+function denseParticipantAbsenceConfirmed(payload) {
+  return payload?.participantAbsenceConfirmed === true
+    || payload?.participants_absence_confirmed === true
+    || payload?.participantsAbsenceConfirmed === true;
+}
+
+function denseParticipantAsOf(payload) {
+  const raw = [
+    payload?.participantsAsOf,
+    payload?.participantAsOf,
+    payload?.participants_as_of,
+    payload?.participant_as_of,
+    payload?.participantsCheckedAt,
+    payload?.participants_checked_at,
+    payload?.participantCheckedAt,
+    payload?.participant_checked_at,
+  ].map(textOrNull).find(Boolean);
+  if (!raw || Number.isNaN(Date.parse(raw))) return null;
+  return formatDateTime(raw);
+}
+
+function denseParticipantReason(payload, state, freshness) {
+  const explicit = textOrNull(payload?.participantUnavailableReason)
+    ?? textOrNull(payload?.participants_unavailable_reason)
+    ?? textOrNull(payload?.participantsUnavailableReason);
+  if (explicit) return explicit;
+  if (Array.isArray(payload?.warnings)) {
+    const warning = payload.warnings
+      .map((item) => textOrNull(item) ?? textOrNull(item?.reason) ?? textOrNull(item?.message))
+      .find(Boolean);
+    if (warning) return warning;
+  }
+  if (state === 'failed') return '関係者の詳細を取得できませんでした。';
+  if (state === 'stale' || freshness === 'stale') {
+    const checkedAt = denseParticipantAsOf(payload);
+    return checkedAt
+      ? `以前の情報です（確認時点: ${checkedAt}）。現在の関係者の詳細を未確認です。`
+      : '以前の情報です。確認時点は未確認です。現在の関係者の詳細を未確認です。';
+  }
+  if (state === 'partial') return '一部の関係者だけを読み取っています。';
+  return '関係者の詳細を未確認です。登録なしとは判断できません。';
+}
+
+function denseParticipantCountsZero(payload) {
+  const project = payload?.project ?? {};
+  return Number.isInteger(project.participantCount)
+    && Number.isInteger(project.accountableCount)
+    && project.participantCount === 0
+    && project.accountableCount === 0;
+}
+
+function denseParticipantStrictZero(payload) {
+  return denseParticipantCountsZero(payload)
+    && Array.isArray(payload?.participants)
+    && payload.participants.length === 0;
+}
+
+function denseParticipantSnapshot(payload) {
+  const state = denseParticipantStatus(payload);
+  const freshness = denseParticipantFreshness(payload);
+  const absenceConfirmed = denseParticipantAbsenceConfirmed(payload);
+  const confirmedEmpty = absenceConfirmed
+    && (state === 'available' || state === 'empty')
+    && freshness === 'fresh'
+    && denseParticipantStrictZero(payload);
+  const uncertain = !confirmedEmpty && (state === 'unknown' || state === 'unavailable' || state === 'partial' || state === 'stale' || state === 'failed' || freshness === 'unknown' || freshness === 'stale');
+  return { state, freshness, absenceConfirmed, confirmedEmpty, uncertain, reason: denseParticipantReason(payload, state, freshness) };
+}
+
+function denseParticipantCountSummary(payload, snapshot) {
+  const project = payload?.project ?? {};
+  const counts = [];
+  if (Number.isInteger(project.participantCount) && project.participantCount > 0) counts.push(`関係者${project.participantCount}人`);
+  if (Number.isInteger(project.accountableCount) && project.accountableCount > 0) counts.push(`責任者${project.accountableCount}人`);
+  if (counts.length === 0) {
+    if (snapshot.confirmedEmpty && denseParticipantStrictZero(payload)) return '確認済みの件数: 関係者0人、責任者0人。';
+    return '件数は未確認です。';
+  }
+  if (snapshot.uncertain) return `既知の件数（現在未確認）: ${counts.join('、')}。`;
+  return `確認済みの件数: ${counts.join('、')}。`;
+}
+
+function denseParticipantMetricValue(payload, participantEdges, snapshot) {
+  const project = payload?.project ?? {};
+  if (Number.isInteger(project.participantCount) && project.participantCount > 0) return `${project.participantCount}人`;
+  if (snapshot.confirmedEmpty && denseParticipantStrictZero(payload)) return '0人';
+  if (participantEdges.length > 0) return `${participantEdges.length}人`;
+  return '未確認';
+}
+
+function denseParticipantCountMismatch(payload, participantEdges, snapshot) {
+  if (snapshot.uncertain) return false;
+  const project = payload?.project ?? {};
+  const declared = [project.participantCount, project.accountableCount]
+    .some((value) => Number.isInteger(value) && value > 0);
+  const namedPeople = denseProjectPeople(payload);
+  if (denseParticipantCountsZero(payload) && participantEdges.length > 0) return true;
+  if (participantEdges.length === 0 && namedPeople.length > 0) {
+    const participantMismatch = Number.isInteger(project.participantCount)
+      && project.participantCount >= 0
+      && project.participantCount !== namedPeople.length;
+    const accountableMismatch = Number.isInteger(project.accountableCount)
+      && project.accountableCount >= 0
+      && project.accountableCount !== namedPeople.filter((person) => person.accountable).length;
+    return participantMismatch || accountableMismatch;
+  }
+  return participantEdges.length === 0 && declared;
+}
+
 function renderDenseOverview(doc, detail, context, entities, actions = {}) {
   const payload = projectDetailPayload(detail);
   const taskSection = contextTaskSection(context);
@@ -638,7 +804,18 @@ function renderDenseOverview(doc, detail, context, entities, actions = {}) {
   const participantEdges = [...new Map((payload?.participants ?? [])
     .filter((edge) => edge?.counterpart?.id && (edge.counterpart.name || edge.counterpart.title))
     .map((edge) => [edge.counterpart.id, edge])).values()];
-  const participants = participantEdges.slice(0, 6);
+  const participantStatus = denseParticipantStatus(payload);
+  const participantPeople = participantStatus === 'available'
+    ? denseProjectPeople(payload).map((person) => ({
+      counterpart: person,
+      relation: person.accountable ? 'accountable_for' : 'participates_in',
+      role: person.accountable ? '責任者' : null,
+    }))
+    : [];
+  const participants = (participantEdges.length > 0 ? participantEdges : participantPeople).slice(0, 6);
+  const participantSnapshot = denseParticipantSnapshot(payload);
+  const participantCountSummary = denseParticipantCountSummary(payload, participantSnapshot);
+  const participantCountMismatch = denseParticipantCountMismatch(payload, participantEdges, participantSnapshot);
   const recentRecords = records.length > 0 ? sortDenseItems(records).slice(0, 4) : graphRecords.slice(0, 4);
   const updated = [...tasks, ...records]
     .filter((item) => item.updatedAt || item.eventAt)
@@ -657,7 +834,7 @@ function renderDenseOverview(doc, detail, context, entities, actions = {}) {
     denseMetric(doc, '仕事', taskMetric, taskNote),
     denseMetric(doc, '今日扱う仕事', taskSection?.state === 'ok' ? `${due.length}件` : '未確認', taskSection?.state === 'ok' ? '期限・更新が確認できる順' : 'タスクの状態を確認中'),
     denseMetric(doc, '前回からの変化', updated.length > 0 ? `${updated.length}件` : '未確認', updated.length > 0 ? '更新時点がある記録' : '更新時点が未確認'),
-    denseMetric(doc, '関係者', participantEdges.length > 0 ? `${participantEdges.length}人` : '未確認', 'Graphに記録された参加関係'),
+    denseMetric(doc, '関係者', denseParticipantMetricValue(payload, participantEdges, participantSnapshot), participantCountSummary ?? '現在の関係者の詳細を確認中'),
   );
   panel.append(metrics);
 
@@ -709,8 +886,25 @@ function renderDenseOverview(doc, detail, context, entities, actions = {}) {
   const peopleHead = makeElement(doc, 'div', { className: 'bb-pkw-dense-card-head' });
   peopleHead.append(makeElement(doc, 'h4', { text: '関係者' }), makeElement(doc, 'span', { className: 'bb-pkw-muted', text: participants.length > 0 ? `${participants.length}人を表示` : '未確認' }));
   people.append(peopleHead);
-  if (participants.length === 0) people.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: 'Graphで確認できる関係者は未確認です。' }));
-  else {
+  if (participantCountSummary) people.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: participantCountSummary }));
+  if (participantSnapshot.uncertain) {
+    people.append(workspaceNotice(doc, {
+      label: participantSnapshot.state === 'failed' ? '読み取り失敗' : '未確認',
+      text: participantSnapshot.reason,
+      tone: participantSnapshot.state === 'failed' ? 'danger' : 'info',
+    }));
+  } else if (participantCountMismatch) {
+    people.append(workspaceNotice(doc, {
+      label: '詳細未確認',
+      text: '既知の件数と取得した関係者が一致しません。現在の関係者の詳細を読み取れていません。',
+      tone: 'warning',
+    }));
+  } else if (participants.length === 0 && !participantSnapshot.confirmedEmpty) {
+    people.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: '関係者の詳細を未確認です。登録なしとは判断できません。' }));
+  } else if (participants.length === 0 && participantSnapshot.confirmedEmpty) {
+    people.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: '確認できた関係者はありません。' }));
+  }
+  if (participants.length > 0) {
     const list = makeElement(doc, 'ul', { className: 'bb-pkw-dense-list' });
     for (const edge of participants) {
       const person = edge.counterpart;
@@ -722,6 +916,9 @@ function renderDenseOverview(doc, detail, context, entities, actions = {}) {
       list.append(row);
     }
     people.append(list);
+  }
+  if (typeof actions.retryParticipants === 'function' && (participantSnapshot.uncertain || participantCountMismatch || (participants.length === 0 && !participantSnapshot.confirmedEmpty))) {
+    people.append(denseButton(doc, '再試行', 'bb-pkw-dense-action', actions.retryParticipants, { 'aria-label': '関係者の読み取りを再試行' }));
   }
   supportingGrid.append(people);
   panel.append(supportingGrid);
@@ -966,6 +1163,12 @@ function renderOverview(doc, detail, context, entities, actions = {}) {
   const payload = projectDetailPayload(detail);
   const project = payload?.project;
   const panel = makeElement(doc, 'div', { className: 'bb-pkw-panel bb-pkw-overview', attrs: { role: 'tabpanel', 'aria-label': '概要' } });
+  const overview = normalizeProjectOverview(payload?.overview);
+  if (overview) {
+    panel.append(renderProjectOverview(doc, overview, { projectName: project?.name, actions }));
+    panel.append(renderContextDirectory(doc, context, actions));
+    return panel;
+  }
   panel.append(renderDenseOverview(doc, detail, context, entities, actions));
   panel.append(renderContextDirectory(doc, context, actions));
   const summary = makeElement(doc, 'section', { className: 'bb-pkw-section', attrs: { 'aria-label': '目的と現在地' } });
@@ -1001,16 +1204,19 @@ export function createProjectKnowledgeWorkspace({
   mountGraph,
   readEntity,
   onTabChange,
+  onRetryProject,
 } = {}) {
   const doc = getDocument(explicitDocument);
   const payload = projectDetailPayload(detail);
   const project = payload?.project;
   if (!project) throw new TypeError('project detail is required');
+  const workspaceProjectId = cleanId(project.id);
   // Keep the project-bound projection separate from the mutable exploration
   // graph.  Reading a related entity may reveal arbitrary neighboring records,
   // but those records are not evidence that they belong to this project.
   const overviewEntities = graphEntityMap(payload);
   const overviewEdges = graphEvidenceEdges(payload);
+  const overviewProjectionRecords = projectOverviewProjectionRecords(normalizeProjectOverview(payload?.overview));
   const entities = new Map(overviewEntities);
   const edges = [...overviewEdges];
   let destroyed = false;
@@ -1048,6 +1254,7 @@ export function createProjectKnowledgeWorkspace({
   });
   const body = makeElement(doc, 'div', { className: 'bb-pkw-body' });
   const tabs = makeElement(doc, 'div', { className: 'bb-pkw-tabs', attrs: { role: 'tablist', 'aria-label': 'プロジェクト情報の表示' } });
+  const tabStrip = workspaceTabStrip(tabs);
   const panels = makeElement(doc, 'div', { className: 'bb-pkw-panels' });
   root.append(makeElement(doc, 'div', { className: 'bb-pkw-kicker', text: 'プロジェクトの記録' }));
   const header = makeElement(doc, 'header', { className: 'bb-pkw-header' });
@@ -1137,7 +1344,8 @@ export function createProjectKnowledgeWorkspace({
 
   function select(id, { fromGraph = false } = {}) {
     const target = cleanId(id);
-    if (!target || !entities.has(target) || destroyed) return;
+    const canReadOverviewProjection = overviewProjectionRecords.has(target) && typeof readEntity === 'function';
+    if (!target || (!entities.has(target) && !canReadOverviewProjection) || destroyed) return;
     // A list click synchronizes Sigma by calling its `select`, which notifies
     // this workspace again. Keep the second notification from starting a
     // duplicate entity read (or resetting a completed detail read).
@@ -1155,7 +1363,8 @@ export function createProjectKnowledgeWorkspace({
 
   function selectAndExplore(id) {
     const target = cleanId(id);
-    if (!target || !entities.has(target) || destroyed) return;
+    const canReadOverviewProjection = overviewProjectionRecords.has(target) && typeof readEntity === 'function';
+    if (!target || (!entities.has(target) && !canReadOverviewProjection) || destroyed) return;
     activeTab = 'graph';
     select(target);
     render();
@@ -1201,7 +1410,7 @@ export function createProjectKnowledgeWorkspace({
     const panel = root.querySelector?.('.bb-pkw-selection') ?? selectedPanel;
     if (!panel) return;
     panel.replaceChildren();
-    const entity = entities.get(selectedId);
+    const entity = entities.get(selectedId) ?? overviewProjectionRecords.get(selectedId);
     if (!entity) return;
     const read = entityRead?.id === selectedId ? entityRead : null;
     const fetched = selectedId === project.id ? { entity: project, incoming: [], outgoing: [] } : read?.entity ? read : null;
@@ -1353,8 +1562,10 @@ export function createProjectKnowledgeWorkspace({
     if (typeof onTabChange === 'function') onTabChange(activeTab);
     teardownGraph();
     tabs.replaceChildren(tabButton('概要', 'overview'), tabButton('情報を探す', 'graph'));
+    tabStrip.update();
     panels.replaceChildren();
     const actions = { openOverview, openWorkList, openWorkDetail, openRecordDetail, openSectionList, openGraphEntity: selectAndExplore,
+      retryParticipants: typeof onRetryProject === 'function' ? () => onRetryProject(workspaceProjectId) : null,
       recordSectionId: selectedSectionId,
       recordSectionTitle: CONTEXT_CATEGORIES.find(([id]) => id === selectedSectionId)?.[1] ?? contextSectionById(currentContext, [selectedSectionId])?.title,
     };

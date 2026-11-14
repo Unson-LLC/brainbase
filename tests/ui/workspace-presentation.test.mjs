@@ -1,0 +1,244 @@
+import { knowledgeDirectoryToolbar } from '../../ui/knowledge-directory.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { workspaceCompactToolbar, workspaceCombobox, workspaceDetailDrawer, workspaceTopbar, workspaceSearchControl, workspaceApplyDrawer, workspaceCloseDrawer, workspaceDialog, workspaceFilterPopover, workspaceLoadingCard, workspaceDismissNotification } from '../../ui/workspace-kit.js';
+
+// A native-dialog lifecycle model: focus remains inside until close dispatches.
+class Events {
+  listeners = new Map();
+  addEventListener(name, callback, options) {
+    const entries = this.listeners.get(name) || [];
+    this.listeners.set(name, [...entries, { callback, once: options?.once }]);
+  }
+  removeEventListener(name, callback) { this.listeners.set(name, (this.listeners.get(name) || []).filter(item => item.callback !== callback)); }
+  dispatch(name, values = {}) {
+    const event = { target: this, preventDefault() {}, stopPropagation() {}, ...values };
+    for (const item of [...this.listeners.get(name) || []]) {
+      if (item.once) this.removeEventListener(name, item.callback);
+      item.callback(event);
+    }
+  }
+  count(name) { return (this.listeners.get(name) || []).length; }
+}
+class Element extends Events {
+  constructor(doc, tagName) {
+    super(); this.ownerDocument = doc; this.tagName = tagName.toUpperCase(); this.children = []; this.attributes = {}; this.className = ''; this.hidden = false; this.open = false;
+    this.classList = {
+      add: name => { this.className = [...new Set([...this.className.split(' ').filter(Boolean), name])].join(' '); },
+      remove: name => { this.className = this.className.split(' ').filter(item => item !== name).join(' '); },
+      contains: name => this.className.split(' ').includes(name),
+    };
+  }
+  click() { this.dispatch('click'); }
+  get isConnected() { return this === this.ownerDocument.body || Boolean(this.parentNode?.isConnected); }
+  setAttribute(name, value) { this.attributes[name] = String(value); }
+  getAttribute(name) { return this.attributes[name] ?? null; }
+  removeAttribute(name) { delete this.attributes[name]; }
+  append(...children) { for (const child of children) { child.remove(); child.parentNode = this; this.children.push(child); } }
+  remove() { if (this.parentNode) this.parentNode.children = this.parentNode.children.filter(child => child !== this); this.parentNode = null; }
+  replaceChildren(...children) { for (const child of [...this.children]) child.remove(); this.append(...children); }
+  contains(node) { return this === node || this.children.some(child => child.contains(node)); }
+  querySelector() { return this.children.find(child => ['BUTTON', 'INPUT', 'SELECT'].includes(child.tagName)) || this.children.map(child => child.querySelector()).find(Boolean); }
+  focus() { this.ownerDocument.activeElement = this; }
+  showModal() { this.open = true; }
+  close(value) { this.open = false; this.returnValue = value; this.dispatch('close'); }
+  getBoundingClientRect() { return { left: 10, top: 10, right: 100, bottom: 100 }; }
+}
+class Document extends Events {
+  constructor(reduced = false) { super(); this.defaultView = { matchMedia: () => ({ matches: reduced }) }; this.body = this.createElement('body'); }
+  createElement(tagName) { return new Element(this, tagName); }
+}
+afterEach(() => vi.useRealTimers());
+
+describe('shared drawer lifecycle', () => {
+  it('keeps modal focus until its own exit ends, then restores the current opener once', () => {
+    vi.useFakeTimers(); const doc = new Document(); const oldOpener = doc.createElement('button'); doc.body.append(oldOpener);
+    let opener = oldOpener; const closed = vi.fn();
+    const dialog = workspaceDialog(doc, { title: '詳細', content: '内容', opener: () => opener, presentation: 'drawer', onClose: closed });
+    const closeButton = dialog.children[0].children[1];
+    expect(doc.activeElement).toBe(closeButton);
+    dialog.close('done'); dialog.close('duplicate');
+    expect(dialog.open).toBe(true); expect(closed).not.toHaveBeenCalled(); expect(doc.activeElement).toBe(closeButton);
+    dialog.dispatch('animationend', { target: closeButton, animationName: 'bb-ws-drawer-out' });
+    expect(dialog.open).toBe(true);
+    opener = doc.createElement('button'); doc.body.append(opener); oldOpener.remove();
+    dialog.dispatch('animationend', { animationName: 'bb-ws-drawer-out' });
+    expect(dialog.open).toBe(false); expect(dialog.isConnected).toBe(false); expect(dialog.returnValue).toBe('done');
+    expect(closed).toHaveBeenCalledTimes(1); expect(doc.activeElement).toBe(opener); expect(vi.getTimerCount()).toBe(0);
+    dialog.dispatch('animationend', { animationName: 'bb-ws-drawer-out' }); expect(closed).toHaveBeenCalledTimes(1);
+  });
+  it('supports native Escape and a bounded fallback when animationend is absent', () => {
+    vi.useFakeTimers(); const doc = new Document(); const dialog = workspaceDialog(doc, { title: '詳細', presentation: 'drawer' });
+    const prevented = vi.fn(); dialog.dispatch('cancel', { preventDefault: prevented });
+    expect(prevented).toHaveBeenCalled(); expect(dialog.open).toBe(true);
+    vi.advanceTimersByTime(360); expect(dialog.open).toBe(false); expect(dialog.count('animationend')).toBe(0);
+  });
+  it('disposes during exit without leaving a timer or double close callback', () => {
+    vi.useFakeTimers(); const doc = new Document(); const closed = vi.fn(); const dialog = workspaceDialog(doc, { presentation: 'drawer', onClose: closed });
+    dialog.close(); dialog.dispose(); vi.runAllTimers(); dialog.dispose();
+    expect(closed).toHaveBeenCalledTimes(1); expect(dialog.isConnected).toBe(false); expect(vi.getTimerCount()).toBe(0);
+  });
+  it('closes immediately with reduced motion and supports host-owned dialogs', () => {
+    vi.useFakeTimers(); const doc = new Document(true); const dialog = workspaceApplyDrawer(doc.createElement('dialog')); dialog.showModal();
+    const finish = vi.fn(() => dialog.close()); workspaceCloseDrawer(dialog, finish);
+    expect(dialog.classList.contains('bb-ws-drawer')).toBe(true); expect(finish).toHaveBeenCalledTimes(1); expect(dialog.open).toBe(false); expect(vi.getTimerCount()).toBe(0);
+  });
+  it('cancels a host-owned pending exit when the host closes immediately', () => {
+    vi.useFakeTimers(); const doc = new Document(); const dialog = workspaceApplyDrawer(doc.createElement('dialog')); dialog.showModal();
+    const finish = vi.fn(); workspaceCloseDrawer(dialog, finish); dialog.close(); vi.runAllTimers();
+    expect(finish).not.toHaveBeenCalled(); expect(dialog.count('animationend')).toBe(0); expect(vi.getTimerCount()).toBe(0);
+  });
+  it('keeps center dialogs immediate and closes drawers from the backdrop', () => {
+    vi.useFakeTimers(); const doc = new Document(); const center = workspaceDialog(doc); center.close(); expect(center.open).toBe(false);
+    const drawer = workspaceDialog(doc, { presentation: 'drawer' }); drawer.dispatch('click', { clientX: 0, clientY: 0 });
+    expect(drawer.classList.contains('is-closing')).toBe(true); vi.runAllTimers(); expect(drawer.open).toBe(false);
+  });
+  it('leaves backdrop dismissal to native closedby where the browser supports it', () => {
+    vi.useFakeTimers(); const doc = new Document(); doc.defaultView.HTMLDialogElement = { prototype: { closedBy: '' } };
+    const drawer = workspaceDialog(doc, { presentation: 'drawer' }); expect(drawer.getAttribute('closedby')).toBe('any');
+    drawer.dispatch('click', { clientX: 0, clientY: 0 }); expect(drawer.classList.contains('is-closing')).toBe(false); expect(drawer.open).toBe(true);
+    drawer.dispatch('cancel'); expect(drawer.classList.contains('is-closing')).toBe(true); vi.runAllTimers(); expect(drawer.open).toBe(false);
+    const inspector = workspaceDetailDrawer(doc); expect(inspector.dialog.getAttribute('closedby')).toBe('any'); expect(inspector.dialog.count('click')).toBe(0);
+  });
+  it('keeps the pointer fallback and still marks closedby where the browser lacks it', () => {
+    const doc = new Document(); const inspector = workspaceDetailDrawer(doc);
+    expect(inspector.dialog.getAttribute('closedby')).toBe('any'); expect(inspector.dialog.count('click')).toBe(1);
+  });
+});
+
+describe('shared anchored filters', () => {
+  it('focuses fields, closes outside or with Escape, restores trigger focus and disposes document listeners', () => {
+    vi.useFakeTimers(); const doc = new Document(); const field = doc.createElement('input'); const toggles = [];
+    const popover = workspaceFilterPopover(doc, { content: field, onToggle: open => toggles.push(open) }); doc.body.append(popover.root);
+    expect(popover.panel.hidden).toBe(true); expect(doc.count('keydown')).toBe(0);
+    popover.control.dispatch('click'); expect(doc.activeElement).toBe(field); expect(popover.panel.hidden).toBe(false);
+    doc.dispatch('pointerdown', { target: field }); expect(popover.panel.hidden).toBe(false);
+    doc.dispatch('keydown', { key: 'Escape' }); expect(popover.isOpen).toBe(false); expect(popover.panel.inert).toBe(true); vi.runAllTimers(); expect(popover.panel.hidden).toBe(true); expect(doc.activeElement).toBe(popover.control);
+    popover.control.dispatch('click'); doc.dispatch('pointerdown', { target: doc.body }); expect(popover.isOpen).toBe(false); vi.runAllTimers(); expect(popover.panel.hidden).toBe(true);
+    popover.control.dispatch('click'); popover.destroy(); expect(doc.count('keydown')).toBe(0); expect(doc.count('pointerdown')).toBe(0);
+    expect(popover.panel.hidden).toBe(true); expect(toggles).toEqual([false, true, false, true, false, true]);
+  });
+  it('cancels exit on reopen, ignores child animation events and clears its fallback on destroy', () => {
+    vi.useFakeTimers(); const doc = new Document(); const field = doc.createElement('input');
+    const popover = workspaceFilterPopover(doc, { content: field, appearance: 'icon' }); doc.body.append(popover.root);
+    popover.setOpen(true, true); popover.setOpen(false);
+    expect(popover.control.getAttribute('aria-expanded')).toBe('false'); expect(popover.panel.hidden).toBe(false);
+    expect(popover.panel.inert).toBe(true); expect(popover.panel.getAttribute('aria-hidden')).toBe('true');
+    popover.panel.dispatch('animationend', { target: field, animationName: 'bb-ws-filter-exit' }); expect(popover.panel.hidden).toBe(false);
+    popover.control.click(); vi.runAllTimers(); expect(popover.isOpen).toBe(true); expect(popover.panel.hidden).toBe(false);
+    expect(popover.panel.inert).toBe(false); expect(popover.panel.getAttribute('aria-hidden')).toBe(null);
+    popover.setOpen(false); popover.panel.dispatch('animationend', { animationName: 'bb-ws-filter-exit' });
+    expect(popover.panel.hidden).toBe(true); expect(vi.getTimerCount()).toBe(0);
+    popover.setOpen(true); popover.setOpen(false); popover.destroy(); vi.runAllTimers();
+    expect(popover.panel.hidden).toBe(true); expect(popover.panel.count('animationend')).toBe(0); expect(vi.getTimerCount()).toBe(0);
+    expect(doc.count('keydown')).toBe(0); expect(doc.count('pointerdown')).toBe(0);
+  });
+  it('closes synchronously for reduced motion without adding an exit timer', () => {
+    vi.useFakeTimers(); const doc = new Document(true); const popover = workspaceFilterPopover(doc); doc.body.append(popover.root);
+    popover.setOpen(true); popover.setOpen(false); expect(popover.panel.hidden).toBe(true); expect(vi.getTimerCount()).toBe(0); popover.destroy();
+  });
+  it('adapts existing task trigger and panel without recreating controls', () => {
+    const doc = new Document(); const trigger = doc.createElement('button'); const panel = doc.createElement('div'); const field = doc.createElement('select'); panel.append(field);
+    const popover = workspaceFilterPopover(doc, { trigger, panel, initialFocus: () => field });
+    expect(popover.control).toBe(trigger); expect(popover.panel).toBe(panel); trigger.dispatch('click'); expect(doc.activeElement).toBe(field); popover.destroy();
+  });
+});
+
+describe('loading notification lifecycle', () => {
+  it('removes after rightward exit and can cancel/reuse the same card', () => {
+    vi.useFakeTimers(); const doc = new Document(); const card = workspaceLoadingCard(doc); doc.body.append(card);
+    const removed = vi.fn(); const cancel = workspaceDismissNotification(card, removed); expect(workspaceDismissNotification(card)).toBe(cancel);
+    cancel(); vi.runAllTimers(); expect(removed).not.toHaveBeenCalled(); expect(card.isConnected).toBe(true); expect(card.classList.contains('is-dismissing')).toBe(false);
+    workspaceDismissNotification(card, removed); card.dispatch('animationend', { animationName: 'bb-ws-spinner' }); expect(card.isConnected).toBe(true);
+    card.dispatch('animationend', { animationName: 'bb-ws-notification-out' }); expect(card.isConnected).toBe(false); expect(removed).toHaveBeenCalledTimes(1); expect(vi.getTimerCount()).toBe(0);
+  });
+  it('removes immediately for minimal non-browser adapters without animation APIs', () => {
+    const card = {}; const parent = { children: [card], replaceChildren(...children) { this.children = children; } }; card.parentNode = parent;
+    const removed = vi.fn(); workspaceDismissNotification(card, removed);
+    expect(parent.children).toEqual([]); expect(removed).toHaveBeenCalledTimes(1);
+  });
+  it('has a bounded timer fallback and no motion delay when reduced motion is selected', () => {
+    vi.useFakeTimers(); const doc = new Document(); const card = workspaceLoadingCard(doc); doc.body.append(card);
+    workspaceDismissNotification(card); vi.advanceTimersByTime(500); expect(card.isConnected).toBe(false); expect(card.count('animationend')).toBe(0);
+    const reduced = new Document(true); const second = workspaceLoadingCard(reduced); reduced.body.append(second); workspaceDismissNotification(second);
+    expect(second.isConnected).toBe(false); expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+
+describe('shared page chrome and persistent inspectors', () => {
+  it('renders only a title in the common top bar', () => {
+    const doc = new Document(); const header = workspaceTopbar(doc, { title: '一覧' });
+    expect(header.children).toHaveLength(1);
+    expect(header.children[0].tagName).toBe('H1');
+    expect(header.children[0].textContent).toBe('一覧');
+  });
+  it('keeps a caller-owned search input and can remove or replace it without changing the title', () => {
+    const doc = new Document(); const input = doc.createElement('input'); input.value = 'needle'; input.setAttribute('aria-label', '検索');
+    const changed = vi.fn(); input.addEventListener('input', changed);
+    const header = workspaceTopbar(doc, { title: '一覧', query: input });
+    expect(header.children[0].tagName).toBe('H1'); expect(header.children[1].className).toBe('bb-ws-search-control');
+    expect(header.children[1].children[1]).toBe(input); expect(input.value).toBe('needle');
+    input.dispatch('input'); expect(changed).toHaveBeenCalledTimes(1);
+    const wrapper = header.children[1]; header.setQuery(input); expect(header.children[1]).toBe(wrapper);
+    header.setQuery(null); expect(header.children).toHaveLength(1); expect(header.children[0].textContent).toBe('一覧');
+    const other = doc.createElement('input'); header.setQuery(other); expect(header.children[1].children[1]).toBe(other);
+    expect(workspaceSearchControl(doc, { input }).children[1]).toBe(input);
+  });
+  it('updates content without reopening a dismissed drawer and restores a replaced row', () => {
+    vi.useFakeTimers(); const doc = new Document(); let opener = doc.createElement('button'); doc.body.append(opener);
+    const closed = vi.fn(); const inspector = workspaceDetailDrawer(doc, { opener: () => opener, onClose: closed });
+    inspector.setContent(doc.createElement('section')); expect(inspector.dialog.open).toBe(false);
+    inspector.open(); inspector.close(); inspector.close();
+    expect(closed).toHaveBeenCalledTimes(1); expect(inspector.dialog.open).toBe(true);
+    opener.remove(); opener = doc.createElement('button'); doc.body.append(opener);
+    vi.runAllTimers(); expect(inspector.dialog.open).toBe(false); expect(doc.activeElement).toBe(opener);
+    inspector.setContent(doc.createElement('section')); expect(inspector.dialog.open).toBe(false);
+    inspector.open(); inspector.dispose(); vi.runAllTimers();
+    expect(inspector.dialog.isConnected).toBe(false); expect(vi.getTimerCount()).toBe(0);
+  });
+  it('can reopen during exit without an old timer closing the new request', () => {
+    vi.useFakeTimers(); const doc = new Document(); const inspector = workspaceDetailDrawer(doc);
+    inspector.open(); inspector.close(); inspector.open(); vi.runAllTimers();
+    expect(inspector.dialog.open).toBe(true); inspector.dispose();
+  });
+});
+
+describe('compact list controls', () => {
+  it('uses one caret trigger, clears with focus restoration, and excludes filter on keyboard sort opening', () => {
+    vi.useFakeTimers(); const doc = new Document(); const root = doc.createElement('div'); doc.body.append(root);
+    const query = doc.createElement('input'); const filters = doc.createElement('div'); filters.append(doc.createElement('input'));
+    const reset = doc.createElement('button'); const clear = vi.fn(); reset.addEventListener('click', clear);
+    const sort = workspaceCombobox(doc, { label: '並べ替え', options: [{ value: 'new', label: '新しい順' }, { value: 'old', label: '古い順' }], value: 'new' });
+    const toolbar = workspaceCompactToolbar(doc, { root, query, filters, sort, reset });
+    expect(toolbar.filter.control.children.at(-1).tagName).toBe('SPAN');
+    toolbar.filter.control.click(); expect(toolbar.filter.panel.hidden).toBe(false);
+    sort.trigger.dispatch('keydown', { key: 'ArrowDown' });
+    expect(sort.popup.hidden).toBe(false); expect(toolbar.filter.isOpen).toBe(false); expect(toolbar.filter.panel.inert).toBe(true);
+    toolbar.filter.control.click();
+    expect(sort.popup.hidden).toBe(true); expect(toolbar.filter.panel.hidden).toBe(false);
+    toolbar.setFiltered(true); reset.click();
+    expect(clear).toHaveBeenCalledTimes(1); expect(toolbar.filter.isOpen).toBe(false); expect(doc.activeElement).toBe(toolbar.filter.control);
+    toolbar.destroy(); sort.destroy();
+    expect(doc.count('pointerdown')).toBe(0); expect(doc.count('keydown')).toBe(0);
+  });
+});
+
+
+describe('knowledge directory Japanese search input', () => {
+  it('waits for compositionend, ignores composing Enter, and cleans up the existing input', () => {
+    const doc = new Document(); const changes = [];
+    const toolbar = knowledgeDirectoryToolbar(doc, { filters: { q: '', scope: 'all', status: 'active' }, onChange: value => changes.push(value), onProject() {}, onRegister() {} });
+    doc.body.append(toolbar.root);
+    const query = toolbar.query;
+    query.dispatch('compositionstart'); query.value = '日本語';
+    query.dispatch('input', { isComposing: true });
+    query.dispatch('keydown', { key: 'Enter', isComposing: true });
+    expect(toolbar.isComposing).toBe(true); expect(changes).toEqual([]);
+    query.dispatch('compositionend');
+    expect(changes).toEqual([{ q: '日本語', scope: 'all', status: 'active' }]);
+    toolbar.destroy(); query.value = '後着'; query.dispatch('input');
+    expect(changes).toHaveLength(1);
+    const next = knowledgeDirectoryToolbar(doc, { queryInput: query, filters: { q: '日本語', scope: 'all', status: 'active' }, onChange() {}, onProject() {}, onRegister() {} });
+    expect(next.query).toBe(query); next.destroy();
+  });
+});

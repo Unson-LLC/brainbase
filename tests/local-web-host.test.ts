@@ -6,7 +6,12 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createFoundationRevisionStore } from '../src/foundation-store.js';
 import { graphRecordDigest } from '../src/graph-corrections.js';
-import { createLocalWebHost, LOCAL_WEB_TOKEN_HEADER, type LocalWebExtension } from '../src/local-web-host.js';
+import {
+  createLocalWebHost,
+  LOCAL_WEB_TOKEN_HEADER,
+  type LocalWebExtension,
+  type LocalWebMeetingMinutesStorageOptions,
+} from '../src/local-web-host.js';
 import type { ConstraintDefinition, FoundationRevision, ModelDefinition, ObjectiveDefinition, VariableDefinition } from '../src/ontology-foundation.js';
 import { initializePersonalOs, mutatePersonalOs } from '../src/ssot.js';
 import { createWorldModelStore } from '../src/world-model.js';
@@ -19,13 +24,18 @@ let directory: string;
 let dataDir: string;
 let server: Server | null = null;
 
-async function start(options: { dataDir?: string; extensions?: readonly LocalWebExtension[] } = {}): Promise<string> {
+async function start(options: {
+  dataDir?: string;
+  extensions?: readonly LocalWebExtension[];
+  meetingMinutesStorage?: LocalWebMeetingMinutesStorageOptions;
+} = {}): Promise<string> {
   const host = createLocalWebHost({
     dataDir: options.dataDir ?? dataDir,
     journalRoot: join(directory, 'journal'),
     token: TOKEN,
     now: () => new Date('2026-09-26T00:00:00.000Z'),
-    extensions: options.extensions
+    extensions: options.extensions,
+    meetingMinutesStorage: options.meetingMinutesStorage,
   });
   server = host.server;
   await new Promise<void>((resolve) => host.server.listen(0, '127.0.0.1', () => resolve()));
@@ -206,6 +216,18 @@ afterEach(async () => {
 });
 
 describe('local web host protections', () => {
+  it('lists an extension marked first before the public screens, so it opens when no screen is named', async () => {
+    const uiDir = join(directory, 'first-ui');
+    await mkdir(uiDir);
+    await writeFile(join(uiDir, 'screen.js'), 'export const screen = { id: "lead" };');
+    const extension: LocalWebExtension = {
+      id: 'lead', uiDir, uiFiles: ['screen.js'], screenEntry: 'screen.js', navPosition: 'first',
+      createModule: () => ({ id: 'lead', uiFiles: [], async handle() { return false; } })
+    };
+    const base = await start({ extensions: [extension] });
+    expect(await (await fetch(`${base}/app.js`)).text()).toContain('screens: [extensionScreen0, ...LOCAL_WEB_SCREENS]');
+  });
+
   it('mounts an allowlisted private screen and confines its API to its own prefix', async () => {
     const uiDir = join(directory, 'extension-ui');
     await mkdir(uiDir);
@@ -264,7 +286,9 @@ describe('local web host protections', () => {
 
     for (const file of [
       'brainbase-tokens.css', 'local-web-shell.js', 'local-web-shell.css', 'workspace-kit.js', 'workspace-kit.css', 'value-proof-review.js', 'value-proof-review.css',
-      'objective-editor.js', 'objective-editor.css', 'objective-editor-http-port.js', 'world-model-view.js', 'world-model-view.css'
+      'objective-editor.js', 'objective-editor.css', 'objective-editor-http-port.js', 'world-model-view.js', 'world-model-view.css', 'project-icon.js',
+      'meeting-minutes.js', 'meeting-minutes.css', 'meeting-minutes-storage.js', 'meeting-minutes-storage.css',
+      'personal-memory.js', 'personal-memory-http-port.js', 'personal-memory.css'
     ]) {
       const response = await fetch(`${base}/ui/${file}`);
       expect(response.status, file).toBe(200);
@@ -272,7 +296,7 @@ describe('local web host protections', () => {
     }
     expect((await fetch(`${base}/app.js`)).status).toBe(200);
     // Every module a served part imports is served too, or the page cannot start.
-    for (const file of ['local-web-shell.js', 'value-proof-review.js', 'objective-editor.js', 'world-model-view.js']) {
+    for (const file of ['local-web-shell.js', 'value-proof-review.js', 'objective-editor.js', 'world-model-view.js', 'personal-memory.js', 'personal-memory-http-port.js']) {
       const source = await (await fetch(`${base}/ui/${file}`)).text();
       for (const [, imported] of source.matchAll(/from '\.\/([^']+)'/gu)) {
         expect((await fetch(`${base}/ui/${imported}`)).status, `${file} -> ${imported}`).toBe(200);
@@ -336,6 +360,83 @@ describe('local web host protections', () => {
     const base = await start();
     const home = await (await fetch(`${base}/api/value-proofs/home`)).json();
     expect(home).toMatchObject({ status: 'unavailable', reason: 'judgment_journal_not_found' });
+  });
+
+  it('serves native meeting minutes from the local single-owner host and preserves idempotent writes', async () => {
+    await v2DataDir();
+    const base = await start();
+    const payload = { title: 'ローカル会議', initial_body: '手元の議事録' };
+    const created = await write(base, 'POST', '/api/meeting-minutes', payload, { 'Idempotency-Key': 'local-meeting-1' });
+    expect(created.status).toBe(201);
+    const first = await created.json();
+    const meetingId = first.meeting.meeting_id;
+
+    const replay = await write(base, 'POST', '/api/meeting-minutes', payload, { 'Idempotency-Key': 'local-meeting-1' });
+    expect(replay.status).toBe(201);
+    expect((await replay.json()).meeting.meeting_id).toBe(meetingId);
+
+    const detail = await (await fetch(`${base}/api/meeting-minutes/${encodeURIComponent(meetingId)}`)).json();
+    expect(detail.meeting.meeting_id).toBe(meetingId);
+    expect(detail.versions[0]).toMatchObject({ body: '手元の議事録' });
+  });
+
+  it('connects an explicitly configured filesystem source through the shared host and preserves unavailable history', async () => {
+    await v2DataDir();
+    const externalRoot = join(directory, 'minutes-external');
+    await mkdir(externalRoot, { recursive: true });
+    await writeFile(join(externalRoot, 'minutes.md'), '外部の議事録\n', 'utf8');
+    const authorizationCalls: string[] = [];
+    let sourceAllowed = true;
+    const base = await start({
+      meetingMinutesStorage: {
+        filesystem: {
+          root: externalRoot,
+          authorize: (_context, operation) => {
+            authorizationCalls.push(operation);
+            return sourceAllowed;
+          },
+        },
+        defaultExternal: { provider: 'filesystem', locator: 'minutes.md' },
+      },
+    });
+
+    const app = await (await fetch(`${base}/app.js`)).text();
+    expect(app).toContain('"provider":"filesystem","locator":"minutes.md"');
+    expect(app).not.toContain(externalRoot);
+    const created = await write(base, 'POST', '/api/meeting-minutes', {
+      title: '外部ソース会議',
+      placement: { kind: 'external', provider: 'filesystem', locator: 'minutes.md' },
+    }, { 'Idempotency-Key': 'external-meeting-1' });
+    expect(created.status).toBe(201);
+    const createdPayload = await created.json();
+    const meetingId = createdPayload.meeting.meeting_id;
+    const minutesId = createdPayload.minutes[0].minutes_id;
+    const versionId = createdPayload.versions.find((version: { minutes_id: string }) => version.minutes_id === minutesId).version_id;
+    expect(createdPayload.versions[0].source_ref).toMatchObject({ provider: 'filesystem', locator: 'minutes.md' });
+
+    const resolved = await fetch(`${base}/api/meeting-minutes/${encodeURIComponent(meetingId)}/minutes/${encodeURIComponent(minutesId)}/versions/${encodeURIComponent(versionId)}`);
+    expect(resolved.status).toBe(200);
+    expect(await resolved.json()).toMatchObject({
+      placement: 'external',
+      source_status: 'available',
+      body: '外部の議事録\n',
+    });
+    expect(authorizationCalls).toEqual(expect.arrayContaining(['register', 'read']));
+
+    sourceAllowed = false;
+    const denied = await fetch(`${base}/api/meeting-minutes/${encodeURIComponent(meetingId)}/minutes/${encodeURIComponent(minutesId)}/versions/${encodeURIComponent(versionId)}`);
+    expect(denied.status).toBe(200);
+    const deniedPayload = await denied.json();
+    expect(deniedPayload).toMatchObject({ placement: 'external', source_status: 'denied' });
+    expect(deniedPayload).not.toHaveProperty('body');
+
+    sourceAllowed = true;
+    await writeFile(join(externalRoot, 'minutes.md'), '更新された外部の議事録\n', 'utf8');
+    const unavailable = await fetch(`${base}/api/meeting-minutes/${encodeURIComponent(meetingId)}/minutes/${encodeURIComponent(minutesId)}/versions/${encodeURIComponent(versionId)}`);
+    expect(unavailable.status).toBe(200);
+    const unavailablePayload = await unavailable.json();
+    expect(unavailablePayload).toMatchObject({ placement: 'external', source_status: 'historical_unavailable' });
+    expect(unavailablePayload).not.toHaveProperty('body');
   });
 });
 
@@ -756,8 +857,7 @@ describe('Graph format and data directory state', () => {
     const status = await (await fetch(`${base}/api/local/status`)).json();
     expect(status).toMatchObject({
       data_dir: dataDir,
-      graph: { status: 'migration_required', format: 'v1' },
-      organization_graph: { status: 'not_connected' }
+      graph: { status: 'migration_required', format: 'v1' }
     });
     expect(status.graph.commands).toHaveLength(2);
     expect(status.graph.commands[0]).toContain('brainbase ontology:migrate --dir');
@@ -774,11 +874,12 @@ describe('Graph format and data directory state', () => {
     expect(await readFile(join(dataDir, 'graph.json'), 'utf8')).toBe(before);
   });
 
-  it('reports Graph v2 with the data directory and no organization Graph', async () => {
+  it('reports Graph v2 with the data directory, and nothing about an organization Graph (the local host never reads one)', async () => {
     await v2DataDir();
     const base = await start();
     const status = await (await fetch(`${base}/api/local/status`)).json();
-    expect(status).toMatchObject({ data_dir: dataDir, graph: { status: 'ready', format: 'v2', commands: [] }, organization_graph: { status: 'not_connected' } });
+    expect(status).toMatchObject({ data_dir: dataDir, graph: { status: 'ready', format: 'v2', commands: [] } });
+    expect(status).not.toHaveProperty('organization_graph');
   });
 
   it('reports a missing data directory without creating it', async () => {
@@ -790,5 +891,67 @@ describe('Graph format and data directory state', () => {
     expect(objectives.status).toBe(503);
     expect((await objectives.json()).error.code).toBe('personal_os_not_initialized');
     await expect(access(dataDir)).rejects.toThrow();
+  });
+});
+
+describe('あなたの記憶 (personal memory) routes', () => {
+  async function seed(lines: string): Promise<void> {
+    await v2DataDir();
+    await writeFile(join(dataDir, 'personal-kg.jsonl'), lines);
+  }
+
+  function read(base: string, path: string, headers: Record<string, string> = { [LOCAL_WEB_TOKEN_HEADER]: TOKEN }): Promise<Response> {
+    return fetch(`${base}${path}`, { headers });
+  }
+
+  it('returns personal-kg.jsonl through reads guarded by the launch token and the same origin', async () => {
+    await seed(`${JSON.stringify({ id: 'value-a1', type: 'value', text: '本人だけの記憶', tags: ['value'], updatedAt: '2026-10-01T00:00:00.000Z' })}\n`);
+    const base = await start();
+
+    const list = await read(base, '/api/personal-memory');
+    expect(list.status).toBe(200);
+    const payload = await list.json();
+    expect(payload.status).toBe('ok');
+    expect(payload.items).toEqual([expect.objectContaining({
+      id: 'value-a1', kind: 'value', text: '本人だけの記憶', state: 'unrecorded', recallScope: 'general',
+      origin: { organizationLabel: '手元', projectLabel: null, workplace: null, inferred: false }
+    })]);
+    expect((await (await read(base, '/api/personal-memory/value-a1')).json()).item.id).toBe('value-a1');
+    const missing = await read(base, '/api/personal-memory/nope');
+    expect(missing.status).toBe(404);
+    expect(await missing.json()).toEqual({ status: 'not_found' });
+
+    for (const path of ['/api/personal-memory', '/api/personal-memory/value-a1', '/api/personal-memory/value-a1/judgments', '/api/personal-memory?view=judgment-counts']) {
+      const withoutToken = await read(base, path, {});
+      expect(withoutToken.status, path).toBe(403);
+      expect(await withoutToken.text(), path).not.toContain('本人だけの記憶');
+      const crossOrigin = await read(base, path, { [LOCAL_WEB_TOKEN_HEADER]: TOKEN, Origin: 'https://evil.example' });
+      expect(crossOrigin.status, path).toBe(403);
+    }
+    expect((await write(base, 'POST', '/api/personal-memory', {})).status).toBe(405);
+  });
+
+  it('tells an empty file (zero, confirmed) from an unreadable one', async () => {
+    await seed('');
+    const base = await start();
+    expect(await (await read(base, '/api/personal-memory')).json()).toEqual({ status: 'ok', items: [], next_cursor: null });
+
+    await writeFile(join(dataDir, 'personal-kg.jsonl'), '{not json}\n');
+    const broken = await read(base, '/api/personal-memory');
+    expect(broken.status).toBe(503);
+    expect(await broken.json()).toEqual({ status: 'unavailable', reason: 'personal_kg_invalid' });
+  });
+
+  it('answers the judgments that used a memory from the configured journal', async () => {
+    await seed(`${JSON.stringify({ id: 'value-a1', type: 'value', text: 't' })}\n`);
+    const base = await start();
+    // Without a journal the host cannot tell "not used" from "not recorded".
+    const missing = await read(base, '/api/personal-memory/value-a1/judgments?limit=5');
+    expect(missing.status).toBe(503);
+    expect(await missing.json()).toEqual({ status: 'unavailable', reason: 'journal_unavailable' });
+    // An empty journal holds no references at all: zero is a confirmed answer.
+    await mkdir(join(directory, 'journal'), { recursive: true });
+    expect(await (await read(base, '/api/personal-memory/value-a1/judgments?limit=5')).json()).toEqual({ status: 'ok', items: [], total: 0 });
+    expect(await (await read(base, '/api/personal-memory?view=judgment-counts')).json()).toEqual({ status: 'ok', counts: { 'value-a1': 0 } });
   });
 });

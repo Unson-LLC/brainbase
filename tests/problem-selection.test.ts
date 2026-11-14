@@ -13,6 +13,8 @@ import type {
 import {
   createProblemSelection,
   createProblemSelectionRecordStore,
+  evaluateProblemSelectionWithComposition,
+  type JudgmentDAGCompositionRunHistoryProducer,
   type ProblemSelectionCandidateAssessment,
   type ProblemSelectionEvaluationResult,
   type ProblemSelectionFixedConditions,
@@ -21,7 +23,13 @@ import {
   type ProblemSelectionCandidateReference,
   type ProblemSelectionFoundationReference
 } from '../src/problem-selection.js';
-import type { JudgmentDAGCompositionDefinition, JudgmentDAGProblemSnapshotReference } from '../src/judgment-dag-composition.js';
+import type {
+  JudgmentDAGCompositionDefinition,
+  JudgmentDAGCompositionRunRequest,
+  JudgmentDAGProblemSnapshotReference,
+  JudgmentDAGSubDAGResult
+} from '../src/judgment-dag-composition.js';
+import { executeJudgmentDAGComposition } from '../src/judgment-dag-composition.js';
 
 const temporaryRoots: string[] = [];
 
@@ -194,6 +202,92 @@ const policyConflict: ProblemSelectionObjectiveConflict = {
   objectiveIds: [objectiveRef.id, 'objective-quality'],
   reason: 'quality and load cannot be compared under the fixed criteria'
 };
+
+function compositionRunRequestForHistory(
+  port: JudgmentDAGCompositionRunRequest['port'],
+  overrides: Partial<JudgmentDAGCompositionRunRequest> = {}
+): JudgmentDAGCompositionRunRequest {
+  const child = selectionComposition.children[0];
+  if (child === undefined) throw new Error('history test composition child is missing');
+  const request: JudgmentDAGCompositionRunRequest = {
+    run_id: 'composition-history-test-run',
+    composition: selectionComposition,
+    question: 'Which candidate should be selected?',
+    input: { candidate_count: 1 },
+    problem_snapshot: selectionProblem,
+    fixed_conditions: { objective: objectiveRef.id, constraint: constraintRef.id },
+    delegation: { scope: selectionComposition.scope, capabilities: [] },
+    snapshot_reader: {
+      read: async ({ reference }) => ({
+        status: 'resolved' as const,
+        reference_resolution: 'current' as const,
+        reference,
+        snapshot: {
+          snapshot_version: 'judgment-problem-snapshot.v1',
+          problem_id: reference.problem_id,
+          revision: reference.revision
+        }
+      })
+    },
+    dag_resolver: {
+      resolve: ({ invocation_id, dag }) => {
+        const resolvedChild = invocation_id === undefined
+          ? undefined
+          : selectionComposition.children.find((entry) => entry.invocation_id === invocation_id);
+        return {
+          dag,
+          input_contract: resolvedChild?.input_contract ?? 'problem-selection-parent-input.v1',
+          output_contract: resolvedChild?.output_contract ?? 'problem-selection-parent-output.v1'
+        };
+      }
+    },
+    contract_validator: { validate: () => undefined },
+    port,
+    ...overrides
+  };
+  return request;
+}
+
+function compositionResultForHistory(status: 'completed' | 'failed' | 'held' = 'completed'): JudgmentDAGSubDAGResult {
+  const child = selectionComposition.children[0];
+  if (child === undefined) throw new Error('history test composition child is missing');
+  return {
+    status,
+    input_contract: child.input_contract,
+    output_contract: child.output_contract,
+    run_reference: status === 'completed'
+      ? { run_id: 'child-composition-run', dag: child.dag }
+      : null,
+    conclusion: status === 'completed' ? selected('start') : { unavailable: true },
+    evidence: [],
+    applicability: {},
+    uncertainty: {},
+    ...(status === 'completed' ? {} : { reason: status === 'failed' ? 'child evaluation failed' : 'child evaluation held' })
+  };
+}
+
+function historyProducerOptions(producer: JudgmentDAGCompositionRunHistoryProducer) {
+  return {
+    producer,
+    binding: {
+      organization_id: 'organization-1',
+      tenant_id: 'tenant-1',
+      owner_person_id: 'person-1',
+      project_code: 'hotel-project',
+      turn_ref: 'turn-1'
+    },
+    source: { producer: 'company_os' as const, producer_revision: 'company-os-test' },
+    references: { problem_snapshot: selectionProblem, foundation: [], evidence: [] },
+    started: {
+      lifecycle_event_id: 'history-event-started',
+      recorded_at: '2026-10-08T00:00:00.000Z'
+    },
+    terminal: {
+      lifecycle_event_id: 'history-event-terminal',
+      recorded_at: '2026-10-08T00:00:01.000Z'
+    }
+  };
+}
 
 async function expectSelectedPolicyMutationRejected(
   records: readonly ProblemCandidateRecord[],
@@ -796,5 +890,263 @@ describe('problem selection with the canonical candidate store', () => {
     expect(result.status).toBe('selected');
     expect(result.problemCreationRequest?.candidate.payloadDigest).toBe(saved.payloadDigest);
     expect(JSON.stringify(result)).not.toContain(input.statement);
+  });
+});
+
+describe('problem selection CompositionRun history producer boundary', () => {
+  it('appends started and the exact terminal run before deriving the selection', async () => {
+    const events: unknown[] = [];
+    const producer: JudgmentDAGCompositionRunHistoryProducer = {
+      append: vi.fn(async (event) => {
+        events.push(event);
+      })
+    };
+    const compositionRequest = compositionRunRequestForHistory({
+      execute: async () => compositionResultForHistory()
+    });
+    const expectedRun = await executeJudgmentDAGComposition(compositionRequest);
+
+    const result = await evaluateProblemSelectionWithComposition({
+      compositionRequest,
+      compositionRunHistory: historyProducerOptions(producer)
+    });
+
+    expect(result).toEqual(selected('start'));
+    expect(producer.append).toHaveBeenCalledTimes(2);
+    expect(events[0]).toMatchObject({
+      run_id: compositionRequest.run_id,
+      lifecycle: {
+        state: 'started',
+        lifecycle_event_id: 'history-event-started',
+        recorded_at: '2026-10-08T00:00:00.000Z',
+        failure: null
+      },
+      composition_run: null
+    });
+    expect(events[1]).toMatchObject({
+      run_id: compositionRequest.run_id,
+      lifecycle: {
+        state: 'completed',
+        lifecycle_event_id: 'history-event-terminal',
+        recorded_at: '2026-10-08T00:00:01.000Z',
+        failure: null
+      },
+      composition_run: {
+        run_id: compositionRequest.run_id,
+        status: 'completed',
+        problem_snapshot: compositionRequest.problem_snapshot
+      }
+    });
+    expect((events[1] as { composition_run: unknown }).composition_run).toEqual(expectedRun);
+    expect(Object.isFrozen(events[0])).toBe(true);
+    expect(Object.isFrozen((events[0] as { binding: unknown }).binding)).toBe(true);
+  });
+
+  it('persists a returned failed run without converting it to a successful selection', async () => {
+    const events: unknown[] = [];
+    const producer: JudgmentDAGCompositionRunHistoryProducer = {
+      append: vi.fn(async (event) => {
+        events.push(event);
+      })
+    };
+    const compositionRequest = compositionRunRequestForHistory({
+      execute: async () => compositionResultForHistory('failed')
+    });
+
+    const result = await evaluateProblemSelectionWithComposition({
+      compositionRequest,
+      compositionRunHistory: historyProducerOptions(producer)
+    });
+
+    expect(result.status).toBe('human_review_required');
+    expect(events).toHaveLength(2);
+    expect(events[1]).toMatchObject({
+      lifecycle: { state: 'failed', failure: null },
+      composition_run: { run_id: compositionRequest.run_id, status: 'failed' }
+    });
+  });
+
+  it('persists a returned held run without converting it to a successful selection', async () => {
+    const events: unknown[] = [];
+    const producer: JudgmentDAGCompositionRunHistoryProducer = {
+      append: vi.fn(async (event) => {
+        events.push(event);
+      })
+    };
+    const compositionRequest = compositionRunRequestForHistory({
+      execute: async () => compositionResultForHistory('held')
+    });
+
+    const result = await evaluateProblemSelectionWithComposition({
+      compositionRequest,
+      compositionRunHistory: historyProducerOptions(producer)
+    });
+
+    expect(result.status).toBe('human_review_required');
+    expect(events).toHaveLength(2);
+    expect(events[1]).toMatchObject({
+      lifecycle: { state: 'held', failure: null },
+      composition_run: { run_id: compositionRequest.run_id, status: 'held' }
+    });
+  });
+
+  it('saves a safe failure envelope for executor failure without exposing the thrown message', async () => {
+    const events: unknown[] = [];
+    const producer: JudgmentDAGCompositionRunHistoryProducer = {
+      append: vi.fn(async (event) => {
+        events.push(event);
+      })
+    };
+    const compositionRequest = compositionRunRequestForHistory(
+      { execute: async () => compositionResultForHistory() },
+      {
+        dag_resolver: {
+          resolve: () => {
+            throw new Error('credential-secret-from-resolver');
+          }
+        }
+      }
+    );
+
+    const result = await evaluateProblemSelectionWithComposition({
+      compositionRequest,
+      compositionRunHistory: historyProducerOptions(producer)
+    });
+
+    expect(result.status).toBe('human_review_required');
+    expect(JSON.stringify(result)).not.toContain('credential-secret-from-resolver');
+    expect(events).toHaveLength(2);
+    expect(events[1]).toMatchObject({
+      lifecycle: {
+        state: 'failed',
+        failure: {
+          code: 'dag_unavailable',
+          message: 'DAG composition failed before a run record was returned'
+        }
+      },
+      composition_run: null
+    });
+  });
+
+  it('does not execute when the started event cannot be saved and does not expose the save error', async () => {
+    const execute = vi.fn(async () => compositionResultForHistory());
+    const producer: JudgmentDAGCompositionRunHistoryProducer = {
+      append: vi.fn(async () => {
+        throw new Error('database-credential-secret');
+      })
+    };
+    const result = await evaluateProblemSelectionWithComposition({
+      compositionRequest: compositionRunRequestForHistory({ execute }),
+      compositionRunHistory: historyProducerOptions(producer)
+    });
+
+    expect(result).toMatchObject({
+      status: 'human_review_required',
+      reason: 'selection composition history unavailable: DAG composition history could not be saved'
+    });
+    expect(JSON.stringify(result)).not.toContain('database-credential-secret');
+    expect(execute).not.toHaveBeenCalled();
+    expect(producer.append).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not return a selected result when terminal history cannot be saved', async () => {
+    const events: unknown[] = [];
+    const execute = vi.fn(async () => compositionResultForHistory());
+    const producer: JudgmentDAGCompositionRunHistoryProducer = {
+      append: vi.fn(async (event) => {
+        if (events.length === 1) throw new Error('terminal-database-secret');
+        events.push(event);
+      })
+    };
+    const result = await evaluateProblemSelectionWithComposition({
+      compositionRequest: compositionRunRequestForHistory({ execute }),
+      compositionRunHistory: historyProducerOptions(producer)
+    });
+
+    expect(result).toMatchObject({
+      status: 'human_review_required',
+      reason: 'selection composition history unavailable: DAG composition history could not be saved'
+    });
+    expect(JSON.stringify(result)).not.toContain('terminal-database-secret');
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(producer.append).toHaveBeenCalledTimes(2);
+    expect(events).toHaveLength(1);
+  });
+
+  it('rejects a returned run whose scope changed while the started event was being saved', async () => {
+    let compositionRequest!: JudgmentDAGCompositionRunRequest;
+    const events: unknown[] = [];
+    const producer: JudgmentDAGCompositionRunHistoryProducer = {
+      append: vi.fn(async (event) => {
+        events.push(event);
+        if (event.lifecycle.state === 'started') {
+          const mutableRequest = compositionRequest as unknown as {
+            delegation: { scope: { id: string } };
+          };
+          mutableRequest.delegation.scope.id = 'mutated-project';
+          const mutableComposition = compositionRequest as unknown as {
+            composition: { scope: { id: string } };
+          };
+          mutableComposition.composition.scope.id = 'mutated-project';
+        }
+      })
+    };
+    compositionRequest = compositionRunRequestForHistory({
+      execute: async () => compositionResultForHistory()
+    });
+    const isolatedScope = { ...selectionComposition.scope };
+    (compositionRequest as unknown as { composition: JudgmentDAGCompositionDefinition }).composition = {
+      ...compositionRequest.composition,
+      scope: isolatedScope
+    };
+    (compositionRequest as unknown as { delegation: JudgmentDAGCompositionRunRequest['delegation'] }).delegation = {
+      scope: isolatedScope,
+      capabilities: []
+    };
+
+    const result = await evaluateProblemSelectionWithComposition({
+      compositionRequest,
+      compositionRunHistory: historyProducerOptions(producer)
+    });
+
+    expect(result).toMatchObject({
+      status: 'human_review_required',
+      reason: 'selection composition result could not be read'
+    });
+    expect(events).toHaveLength(2);
+    expect(events[1]).toMatchObject({
+      lifecycle: { state: 'unknown', failure: { code: 'unknown' } },
+      composition_run: null
+    });
+  });
+
+  it('keeps the terminal run when result extraction throws after persistence', async () => {
+    const events: unknown[] = [];
+    const producer: JudgmentDAGCompositionRunHistoryProducer = {
+      append: vi.fn(async (event) => {
+        events.push(event);
+      })
+    };
+    const request = {
+      compositionRequest: compositionRunRequestForHistory({
+        execute: async () => compositionResultForHistory()
+      }),
+      compositionRunHistory: historyProducerOptions(producer)
+    } as Parameters<typeof evaluateProblemSelectionWithComposition>[0];
+    Object.defineProperty(request, 'resultInvocationId', {
+      get: () => {
+        throw new Error('result-extraction-secret');
+      }
+    });
+
+    const result = await evaluateProblemSelectionWithComposition(request);
+
+    expect(result).toMatchObject({
+      status: 'human_review_required',
+      reason: 'selection composition result could not be read'
+    });
+    expect(JSON.stringify(result)).not.toContain('result-extraction-secret');
+    expect(events).toHaveLength(2);
+    expect(events[1]).toMatchObject({ lifecycle: { state: 'completed' }, composition_run: { status: 'completed' } });
   });
 });

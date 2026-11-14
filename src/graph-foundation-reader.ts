@@ -1,3 +1,4 @@
+import { assertPrivatePhilosophyRead, privatePhilosophyAcl } from './private-philosophy-graph.js';
 import {
   cloneFoundationDefinition,
   digestFoundationDefinition
@@ -167,8 +168,102 @@ LEFT JOIN LATERAL (
 WHERE ($1::text IS NULL OR current_entity.entity_type = $1)
   AND ($2::text IS NULL OR projects.code = $2 OR projects.id IS NULL)
   AND current_entity.entity_type IN ('objective', 'variable', 'model', 'constraint')
+  -- A list projects current records only. A retired row is not current, and
+  -- reading it would make one replaced record fail the whole list.
+  AND current_entity.lifecycle_status = 'active'
 ORDER BY current_entity.id, current_entity.entity_type
 `;
+
+/**
+ * List the newest immutable revision for each philosophy attached to the
+ * selected project. The current Graph row is still the authorization
+ * boundary; the transaction's RLS policies hide rows the caller cannot see.
+ * Unlike the Foundation list, this query requires a canonical project join so
+ * a missing project membership cannot be interpreted as a selected-scope hit.
+ */
+export const GRAPH_PHILOSOPHY_LIST_SQL = `
+SELECT
+  history.entity_id,
+  history.entity_type,
+  history.revision,
+  history.payload,
+  history.project_id,
+  history.role_min,
+  history.sensitivity,
+  history.lifecycle_status,
+  history.storage_digest,
+  history.captured_at,
+  (
+    history.storage_digest = 'sha256:' ||
+      encode(sha256(convert_to(history.payload::text, 'UTF8')), 'hex')
+  ) AS storage_digest_valid,
+  current_entity.id AS current_entity_id,
+  current_entity.entity_type AS current_entity_type,
+  current_entity.payload AS current_payload,
+  current_entity.project_id AS current_project_id,
+  current_entity.role_min AS current_role_min,
+  current_entity.sensitivity AS current_sensitivity,
+  current_entity.lifecycle_status AS current_lifecycle_status,
+  projects.code AS current_project_code,
+  true AS current_visible
+FROM public.graph_entities AS current_entity
+JOIN public.projects AS projects
+  ON projects.id = current_entity.project_id
+LEFT JOIN LATERAL (
+  SELECT history.*
+  FROM public.graph_foundation_revisions AS history
+  WHERE history.entity_id = current_entity.id
+    AND history.entity_type = current_entity.entity_type
+  ORDER BY history.revision::numeric DESC
+  LIMIT 1
+) AS history ON true
+WHERE current_entity.entity_type = 'philosophy'
+  AND projects.code = $1
+  AND current_entity.lifecycle_status = 'active'
+  AND current_entity.payload ? 'judgmentApplicability'
+ORDER BY current_entity.id
+`;
+
+/**
+ * Current philosophies of the selected project that predate recorded
+ * applicability. They are excluded from the verified list above, but the
+ * judgment frame catalog still reads them, so the overview must show them as
+ * "applicability unrecorded" instead of reporting that none are registered.
+ */
+export const GRAPH_UNSCOPED_PHILOSOPHY_LIST_SQL = `
+SELECT
+  current_entity.id AS current_entity_id,
+  current_entity.entity_type AS current_entity_type,
+  current_entity.payload AS current_payload,
+  current_entity.project_id AS current_project_id,
+  current_entity.lifecycle_status AS current_lifecycle_status,
+  current_entity.version AS current_version,
+  projects.code AS current_project_code
+FROM public.graph_entities AS current_entity
+JOIN public.projects AS projects
+  ON projects.id = current_entity.project_id
+WHERE current_entity.entity_type = 'philosophy'
+  AND projects.code = $1
+  AND current_entity.lifecycle_status = 'active'
+  AND NOT (current_entity.payload ? 'judgmentApplicability')
+ORDER BY current_entity.id
+`;
+
+/** A current philosophy whose judgment applicability has never been recorded. */
+export interface UnscopedPhilosophyRecord {
+  readonly kind: 'philosophy';
+  readonly id: string;
+  /** Current Graph version; there is no verified foundation revision. */
+  readonly version: number;
+  readonly applicability: null;
+  readonly applicability_state: 'unrecorded';
+  readonly payload: {
+    readonly title?: string;
+    readonly statement: string;
+    readonly summary?: string;
+    readonly status?: string;
+  };
+}
 
 /** Flat row shape returned by GRAPH_FOUNDATION_READ_SQL. */
 export interface GraphFoundationHistoryRow {
@@ -191,6 +286,7 @@ export interface GraphFoundationHistoryRow {
   readonly current_role_min?: unknown;
   readonly current_sensitivity?: unknown;
   readonly current_lifecycle_status?: unknown;
+  readonly current_version?: unknown;
   readonly current_visible?: unknown;
 }
 
@@ -213,9 +309,32 @@ export interface GraphFoundationReaderOptions {
   readonly selectedProjectCode?: string;
 }
 
+export interface FoundationObjectiveDetails {
+  readonly title?: unknown;
+  readonly criteria_text?: unknown;
+  readonly beneficiary_description?: unknown;
+  readonly evaluation_period_note?: unknown;
+  readonly evaluator_note?: unknown;
+  readonly current_state?: unknown;
+}
+
+/** The words a World Model record gives for where it applies. */
+export interface FoundationModelDetails {
+  readonly applicability_text?: unknown;
+}
+
+/** Runtime shape used by the overview contract for Objective and World Model records. */
+export interface FoundationOverviewObjectiveRecord extends FoundationCatalogRecord {
+  readonly details?: FoundationObjectiveDetails | FoundationModelDetails;
+}
+
 export interface GraphFoundationReaders {
   readonly store: Pick<FoundationRevisionStore, 'read' | 'readLatest' | 'list'>;
   readonly philosophyReader: PhilosophyRevisionReader;
+  /** List latest, current-visible philosophy revisions for the selected project. */
+  readonly listPhilosophies: (context: FoundationStoreContext) => Promise<PhilosophyRevisionRecord[]>;
+  /** List current philosophies of the selected project without recorded applicability. */
+  readonly listUnscopedPhilosophies: (context: FoundationStoreContext) => Promise<UnscopedPhilosophyRecord[]>;
 }
 
 const FOUNDATION_TYPES: readonly FoundationType[] = ['objective', 'variable', 'model', 'constraint'];
@@ -295,7 +414,115 @@ export function createGraphFoundationReaders(options: GraphFoundationReaderOptio
     }
   };
 
-  return { store, philosophyReader };
+  async function listPhilosophies(suppliedContext: FoundationStoreContext): Promise<PhilosophyRevisionRecord[]> {
+    assertTrustedPrincipal(context, suppliedContext);
+    if (selectedProjectCode === undefined) {
+      throw scopeViolation('A selected project is required to list philosophy revisions');
+    }
+
+    const rows = await executePhilosophyList(query, selectedProjectCode);
+    const seen = new Set<string>();
+    return rows.map((row) => {
+      const id = requireString(row.entity_id, 'Philosophy history entity_id');
+      const revision = requireRevision(row.revision, 'Philosophy history revision');
+      if (row.current_project_code !== selectedProjectCode) {
+        throw scopeViolation('The current philosophy project is outside the selected project scope');
+      }
+      const key = `${id}:${revision}`;
+      if (seen.has(key)) throw corrupt('Philosophy list returned duplicate entity revisions');
+      seen.add(key);
+
+      const validated = validatePhilosophyHistoryAccess(row, id, revision, context);
+      return createPhilosophyRevisionRecord(validated, id, revision, context.principal);
+    });
+  }
+
+  async function listUnscopedPhilosophies(suppliedContext: FoundationStoreContext): Promise<UnscopedPhilosophyRecord[]> {
+    assertTrustedPrincipal(context, suppliedContext);
+    if (selectedProjectCode === undefined) {
+      throw scopeViolation('A selected project is required to list philosophies');
+    }
+
+    let result: GraphFoundationQueryResult | readonly GraphFoundationHistoryRow[];
+    try {
+      result = await query(GRAPH_UNSCOPED_PHILOSOPHY_LIST_SQL, [selectedProjectCode]);
+    } catch {
+      throw corrupt('Graph unscoped philosophy list query failed');
+    }
+    const rows = Array.isArray(result) ? result
+      : 'rows' in result && Array.isArray(result.rows) ? result.rows as readonly GraphFoundationHistoryRow[]
+        : null;
+    if (!rows) throw corrupt('Graph unscoped philosophy list query returned an invalid result');
+
+    const seen = new Set<string>();
+    const records: UnscopedPhilosophyRecord[] = [];
+    for (const row of rows) {
+      const id = requireString(row.current_entity_id, 'Current philosophy id');
+      if (row.current_entity_type !== 'philosophy') throw corrupt('Graph philosophy list returned another entity type');
+      if (row.current_project_code !== selectedProjectCode) {
+        throw scopeViolation('The current philosophy project is outside the selected project scope');
+      }
+      if (seen.has(id)) throw corrupt('Philosophy list returned duplicate entities');
+      seen.add(id);
+      const version = Number(row.current_version);
+      if (!Number.isSafeInteger(version) || version < 1) throw corrupt('Current philosophy version is invalid');
+      const payload = requireObject(row.current_payload, 'Current philosophy payload');
+      if (Object.hasOwn(payload, 'judgmentApplicability')) {
+        throw corrupt('Unscoped philosophy list returned a philosophy with applicability');
+      }
+      // Private philosophies always carry applicability; an owner-only ACL here
+      // is still enforced rather than silently shown.
+      assertPrivatePhilosophyRead(payload, context.principal);
+      // Mirror the judgment frame catalog: superseded or text-less records are
+      // not used for judgment, so they are not shown as usable either.
+      const status = optionalText(payload.status);
+      if (status && /^(superseded|retired|rejected)/u.test(status)) continue;
+      const statement = optionalText(payload.statement);
+      if (!statement) continue;
+      const title = optionalText(payload.display_name) ?? optionalText(payload.title);
+      const summary = optionalText(payload.summary);
+      records.push({
+        kind: 'philosophy',
+        id,
+        version,
+        applicability: null,
+        applicability_state: 'unrecorded',
+        payload: {
+          ...(title ? { title } : {}),
+          statement,
+          ...(summary ? { summary } : {}),
+          ...(status ? { status } : {})
+        }
+      });
+    }
+    return records;
+  }
+
+  return { store, philosophyReader, listPhilosophies, listUnscopedPhilosophies };
+}
+
+function optionalText(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function createPhilosophyRevisionRecord(
+  validated: ValidatedPhilosophyHistoryAccess,
+  id: string,
+  revision: string,
+  principal: string
+): PhilosophyRevisionRecord {
+  return {
+    kind: 'philosophy',
+    id,
+    revision,
+    digest: validated.digest,
+    payload: validated.history.payload,
+    applicability: validated.history.applicability,
+    // This is a read-time projection of the current Graph permission. It
+    // does not mutate the canonical philosophy payload or Graph ACL.
+    currentAcl: privatePhilosophyAcl(validated.current.payload) ?? privateCurrentAcl(principal),
+    currentScope: cloneJudgmentScope(validated.history.applicability.scope)
+  };
 }
 
 async function readCanonicalPhilosophyRevision(
@@ -339,7 +566,7 @@ async function readCanonicalPhilosophyRevision(
         applicability: validated.history.applicability,
         // This is a read-time projection of the current Graph permission. It
         // does not mutate the canonical philosophy payload or Graph ACL.
-        currentAcl: privateCurrentAcl(trustedContext.principal),
+        currentAcl: privatePhilosophyAcl(validated.current.payload) ?? privateCurrentAcl(trustedContext.principal),
         currentScope: cloneJudgmentScope(validated.history.applicability.scope)
       }
     };
@@ -403,7 +630,7 @@ async function readPhilosophyRevision(
         applicability: validated.history.applicability,
         // This is a read-time projection of the current Graph permission. It
         // does not mutate the canonical philosophy payload or Graph ACL.
-        currentAcl: privateCurrentAcl(trustedContext.principal),
+        currentAcl: privatePhilosophyAcl(validated.current.payload) ?? privateCurrentAcl(trustedContext.principal),
         currentScope: cloneJudgmentScope(reference.scope)
       }
     };
@@ -432,6 +659,9 @@ function validatePhilosophyHistoryAccess(
 ): ValidatedPhilosophyHistoryAccess {
   const history = validatePhilosophyHistoryRow(row, { id, revision });
   const current = validateCurrentRow(row, id, 'philosophy');
+  const historicalAcl = assertPrivatePhilosophyRead(history.payload, trustedContext.principal);
+  const currentAcl = assertPrivatePhilosophyRead(current.payload, trustedContext.principal);
+  if (historicalAcl && !currentAcl) throw new FoundationStoreError('authorization_denied', 'Private philosophy history cannot become legacy');
   const philosophy = current.philosophy;
   if (!philosophy) {
     throw corrupt('Current Graph philosophy applicability is missing');
@@ -511,8 +741,26 @@ async function executeList(
   throw corrupt('Graph foundation list query returned an invalid result');
 }
 
+async function executePhilosophyList(
+  query: GraphFoundationQuery,
+  selectedProjectCode: string
+): Promise<readonly GraphFoundationHistoryRow[]> {
+  let result: GraphFoundationQueryResult | readonly GraphFoundationHistoryRow[];
+  try {
+    result = await query(GRAPH_PHILOSOPHY_LIST_SQL, [selectedProjectCode]);
+  } catch {
+    throw corrupt('Graph philosophy list query failed');
+  }
+  if (Array.isArray(result)) return result;
+  if (!Array.isArray(result) && 'rows' in result && Array.isArray(result.rows)) {
+    return result.rows as readonly GraphFoundationHistoryRow[];
+  }
+  throw corrupt('Graph philosophy list query returned an invalid result');
+}
+
 interface ValidatedFoundationHistory {
   readonly definition: FoundationDefinition;
+  readonly payload: Record<string, unknown>;
   readonly projectId: string;
 }
 
@@ -538,7 +786,7 @@ function validateFoundationRecord(
   context: FoundationStoreContext,
   selectedProjectCode: string | undefined,
   requireCurrentRevision = false
-): FoundationCatalogRecord {
+): FoundationOverviewObjectiveRecord {
   const history = validateHistoryRow(row, reference.id, reference.type, reference.revision);
   const current = validateCurrentRow(row, reference.id, reference.type);
   if (requireCurrentRevision && current.projectCode === undefined) {
@@ -559,10 +807,44 @@ function validateFoundationRecord(
   if (history.projectId !== current.projectId) {
     throw scopeViolation('Historical foundation project differs from current Graph project');
   }
-  return {
+  const record: FoundationOverviewObjectiveRecord = {
     definition: cloneFoundationDefinition(history.definition),
     digest: digestFoundationDefinition(history.definition)
   };
+  const details = reference.type === 'objective'
+    ? projectDetails(history.payload, OBJECTIVE_DETAIL_KEYS)
+    : reference.type === 'model' ? projectDetails(history.payload, MODEL_DETAIL_KEYS) : undefined;
+  return details === undefined ? record : { ...record, details };
+}
+
+const OBJECTIVE_DETAIL_KEYS = [
+  'title',
+  'criteria_text',
+  'beneficiary_description',
+  'evaluation_period_note',
+  'evaluator_note',
+  'current_state'
+] as const satisfies readonly (keyof FoundationObjectiveDetails)[];
+
+// A model's foundation scope carries ids and a registration time; its own words for where it
+// applies live beside the definition.
+const MODEL_DETAIL_KEYS = ['applicability_text'] as const satisfies readonly (keyof FoundationModelDetails)[];
+
+function projectDetails(payload: Record<string, unknown>, keys: readonly string[]): Record<string, unknown> | undefined {
+  const nestedDetails = isPlainRecord(payload.details) ? payload.details : undefined;
+  const foundation = isPlainRecord(payload.foundation) ? payload.foundation : undefined;
+  // Graphify payloads historically carried these descriptive fields at the
+  // payload root. Keep the two known nested forms compatible while exposing
+  // only the listed fields in the overview contract.
+  const candidates = [payload, nestedDetails, foundation].filter(
+    (candidate): candidate is Record<string, unknown> => candidate !== undefined
+  );
+  const projected: Record<string, unknown> = {};
+  for (const key of keys) {
+    const source = candidates.find((candidate) => Object.prototype.hasOwnProperty.call(candidate, key));
+    if (source !== undefined && source[key] !== undefined) projected[key] = source[key];
+  }
+  return Object.keys(projected).length === 0 ? undefined : projected;
 }
 
 function rowReference(row: GraphFoundationHistoryRow): FoundationRevision {
@@ -588,7 +870,7 @@ function validateHistoryRow(
     throw corrupt('Foundation history definition identity does not match the requested revision');
   }
   const projectId = requireString(row.project_id, 'Foundation history project_id');
-  return { definition, projectId };
+  return { definition, payload, projectId };
 }
 
 function validatePhilosophyHistoryRow(

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
   createGraphFoundationReaders,
+  GRAPH_PHILOSOPHY_LIST_SQL,
   type GraphFoundationHistoryRow,
   type GraphFoundationQuery
 } from '../src/graph-foundation-reader.js';
@@ -96,6 +97,52 @@ describe('Graph foundation history reader', () => {
     expect(calls[0]!.text).toContain('storage_digest_valid');
     expect(calls[0]!.text).toContain('public.graph_entities');
     expect(calls[0]!.text).toContain('public.projects');
+  });
+
+  it('projects only the approved objective detail fields from the immutable payload', async () => {
+    const definition = foundationDefinition();
+    const payload = {
+      foundation: definition,
+      title: 'Improve operator continuity',
+      criteria_text: 'Operators can complete the workflow',
+      beneficiary_description: 'The operators who rely on the service',
+      evaluation_period_note: 'Review at the end of each quarter',
+      evaluator_note: 'The operations lead reviews the record',
+      current_state: 'Recorded state at import time',
+      private_secret: 'must never be projected'
+    };
+    const row = { ...foundationRow(), payload, storage_digest: storageDigest(payload) };
+    const { store } = createGraphFoundationReaders({ context: trustedContext(), query: queryReturning(row) });
+
+    await expect(store.read({ id: definition.id, type: definition.type, revision: definition.revision }, trustedContext())).resolves.toEqual({
+      definition,
+      digest: digestFoundationDefinition(definition),
+      details: {
+        title: 'Improve operator continuity',
+        criteria_text: 'Operators can complete the workflow',
+        beneficiary_description: 'The operators who rely on the service',
+        evaluation_period_note: 'Review at the end of each quarter',
+        evaluator_note: 'The operations lead reviews the record',
+        current_state: 'Recorded state at import time'
+      }
+    });
+  });
+
+  it('projects only a world model\'s own applicability words beside its definition', async () => {
+    const definition = foundationDefinition({
+      id: 'model-1', type: 'model', beneficiaryIds: undefined, desiredState: undefined, criteria: undefined, evaluationPeriod: undefined,
+      epistemicState: 'hypothesis', validationState: 'unverified', inputVariableRefs: [], outputVariableRefs: [],
+      applicability: { subjectIds: ['project-1'], validFrom }, relationship: 'r', uncertainty: 'u'
+    } as Partial<FoundationDefinition>);
+    const payload = { foundation: definition, applicability_text: 'AI生成資料・要約・提案書', title: 'not a model detail', private_secret: 'never projected' };
+    const row = { ...foundationRow({ history: definition, current: definition }), payload, storage_digest: storageDigest(payload) };
+    const { store } = createGraphFoundationReaders({ context: trustedContext(), query: queryReturning(row) });
+
+    await expect(store.read({ id: 'model-1', type: 'model', revision: '1' }, trustedContext())).resolves.toEqual({
+      definition,
+      digest: digestFoundationDefinition(definition),
+      details: { applicability_text: 'AI生成資料・要約・提案書' }
+    });
   });
 
   it('rejects a read whose supplied principal is different from the trusted context', async () => {
@@ -269,7 +316,7 @@ describe('Graph philosophy history reader', () => {
     };
   }
 
-  function philosophyRow(payload = philosophyPayload(), options: { currentPayload?: unknown; currentProjectId?: string; currentVisible?: boolean } = {}): GraphFoundationHistoryRow {
+  function philosophyRow(payload = philosophyPayload(), options: { currentPayload?: unknown; currentProjectId?: string; currentProjectCode?: string; currentVisible?: boolean } = {}): GraphFoundationHistoryRow {
     return {
       entity_id: 'philosophy-1',
       entity_type: 'philosophy',
@@ -282,10 +329,36 @@ describe('Graph philosophy history reader', () => {
       current_entity_type: 'philosophy',
       current_payload: options.currentPayload ?? { judgmentApplicability: payload.judgmentApplicability },
       current_project_id: options.currentProjectId ?? 'project-1',
+      current_project_code: options.currentProjectCode ?? 'project-1',
       current_lifecycle_status: 'active',
       current_visible: options.currentVisible ?? true
     };
   }
+
+  it.each(['alice', 'bob', 'ceo'])('checks stored owner ACL in canonical and pinned reads for %s', async principal => {
+    const payload = { ...philosophyPayload(), acl: { ownerId: 'alice', visibility: 'private', readerIds: [], writerIds: [] } };
+    const context = { ...trustedContext(), principal };
+    const { philosophyReader, listPhilosophies } = createGraphFoundationReaders({ context, selectedProjectCode: 'project-1', query: queryReturning(philosophyRow(payload, { currentPayload: payload })) });
+    const digest = philosophyRevisionDigest({ kind: 'philosophy', id: 'philosophy-1', revision: '4', payload, applicability: payload.judgmentApplicability });
+    const canonical = await philosophyReader.readCanonical!({ id: 'philosophy-1', revision: '4', context });
+    const pinned = await philosophyReader.read({ reference: { kind: 'philosophy', id: 'philosophy-1', revision: '4', digest, scope: projectScope, valid_from: validFrom }, phase: 'historical_read', context });
+    expect(canonical.status).toBe(principal === 'alice' ? 'resolved' : 'unauthorized');
+    expect(pinned.status).toBe(principal === 'alice' ? 'resolved' : 'unauthorized');
+    if (principal === 'alice') await expect(listPhilosophies(context)).resolves.toMatchObject([{ currentAcl: payload.acl }]);
+    else await expect(listPhilosophies(context)).rejects.toMatchObject({ code: 'authorization_denied' });
+  });
+
+  it('refuses history ACL downgrade, malformed ACL and historical owner mismatch', async () => {
+    for (const [historical, current] of [
+      [{ ...philosophyPayload(), acl: {ownerId: 'alice', visibility: 'private', readerIds: [], writerIds: []} }, philosophyPayload()],
+      [{ ...philosophyPayload(), acl: null }, philosophyPayload()],
+      [{ ...philosophyPayload(), acl: {ownerId: 'bob', visibility: 'private', readerIds: [], writerIds: []} }, { ...philosophyPayload(), acl: {ownerId: 'alice', visibility: 'private', readerIds: [], writerIds: []} }]
+    ]) {
+      const { philosophyReader } = createGraphFoundationReaders({ context: trustedContext(), query: queryReturning(philosophyRow(historical!, {currentPayload: current})) });
+      const result = await philosophyReader.readCanonical!({id: 'philosophy-1', revision: '4', context: trustedContext()});
+      expect(result.status).not.toBe('resolved');
+    }
+  });
 
   it('resolves philosophy with fixed applicability and a current Graph ACL projection', async () => {
     const payload = philosophyPayload();
@@ -309,6 +382,47 @@ describe('Graph philosophy history reader', () => {
         applicability: { scope: projectScope, validFrom, validUntil: '2026-12-31T00:00:00.000Z' }
       }
     });
+  });
+
+  it('lists the latest visible philosophy revisions for the selected project', async () => {
+    const calls: Array<{ text: string; values: readonly unknown[] }> = [];
+    const payload = philosophyPayload();
+    const readers = createGraphFoundationReaders({
+      context: trustedContext(),
+      selectedProjectCode: 'project-1',
+      query: queryReturning(philosophyRow(payload), calls)
+    });
+
+    await expect(readers.listPhilosophies(trustedContext())).resolves.toMatchObject([{
+      kind: 'philosophy',
+      id: 'philosophy-1',
+      revision: '4',
+      payload,
+      applicability: payload.judgmentApplicability,
+      currentScope: projectScope
+    }]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.values).toEqual(['project-1']);
+    expect(calls[0]!.text).toContain("current_entity.entity_type = 'philosophy'");
+    expect(calls[0]!.text).toContain('projects.code = $1');
+    expect(calls[0]!.text).toContain("current_entity.payload ? 'judgmentApplicability'");
+    expect(calls[0]!.text).toContain('storage_digest_valid');
+  });
+
+  it('reuses current visibility and selected-project validation for philosophy lists', async () => {
+    const hidden = createGraphFoundationReaders({
+      context: trustedContext(),
+      selectedProjectCode: 'project-1',
+      query: queryReturning(philosophyRow(undefined, { currentVisible: false }))
+    });
+    await expect(hidden.listPhilosophies(trustedContext())).rejects.toMatchObject({ code: 'authorization_denied' });
+
+    const moved = createGraphFoundationReaders({
+      context: trustedContext(),
+      selectedProjectCode: 'project-1',
+      query: queryReturning(philosophyRow(undefined, { currentProjectCode: 'project-2' }))
+    });
+    await expect(moved.listPhilosophies(trustedContext())).rejects.toMatchObject({ code: 'scope_violation' });
   });
 
   it('requires explicit applicability, current visibility, and trusted scope for philosophy reads', async () => {
@@ -335,5 +449,19 @@ describe('Graph philosophy history reader', () => {
       phase: 'historical_read',
       context: { principal: 'alice', scope: { type: 'project', id: 'project-2' } }
     })).resolves.toMatchObject({ status: 'unauthorized' });
+  });
+
+  it('rejects explicit null applicability in a philosophy list instead of treating it as legacy', async () => {
+    const payload = { ...philosophyPayload(), judgmentApplicability: null };
+    const readers = createGraphFoundationReaders({
+      context: trustedContext(),
+      selectedProjectCode: 'project-1',
+      query: queryReturning(philosophyRow(payload))
+    });
+
+    await expect(readers.listPhilosophies(trustedContext())).rejects.toMatchObject({
+      code: 'corrupt_catalog',
+      message: 'Philosophy payload requires judgmentApplicability'
+    });
   });
 });

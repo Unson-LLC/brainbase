@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { access, appendFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { realpathSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runConsumerSmoke } from './npm-consumer-smoke.mjs';
@@ -10,6 +10,10 @@ import { runConsumerSmoke } from './npm-consumer-smoke.mjs';
 const scriptPath = fileURLToPath(import.meta.url);
 const rootDefault = path.resolve(path.dirname(scriptPath), '..');
 export const EXPECTED_PACKAGE_NAME = '@unson/brainbase-mcp';
+export const NPM_PUBLISH_GIT_REF = 'refs/heads/main';
+export const NPM_PUBLISH_WORKFLOW_REF =
+  'Unson-LLC/brainbase/.github/workflows/npm-publish.yml@refs/heads/main';
+export const NPM_PUBLISH_TRUSTED_BRANCH_REF = 'origin/main';
 
 function isDirectInvocation() {
   if (!process.argv[1]) return false;
@@ -72,6 +76,17 @@ export function planRelease(beforeVersion, afterVersion) {
     releaseRequired: compareSemver(afterVersion, beforeVersion) > 0,
     version: afterVersion
   };
+}
+
+export async function isVersionPublishedAtSha(
+  packageName,
+  version,
+  expectedSha,
+  metadata = readNpmMetadata,
+  root = rootDefault
+) {
+  const published = await metadata(packageName, version, root);
+  return Boolean(published && published.gitHead === expectedSha);
 }
 
 function run(command, args, cwd = rootDefault) {
@@ -158,11 +173,23 @@ async function stagePackageForPacking(root, stagingDirectory, { includeGenerated
   return { packageRoot, manifest: stagedManifest };
 }
 
-export function readNpmMetadata(packageName, version, root = rootDefault, spawn = spawnSync) {
-  const result = spawn('npm', ['view', `${packageName}@${version}`, 'version', 'gitHead', 'dist.integrity', '--json'], {
-    cwd: root,
-    encoding: 'utf8'
-  });
+// Registry reads must revalidate against the registry instead of trusting the
+// local npm cache: the pre-publish lookup caches a packument without the new
+// version (served as E404 "No match found for version") for its max-age.
+export const NPM_REGISTRY_ONLINE_FLAG = '--prefer-online';
+
+export function readNpmMetadata(packageName, version, root = rootDefault, spawn = spawnSync, { bypassCache = false } = {}) {
+  const args = ['view', `${packageName}@${version}`, 'version', 'gitHead', 'dist.integrity', '--json', NPM_REGISTRY_ONLINE_FLAG];
+  // A throwaway cache directory guarantees no cached pre-publish 404/packument
+  // can be replayed, even if revalidation is short-circuited by npm.
+  const cacheDirectory = bypassCache ? mkdtempSync(path.join(tmpdir(), 'brainbase-npm-readback-cache-')) : null;
+  if (cacheDirectory) args.push('--cache', cacheDirectory);
+  let result;
+  try {
+    result = spawn('npm', args, { cwd: root, encoding: 'utf8' });
+  } finally {
+    if (cacheDirectory) rmSync(cacheDirectory, { recursive: true, force: true });
+  }
   if (result.status !== 0) {
     const diagnostic = `${result.stderr ?? ''}\n${result.stdout ?? ''}`;
     if (/E404|404 Not Found|is not in this registry/iu.test(diagnostic)) return null;
@@ -190,14 +217,27 @@ export function assertPublishedMetadata(metadata, packageName, version, expected
 
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-const NPM_REGISTRY_CONVERGENCE_ATTEMPTS = 8;
-const NPM_REGISTRY_CONVERGENCE_MAX_DELAY_MS = 30_000;
+// Window: 24 attempts with 23 waits (1+2+4+8+16 s backoff, then 18x30 s)
+// wait 571 s in total. The registry packument is served with
+// `Cache-Control: max-age=300`
+// (CDN can keep the pre-publish document for up to 300 s), and run
+// 38726775296 saw 0.41.6 appear ~96 s after `npm publish` while the old
+// 8-attempt window (91 s) had already given up. Run 39350202761 then
+// showed that the 15-attempt window (301 s) can still expire before the
+// published version is visible. Keep the retry window below the 15-minute
+// publish-job timeout while allowing delayed registry propagation to settle.
+export const NPM_REGISTRY_CONVERGENCE_ATTEMPTS = 24;
+export const NPM_REGISTRY_CONVERGENCE_MAX_DELAY_MS = 30_000;
+
+export function npmRegistryConvergenceDelays(attempts = NPM_REGISTRY_CONVERGENCE_ATTEMPTS) {
+  return Array.from({ length: Math.max(attempts - 1, 0) }, (_, index) => Math.min(2 ** index * 1000, NPM_REGISTRY_CONVERGENCE_MAX_DELAY_MS));
+}
 
 async function retry(operation, attempts = NPM_REGISTRY_CONVERGENCE_ATTEMPTS, delay = wait) {
   let lastError;
   for (let index = 0; index < attempts; index += 1) {
     try {
-      const result = await operation();
+      const result = await operation(index);
       if (result) return result;
     } catch (error) {
       lastError = error;
@@ -212,12 +252,12 @@ async function retry(operation, attempts = NPM_REGISTRY_CONVERGENCE_ATTEMPTS, de
 
 export async function reconcileDistTag(packageName, version, root, execute = run) {
   const tag = npmDistTag(version);
-  const versions = JSON.parse(execute('npm', ['view', packageName, 'versions', '--json'], root));
+  const versions = JSON.parse(execute('npm', ['view', packageName, 'versions', '--json', NPM_REGISTRY_ONLINE_FLAG], root));
   const list = Array.isArray(versions) ? versions : [versions];
   const eligible = list.filter((candidate) => npmDistTag(candidate) === tag).sort(compareSemver);
   const desired = eligible.at(-1);
   if (!desired) throw new Error(`No published version is eligible for npm dist-tag ${tag}`);
-  const currentTags = JSON.parse(execute('npm', ['view', packageName, 'dist-tags', '--json'], root));
+  const currentTags = JSON.parse(execute('npm', ['view', packageName, 'dist-tags', '--json', NPM_REGISTRY_ONLINE_FLAG], root));
   const current = currentTags[tag];
   if (current && npmDistTag(current) === tag && compareSemver(current, desired) >= 0) {
     return { tag, version: current };
@@ -230,7 +270,7 @@ export async function reconcileDistTag(packageName, version, root, execute = run
 
 async function removeReleaseStagingTag(packageName, version, expectedSha, root, execute = run) {
   const tag = releaseStagingTag(expectedSha);
-  const currentTags = JSON.parse(execute('npm', ['view', packageName, 'dist-tags', '--json'], root));
+  const currentTags = JSON.parse(execute('npm', ['view', packageName, 'dist-tags', '--json', NPM_REGISTRY_ONLINE_FLAG], root));
   if (currentTags[tag] !== version) return { status: 'not_present', tag };
   try {
     execute('npm', ['dist-tag', 'rm', packageName, tag], root);
@@ -245,12 +285,12 @@ async function removeReleaseStagingTag(packageName, version, expectedSha, root, 
 
 function expectedDistTag(packageName, version, root, execute = run) {
   const tag = npmDistTag(version);
-  const versions = JSON.parse(execute('npm', ['view', packageName, 'versions', '--json'], root));
+  const versions = JSON.parse(execute('npm', ['view', packageName, 'versions', '--json', NPM_REGISTRY_ONLINE_FLAG], root));
   const list = Array.isArray(versions) ? versions : [versions];
   const eligible = list.filter((candidate) => npmDistTag(candidate) === tag).sort(compareSemver);
   const desired = eligible.at(-1);
   if (!desired) throw new Error(`No published version is eligible for npm dist-tag ${tag}`);
-  const currentTags = JSON.parse(execute('npm', ['view', packageName, 'dist-tags', '--json'], root));
+  const currentTags = JSON.parse(execute('npm', ['view', packageName, 'dist-tags', '--json', NPM_REGISTRY_ONLINE_FLAG], root));
   return { tag, desired, current: currentTags[tag] };
 }
 
@@ -365,7 +405,9 @@ export async function validateRelease(
   consumerSmoke = runConsumerSmoke
 ) {
   execute('npm', ['run', 'build'], root);
-  execute('npm', ['test'], root);
+  // Shared self-hosted runners execute several jobs at once. Keep disk-heavy
+  // validation serial and allow bounded scheduling headroom for tests/cleanup.
+  execute('npm', ['test', '--', '--maxWorkers=1', '--testTimeout=30000', '--hookTimeout=30000'], root);
   execute('npm', ['audit', '--omit=dev'], root);
   const artifactDirectory = path.resolve(path.dirname(proofFile));
   const artifact = await createArtifact(root, artifactDirectory, expectedVersion, expectedSha, execute);
@@ -454,8 +496,10 @@ export async function reconcileNpmRelease({
     const args = ['publish', validationProof.tarballPath, '--ignore-scripts', '--access', 'public', '--tag', releaseStagingTag(expectedSha)];
     if (provenance) args.push('--provenance');
     execute('npm', args, root);
-    published = await retry(async () => {
-      const candidate = await metadata(packageName, version, root);
+    published = await retry(async (attempt) => {
+      // The first readback revalidates online; later attempts also bypass the
+      // local cache so a 404 remembered from the pre-publish lookup is never replayed.
+      const candidate = await metadata(packageName, version, root, undefined, { bypassCache: attempt > 0 });
       if (!candidate) return null;
       assertPublishedMetadata(candidate, packageName, version, expectedSha, validationProof.tarballIntegrity);
       return candidate;
@@ -596,17 +640,44 @@ export async function assertSerializedPublicationContext(environment = process.e
   const body = await response.json();
   if (!body || typeof body.value !== 'string') throw new Error('GitHub Actions OIDC response did not contain a token');
   const claims = decodeJwtPayload(body.value);
-  const trustedWorkflowRef = 'Unson-LLC/brainbase/.github/workflows/npm-publish.yml@refs/heads/develop';
+  const trustedWorkflowRef = NPM_PUBLISH_WORKFLOW_REF;
   if (
     claims.iss !== 'https://token.actions.githubusercontent.com' ||
     claims.aud !== audience ||
     claims.repository !== environment.GITHUB_REPOSITORY ||
     String(claims.run_id) !== String(environment.GITHUB_RUN_ID) ||
     claims.workflow_ref !== trustedWorkflowRef ||
-    claims.ref !== 'refs/heads/develop'
+    claims.ref !== NPM_PUBLISH_GIT_REF
   ) {
     throw new Error('GitHub Actions OIDC claims do not match the serialized npm publication workflow');
   }
+}
+
+export async function resolveReleasePlan(
+  beforeRef,
+  afterRef,
+  { root = rootDefault, metadata = readNpmMetadata } = {}
+) {
+  const beforePackage = packageAt(root, beforeRef);
+  const afterPackage = packageAt(root, afterRef);
+  if (beforePackage.name !== EXPECTED_PACKAGE_NAME || afterPackage.name !== EXPECTED_PACKAGE_NAME) {
+    throw new Error(`publication authority is fixed to ${EXPECTED_PACKAGE_NAME}`);
+  }
+  const plan = planRelease(beforePackage.version, afterPackage.version);
+  const sha = gitSha(root, afterRef);
+  let releaseRequired = plan.releaseRequired;
+  if (
+    releaseRequired &&
+    await isVersionPublishedAtSha(EXPECTED_PACKAGE_NAME, plan.version, sha, metadata, root)
+  ) {
+    releaseRequired = false;
+  }
+  return {
+    release_required: releaseRequired,
+    package_name: afterPackage.name,
+    version: plan.version,
+    sha
+  };
 }
 
 async function main(args) {
@@ -615,18 +686,17 @@ async function main(args) {
     const before = option(rest, '--before');
     const after = option(rest, '--after');
     if (!before || !after) throw new Error('Usage: npm-release.mjs plan --before <git-ref> --after <git-ref>');
-    const beforePackage = packageAt(rootDefault, before);
-    const afterPackage = packageAt(rootDefault, after);
-    if (beforePackage.name !== EXPECTED_PACKAGE_NAME || afterPackage.name !== EXPECTED_PACKAGE_NAME) {
-      throw new Error(`publication authority is fixed to ${EXPECTED_PACKAGE_NAME}`);
+    await writeOutputs(await resolveReleasePlan(before, after));
+    return;
+  }
+  if (command === 'already-published') {
+    const version = option(rest, '--version');
+    const expectedSha = option(rest, '--sha');
+    if (!version || !expectedSha) {
+      throw new Error('Usage: npm-release.mjs already-published --version <version> --sha <git-sha>');
     }
-    const plan = planRelease(beforePackage.version, afterPackage.version);
-    await writeOutputs({
-      release_required: plan.releaseRequired,
-      package_name: afterPackage.name,
-      version: plan.version,
-      sha: gitSha(rootDefault, after)
-    });
+    const skip = await isVersionPublishedAtSha(EXPECTED_PACKAGE_NAME, version, expectedSha);
+    process.exitCode = skip ? 0 : 1;
     return;
   }
   if (command === 'validate' || command === 'publish' || command === 'verify') {
@@ -672,7 +742,7 @@ async function main(args) {
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return;
   }
-  throw new Error('Usage: npm-release.mjs <plan|validate|publish|verify>');
+  throw new Error('Usage: npm-release.mjs <plan|already-published|validate|publish|verify>');
 }
 
 if (isDirectInvocation()) {

@@ -1,8 +1,250 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 import { CanonicalTaskError, CanonicalTaskService } from '../src/canonical-task-service.js';
 import { createCanonicalTaskServiceFixture } from './fixtures/canonical-task-service.js';
 
 describe('CanonicalTaskService', () => {
+  it.each([undefined, 'work', 'request', 'requirement'] as const)('creates record_kind %s and defaults omitted kind to work', async (recordKind) => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const task = await fixture.service.createTask({ title: 'Kind', ...(recordKind === undefined ? {} : { record_kind: recordKind }) }, fixture.context('kind'));
+    expect(task.record_kind).toBe(recordKind ?? 'work');
+    expect(fixture.tasks.get(task.id)?.record_kind).toBe(recordKind ?? 'work');
+  });
+
+  it.each([null, '', 'unknown', 'WORK', 0, false, [], {}])('rejects invalid create record_kind %j without a row or audit', async (recordKind) => {
+    const fixture = createCanonicalTaskServiceFixture();
+    await expect(fixture.service.createTask({ title: 'Invalid', record_kind: recordKind } as never, fixture.context('invalid-kind')))
+      .rejects.toMatchObject({ code: 'validation_error', status: 400, details: { field: 'record_kind' } });
+    expect(fixture.tasks.size).toBe(0);
+    expect(fixture.auditEntries).toEqual([]);
+  });
+
+  it('preserves historical work create fingerprints and distinguishes ledger creates', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const historicalPayload = {
+      title: 'Replay', description: null, priority: 'medium', assignee_person_id: null,
+      due_at: null, waiting_on: null, review_at: null, source_refs: [], project_codes: [],
+    };
+    const historicalFingerprint = createHash('sha256').update(JSON.stringify(Object.fromEntries(
+      Object.entries(historicalPayload).sort(([a], [b]) => a.localeCompare(b)),
+    ))).digest('hex');
+    const created = await fixture.service.createTask({ title: 'Replay' }, fixture.context('replay-kind'));
+    expect(fixture.tasks.get(created.id)?.payload_fingerprint).toBe(historicalFingerprint);
+    await expect(fixture.service.createTask({ title: 'Replay', record_kind: 'work' }, fixture.context('replay-kind')))
+      .resolves.toMatchObject({ id: created.id, record_kind: 'work' });
+    await expect(fixture.service.createTask({ title: 'Replay', record_kind: 'request' }, fixture.context('replay-kind')))
+      .rejects.toMatchObject({ code: 'idempotency_conflict', status: 409 });
+  });
+
+  it('update rejects record_kind as an unsupported field', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const task = await fixture.service.createTask({ title: 'Immutable kind' }, fixture.context('immutable-kind'));
+    for (const field of ['record_kind', 'ledger_attributes', 'ledger_agreed']) {
+      await expect(fixture.service.updateTask(task.id, { [field]: 'requirement' }, task.version, fixture.context()))
+        .rejects.toMatchObject({ code: 'validation_error', status: 400, details: { fields: [field] } });
+    }
+    expect(fixture.tasks.get(task.id)).toMatchObject({ record_kind: 'work', version: 1 });
+  });
+
+  it.each(['request', 'requirement'] as const)('refuses general updates and transitions of %s before operation coordination', async (recordKind) => {
+    const execute = vi.fn(async (request) => request.run());
+    const fixture = createCanonicalTaskServiceFixture({ operationRepository: { execute } });
+    const task = await fixture.service.createTask({ title: 'Ledger', record_kind: recordKind }, fixture.context('ledger-preflight'));
+    execute.mockClear();
+    const expected = { code: 'ledger_record_use_ledger_api', status: 409 };
+    await expect(fixture.service.updateTask(task.id, { title: 'Blocked' }, 1, fixture.context())).rejects.toMatchObject(expected);
+    await expect(fixture.service.updateTask(task.id, { source_refs_append: [{ type: 'manual', id: 'blocked' }] }, 1, fixture.context()))
+      .rejects.toMatchObject(expected);
+    await expect(fixture.service.transitionTask(task.id, 'in_progress', 1, fixture.context())).rejects.toMatchObject(expected);
+    expect(execute).not.toHaveBeenCalled();
+    expect(fixture.tasks.get(task.id)).toMatchObject({ record_kind: recordKind, version: 1, title: 'Ledger' });
+  });
+
+  it.each(['run', 'recover'] as const)('refuses a request discovered after work preflight in the operation %s callback', async (callback) => {
+    const execute = vi.fn(async (request) => request.run());
+    const fixture = createCanonicalTaskServiceFixture({ operationRepository: { execute } });
+    const task = await fixture.service.createTask({ title: 'Work at preflight' }, fixture.context('race-create'));
+    const get = vi.spyOn(fixture.repository, 'get');
+    const update = vi.spyOn(fixture.repository, 'update');
+    execute.mockClear();
+    execute.mockImplementation(async (request) => {
+      expect(get).toHaveBeenCalledTimes(1);
+      Object.assign(fixture.tasks.get(task.id)!, {
+        record_kind: 'request',
+        // Recovery must reject even an apparently already-applied command.
+        ...(callback === 'recover' ? {
+          version: 2, _last_operation_key: request.operationKey, _last_operation_fingerprint: request.fingerprint,
+        } : {}),
+      });
+      if (callback === 'recover') return (await request.recover()).result;
+      return request.run();
+    });
+    await expect(fixture.service.updateTask(task.id, { title: 'Blocked' }, 1, fixture.context()))
+      .rejects.toMatchObject({ code: 'ledger_record_use_ledger_api', status: 409 });
+    expect(execute).toHaveBeenCalledTimes(1);
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(update).not.toHaveBeenCalled();
+    expect(fixture.tasks.get(task.id)?.title).toBe('Work at preflight');
+    expect(fixture.auditEntries).toHaveLength(1);
+  });
+
+  it.each([false, true])('refuses ledger deletes before coordination (prepared delete: %s)', async (prepared) => {
+    const execute = vi.fn(async (request) => request.run());
+    const executePreparedDelete = vi.fn();
+    const fixture = createCanonicalTaskServiceFixture({ operationRepository: {
+      execute, ...(prepared ? { executePreparedDelete } : {}),
+    } });
+    for (const kind of ['request', 'requirement'] as const) {
+      const task = await fixture.service.createTask({ title: 'Ledger', record_kind: kind }, fixture.context(`delete-${kind}`));
+      execute.mockClear();
+      await expect(fixture.service.deleteTask(task.id, 1, fixture.context(`blocked-${kind}`)))
+        .rejects.toMatchObject({ code: 'ledger_record_use_ledger_api', status: 409 });
+      expect(execute).not.toHaveBeenCalled();
+      expect(executePreparedDelete).not.toHaveBeenCalled();
+      expect(fixture.tasks.get(task.id)).toMatchObject({ record_kind: kind, version: 1 });
+    }
+    expect(fixture.auditEntries).toHaveLength(2);
+  });
+
+  it('keeps general mutations for older repositories that omit record_kind and refuses null or future kinds', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const created = await fixture.service.createTask({ title: 'Older repository' }, fixture.context('older-create'));
+    const { record_kind: _recordKind, ...olderRow } = fixture.tasks.get(created.id)!;
+    fixture.tasks.set(created.id, olderRow);
+    expect(fixture.tasks.get(created.id)).not.toHaveProperty('record_kind');
+    await expect(fixture.service.updateTask(created.id, { title: 'Updated' }, 1, fixture.context('older-update')))
+      .resolves.toMatchObject({ title: 'Updated', version: 2 });
+    expect(fixture.tasks.get(created.id)).toMatchObject({ title: 'Updated', version: 2 });
+    expect(fixture.tasks.get(created.id)).not.toHaveProperty('record_kind');
+    await expect(fixture.service.transitionTask(created.id, 'in_progress', 2, fixture.context('older-transition')))
+      .resolves.toMatchObject({ status: 'in_progress', version: 3 });
+    expect(fixture.tasks.get(created.id)).toMatchObject({ status: 'in_progress', version: 3 });
+    expect(fixture.tasks.get(created.id)).not.toHaveProperty('record_kind');
+    await expect(fixture.service.deleteTask(created.id, 3, fixture.context('older-delete')))
+      .resolves.toMatchObject({ deleted: true });
+    expect(fixture.tasks.has(created.id)).toBe(false);
+
+    for (const kind of [null, 'future-kind']) {
+      const task = await fixture.service.createTask({ title: 'Invalid stored kind' }, fixture.context(`invalid-create-${kind}`));
+      Object.assign(fixture.tasks.get(task.id)!, { record_kind: kind });
+      const before = structuredClone(fixture.tasks.get(task.id));
+      const expected = { status: 409, code: 'ledger_record_use_ledger_api' };
+      await expect(fixture.service.updateTask(task.id, { title: 'Blocked' }, 1, fixture.context(`invalid-update-${kind}`)))
+        .rejects.toMatchObject(expected);
+      expect(fixture.tasks.get(task.id)).toEqual(before);
+      await expect(fixture.service.transitionTask(task.id, 'in_progress', 1, fixture.context(`invalid-transition-${kind}`)))
+        .rejects.toMatchObject(expected);
+      expect(fixture.tasks.get(task.id)).toEqual(before);
+      await expect(fixture.service.deleteTask(task.id, 1, fixture.context(`invalid-delete-${kind}`)))
+        .rejects.toMatchObject(expected);
+      expect(fixture.tasks.get(task.id)).toEqual(before);
+    }
+  });
+
+  it.each([undefined, null, 'future-kind'])('reports unknown persisted record_kind %s without silently using work', async (recordKind) => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const task = await fixture.service.createTask({ title: 'Unknown kind' }, fixture.context('unknown-kind'));
+    Object.assign(fixture.tasks.get(task.id)!, {
+      record_kind: recordKind,
+      normalization_warnings: [{ code: 'legacy_warning', message: 'Keep this warning' }],
+    });
+    const read = await fixture.service.getTask(task.id, fixture.context());
+    expect(read.record_kind).toBe('unknown');
+    expect(read.normalization_warnings).toEqual([
+      { code: 'legacy_warning', message: 'Keep this warning' },
+      expect.objectContaining({ code: 'unknown_record_kind' }),
+    ]);
+    for (const page of [
+      await fixture.service.listTasks({}, fixture.context()),
+      await fixture.service.searchTasks({ q: 'Unknown' }, fixture.context()),
+    ]) {
+      expect(page.items[0].record_kind).toBe('unknown');
+      expect(page.warnings).toContain('unknown_record_kind');
+    }
+  });
+
+  it('accepts create-only ledger metadata and rejects invalid shapes or non-requirement agreement', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    for (const agreed of [null, false, true]) {
+      const task = await fixture.service.createTask({
+        title: 'Requirement', record_kind: 'requirement', ledger_attributes: { basis: 'User decision' }, ledger_agreed: agreed,
+      }, fixture.context(`metadata-${agreed}`));
+      expect(task).toMatchObject({
+        record_kind: 'requirement', ledger_attributes: { basis: 'User decision' },
+        ...(agreed === null ? {} : { ledger_agreed: agreed }),
+      });
+      if (agreed === null) expect(fixture.tasks.get(task.id)).not.toHaveProperty('ledger_agreed');
+    }
+    for (const invalid of [
+      { ledger_attributes: [] }, { ledger_attributes: 'text' },
+      { record_kind: 'requirement', ledger_agreed: 'true' },
+      { record_kind: 'work', ledger_agreed: false }, { record_kind: 'request', ledger_agreed: true },
+    ]) {
+      await expect(fixture.service.createTask({ title: 'Invalid metadata', ...invalid } as never, fixture.context('invalid-metadata')))
+        .rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    }
+    expect(fixture.tasks.size).toBe(3);
+  });
+
+  it.each([undefined, 'work'] as const)('rejects ledger metadata on work creates (%s), including explicit NULL', async (recordKind) => {
+    const fixture = createCanonicalTaskServiceFixture();
+    for (const [field, values] of [
+      ['ledger_attributes', [{ basis: 'Decision' }, null]],
+      ['ledger_agreed', [true, false, null]],
+    ] as const) {
+      for (const value of values) {
+        await expect(fixture.service.createTask({ title: 'Work', record_kind: recordKind, [field]: value }, fixture.context('work-metadata')))
+          .rejects.toMatchObject({ code: 'validation_error', status: 400, details: { field } });
+      }
+    }
+    expect(fixture.tasks.size).toBe(0);
+    expect(fixture.auditEntries).toEqual([]);
+  });
+
+  it('caps ledger_attributes at 64 KiB of UTF-8 JSON and 128 object/array levels', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const atSizeLimit = { text: 'x'.repeat(64 * 1024 - Buffer.byteLength(JSON.stringify({ text: '' }))) };
+    const atDepthLimit: Record<string, unknown> = {};
+    let cursor = atDepthLimit;
+    for (let depth = 1; depth < 128; depth += 1) {
+      const next = {};
+      cursor.nested = next;
+      cursor = next;
+    }
+    const atArrayDepthLimit: Record<string, unknown> = { nested: [] };
+    let arrayCursor = atArrayDepthLimit.nested as unknown[];
+    // The root object plus 127 arrays makes 128 container levels.
+    for (let depth = 2; depth < 128; depth += 1) {
+      const next: unknown[] = [];
+      arrayCursor.push(next);
+      arrayCursor = next;
+    }
+    for (const [index, attributes] of [atSizeLimit, atDepthLimit, atArrayDepthLimit].entries()) {
+      await expect(fixture.service.createTask({ title: 'Bounded', record_kind: 'request', ledger_attributes: attributes },
+        fixture.context(`bounded-${index}`))).resolves.toMatchObject({ ledger_attributes: attributes });
+    }
+    cursor.nested = {};
+    arrayCursor.push([]);
+    for (const attributes of [atDepthLimit, atArrayDepthLimit, { text: `${atSizeLimit.text}x` }, { text: 'あ'.repeat(22000) }]) {
+      await expect(fixture.service.createTask({ title: 'Excessive', record_kind: 'request', ledger_attributes: attributes },
+        fixture.context('excessive-metadata'))).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    }
+    expect(fixture.tasks.size).toBe(3);
+    expect(fixture.auditEntries).toHaveLength(3);
+  });
+
+  it('rejects non-JSON and cyclic ledger_attributes before persistence', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const cyclic: Record<string, unknown> = {};
+    cyclic.self = cyclic;
+    for (const attributes of [cyclic, { value: undefined }, { value: NaN }, { value: 1n }, { value: new Date() }]) {
+      await expect(fixture.service.createTask({ title: 'Invalid JSON', record_kind: 'request', ledger_attributes: attributes },
+        fixture.context('invalid-json'))).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    }
+    expect(fixture.tasks.size).toBe(0);
+    expect(fixture.auditEntries).toEqual([]);
+  });
+
   it('keeps task behavior policy-neutral and uses injected repository, audit, clock, and base URL', async () => {
     const fixture = createCanonicalTaskServiceFixture();
     const created = await fixture.service.createTask({
@@ -58,6 +300,62 @@ describe('CanonicalTaskService', () => {
       .rejects.toMatchObject({ code: 'validation_error', status: 400 });
   });
 
+  it('keeps one short single-line purpose label per task, and clears it when empty', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const unlabelled = await fixture.service.createTask({ title: 'No label yet' }, fixture.context('label-none'));
+    expect(unlabelled.purpose_label).toBeNull();
+    // An unlabelled create does not write the field at all, so a store without the column keeps working.
+    expect(fixture.tasks.get(unlabelled.id)).not.toHaveProperty('purpose_label');
+
+    const labelled = await fixture.service.createTask({ title: 'Review campaign', purpose_label: '  口コミ  ' }, fixture.context('label-create'));
+    expect(labelled.purpose_label).toBe('口コミ');
+    const relabelled = await fixture.service.updateTask(labelled.id, { purpose_label: 'Googleマップ強化' }, labelled.version, fixture.context());
+    expect(relabelled.purpose_label).toBe('Googleマップ強化');
+    const cleared = await fixture.service.updateTask(labelled.id, { purpose_label: '' }, relabelled.version, fixture.context());
+    expect(cleared.purpose_label).toBeNull();
+
+    await expect(fixture.service.createTask({ title: 'Too long', purpose_label: 'あ'.repeat(31) }, fixture.context('label-long')))
+      .rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    await expect(fixture.service.updateTask(labelled.id, { purpose_label: '口コミ\n清掃' }, cleared.version, fixture.context()))
+      .rejects.toMatchObject({ code: 'validation_error', status: 400 });
+  });
+
+  it('records who a waiting task waits on as a person, beside the free-text condition', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const created = await fixture.service.createTask({ title: 'Needs a review' }, fixture.context('waiting-person'));
+    expect(created.waiting_on_person_id).toBeNull();
+    // A create without the person does not write the field, so a store without the column keeps working.
+    expect(fixture.tasks.get(created.id)).not.toHaveProperty('waiting_on_person_id');
+
+    const waiting = await fixture.service.transitionTask(created.id, {
+      expected_version: created.version,
+      to_status: 'waiting',
+      waiting_on: '佐藤さんの承認',
+      waiting_on_person_id: '  per_keigo_sato  ',
+    }, fixture.context());
+    expect(waiting).toMatchObject({ status: 'waiting', waiting_on: '佐藤さんの承認', waiting_on_person_id: 'per_keigo_sato' });
+
+    // Leaving the waiting state clears both what and whom it waited on.
+    const resumed = await fixture.service.transitionTask(created.id, 'in_progress', waiting.version, fixture.context());
+    expect(resumed).toMatchObject({ waiting_on: null, waiting_on_person_id: null });
+
+    // The free-text condition stays required; the person alone is not enough.
+    await expect(fixture.service.transitionTask(created.id, {
+      expected_version: resumed.version,
+      to_status: 'waiting',
+      waiting_on_person_id: 'per_keigo_sato',
+    }, fixture.context())).rejects.toMatchObject({ code: 'validation_failed', status: 422 });
+
+    // Waiting on a condition rather than a person clears an earlier person.
+    const conditionOnly = await fixture.service.transitionTask(created.id, 'waiting', resumed.version, fixture.context(), { waitingOn: '契約書の到着' });
+    expect(conditionOnly).toMatchObject({ waiting_on: '契約書の到着', waiting_on_person_id: null });
+
+    const reassigned = await fixture.service.updateTask(created.id, { waiting_on_person_id: 'per_reviewer' }, conditionOnly.version, fixture.context());
+    expect(reassigned.waiting_on_person_id).toBe('per_reviewer');
+    await expect(fixture.service.updateTask(created.id, { waiting_on_person_id: 'p'.repeat(201) }, reassigned.version, fixture.context()))
+      .rejects.toMatchObject({ code: 'validation_error', status: 400 });
+  });
+
   it('reports task normalization warnings by code instead of an unreadable object string', async () => {
     const fixture = createCanonicalTaskServiceFixture();
     const created = await fixture.service.createTask({ title: 'Legacy task' }, fixture.context('warning-create'));
@@ -67,6 +365,24 @@ describe('CanonicalTaskService', () => {
     ];
     const page = await fixture.service.listTasks({}, fixture.context());
     expect(page.warnings).toEqual(['assignee_unresolved', 'legacy_warning']);
+  });
+
+  it('lists tasks with an assignee when no optional filter is given', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const assigned = await fixture.service.createTask({ title: 'Assigned', assignee_person_id: 'per_owner' }, fixture.context('assigned'));
+    const unassigned = await fixture.service.createTask({ title: 'Unassigned' }, fixture.context('unassigned'));
+    let seen: Record<string, unknown> = {};
+    const original = fixture.repository.list.bind(fixture.repository);
+    fixture.repository.list = async (filters, ...rest) => { seen = filters as Record<string, unknown>; return original(filters, ...rest); };
+
+    for (const filters of [{}, { assigneePersonId: '' }, { assigneePersonId: null, dueAfter: '', dueBefore: null, cursor: '' }]) {
+      const page = await fixture.service.listTasks(filters as never, fixture.context());
+      expect(page.items.map((task) => task.id).sort()).toEqual([assigned.id, unassigned.id].sort());
+      for (const key of ['assigneePersonId', 'dueAfter', 'dueBefore', 'cursor']) expect(seen).not.toHaveProperty(key);
+    }
+
+    const filtered = await fixture.service.listTasks({ assigneePersonId: 'per_owner' }, fixture.context());
+    expect(filtered.items.map((task) => task.id)).toEqual([assigned.id]);
   });
 
   it('replays the same idempotent create and rejects a changed payload', async () => {
@@ -107,6 +423,203 @@ describe('CanonicalTaskService', () => {
     expect(completed).toMatchObject({ status: 'completed', version: 3 });
     await expect(fixture.service.deleteTask('task-1', { expected_version: 3 }, fixture.context('delete-1')))
       .resolves.toMatchObject({ task_id: 'task-1', deleted: true, version: 4 });
+  });
+
+  it('keeps source_refs replacement compatibility and appends source_refs_append idempotently', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const existing = [
+      { type: 'manual', id: 'keep' },
+      { id: 'keep', type: 'manual' },
+    ];
+    const created = await fixture.service.createTask({ title: 'Source refs task', source_refs: existing }, fixture.context('source-create'));
+
+    const appended = await fixture.service.updateTask(created.id, {
+      source_refs_append: [
+        { id: 'new', type: 'manual' },
+        { type: 'manual', id: 'new' },
+        { id: 'keep', type: 'manual' },
+      ],
+    }, created.version, fixture.context());
+
+    expect(appended).toMatchObject({ version: 2 });
+    expect(appended.source_refs).toEqual([
+      existing[0],
+      existing[1],
+      { id: 'new', type: 'manual' },
+    ]);
+
+    const replayed = await fixture.service.updateTask(created.id, {
+      source_refs_append: [
+        { id: 'new', type: 'manual' },
+        { type: 'manual', id: 'new' },
+        { id: 'keep', type: 'manual' },
+      ],
+    }, created.version, fixture.context());
+    expect(replayed.source_refs).toEqual(appended.source_refs);
+
+    const replaced = await fixture.service.updateTask(created.id, {
+      source_refs: [{ type: 'replacement', id: 'only' }],
+    }, appended.version, fixture.context());
+    expect(replaced.source_refs).toEqual([{ type: 'replacement', id: 'only' }]);
+  });
+
+  it('uses code-unit key order for Unicode source ref deduplication and append replay', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const created = await fixture.service.createTask({ title: 'Unicode source refs task' }, fixture.context('unicode-source-create'));
+    const firstRef = {
+      'K': { nested: { 'K': 1, K: 2 } },
+      K: { nested: { 'K': 1, K: 2 } },
+    };
+    const reorderedRef = {
+      K: { nested: { K: 2, 'K': 1 } },
+      'K': { nested: { K: 2, 'K': 1 } },
+    };
+
+    const appended = await fixture.service.updateTask(created.id, {
+      source_refs_append: [firstRef, reorderedRef],
+    }, created.version, fixture.context());
+    expect(appended.source_refs).toEqual([firstRef]);
+
+    const replayed = await fixture.service.updateTask(created.id, {
+      source_refs_append: [reorderedRef, reorderedRef],
+    }, created.version, fixture.context());
+    expect(replayed.source_refs).toEqual(appended.source_refs);
+    expect(replayed.version).toBe(appended.version);
+  });
+
+  it('rejects invalid or ambiguous source_refs_append before mutation', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const created = await fixture.service.createTask({
+      title: 'Validated source refs task',
+      source_refs: [{ type: 'manual', id: 'keep' }],
+    }, fixture.context('source-validation-create'));
+    const before = structuredClone(fixture.tasks.get(created.id));
+    const update = vi.spyOn(fixture.repository, 'update');
+    const sparse: unknown[] = [];
+    sparse.length = 1;
+    const symbolRef = { type: 'manual' };
+    Object.defineProperty(symbolRef, Symbol('hidden'), { value: 'x', enumerable: true });
+    const nonEnumerableRef = { type: 'manual' };
+    Object.defineProperty(nonEnumerableRef, 'hidden', { value: 'x', enumerable: false });
+    const accessorRef = { type: 'manual' };
+    Object.defineProperty(accessorRef, 'hidden', { get: () => 'x', enumerable: true });
+    const symbolArray: unknown[] = [{ type: 'manual' }];
+    Object.defineProperty(symbolArray, Symbol('hidden'), { value: 'x', enumerable: true });
+    let accessorArrayReads = 0;
+    const accessorArray: unknown[] = [];
+    Object.defineProperty(accessorArray, 0, {
+      enumerable: true,
+      get: () => {
+        accessorArrayReads += 1;
+        return { type: 'manual' };
+      },
+    });
+    let topLevelAccessorReads = 0;
+    const topLevelAccessorInput = {} as { source_refs_append: unknown[] };
+    Object.defineProperty(topLevelAccessorInput, 'source_refs_append', {
+      enumerable: true,
+      get: () => {
+        topLevelAccessorReads += 1;
+        return [{ type: 'manual' }];
+      },
+    });
+    const deeplyNested: Record<string, unknown> = {};
+    let nestedCursor = deeplyNested;
+    for (let depth = 0; depth < 130; depth += 1) {
+      const next: Record<string, unknown> = {};
+      nestedCursor.nested = next;
+      nestedCursor = next;
+    }
+
+    await expect(fixture.service.updateTask(created.id, {
+      source_refs_append: [null],
+    }, created.version, fixture.context())).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    await expect(fixture.service.updateTask(created.id, {
+      source_refs_append: [{ nested: undefined }],
+    }, created.version, fixture.context())).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    await expect(fixture.service.updateTask(created.id, {
+      source_refs_append: sparse,
+    }, created.version, fixture.context())).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    await expect(fixture.service.updateTask(created.id, {
+      source_refs_append: [symbolRef],
+    }, created.version, fixture.context())).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    await expect(fixture.service.updateTask(created.id, {
+      source_refs_append: [nonEnumerableRef],
+    }, created.version, fixture.context())).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    await expect(fixture.service.updateTask(created.id, {
+      source_refs_append: [accessorRef],
+    }, created.version, fixture.context())).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    await expect(fixture.service.updateTask(created.id, {
+      source_refs_append: symbolArray,
+    }, created.version, fixture.context())).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    await expect(fixture.service.updateTask(created.id, {
+      source_refs_append: accessorArray,
+    }, created.version, fixture.context())).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    await expect(fixture.service.updateTask(created.id, topLevelAccessorInput, created.version, fixture.context()))
+      .rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    await expect(fixture.service.updateTask(created.id, {
+      source_refs_append: [deeplyNested],
+    }, created.version, fixture.context())).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    expect(accessorArrayReads).toBe(0);
+    expect(topLevelAccessorReads).toBe(0);
+    await expect(fixture.service.updateTask(created.id, {
+      source_refs: [],
+      source_refs_append: [],
+    }, created.version, fixture.context())).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+
+    expect(update).not.toHaveBeenCalled();
+    expect(fixture.tasks.get(created.id)).toEqual(before);
+    update.mockRestore();
+  });
+
+  it('treats nullish legacy source_refs as empty and rejects other non-array legacy state', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const created = await fixture.service.createTask({ title: 'Legacy source refs state' }, fixture.context('legacy-source-create'));
+    const stored = fixture.tasks.get(created.id) as Record<string, unknown>;
+
+    stored.source_refs = null;
+    const appendedFromNull = await fixture.service.updateTask(created.id, {
+      source_refs_append: [{ type: 'manual', id: 'from-null' }],
+    }, created.version, fixture.context());
+    expect(appendedFromNull.source_refs).toEqual([{ type: 'manual', id: 'from-null' }]);
+
+    (fixture.tasks.get(created.id) as Record<string, unknown>).source_refs = undefined;
+    const appendedFromUndefined = await fixture.service.updateTask(created.id, {
+      source_refs_append: [{ type: 'manual', id: 'from-undefined' }],
+    }, appendedFromNull.version, fixture.context());
+    expect(appendedFromUndefined.source_refs).toEqual([{ type: 'manual', id: 'from-undefined' }]);
+
+    const currentStored = fixture.tasks.get(created.id) as Record<string, unknown>;
+    currentStored.source_refs = 'legacy-invalid';
+    const before = structuredClone(currentStored);
+    await expect(fixture.service.updateTask(created.id, {
+      source_refs_append: [{ type: 'manual', id: 'must-not-write' }],
+    }, appendedFromUndefined.version, fixture.context()))
+      .rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    expect(fixture.tasks.get(created.id)).toEqual(before);
+  });
+
+  it('rejects stale source_refs_append without changing the task', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const created = await fixture.service.createTask({ title: 'Stale append task' }, fixture.context('stale-append-create'));
+    const current = await fixture.service.updateTask(created.id, { title: 'Current title' }, created.version, fixture.context());
+    await expect(fixture.service.updateTask(created.id, {
+      source_refs_append: [{ type: 'manual', id: 'late' }],
+    }, created.version, fixture.context())).rejects.toMatchObject({ code: 'version_conflict', status: 409 });
+    expect(fixture.tasks.get(created.id)).toMatchObject({ version: current.version, title: 'Current title', source_refs: [] });
+  });
+
+  it('preserves the existing nullable source_refs replacement validator', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const created = await fixture.service.createTask({
+      title: 'Nullable source refs task',
+      source_refs: null as unknown as unknown[],
+    }, fixture.context('nullable-source-create'));
+    expect(created.source_refs).toEqual([]);
+    const updated = await fixture.service.updateTask(created.id, {
+      source_refs: null as unknown as unknown[],
+    }, created.version, fixture.context());
+    expect(updated.source_refs).toEqual([]);
   });
 
   it('lets injected policy own authorization and tenant/scoping decisions', async () => {
@@ -187,5 +700,88 @@ describe('CanonicalTaskService', () => {
         message: 'Task audit is unavailable',
         details: {},
       });
+  });
+
+  it('writes the create audit inside the repository transaction when both capabilities exist', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const auditClients: unknown[] = [];
+    const transactionClient = { query: async () => ({ rows: [] }) };
+    const repository = {
+      ...fixture.repository,
+      async createWithAudit(input: Record<string, unknown>, runAudit: (created: unknown, client: unknown) => Promise<void>) {
+        const created = await fixture.repository.create(input);
+        await runAudit(created, transactionClient);
+        return created;
+      },
+    };
+    const service = new CanonicalTaskService({
+      repository,
+      auditRepository: {
+        supportsTransactionClient: true,
+        async upsertAuditLog(entry, options) {
+          auditClients.push(options?.client);
+          fixture.auditEntries.push(entry);
+        },
+      },
+    });
+
+    const created = await service.createTask({ title: 'Atomic audit' }, fixture.context('atomic-1'));
+    expect(created.id).toBe('task-1');
+    expect(auditClients).toEqual([transactionClient]);
+    expect(fixture.auditEntries).toHaveLength(1);
+  });
+
+  it('rolls back the create when the in-transaction audit write fails', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const repository = {
+      ...fixture.repository,
+      async createWithAudit(input: Record<string, unknown>, runAudit: (created: unknown, client: unknown) => Promise<void>) {
+        const created = await fixture.repository.create(input);
+        try {
+          await runAudit(created, { query: async () => ({ rows: [] }) });
+        } catch (error) {
+          await fixture.repository.delete(created.id, created.version);
+          throw error;
+        }
+        return created;
+      },
+    };
+    const service = new CanonicalTaskService({
+      repository,
+      auditRepository: {
+        supportsTransactionClient: true,
+        async upsertAuditLog() {
+          throw new Error('audit unavailable');
+        },
+      },
+    });
+
+    await expect(service.createTask({ title: 'Rolled back' }, fixture.context('atomic-2')))
+      .rejects.toMatchObject({ code: 'task_audit_unavailable', status: 503 });
+    expect(await fixture.repository.get('task-1')).toBeNull();
+  });
+
+  it('does not use the transactional create without an audit sink that declares the capability', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    let transactionalCalls = 0;
+    const repository = {
+      ...fixture.repository,
+      async createWithAudit(input: Record<string, unknown>) {
+        transactionalCalls += 1;
+        return fixture.repository.create(input);
+      },
+    };
+    const service = new CanonicalTaskService({
+      repository,
+      auditRepository: {
+        async upsertAuditLog() {
+          throw new Error('audit unavailable');
+        },
+      },
+    });
+
+    await expect(service.createTask({ title: 'Fallback path' }, fixture.context('atomic-3')))
+      .rejects.toMatchObject({ code: 'task_audit_unavailable', status: 503 });
+    expect(transactionalCalls).toBe(0);
   });
 });

@@ -1,6 +1,6 @@
 {
   "name": "@unson/brainbase-mcp",
-  "version": "0.12.0",
+  "version": "0.50.1",
   "description": "Local-first Brainbase judgment OS that lets supported AI agents reuse a user's approved goals, priorities, decisions, and judgment criteria.",
   "type": "module",
   "license": "MIT",
@@ -14,6 +14,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./entity-indexer": {
+      "types": "./dist/entity-indexer.d.ts",
+      "import": "./dist/entity-indexer.js"
+    },
+    "./entity-index-cache": {
+      "types": "./dist/entity-index-cache.d.ts",
+      "import": "./dist/entity-index-cache.js"
     },
     "./judgment-dag": {
       "types": "./dist/judgment-dag.d.ts",
@@ -31,9 +39,53 @@
       "types": "./dist/judgment-frame.d.ts",
       "import": "./dist/judgment-frame.js"
     },
+    "./judgment-history": {
+      "types": "./dist/judgment-history.d.ts",
+      "import": "./dist/judgment-history.js"
+    },
+    "./judgment-journal-turn-publisher": {
+      "types": "./dist/judgment-journal-turn-publisher.d.ts",
+      "import": "./dist/judgment-journal-turn-publisher.js"
+    },
+    "./remote-judgment-hook-http": {
+      "types": "./dist/remote-judgment-hook-http.d.ts",
+      "import": "./dist/remote-judgment-hook-http.js"
+    },
+    "./judgment-history-http": {
+      "types": "./dist/judgment-history-http.d.ts",
+      "import": "./dist/judgment-history-http.js"
+    },
     "./judgment-value-proof": {
       "types": "./dist/judgment-value-proof.d.ts",
       "import": "./dist/judgment-value-proof.js"
+    },
+    "./judgment-host": {
+      "types": "./dist/judgment-host.d.ts",
+      "import": "./dist/judgment-host.js"
+    },
+    "./judgment-lifecycle-core": {
+      "types": "./dist/judgment-lifecycle-core.d.ts",
+      "import": "./dist/judgment-lifecycle-core.js"
+    },
+    "./judgment-execution-outcome": {
+      "types": "./dist/judgment-execution-outcome.d.ts",
+      "import": "./dist/judgment-execution-outcome.js"
+    },
+    "./judgment-node-evidence": {
+      "types": "./dist/judgment-node-evidence.d.ts",
+      "import": "./dist/judgment-node-evidence.js"
+    },
+    "./judgment-frame-evidence": {
+      "types": "./dist/judgment-frame-evidence.d.ts",
+      "import": "./dist/judgment-frame-evidence.js"
+    },
+    "./judgment-event-adapter": {
+      "types": "./dist/judgment-event-adapter.d.ts",
+      "import": "./dist/judgment-event-adapter.js"
+    },
+    "./judgment-event-outbox": {
+      "types": "./dist/judgment-event-outbox.d.ts",
+      "import": "./dist/judgment-event-outbox.js"
     },
     "./judgment-value-proof-review": {
       "types": "./dist/judgment-value-proof-review.d.ts",
@@ -71,6 +123,10 @@
       "types": "./dist/embedding-provider.d.ts",
       "import": "./dist/embedding-provider.js"
     },
+    "./graph-embedding-provider": {
+      "types": "./dist/graph-embedding-provider.d.ts",
+      "import": "./dist/graph-embedding-provider.js"
+    },
     "./graph-revision-reader": {
       "types": "./dist/graph-revision-reader.d.ts",
       "import": "./dist/graph-revision-reader.js"
@@ -86,6 +142,18 @@
     "./canonical-task-service": {
       "types": "./dist/canonical-task-service.d.ts",
       "import": "./dist/canonical-task-service.js"
+    },
+    "./canonical-task-postgres": {
+      "types": "./dist/canonical-task-postgres.d.ts",
+      "import": "./dist/canonical-task-postgres.js"
+    },
+    "./canonical-task-operations": {
+      "types": "./dist/canonical-task-operations.d.ts",
+      "import": "./dist/canonical-task-operations.js"
+    },
+    "./canonical-task-store-config": {
+      "types": "./dist/canonical-task-store-config.d.ts",
+      "import": "./dist/canonical-task-store-config.js"
     },
     "./foundation-catalog": {
       "types": "./dist/foundation-catalog.d.ts",
@@ -111,9 +179,57 @@
       "types": "./dist/company-os-receipt-adapter.d.ts",
       "import": "./dist/company-os-receipt-adapter.js"
     },
+    "./run-receipt": {
+      "types": "./dist/run-receipt.d.ts",
+      "import": "./dist/run-receipt.js"
+    },
+    "./run-receipt-port": {
+      "types": "./dist/run-receipt-port.d.ts",
+      "import": "./dist/run-receipt-port.js"
+    },
+    "./routines": {
+      "types": "./dist/routines.d.ts",
+      "import": "./dist/routines.js"
+    },
+    "./automation-run": {
+      "types": "./dist/automation-run.d.ts",
+      "import": "./dist/automation-run.js"
+    },
     "./company-os-learning-adoption": {
       "types": "./dist/company-os-learning-adoption.d.ts",
       "import": "./dist/company-os-learning-adoption.js"
+    },
+    "./company-os-judgment-history": {
+      "types": "./dist/company-os-judgment-history.d.ts",
+      "import": "./dist/company-os-judgment-history.js"
+    },
+    "./meeting-minutes-lineage": {
+      "types": "./dist/meeting-minutes-lineage.d.ts",
+      "import": "./dist/meeting-minutes-lineage.js"
+    },
+    "./meeting-minutes-lineage-adapters": {
+      "types": "./dist/meeting-minutes-lineage-adapters.d.ts",
+      "import": "./dist/meeting-minutes-lineage-adapters.js"
+    },
+    "./meeting-source-connection": {
+      "types": "./dist/meeting-source-connection.d.ts",
+      "import": "./dist/meeting-source-connection.js"
+    },
+    "./meeting-source-mcp-adapters": {
+      "types": "./dist/meeting-source-mcp-adapters.d.ts",
+      "import": "./dist/meeting-source-mcp-adapters.js"
+    },
+    "./meeting-source-reader": {
+      "types": "./dist/meeting-source-reader.d.ts",
+      "import": "./dist/meeting-source-reader.js"
+    },
+    "./meeting-minutes-lineage-http": {
+      "types": "./dist/meeting-minutes-lineage-http.d.ts",
+      "import": "./dist/meeting-minutes-lineage-http.js"
+    },
+    "./meeting-minutes-lineage-lifecycle": {
+      "types": "./dist/meeting-minutes-lineage-lifecycle.d.ts",
+      "import": "./dist/meeting-minutes-lineage-lifecycle.js"
     },
     "./constraint-resolution": {
       "types": "./dist/constraint-resolution.d.ts",
@@ -139,6 +255,54 @@
       "types": "./dist/decision-adapter.d.ts",
       "import": "./dist/decision-adapter.js"
     },
+    "./knowledge-resolution-service": {
+      "types": "./dist/knowledge-resolution-service.d.ts",
+      "import": "./dist/knowledge-resolution-service.js"
+    },
+    "./judgment-resolution-contract": {
+      "types": "./dist/judgment-resolution-contract.d.ts",
+      "import": "./dist/judgment-resolution-contract.js"
+    },
+    "./judgment-runtime-resolution": {
+      "types": "./dist/judgment-runtime-resolution.public.d.ts",
+      "import": "./dist/judgment-runtime-resolution.js"
+    },
+    "./graph-maintenance-engine": {
+      "types": "./dist/graph-maintenance-engine.d.ts",
+      "import": "./dist/graph-maintenance-engine.js"
+    },
+    "./memory-scope-policy": {
+      "types": "./dist/memory-scope-policy.d.ts",
+      "import": "./dist/memory-scope-policy.js"
+    },
+    "./ontology-kernel": {
+      "types": "./dist/ontology-kernel.d.ts",
+      "import": "./dist/ontology-kernel.js"
+    },
+    "./ontology-registry": {
+      "types": "./dist/ontology-registry.d.ts",
+      "import": "./dist/ontology-registry.js"
+    },
+    "./ontology-publication": {
+      "types": "./dist/ontology-publication.d.ts",
+      "import": "./dist/ontology-publication.js"
+    },
+    "./ontology-release-trust": {
+      "types": "./dist/ontology-release-trust.d.ts",
+      "import": "./dist/ontology-release-trust.js"
+    },
+    "./canonical-document-writer": {
+      "types": "./dist/canonical-document-writer.d.ts",
+      "import": "./dist/canonical-document-writer.js"
+    },
+    "./knowledge-capture-preview": {
+      "types": "./dist/knowledge-capture-preview.d.ts",
+      "import": "./dist/knowledge-capture-preview.js"
+    },
+    "./meeting-source-integration-catalog": {
+      "types": "./dist/meeting-source-integration-catalog.d.ts",
+      "import": "./dist/meeting-source-integration-catalog.js"
+    },
     "./knowledge-adapter": {
       "types": "./dist/knowledge-adapter.d.ts",
       "import": "./dist/knowledge-adapter.js"
@@ -146,6 +310,10 @@
     "./world-model": {
       "types": "./dist/world-model.d.ts",
       "import": "./dist/world-model.js"
+    },
+    "./world": {
+      "types": "./dist/world-extension.d.ts",
+      "import": "./dist/world-extension.js"
     },
     "./problem-selection": {
       "types": "./dist/problem-selection.d.ts",
@@ -155,6 +323,10 @@
       "types": "./dist/judgment-problem-snapshot.d.ts",
       "import": "./dist/judgment-problem-snapshot.js"
     },
+    "./judgment-problem-snapshot-http": {
+      "types": "./dist/judgment-problem-snapshot-http.d.ts",
+      "import": "./dist/judgment-problem-snapshot-http.js"
+    },
     "./personal-knowledge": {
       "types": "./dist/personal-knowledge.d.ts",
       "import": "./dist/personal-knowledge.js"
@@ -163,9 +335,33 @@
       "types": "./dist/knowledge-promotion.d.ts",
       "import": "./dist/knowledge-promotion.js"
     },
+    "./knowledge-event": {
+      "types": "./dist/knowledge-event.d.ts",
+      "import": "./dist/knowledge-event.js"
+    },
     "./organization-connection": {
       "types": "./dist/organization-connection.d.ts",
       "import": "./dist/organization-connection.js"
+    },
+    "./mesh": {
+      "types": "./dist/mesh.d.ts",
+      "import": "./dist/mesh.js"
+    },
+    "./honcho": {
+      "types": "./dist/honcho.d.ts",
+      "import": "./dist/honcho.js"
+    },
+    "./onboarding-runtime": {
+      "types": "./dist/onboarding-runtime.d.ts",
+      "import": "./dist/onboarding-runtime.js"
+    },
+    "./connected-onboarding": {
+      "types": "./dist/connected-onboarding.d.ts",
+      "import": "./dist/connected-onboarding.js"
+    },
+    "./mcp-runtime": {
+      "types": "./dist/mcp-runtime.d.ts",
+      "import": "./dist/mcp-runtime.js"
     },
     "./resource-reservations": {
       "types": "./dist/resource-reservations.d.ts",
@@ -195,6 +391,10 @@
       "types": "./dist/server-support.d.ts",
       "import": "./dist/server-support.js"
     },
+    "./config-parser": {
+      "types": "./dist/config-parser.d.ts",
+      "import": "./dist/config-parser.js"
+    },
     "./company-os-impact-review": {
       "types": "./dist/company-os-impact-review.d.ts",
       "import": "./dist/company-os-impact-review.js"
@@ -202,6 +402,46 @@
     "./streamable-http": {
       "types": "./dist/streamable-http.d.ts",
       "import": "./dist/streamable-http.js"
+    },
+    "./personal-memory": {
+      "types": "./dist/personal-memory.d.ts",
+      "import": "./dist/personal-memory.js"
+    },
+    "./meeting-minutes": {
+      "types": "./dist/meeting-minutes.d.ts",
+      "import": "./dist/meeting-minutes.js"
+    },
+    "./meeting-automation": {
+      "types": "./dist/meeting-automation.d.ts",
+      "import": "./dist/meeting-automation.js"
+    },
+    "./meeting-automation-runtime": {
+      "types": "./dist/meeting-automation-runtime.d.ts",
+      "import": "./dist/meeting-automation-runtime.js"
+    },
+    "./meeting-minutes-context-receipt": {
+      "types": "./dist/meeting-minutes-context-receipt.d.ts",
+      "import": "./dist/meeting-minutes-context-receipt.js"
+    },
+    "./meeting-source-sync": {
+      "types": "./dist/meeting-source-sync.d.ts",
+      "import": "./dist/meeting-source-sync.js"
+    },
+    "./meeting-source-sync-common-adapter": {
+      "types": "./dist/meeting-source-sync-common-adapter.d.ts",
+      "import": "./dist/meeting-source-sync-common-adapter.js"
+    },
+    "./meeting-minutes-http": {
+      "types": "./dist/meeting-minutes-http.d.ts",
+      "import": "./dist/meeting-minutes-http.js"
+    },
+    "./meeting-minutes-storage": {
+      "types": "./dist/meeting-minutes-storage.d.ts",
+      "import": "./dist/meeting-minutes-storage.js"
+    },
+    "./meeting-minutes-storage-controller": {
+      "types": "./dist/meeting-minutes-storage-controller.d.ts",
+      "import": "./dist/meeting-minutes-storage-controller.js"
     },
     "./ui/outcome-knowledge": "./ui/outcome-knowledge.js",
     "./ui/outcome-knowledge.css": "./ui/outcome-knowledge.css",
@@ -211,21 +451,44 @@
     "./ui/objective-editor.css": "./ui/objective-editor.css",
     "./ui/value-proof-review": "./ui/value-proof-review.js",
     "./ui/value-proof-review.css": "./ui/value-proof-review.css",
+    "./ui/judgment-history": "./ui/judgment-history.js",
+    "./ui/judgment-history.css": "./ui/judgment-history.css",
+    "./ui/meeting-minutes": "./ui/meeting-minutes.js",
+    "./ui/meeting-minutes.css": "./ui/meeting-minutes.css",
     "./ui/objective-editor-http-port": "./ui/objective-editor-http-port.js",
     "./ui/world-model-view": "./ui/world-model-view.js",
     "./ui/world-model-view.css": "./ui/world-model-view.css",
+    "./ui/people-and-companies-view": "./ui/people-and-companies-view.js",
+    "./ui/people-and-companies-view.css": "./ui/people-and-companies-view.css",
+    "./ui/personal-memory": "./ui/personal-memory.js",
+    "./ui/personal-memory.css": "./ui/personal-memory.css",
+    "./ui/personal-memory-http-port": "./ui/personal-memory-http-port.js",
+    "./ui/inbox": "./ui/inbox.js",
+    "./ui/inbox.css": "./ui/inbox.css",
+    "./ui/area-nav": "./ui/area-nav.js",
+    "./ui/area-nav.css": "./ui/area-nav.css",
     "./ui/local-web-shell": "./ui/local-web-shell.js",
     "./ui/local-web-shell.css": "./ui/local-web-shell.css",
     "./ui/workspace-kit": "./ui/workspace-kit.js",
     "./ui/workspace-kit.css": "./ui/workspace-kit.css",
+    "./ui/foundation-overview": "./ui/foundation-overview.js",
+    "./ui/foundation-overview.css": "./ui/foundation-overview.css",
     "./ui/graph-view-shared": "./ui/graph-view-shared.js",
     "./ui/graph-view-shared.css": "./ui/graph-view-shared.css",
+    "./ui/project-icon": "./ui/project-icon.js",
     "./ui/graph-own-share": "./ui/graph-own-share.js",
     "./ui/graph-projects-view": "./ui/graph-projects-view.js",
     "./ui/graph-projects-view.css": "./ui/graph-projects-view.css",
     "./ui/graph-registry-view": "./ui/graph-registry-view.js",
     "./ui/graph-registry-view.css": "./ui/graph-registry-view.css",
+    "./ui/graph-ontology-view": "./ui/graph-ontology-view.js",
+    "./ui/graph-ontology-view.css": "./ui/graph-ontology-view.css",
+    "./ui/meeting-minutes-storage": "./ui/meeting-minutes-storage.js",
+    "./ui/meeting-minutes-storage.css": "./ui/meeting-minutes-storage.css",
     "./ui/brainbase-tokens.css": "./ui/brainbase-tokens.css",
+    "./ui/meeting-minutes-lineage": "./ui/meeting-minutes-lineage.js",
+    "./ui/meeting-minutes-lineage.css": "./ui/meeting-minutes-lineage.css",
+    "./ui/meeting-minutes-lineage-http": "./ui/meeting-minutes-lineage-http.js",
     "./dist/*": "./dist/*",
     "./contracts/judgment-dag/schema.json": "./contracts/judgment-dag/schema.json",
     "./contracts/judgment-dag/fixture.json": "./contracts/judgment-dag/fixture.json",
@@ -276,9 +539,33 @@
     },
     "./contracts/foundation/graph-history.sql": "./contracts/foundation/graph-history.sql",
     "./ui/project-workspace": "./ui/project-workspace.js",
+    "./ui/project-overview": "./ui/project-overview.js",
     "./ui/project-graph": "./ui/project-graph.js",
     "./ui/project-workspace.css": "./ui/project-workspace.css",
-    "./ui/project-graph-vendor.js": "./ui/project-graph-vendor.js"
+    "./ui/project-graph-vendor.js": "./ui/project-graph-vendor.js",
+    "./meeting-minutes-storage-http": {
+      "types": "./dist/meeting-minutes-storage-http.d.ts",
+      "import": "./dist/meeting-minutes-storage-http.js"
+    },
+    "./private-philosophy-graph": {
+      "types": "./dist/private-philosophy-graph.d.ts",
+      "import": "./dist/private-philosophy-graph.js"
+    },
+    "./ui/native-scrollbars": "./ui/native-scrollbars.js",
+    "./ui/native-scrollbars.css": "./ui/native-scrollbars.css",
+    "./queue-task-tools": {
+      "types": "./dist/queue-task-tools.d.ts",
+      "import": "./dist/queue-task-tools.js"
+    },
+    "./testing/queue-task-tools-contract": {
+      "types": "./dist/testing/queue-task-tools-contract.d.ts",
+      "import": "./dist/testing/queue-task-tools-contract.js"
+    },
+    "./contracts/brainbase-public-contract.v1.json": "./contracts/brainbase-public-contract.v1.json",
+    "./ownership-survey": {
+      "types": "./dist/ownership-survey.d.ts",
+      "import": "./dist/ownership-survey.js"
+    }
   },
   "bin": {
     "brainbase-mcp": "dist/index.js",
@@ -298,9 +585,12 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/copy-judgment-runtime-resolution-public-types.mjs && tsc -p tsconfig.judgment-runtime-resolution-types.json --pretty false && node scripts/build-stage3b-candidate-bundle.mjs",
+    "typecheck:config-parser": "tsc -p tsconfig.config-parser-types.json --pretty false",
+    "typecheck:judgment-runtime-resolution": "tsc -p tsconfig.judgment-runtime-resolution-types.json --pretty false",
     "test": "vitest run --exclude tests/npm-prepublication-evidence.integration.test.ts",
     "test:integration": "vitest run tests/mcp-contract.test.ts tests/ontology-cli.test.ts tests/npm-release-validation.integration.test.ts tests/npm-consumer-smoke.integration.test.ts",
+    "test:canonical-task-postgres": "vitest run tests/canonical-task-postgres-service.integration.test.ts",
     "test:consumer-smoke": "vitest run tests/npm-consumer-smoke.integration.test.ts",
     "test:integration:release-evidence": "vitest run tests/npm-release-validation.integration.test.ts tests/npm-prepublication-evidence.integration.test.ts",
     "test:e2e": "vitest run tests/e2e/brainbase-mcp-only-acceptance.spec.ts tests/e2e/story-brainbase-portable-ontology-kernel-acceptance.spec.ts",
@@ -326,27 +616,46 @@
     "release:validate": "node scripts/npm-release.mjs validate",
     "release:publish": "node scripts/npm-release.mjs publish",
     "release:verify": "node scripts/npm-release.mjs verify",
-    "build:graph": "node scripts/build-project-graph.mjs"
+    "build:graph": "node scripts/build-project-graph.mjs",
+    "build:world": "node scripts/build-world-vendor.mjs"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/sdk": "^1.32.0",
     "graphology": "0.26.0",
+    "js-yaml": "^4.1.1",
     "sigma": "3.0.3",
-    "zod": "^3.25.56"
+    "zod": "^4.6.7"
   },
   "overrides": {
-    "ip-address": "^10.4.0"
+    "ip-address": "^10.4.0",
+    "vitepress": {
+      "vite": "^6.4.5"
+    }
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
     "@types/node": "^22.15.29",
+    "@types/pg": "^8.23.1",
     "esbuild": "0.28.2",
+    "modern-web-guidance": "1.0.0",
+    "pg": "^8.23.1",
+    "three": "0.186.1",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "vitepress": "^1.6.4",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.12"
   },
   "engines": {
     "node": ">=20"
-  }
+  },
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "keywords": [],
+  "author": "",
+  "bugs": {
+    "url": "https://github.com/Unson-LLC/brainbase/issues"
+  },
+  "homepage": "https://github.com/Unson-LLC/brainbase#readme"
 }

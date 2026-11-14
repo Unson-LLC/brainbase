@@ -1,0 +1,7 @@
+# Private Philosophy contract
+
+The canonical Graph writer accepts opt-in payload.acl only for an authenticated owner, private visibility, empty readerIds/writerIds, a nonempty statement and judgmentApplicability.scope matching the selected project. Create requires expectedVersion=0; edits require the exact current version. Existing private records cannot lose ACL, change owner, type, scope or project; legacy conversion is refused pending a reviewed migration.
+
+Canonical readers check stored current and historical ACLs before projecting owner metadata. SQL adds restrictive policies on graph_entities, graph_edges and graph_foundation_revisions. Private endpoints close edge access; current and historical owner/project must both match. Existing tenant, role, clearance and Foundation policies remain active. Missing/malformed ACL fails closed; absence of the ACL marker preserves legacy behavior.
+
+Refusal tests: another actor (including CEO), tenant/project mismatch, invalid or missing ACL, ACL removal/owner change, stale/missing version, missing/inactive current row, history privacy downgrade, related edge reads/mutations. Positive tests: owner CRUD/read and legacy/Foundation behavior. Rollout: backup, counts-only preflight, native exact catalog proof, atomic migration/readback, runtime migration gate, deploy, health, one private save/readback plus refusal checks. Lock timeout or concurrent schema/source changes stop the conflicting operation. No new credentials or broad grants.

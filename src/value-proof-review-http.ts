@@ -4,10 +4,17 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  applyJudgmentValueProofFeedback,
   buildJudgmentValueProofReviewHome,
+  classifyJudgmentValueProof,
+  JudgmentValueProofAnswerConflictError,
+  JudgmentValueProofJournalCache,
+  readJudgmentValueProofAnswers,
   readJudgmentValueProofFeedback,
   readJudgmentValueProofJournal,
+  recordJudgmentValueProofAnswer,
   recordJudgmentValueProofFeedback,
+  type JudgmentValueProofAnswerKind,
   type JudgmentValueProofFeedbackLayer,
   type JudgmentValueProofFeedbackStatus,
   type JudgmentValueProofReviewHome,
@@ -35,6 +42,8 @@ const UI_FILES: Readonly<Record<string, { readonly file: string; readonly type: 
   '/ui/brainbase-tokens.css': { file: 'brainbase-tokens.css', type: 'text/css; charset=utf-8' },
   '/ui/workspace-kit.js': { file: 'workspace-kit.js', type: 'text/javascript; charset=utf-8' },
   '/ui/workspace-kit.css': { file: 'workspace-kit.css', type: 'text/css; charset=utf-8' },
+  '/ui/judgment-history.js': { file: 'judgment-history.js', type: 'text/javascript; charset=utf-8' },
+  '/ui/judgment-history.css': { file: 'judgment-history.css', type: 'text/css; charset=utf-8' },
   '/ui/value-proof-review.js': { file: 'value-proof-review.js', type: 'text/javascript; charset=utf-8' },
   '/ui/value-proof-review.css': { file: 'value-proof-review.css', type: 'text/css; charset=utf-8' }
 });
@@ -42,28 +51,39 @@ const UI_FILES: Readonly<Record<string, { readonly file: string; readonly type: 
 export interface ValueProofReviewHttpOptions {
   /** Judgment journal root. Defaults to `~/.brainbase/personal-os/judgment-journal`. */
   readonly journalRoot?: string;
-  /** Personal OS data directory that stores owner feedback. */
+  /** Personal OS data directory that stores owner feedback and answers. */
   readonly dataDir?: string;
   /** Required on mutating requests. */
   readonly token: string;
   readonly basePath?: string;
   readonly now?: () => Date;
+  /** One cache per journal; a host passes the one it shares with other readers of the same journal. */
+  readonly journalCache?: JudgmentValueProofJournalCache;
 }
 
 export type ValueProofReviewHttpHandler = (request: IncomingMessage, response: ServerResponse) => Promise<boolean>;
 
-function publicHome(home: JudgmentValueProofReviewHome): unknown {
+/** The home as the browser receives it: no local paths beyond the journal root. */
+export function publicHome(home: JudgmentValueProofReviewHome): unknown {
   if (home.status === 'unavailable') return home;
   const strip = (items: Readonly<Record<string, readonly JudgmentValueProofReviewItem[]>>) =>
     Object.fromEntries(Object.entries(items).map(([section, list]) => [
       section,
-      list.map(({ section: itemSection, proof, feedback_history }) => ({ section: itemSection, proof, feedback_history }))
+      list.map(({ section: itemSection, proof, feedback_history, answer, conversation_moved_on_at }) => ({
+        section: itemSection,
+        proof,
+        feedback_history,
+        answer: answer ?? null,
+        conversation_moved_on_at: conversation_moved_on_at ?? null
+      }))
     ]));
   return {
     status: home.status,
     root: home.root,
     coverage: home.coverage,
     sections: strip(home.sections),
+    // The screen offers answering only when the host says it records answers (and never resumes work).
+    capabilities: { answer: 'record_only' },
     // Holds only decision IDs, counts and states; no local paths.
     delegation_map: home.delegation_map,
     rejected: home.rejected.map((entry) => ({ file: relative(home.root, entry.file), reason: entry.reason }))
@@ -76,25 +96,84 @@ export function createValueProofReviewHttpHandler(options: ValueProofReviewHttpO
   }
   const basePath = (options.basePath ?? DEFAULT_BASE_PATH).replace(/\/+$/u, '');
   const now = options.now ?? (() => new Date());
+  // A large journal has thousands of conversation folders; only the ones that changed are listed again.
+  const journalCache = options.journalCache ?? new JudgmentValueProofJournalCache();
+  const readJournal = () => readJudgmentValueProofJournal({ root: options.journalRoot, cache: journalCache });
 
   async function readHome(): Promise<JudgmentValueProofReviewHome> {
-    const journal = await readJudgmentValueProofJournal({ root: options.journalRoot });
-    const feedback = journal.status === 'available'
-      ? await readJudgmentValueProofFeedback({ dataDir: options.dataDir })
-      : [];
-    return buildJudgmentValueProofReviewHome(journal, feedback, { now: now() });
+    const journal = await readJournal();
+    if (journal.status !== 'available') return buildJudgmentValueProofReviewHome(journal, [], { now: now() });
+    const [feedback, answers] = await Promise.all([
+      readJudgmentValueProofFeedback({ dataDir: options.dataDir }),
+      readJudgmentValueProofAnswers({ dataDir: options.dataDir })
+    ]);
+    return buildJudgmentValueProofReviewHome(journal, feedback, { now: now(), answers });
   }
 
-  async function recordFeedback(request: IncomingMessage): Promise<{ statusCode: number; body: unknown }> {
+  async function authorizedBody(request: IncomingMessage): Promise<Record<string, unknown>> {
     assertSameOrigin(request);
     if (!tokenMatches(options.token, request.headers[VALUE_PROOF_REVIEW_TOKEN_HEADER])) {
       throw new HttpError(403, 'review_token_required', 'A valid review token is required');
     }
-    const body = await readJsonObjectBody(request, MAX_BODY_BYTES);
+    return readJsonObjectBody(request, MAX_BODY_BYTES);
+  }
+
+  async function recordAnswer(request: IncomingMessage): Promise<{ statusCode: number; body: unknown }> {
+    const body = await authorizedBody(request);
     const intentId = typeof body.intent_id === 'string' ? body.intent_id : '';
     const attemptId = typeof body.decision_attempt_id === 'string' ? body.decision_attempt_id : '';
 
-    const journal = await readJudgmentValueProofJournal({ root: options.journalRoot });
+    const journal = await readJournal();
+    if (journal.status === 'unavailable') {
+      throw new HttpError(503, 'judgment_journal_unavailable', journal.reason);
+    }
+    const entry = journal.entries.find((candidate) => candidate.proof.intent_id === intentId
+      && candidate.proof.decision_attempt_id === attemptId);
+    if (!entry) throw new HttpError(404, 'value_proof_not_found', 'No saved value proof matches this decision');
+    // Classify the judgment as the home shows it, with the owner's evaluation applied.
+    const { proof } = applyJudgmentValueProofFeedback(
+      entry.proof,
+      await readJudgmentValueProofFeedback({ dataDir: options.dataDir })
+    );
+    if (classifyJudgmentValueProof(proof) !== 'needs_human' || !proof.human_decision) {
+      throw new HttpError(422, 'not_answerable', 'This judgment is not waiting for the owner');
+    }
+    if (entry.conversation_moved_on_at) {
+      // The owner answered in that conversation or moved on; answering here could replay a settled question.
+      throw new HttpError(422, 'conversation_moved_on', 'The conversation moved on after this question; continue it there');
+    }
+
+    try {
+      const result = await recordJudgmentValueProofAnswer({
+        dataDir: options.dataDir,
+        proof,
+        kind: body.kind as JudgmentValueProofAnswerKind,
+        selected_option_id: typeof body.selected_option_id === 'string' ? body.selected_option_id : null,
+        confirmed: body.confirmed === true,
+        now: now()
+      });
+      return { statusCode: result.created ? 201 : 200, body: result };
+    } catch (error) {
+      if (error instanceof JudgmentValueProofAnswerConflictError) {
+        return {
+          statusCode: 409,
+          body: {
+            error: { code: 'answer_conflict', message: 'A different answer is already recorded for this judgment' },
+            existing: error.existing
+          }
+        };
+      }
+      if (error instanceof TypeError) throw new HttpError(400, 'invalid_answer', error.message);
+      throw error;
+    }
+  }
+
+  async function recordFeedback(request: IncomingMessage): Promise<{ statusCode: number; body: unknown }> {
+    const body = await authorizedBody(request);
+    const intentId = typeof body.intent_id === 'string' ? body.intent_id : '';
+    const attemptId = typeof body.decision_attempt_id === 'string' ? body.decision_attempt_id : '';
+
+    const journal = await readJournal();
     if (journal.status === 'unavailable') {
       throw new HttpError(503, 'judgment_journal_unavailable', journal.reason);
     }
@@ -121,7 +200,7 @@ export function createValueProofReviewHttpHandler(options: ValueProofReviewHttpO
 
   return async (request, response) => {
     const path = requestUrl(request).pathname;
-    if (path !== `${basePath}/home` && path !== `${basePath}/feedback`) return false;
+    if (path !== `${basePath}/home` && path !== `${basePath}/feedback` && path !== `${basePath}/answers`) return false;
     try {
       if (path === `${basePath}/home`) {
         if (request.method !== 'GET') throw new HttpError(405, 'method_not_allowed', 'Use GET');
@@ -129,7 +208,7 @@ export function createValueProofReviewHttpHandler(options: ValueProofReviewHttpO
         return true;
       }
       if (request.method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST');
-      const result = await recordFeedback(request);
+      const result = path === `${basePath}/answers` ? await recordAnswer(request) : await recordFeedback(request);
       writeJson(response, result.statusCode, result.body);
     } catch (error) {
       if (error instanceof HttpError) writeError(response, error);
@@ -151,9 +230,10 @@ function shellHtml(token: string, basePath: string): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="brainbase-review-token" content="${escapeAttribute(token)}">
 <meta name="brainbase-review-base-path" content="${escapeAttribute(basePath)}">
-<title>Brainbase 判断の見返し</title>
+<title>Brainbase 判断の履歴</title>
 <link rel="stylesheet" href="/ui/brainbase-tokens.css">
 <link rel="stylesheet" href="/ui/workspace-kit.css">
+<link rel="stylesheet" href="/ui/judgment-history.css">
 <link rel="stylesheet" href="/ui/value-proof-review.css">
 </head>
 <body>
@@ -164,12 +244,13 @@ function shellHtml(token: string, basePath: string): string {
 `;
 }
 
-const BOOTSTRAP_JS = `import { createValueProofReviewUI } from '/ui/value-proof-review.js';
+const BOOTSTRAP_JS = `import { createJudgmentHistoryUI } from '/ui/judgment-history.js';
 const meta = (name) => document.querySelector(\`meta[name="\${name}"]\`)?.getAttribute('content') ?? '';
-createValueProofReviewUI({
+createJudgmentHistoryUI({
   root: document.getElementById('brainbase-value-proof-review'),
   basePath: meta('brainbase-review-base-path'),
-  token: meta('brainbase-review-token')
+  token: meta('brainbase-review-token'),
+  page: { crumbs: ['あなたのBrainbase', '判断の履歴'], source: '判断の記録' }
 });
 `;
 

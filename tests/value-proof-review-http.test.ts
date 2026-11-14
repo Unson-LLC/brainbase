@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises';
 import { request as httpRequest, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -126,6 +126,24 @@ describe('value proof review host', () => {
     expect(body).toMatchObject({ status: 'unavailable', reason: 'judgment_journal_not_found' });
   });
 
+  it('shows proofs saved after an earlier read of the home, and a journal removed later as unavailable', async () => {
+    const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    await utimes(join(journal, 'session'), hourAgo, hourAgo);
+    const base = await start();
+    expect((await (await fetch(`${base}/api/value-proofs/home`)).json()).coverage.saved).toBe(1);
+
+    await writeFile(join(journal, 'session', 'turn-next.value-proof.json'),
+      JSON.stringify({ ...proof(), intent_id: 'intent-3', decision_attempt_id: 'attempt-3' }), 'utf8');
+    await mkdir(join(journal, 'session-later'));
+    await writeFile(join(journal, 'session-later', 'turn.value-proof.json'),
+      JSON.stringify({ ...proof(), intent_id: 'intent-4', decision_attempt_id: 'attempt-4' }), 'utf8');
+    expect((await (await fetch(`${base}/api/value-proofs/home`)).json()).coverage.saved).toBe(3);
+
+    await rm(journal, { recursive: true });
+    expect(await (await fetch(`${base}/api/value-proofs/home`)).json())
+      .toMatchObject({ status: 'unavailable', reason: 'judgment_journal_not_found' });
+  });
+
   it('returns the classified home without local file paths for each item', async () => {
     const base = await start();
     const body = await (await fetch(`${base}/api/value-proofs/home`)).json();
@@ -197,5 +215,114 @@ describe('value proof review host', () => {
     const home = await (await fetch(`${base}/api/value-proofs/home`)).json();
     expect(home.sections.continued[0].proof.feedback).toMatchObject({ status: 'next_time_ask', summary: '本番設定は次回は聞く' });
     expect(await readFile(proofFile, 'utf8')).toBe(before);
+  });
+});
+
+function waitingProof(): JudgmentValueProof {
+  return {
+    ...proof(),
+    intent_id: 'intent-2',
+    decision_attempt_id: 'attempt-2',
+    state: 'waiting_human',
+    interruption: {
+      resolution: 'human_required',
+      question_display_text: '本番へデプロイしてよいですか？',
+      question_digest: 'sha256:deploy',
+      reason_code: 'irreversible_action',
+      human_reason: '本番への外部作用になるため'
+    },
+    execution: { status: 'not_started', summary: null, artifact_refs: [] },
+    outcome: { status: 'not_applicable', summary: null, evidence_refs: [] },
+    human_decision: {
+      question: '本番へデプロイしてよいですか？',
+      why_human: '本番への外部作用になるため',
+      options: [
+        { id: 'deploy', label: '本番へ反映する', impact: '利用者に即時反映される' },
+        { id: 'keep_local', label: '反映を保留する', impact: '変更はローカルに残る' }
+      ]
+    }
+  };
+}
+
+function postAnswer(base: string, body: unknown, headers: Record<string, string> = {}): Promise<Response> {
+  return fetch(`${base}/api/value-proofs/answers`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', [VALUE_PROOF_REVIEW_TOKEN_HEADER]: TOKEN, ...headers },
+    body: JSON.stringify(body)
+  });
+}
+
+describe('answering a judgment returned to the owner', () => {
+  let waitingFile: string;
+  beforeEach(async () => {
+    waitingFile = join(journal, 'session', 'turn-waiting.value-proof.json');
+    await writeFile(waitingFile, JSON.stringify(waitingProof()), 'utf8');
+  });
+
+  const answer = { intent_id: 'intent-2', decision_attempt_id: 'attempt-2', kind: 'select', selected_option_id: 'deploy', confirmed: true };
+
+  it('records the confirmed answer once, shows it on the home and leaves the judgment record untouched', async () => {
+    const base = await start();
+    const before = await readFile(waitingFile, 'utf8');
+
+    const created = await postAnswer(base, answer);
+    expect(created.status).toBe(201);
+    const createdBody = await created.json();
+    expect(createdBody.record).toMatchObject({ kind: 'select', selected_option_id: 'deploy', resume: 'not_started' });
+
+    const repeated = await postAnswer(base, answer);
+    expect(repeated.status).toBe(200);
+    expect((await repeated.json()).created).toBe(false);
+
+    const home = await (await fetch(`${base}/api/value-proofs/home`)).json();
+    expect(home.capabilities).toEqual({ answer: 'record_only' });
+    const waiting = home.sections.needs_human.find((item: { proof: JudgmentValueProof }) => item.proof.decision_attempt_id === 'attempt-2');
+    expect(waiting.answer).toEqual(createdBody.record);
+    expect(home.sections.continued[0].answer).toBeNull();
+    expect(await readFile(waitingFile, 'utf8')).toBe(before);
+  });
+
+  it('refuses a different answer to an answered judgment and returns the recorded one', async () => {
+    const base = await start();
+    const first = await (await postAnswer(base, answer)).json();
+    const conflict = await postAnswer(base, { ...answer, selected_option_id: 'keep_local' });
+    expect(conflict.status).toBe(409);
+    const body = await conflict.json();
+    expect(body.error.code).toBe('answer_conflict');
+    expect(body.existing).toEqual(first.record);
+  });
+
+  it('rejects answers without the token, from another origin, unconfirmed, for unknown or not-returned judgments', async () => {
+    const base = await start();
+    expect((await postAnswer(base, answer, { [VALUE_PROOF_REVIEW_TOKEN_HEADER]: 'wrong-token-0123456789' })).status).toBe(403);
+    expect((await postAnswer(base, answer, { Origin: 'http://evil.example' })).status).toBe(403);
+    expect((await postAnswer(base, { ...answer, confirmed: false })).status).toBe(400);
+    expect((await postAnswer(base, { ...answer, selected_option_id: 'other' })).status).toBe(400);
+    expect((await postAnswer(base, { ...answer, decision_attempt_id: 'attempt-x' })).status).toBe(404);
+    const notReturned = await postAnswer(base, { intent_id: 'intent-1', decision_attempt_id: 'attempt-1', kind: 'reject', confirmed: true });
+    expect(notReturned.status).toBe(422);
+    expect((await notReturned.json()).error.code).toBe('not_answerable');
+    expect((await fetch(`${base}/api/value-proofs/answers`)).status).toBe(405);
+
+    const home = await (await fetch(`${base}/api/value-proofs/home`)).json();
+    expect(home.sections.needs_human[0].answer).toBeNull();
+    expect(home.sections.needs_human[0].conversation_moved_on_at).toBeNull();
+  });
+
+  it('refuses answers to a judgment whose conversation moved on after the question, and shows when it moved on', async () => {
+    await writeFile(
+      join(journal, 'session', 'turn-later.final.json'),
+      JSON.stringify({ schema_version: 'brainbase-judgment-episode-final-v2', finalized_at: '2026-09-20T01:00:00.000Z' }),
+      'utf8'
+    );
+    const base = await start();
+
+    const home = await (await fetch(`${base}/api/value-proofs/home`)).json();
+    const waiting = home.sections.needs_human.find((item: { proof: JudgmentValueProof }) => item.proof.decision_attempt_id === 'attempt-2');
+    expect(waiting.conversation_moved_on_at).toBe('2026-09-20T01:00:00.000Z');
+
+    const refused = await postAnswer(base, answer);
+    expect(refused.status).toBe(422);
+    expect((await refused.json()).error.code).toBe('conversation_moved_on');
   });
 });

@@ -5,6 +5,7 @@ import {
   listGraphProjects,
   readGraphEntity,
   readGraphOntology,
+  readGraphPeopleAndCompanies,
   readGraphProject,
   readGraphWebStatus,
   searchGraphEntities
@@ -13,7 +14,9 @@ import {
 export const GRAPH_WEB_HTTP_VERSION = 'graph-web-http.v1' as const;
 
 const DEFAULT_BASE_PATH = '/api/graph';
-const MAX_BODY_BYTES = 16 * 1024;
+// A 256KiB decoded image becomes roughly 350KiB as base64 in JSON. Keep a
+// bounded request envelope while allowing the project-icon correction through.
+const MAX_BODY_BYTES = 512 * 1024;
 
 export interface GraphWebHttpOptions {
   /** Personal OS data directory chosen by the host. Never taken from the request. */
@@ -43,13 +46,13 @@ class HttpError extends Error {
 }
 
 type Route =
-  | { name: 'status' | 'projects' | 'search' | 'ontology' | 'corrections' }
+  | { name: 'status' | 'projects' | 'people' | 'search' | 'ontology' | 'corrections' }
   | { name: 'project' | 'entity'; id: string };
 
 /**
  * Node-style handler for the local Graph read and correction API:
  *
- * - `GET {base}/status`, `GET {base}/projects`, `GET {base}/projects/:id`
+ * - `GET {base}/status`, `GET {base}/projects`, `GET {base}/projects/:id`, `GET {base}/people-and-companies`
  * - `GET {base}/search?q=&type=&as_of=&limit=`, `GET {base}/entities/:id`, `GET {base}/ontology`
  * - `POST {base}/corrections`
  *
@@ -99,6 +102,9 @@ export function createGraphWebHttpHandler(options: GraphWebHttpOptions): GraphWe
         case 'project':
           writeJson(response, 200, await readGraphProject(dataDir, route.id, readOptions));
           break;
+        case 'people':
+          writeJson(response, 200, await readGraphPeopleAndCompanies(dataDir, readOptions));
+          break;
         case 'search':
           writeJson(response, 200, await searchGraphEntities(dataDir, {
             q: queryValue(url, 'q'),
@@ -127,6 +133,7 @@ function matchRoute(pathname: string, basePath: string): Route | undefined {
   const rest = pathname.slice(basePath.length);
   if (rest === '/status') return { name: 'status' };
   if (rest === '/projects') return { name: 'projects' };
+  if (rest === '/people-and-companies') return { name: 'people' };
   if (rest === '/search') return { name: 'search' };
   if (rest === '/ontology') return { name: 'ontology' };
   if (rest === '/corrections') return { name: 'corrections' };

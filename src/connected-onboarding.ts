@@ -16,6 +16,71 @@ const RAW_CONTENT_KEY = /^(?:raw(?:_body|_content|_text)?|body|content|document|
 const SECRET_VALUE = /(?:^|\s)Bearer\s+[A-Za-z0-9._~+/-]+=*|\bsk-[A-Za-z0-9_-]{16,}\b/i;
 const SECRET_ASSIGNMENT = /(?:access[_-]?token|refresh[_-]?token|api[_-]?key|client[_-]?secret|secret|password|credential|authorization|cookie)\s*(?:=|:)\s*[^\s&#;,]+/i;
 const URI_USERINFO = /^[a-z][a-z0-9+.-]*:\/\/[^/?#\s]*:[^@/?#\s]+@/i;
+
+/**
+ * Candidate content scanning shared by onboarding hosts.
+ *
+ * The Org server keeps the same legacy result shape (`block`, `review`, and
+ * named counts), while the implementation and detector vocabulary live in the
+ * OSS onboarding boundary.  Keep these detectors separate from the recursive
+ * persistent-value guard above: the former reports review findings, while the
+ * latter rejects unsafe ledger values before they are written.
+ */
+export type OnboardingScanKind = 'block' | 'review';
+
+export interface OnboardingScanFinding {
+  kind: OnboardingScanKind;
+  name: string;
+  count: number;
+}
+
+export interface OnboardingContentScan {
+  block: boolean;
+  review: boolean;
+  findings: OnboardingScanFinding[];
+}
+
+export const ONBOARDING_BLOCK_PATTERNS = Object.freeze([
+  { name: 'openai_api_key', regex: /sk-[A-Za-z0-9]{20,}/g },
+  { name: 'github_pat', regex: /ghp_[A-Za-z0-9]{20,}/g },
+  { name: 'anthropic_api_key', regex: /sk-ant-[A-Za-z0-9_-]{20,}/g },
+  { name: 'aws_access_key', regex: /AKIA[0-9A-Z]{16}/g },
+  { name: 'slack_token', regex: /xox[abpsr]-[A-Za-z0-9-]{10,}/g },
+  { name: 'private_key_block', regex: /-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----/g },
+  { name: 'password_assignment', regex: /(?:password|passwd|secret)\s*=\s*['"][^'"\s]{6,}['"]/gi },
+  { name: 'infisical_ref', regex: /infisical:\/\/[^\s]+/gi }
+] as const);
+
+export const ONBOARDING_PII_PATTERNS = Object.freeze([
+  { name: 'jp_phone', regex: /0\d{1,4}-\d{1,4}-\d{3,4}/g },
+  { name: 'email', regex: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g },
+  { name: 'credit_card_like', regex: /\b(?:\d{4}[- ]?){3}\d{4}\b/g }
+] as const);
+
+/** Scan candidate text without exposing raw content in the finding output. */
+export function scanOnboardingContent(content: unknown): OnboardingContentScan {
+  if (typeof content !== 'string' || content.length === 0) {
+    return { block: false, review: false, findings: [] };
+  }
+
+  const findings: OnboardingScanFinding[] = [];
+  for (const { name, regex } of ONBOARDING_BLOCK_PATTERNS) {
+    const matches = content.match(regex);
+    if (matches && matches.length > 0) findings.push({ kind: 'block', name, count: matches.length });
+  }
+
+  for (const { name, regex } of ONBOARDING_PII_PATTERNS) {
+    const matches = content.match(regex);
+    if (matches && matches.length > 0) findings.push({ kind: 'review', name, count: matches.length });
+  }
+
+  return {
+    block: findings.some((finding) => finding.kind === 'block'),
+    review: findings.some((finding) => finding.kind === 'review'),
+    findings
+  };
+}
+
 const PERMISSION_KEYS = new Set([
   'visibility', 'collectedBy', 'provider', 'connectionId', 'grantId', 'accountId',
   'folderId', 'projectCode', 'roleMin', 'sensitivity', 'scope', 'scopes', 'roles',

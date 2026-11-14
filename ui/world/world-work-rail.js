@@ -1,0 +1,766 @@
+/*
+ * The right rail for the work inside a city (story-world-work-sites-and-gaps-v1).
+ *
+ * Builds the blocks from the host's `world-work.v1` answer, in the order a reader needs them: the
+ * facts as recorded (purpose, policies, the work's recorded state), then what we cannot see (gaps,
+ * each with its fact, what is unknown, its source and time, and what to check next), then people and
+ * relations, then where it all came from.  Recorded, inferred and unreadable relations carry
+ * different marks.  Nothing here writes; corrections go to the host's own task screen.
+ */
+
+import { districtTaskActors } from './world-placement.js';
+
+import {
+  makeWorkspaceElement as el,
+  workspaceRailBlock,
+  workspaceDefinition,
+  workspaceButton,
+} from '../../workspace-kit.js';
+
+export const WORLD_WORK_RAIL_CONTRACT_VERSION = 'brainbase.world-work-rail.v0';
+
+/** Recorded work states, in the order the rail lists them; colours are the sites' walls. */
+export const WORK_STATES = Object.freeze([
+  { key: 'waiting', label: '待ち', color: 0x7a6a9e },
+  { key: 'in_progress', label: '進行中', color: 0x2f7d86 },
+  { key: 'pending', label: '未着手', color: 0x8d979e },
+  { key: 'completed', label: '完了', color: 0x6f9a68 },
+  { key: 'cancelled', label: '取消', color: 0xb9b2a5 },
+]);
+
+export const LINK_MARKS = Object.freeze({
+  recorded: { mark: '━', text: '記録された関係' },
+  inferred: { mark: '┅', text: '本文・名前からの推定' },
+  unreadable: { mark: '┄', text: '読めなかった' },
+});
+
+const READ_STATE_TEXT = Object.freeze({
+  complete: 'すべて読めた',
+  partial: '一部だけ読めた',
+  failed: '読めなかった',
+  forbidden: '権限が無く読めない',
+  not_connected: '未接続',
+});
+
+/** Why a read was partial or failed, in the words the rail shows; anything else is shown as given. */
+const READ_REASON_TEXT = Object.freeze({
+  codes_not_permitted: '案件の一部は、あなたのタスクの権限の範囲外のため読んでいません',
+  page_limit_reached: '件数が多く、最初の200件だけを読みました',
+  limit_reached: '上限の500件まで読みました。ほかにもある可能性があります',
+  upstream_timeout: '時間内に応答がありませんでした',
+  upstream_request_failed: '接続できませんでした',
+});
+
+export function readReasonText(reason) {
+  if (!reason) return null;
+  return String(reason).split(',').map((part) => READ_REASON_TEXT[part] ?? part).join('。');
+}
+
+/** The same reasons in a few words, for a sign over a city. A reason not listed here gets no words (none is guessed). */
+const READ_REASON_SHORT = Object.freeze({
+  codes_not_permitted: '権限外の案件あり',
+  page_limit_reached: '件数が上限',
+  limit_reached: '件数が上限',
+  upstream_timeout: '応答なし',
+  upstream_request_failed: '接続できない',
+});
+
+export function readReasonShort(reason) {
+  if (!reason) return null;
+  const words = [...new Set(String(reason).split(',').map((part) => READ_REASON_SHORT[part]).filter(Boolean))];
+  return words.length ? words.join('・') : null;
+}
+
+/** What makes a read whole again, for each reason: where to go, or that nothing needs doing. */
+const READ_REASON_NEXT = Object.freeze({
+  codes_not_permitted: '読むには、その案件のタスクを見る権限が要ります。権限は組織の管理者が付けます。',
+  page_limit_reached: '直す操作はありません。件数と区画の中の仕事は、読めた範囲だけです。',
+  limit_reached: '直す操作はありません。件数と区画の中の仕事は、読めた範囲だけです。',
+  upstream_timeout: '時間をおいて画面を開き直すと、もう一度読みます。',
+  upstream_request_failed: '時間をおいて画面を開き直すと、もう一度読みます。',
+});
+
+/** What to correct in the task record for each kind of gap (the same words as the task screen). */
+const GAP_FIX_TEXT = Object.freeze({
+  assignee_unlinked_mentioned: '本文に書かれた人を、タスクの担当欄に登録する',
+  assignee_unrecorded: 'タスクの担当欄に、担当する人を登録する',
+  outcome_unlinked: '完了条件にある成果物の場所を、タスクの出典リンクに足す',
+  source_unlinked: '元になった議事録・Slack・資料のリンクを、タスクに足す',
+  review_overdue: '今の状態を確かめて、タスクの状態か見直し予定を更新する',
+});
+
+const GAP_TEXT = Object.freeze({
+  assignee_unlinked_mentioned: '担当欄に未接続（本文に人物あり）',
+  assignee_unrecorded: '担当の記録なし',
+  outcome_unlinked: '成果物の記録が未接続',
+  source_unlinked: '出典リンクなし',
+  review_overdue: '見直し予定を過ぎた',
+});
+
+const WORK_UNAVAILABLE_TEXT = Object.freeze({
+  task_store_not_connected: 'この画面はタスクの正本に接続していないため、都市の中の仕事は描いていません。仕事の件数は未確認です。0件とは確認できません。',
+});
+
+function jst(value) {
+  const at = Date.parse(value ?? '');
+  if (!Number.isFinite(at)) return null;
+  return new Date(at + 9 * 60 * 60 * 1000);
+}
+
+/** 9/25 (Japan time); null stays null so the definition list says 未記録. */
+export function shortDate(value) {
+  if (/^\d{4}-\d{2}-\d{2}$/u.test(value ?? '')) {
+    const [, month, day] = value.split('-');
+    return `${Number(month)}/${Number(day)}`;
+  }
+  const date = jst(value);
+  return date ? `${date.getUTCMonth() + 1}/${date.getUTCDate()}` : null;
+}
+
+export function shortTime(value) {
+  const date = jst(value);
+  if (!date) return null;
+  const pad = (number) => String(number).padStart(2, '0');
+  return `${date.getUTCMonth() + 1}/${date.getUTCDate()} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
+}
+
+/**
+ * The signs over a city, each with its meaning in a few words: amber when open work shows a gap in its
+ * record, grey when the work could not be read or was read only in part, with the recorded reason (an
+ * unknown city is never shown as one without problems).
+ */
+export function workSigns(summary) {
+  if (!summary || summary.state === 'not_connected') return [];
+  const reason = readReasonShort(summary.reason);
+  if (summary.state === 'complete' || summary.state === 'partial') {
+    const signs = [];
+    const count = summary.needs_check?.length ?? 0;
+    if (count > 0) signs.push({ kind: 'check', text: `要確認 ${count}：記録に抜け` });
+    if (summary.state === 'partial') signs.push({ kind: 'unreadable', text: `一部だけ読めた${reason ? `：${reason}` : ''}` });
+    return signs;
+  }
+  return [{ kind: 'unreadable', text: `仕事を読めない${summary.state === 'forbidden' ? '：権限がない' : reason ? `：${reason}` : ''}` }];
+}
+
+/** The pole over a city: amber when any open work shows a gap, else grey; its text is all its signs. */
+export function workSign(summary) {
+  const signs = workSigns(summary);
+  if (!signs.length) return null;
+  return { kind: signs.some((sign) => sign.kind === 'check') ? 'check' : 'unreadable', text: signs.map((sign) => sign.text).join('・') };
+}
+
+export function workSignText(summary) {
+  return workSign(summary)?.text ?? null;
+}
+
+/**
+ * What a city's signs mean, opened by pressing one (story-world-sign-meaning-v1): for 要確認, how many
+ * open tasks show which gap and what to correct in the task record; for 一部だけ読めた or 仕事を読めない,
+ * the reason the host recorded and what would make the read whole.  Every sentence is drawn from the
+ * summary; a reason the host did not give is said to be unrecorded, not guessed.
+ */
+export function workSignBlocks(doc, { summary, onSelectGap, onEnter }) {
+  const blocks = [];
+  if (!summary) return blocks;
+  const readable = summary.state === 'complete' || summary.state === 'partial';
+  const needs = readable ? summary.needs_check?.length ?? 0 : 0;
+  if (needs > 0) {
+    const list = el(doc, 'ul', { className: 'bb-world-rail-list is-plain bb-world-sign-gaps' });
+    const kinds = Object.entries(summary.gaps ?? {}).filter(([, ids]) => ids?.length).sort((a, b) => b[1].length - a[1].length);
+    for (const [kind, ids] of kinds) {
+      const li = el(doc, 'li');
+      const button = el(doc, 'button', { className: 'bb-world-rail-pick is-gap', text: `${GAP_TEXT[kind] ?? kind} ${ids.length}件 ›`, attrs: { type: 'button', disabled: !onSelectGap } });
+      button.addEventListener('click', () => onSelectGap?.(kind));
+      li.append(button);
+      if (GAP_FIX_TEXT[kind]) li.append(el(doc, 'small', { className: 'bb-world-rail-note', text: `直し方：${GAP_FIX_TEXT[kind]}` }));
+      list.append(li);
+    }
+    blocks.push(workspaceRailBlock(doc, {
+      title: `要確認 ${needs}件：記録に抜けがある仕事`,
+      className: 'bb-world-sign-meaning',
+      content: [
+        { text: `読めた未完了の仕事${Number.isInteger(summary.open) ? `${summary.open}件` : ''}のうち${needs}件に、タスクの記録から分からないことがあります。仕事が止まっている・遅れているという意味ではありません。` },
+        kinds.length ? list : null,
+        { text: '直すのはタスクの記録です。種類を選ぶと区画に入り、該当する仕事が並びます。1件ずつ開くと、確かめることと、タスク画面への行き先が出ます。直すと、次に読んだときに札が減ります。', className: 'bb-world-rail-caveat is-quiet' },
+      ],
+    }));
+  }
+  if (summary.state !== 'complete') {
+    const reason = readReasonText(summary.reason);
+    const parts = String(summary.reason ?? '').split(',').filter(Boolean);
+    const next = [...new Set(parts.map((part) => READ_REASON_NEXT[part]).filter(Boolean))];
+    const what = { partial: '一部だけ読めました', failed: '読めませんでした', forbidden: '権限が無く読めませんでした' }[summary.state] ?? `読めませんでした（${summary.state}）`;
+    const at = shortTime(summary.read_at);
+    const short = readReasonShort(summary.reason) ?? (summary.state === 'forbidden' ? '権限がない' : null);
+    blocks.push(workspaceRailBlock(doc, {
+      title: `${summary.state === 'partial' ? '一部だけ読めた' : '仕事を読めない'}${short ? `：${short}` : ''}`,
+      className: 'bb-world-sign-meaning',
+      content: workspaceDefinition(doc, [
+        ['読み込み', `この事業の仕事を${what}${at ? `（${at}）` : ''}`],
+        ['理由', reason ?? { text: '理由は記録されていません', className: 'is-unrecorded' }],
+        ['件数', summary.state === 'partial' ? '読めた範囲です。読めていない仕事は0件とは限りません。' : '未確認です。0件とは確認できません。'],
+        ['次にすること', next.length ? next.join('') : { text: '記録された理由からは分かりません', className: 'is-unrecorded' }],
+      ]),
+    }));
+  }
+  if (blocks.length && onEnter) blocks.push(workspaceRailBlock(doc, { title: '', content: workspaceButton(doc, { text: '区画に入って仕事を見る ›', onClick: onEnter }) }));
+  return blocks;
+}
+
+function linkLine(doc, link, label, extra) {
+  const li = el(doc, 'li', { className: `bb-world-link is-${link}` });
+  li.append(el(doc, 'span', { className: 'bb-world-link-mark', text: LINK_MARKS[link]?.mark ?? '・', attrs: { 'aria-label': LINK_MARKS[link]?.text ?? link } }));
+  li.append(el(doc, 'span', { text: label }));
+  if (extra) li.append(el(doc, 'small', { className: 'bb-world-rail-note', text: extra }));
+  return li;
+}
+
+/** The record fields a gap is read from, in the words of the task screen. */
+const SOURCE_FIELD_TEXT = Object.freeze({
+  assignee_person_id: '担当欄',
+  description: '本文',
+  source_refs: '出典リンク',
+  review_at: '見直し予定',
+  updated_at: '最終更新',
+  relation: '関係',
+});
+
+function sourceText(source, readAt) {
+  if (!source) return null;
+  const system = source.system === 'task_api' ? 'タスクの記録' : '組織のGraph';
+  const fields = source.fields?.length && !source.fields.includes('*') ? `の ${source.fields.map((field) => SOURCE_FIELD_TEXT[field] ?? '記録の欄').join('・')}` : '';
+  const at = readAt ? `（${shortTime(readAt)}に読み込み）` : '';
+  return `${system}${fields}${at}`;
+}
+
+function readLine(what, read, at) {
+  const reason = read.state === 'complete' ? null : readReasonText(read.reason);
+  return `${what}・${READ_STATE_TEXT[read.state] ?? read.state}${at ? `（${at}）` : ''}${reason ? `。${reason}` : ''}`;
+}
+
+/** The work as recorded, and what cannot be seen of it (only when the tasks were read). */
+function workStateBlocks(doc, { work, summary, onSelectGap, onSelectStatus }) {
+  const blocks = [];
+  const states = el(doc, 'ul', { className: 'bb-world-rail-list is-plain' });
+  for (const state of WORK_STATES) {
+    const count = summary.by_status?.[state.key] ?? 0;
+    if (!count) continue;
+    const li = el(doc, 'li');
+    const open = ['waiting', 'in_progress', 'pending'].includes(state.key);
+    const button = el(doc, 'button', { className: 'bb-world-rail-pick', text: `${state.label} ${count}件`, attrs: { type: 'button', disabled: !open || !onSelectStatus } });
+    button.addEventListener('click', () => onSelectStatus?.(state.key));
+    li.append(el(doc, 'span', { className: `bb-world-swatch is-${state.key}`, attrs: { 'aria-hidden': 'true' } }), button);
+    states.append(li);
+  }
+  const reasons = new Map();
+  for (const site of work.sites) {
+    if (site.work.status !== 'waiting' || !site.work.waiting_on) continue;
+    reasons.set(site.work.waiting_on, (reasons.get(site.work.waiting_on) ?? 0) + 1);
+  }
+  const reasonList = el(doc, 'ul', { className: 'bb-world-rail-list' });
+  for (const [reason, count] of [...reasons].sort((a, b) => b[1] - a[1]).slice(0, 4)) {
+    reasonList.append(el(doc, 'li', { text: `${count}件：「${reason}」` }));
+  }
+  blocks.push(workspaceRailBlock(doc, {
+    title: `仕事（記録上の状態）未完了 ${summary.open}件`,
+    content: [
+      summary.total === 0
+        ? { text: summary.state === 'complete'
+          ? `この事業の仕事は0件です（${shortTime(summary.read_at) ?? '時点不明'}に読んだ実際の0件）。`
+          : `読めた範囲では0件です。${readReasonText(summary.reason) ?? '一部だけ読めました'}。読めていない分は0件とは限りません。` }
+        : states,
+      reasons.size ? el(doc, 'h4', { className: 'bb-world-rail-sub', text: '待ちの理由（記録の原文・多い順）' }) : null,
+      reasons.size ? reasonList : null,
+      { text: '状態はタスクの記録のままです。待ちの理由を読み替えて「止まっている」とは判断していません。', className: 'bb-world-rail-caveat is-quiet' },
+    ],
+  }));
+  // What we cannot see.
+  const gapList = el(doc, 'ul', { className: 'bb-world-rail-list is-plain' });
+  for (const [kind, taskIds] of Object.entries(summary.gaps ?? {})) {
+    const sample = work.sites.find((site) => site.gaps.some((gap) => gap.kind === kind));
+    const label = sample?.gaps.find((gap) => gap.kind === kind)?.label ?? kind;
+    const li = el(doc, 'li');
+    const button = el(doc, 'button', { className: 'bb-world-rail-pick is-gap', text: `${label} ${taskIds.length}件`, attrs: { type: 'button', disabled: !onSelectGap } });
+    button.addEventListener('click', () => onSelectGap?.(kind));
+    li.append(button);
+    if (GAP_FIX_TEXT[kind]) li.append(el(doc, 'small', { className: 'bb-world-rail-note', text: `直し方：${GAP_FIX_TEXT[kind]}` }));
+    gapList.append(li);
+  }
+  blocks.push(workspaceRailBlock(doc, {
+    title: `把握できていないこと（未完了${summary.open}件のうち${summary.needs_check.length}件）`,
+    className: 'bb-world-gaps',
+    content: summary.needs_check.length
+      ? [gapList, { text: '記録から分からないことの一覧です。仕事が止まっていることは意味しません。種類を選ぶと、該当する仕事と街の中の位置が出ます。', className: 'bb-world-rail-caveat is-quiet' }]
+      : { text: '未完了の仕事に、構造化された欄から分かる断絶はありません。本文の内容までは確かめていません。' },
+  }));
+  return blocks;
+}
+
+/** The blocks for a city whose work was read (or could not be). */
+export function workCityBlocks(doc, { business, work, onSelectGap, onSelectStatus, onReload }) {
+  if (!work) return [workspaceRailBlock(doc, { title: '仕事', content: { text: '仕事を読み込んでいます…' } })];
+  if (work.status !== 'ok') {
+    const text = WORK_UNAVAILABLE_TEXT[work.reason] ?? `仕事の記録を読めません（${work.reason ?? work.status}）。仕事の件数は未確認です。0件とは確認できません。`;
+    const content = [{ text }];
+    if (onReload && work.status !== 'not_connected') content.push(workspaceButton(doc, { text: 'もう一度読む', onClick: onReload }));
+    return [workspaceRailBlock(doc, { title: '仕事', content })];
+  }
+  const blocks = [];
+  // 1. Purpose and policies (facts as recorded).
+  const policies = el(doc, 'ul', { className: 'bb-world-rail-list is-links' });
+  for (const policy of work.purpose.policies) {
+    policies.append(linkLine(doc, policy.link, policy.title, `${shortDate(policy.decided_at) ?? '日付なし'}の決定・${policy.basis}（${policy.decision_id}）`));
+  }
+  blocks.push(workspaceRailBlock(doc, {
+    title: '目的と方針',
+    content: [
+      workspaceDefinition(doc, [
+        ['目的', work.purpose.text ?? { text: '目的の欄は未登録です', className: 'is-unrecorded' }],
+        ['概要', work.purpose.summary],
+      ]),
+      work.purpose.policies.length ? policies : { text: work.reads.decisions.state === 'complete' ? 'この事業に結び付く決定は見つかりません。' : `決定を${READ_STATE_TEXT[work.reads.decisions.state] ?? work.reads.decisions.state}ため、方針は分かりません。` },
+    ],
+  }));
+  // 2. The work as recorded.
+  const summary = work.summary;
+  if (summary.open === null) {
+    blocks.push(workspaceRailBlock(doc, {
+      title: '仕事',
+      content: [
+        { text: `仕事の記録を${READ_STATE_TEXT[summary.state] ?? summary.state}（${readReasonText(summary.reason) ?? '理由不明'}）。仕事の件数は未確認です。0件とは確認できません。` },
+        onReload ? workspaceButton(doc, { text: 'もう一度読む', onClick: onReload }) : null,
+      ],
+    }));
+  } else {
+    blocks.push(...workStateBlocks(doc, { work, summary, onSelectGap, onSelectStatus }));
+  }
+  // 4. People and relations.
+  const people = el(doc, 'ul', { className: 'bb-world-rail-list is-links' });
+  for (const person of work.people) {
+    people.append(linkLine(doc, person.link, person.name, `${person.roles.join('・')}${person.task_ids.length ? `（仕事${person.task_ids.length}件）` : ''}`));
+  }
+  // The project record's member field; participation recorded as Graph relations is listed below.
+  if (work.members_state === 'unregistered' && !work.relations.some((relation) => relation.kind === 'member_of' && relation.link === 'recorded')) {
+    people.append(linkLine(doc, 'recorded', 'メンバーは未登録です', 'プロジェクトの記録にもGraphの関係にも、メンバーの登録がありません'));
+  }
+  if (work.members_state === 'unreadable') people.append(linkLine(doc, 'unreadable', 'メンバーを読めませんでした', null));
+  const relations = el(doc, 'ul', { className: 'bb-world-rail-list is-links' });
+  for (const relation of work.relations.filter((entry) => entry.kind !== 'mentioned_person')) {
+    relations.append(linkLine(doc, relation.link, relation.label, relation.basis));
+  }
+  const legend = el(doc, 'p', { className: 'bb-world-rail-note' });
+  legend.textContent = Object.values(LINK_MARKS).map((entry) => `${entry.mark} ${entry.text}`).join('　');
+  blocks.push(workspaceRailBlock(doc, { title: '人と関係', content: [people, relations, legend] }));
+  // 5. Sources and times.
+  blocks.push(workspaceRailBlock(doc, {
+    title: '出典と時点',
+    content: [
+      workspaceDefinition(doc, [
+        ['仕事', readLine(`タスクの記録 ${work.reads.tasks.count ?? '—'}件`, work.reads.tasks, shortTime(work.reads.tasks.read_at) ?? '時点不明')],
+        ['人物', readLine('組織のGraph', work.reads.persons)],
+        ['決定', readLine('組織のGraph', work.reads.decisions)],
+        ['関係', readLine('組織のGraph', work.reads.relations)],
+      ]),
+      onReload ? workspaceButton(doc, { text: 'もう一度読む', onClick: onReload }) : null,
+    ],
+  }));
+  return blocks;
+}
+
+/** The open tasks behind one count, to pick from. */
+export function workPickBlock(doc, { title, sites, onSelectSite, note }) {
+  const ul = el(doc, 'ul', { className: 'bb-world-rail-list is-plain' });
+  for (const site of sites) {
+    const li = el(doc, 'li');
+    const button = el(doc, 'button', { className: 'bb-world-rail-pick', text: site.title, attrs: { type: 'button' } });
+    button.addEventListener('click', () => onSelectSite(site.task_id));
+    li.append(button, el(doc, 'small', { className: 'bb-world-rail-note', text: `記録上：${site.work.label}${site.work.due_at ? `・期限 ${shortDate(site.work.due_at)}` : ''}・断絶${site.gaps.length}種` }));
+    ul.append(li);
+  }
+  return workspaceRailBlock(doc, { title, className: 'bb-world-pick', content: [note ? { text: note, className: 'bb-world-rail-note' } : null, sites.length ? ul : { text: '該当する仕事はありません' }] });
+}
+
+/** The blocks for one work site. */
+export function workSiteBlocks(doc, { business, site, readAt, taskHref }) {
+  const blocks = [];
+  const due = site.work.due_at ? `${shortDate(site.work.due_at)}${site.work.past_due ? '（記録上の期限を過ぎて未完了）' : ''}` : null;
+  blocks.push(workspaceRailBlock(doc, {
+    title: '業務の記録（記録上の状態）',
+    content: workspaceDefinition(doc, [
+      ['状態', site.work.label],
+      ['待ちの理由（原文）', site.work.status === 'waiting' ? site.work.waiting_on : null],
+      ['期限', due],
+      ['見直し予定', shortDate(site.work.review_at)],
+      ['最終更新', shortTime(site.work.updated_at)],
+      ['作成', shortTime(site.work.created_at)],
+      ...(site.other_business_codes.length ? [['ほかの事業', `${site.other_business_codes.join('・')} にもまたがる`]] : []),
+    ]),
+  }));
+  if (site.gaps.length) {
+    const content = [];
+    for (const gap of site.gaps) {
+      const section = el(doc, 'div', { className: `bb-world-gap is-${gap.kind}` });
+      section.append(el(doc, 'h4', { text: gap.label }));
+      section.append(workspaceDefinition(doc, [
+        ['分かっている事実', gap.fact],
+        ['未接続・未確認', gap.unknown],
+        ['出典と確認時点', `${sourceText(gap.source, readAt)}。確認時点：${gap.checked_at ? `${shortDate(gap.checked_at)}（${gap.checked_at_basis === 'text_note' ? '本文の確認メモ' : '記録の最終更新'}）` : '不明'}`],
+        ['次に確認すること', gap.next_check],
+        ['確認先', gap.check_with ? gap.check_with.name : { text: '記録からは分かりません', className: 'is-unrecorded' }],
+      ]));
+      content.push(section);
+    }
+    blocks.push(workspaceRailBlock(doc, { title: `把握できていないこと（${site.gaps.length}）`, className: 'bb-world-gaps', content }));
+  } else {
+    blocks.push(workspaceRailBlock(doc, { title: '把握できていないこと', content: { text: '構造化された欄から分かる断絶はありません。' } }));
+  }
+  const people = el(doc, 'ul', { className: 'bb-world-rail-list is-links' });
+  for (const person of site.people) {
+    const how = person.link === 'recorded' ? '担当欄' : `${person.stated_as_assignee ? '本文が担当として記載' : '本文に記載'}（${person.basis === 'text_person_id' ? '人物IDつき' : '氏名の一致'}）・担当欄には未接続`;
+    people.append(linkLine(doc, person.link, person.name, how));
+  }
+  for (const actor of districtTaskActors(site)) {
+    people.append(linkLine(doc, 'recorded', actor.name, `${actor.kind === 'agent' ? 'AI担当' : '担当'}・Taskの記録上の状態: ${site.work.label ?? site.work.status}・実行: ${actor.moving ? '稼働証跡確認済み' : '未確認または停止'}`));
+  }
+  if (site.actors_state === 'unconfirmed') people.append(linkLine(doc, 'unreadable', 'AI担当未確認', '現在の登録とTask委任を確認できませんでした'));
+  for (const mention of site.ambiguous_mentions ?? []) {
+    people.append(linkLine(doc, 'inferred', `「${mention.text}」`, `組織のGraphの${mention.candidates.map((candidate) => candidate.name).join('・')}のどれか一意に決まりません`));
+  }
+  blocks.push(workspaceRailBlock(doc, { title: '担当・関係者', content: site.people.length || site.ambiguous_mentions?.length || districtTaskActors(site).length || site.actors_state === 'unconfirmed' ? people : { text: '担当欄も本文も、登録された人物を挙げていません。' } }));
+  const refs = el(doc, 'ul', { className: 'bb-world-rail-list' });
+  for (const ref of site.source_refs) {
+    const li = el(doc, 'li');
+    if (ref.url && /^https:\/\//u.test(ref.url)) li.append(el(doc, 'a', { className: 'bb-world-rail-link', text: ref.label, attrs: { href: ref.url, target: '_blank', rel: 'noopener noreferrer' } }));
+    else li.append(el(doc, 'span', { text: ref.label }));
+    refs.append(li);
+  }
+  blocks.push(workspaceRailBlock(doc, {
+    title: '成果物・出典',
+    content: [
+      site.expected_outcome ? workspaceDefinition(doc, [['完了条件（本文）', site.expected_outcome]]) : null,
+      site.source_refs.length ? refs : { text: '出典・関連記録へのリンクは0件です。' },
+      { text: 'タスクの記録には成果物や先方合意を記録する欄がありません。作成・提示・合意は、リンクか本文でしか分かりません。', className: 'bb-world-rail-note' },
+    ],
+  }));
+  if (site.description) {
+    const details = el(doc, 'details', { className: 'bb-world-original' });
+    details.append(el(doc, 'summary', { text: '記録の本文（原文）を開く' }), el(doc, 'p', { text: site.description }));
+    blocks.push(workspaceRailBlock(doc, { title: '本文', content: details }));
+  }
+  const href = typeof taskHref === 'function' ? taskHref(site) : null;
+  blocks.push(workspaceRailBlock(doc, {
+    title: '確認・訂正',
+    content: href
+      ? [el(doc, 'a', { className: 'bb-world-rail-link', text: '「タスク」でこの仕事を開く', attrs: { href } }), { text: '担当・期限・状態はタスク画面で直せます。保存先はタスクの正本で、世界にはもう一度読むと反映されます。本文の人物を担当欄へ接続するのも、そこで行います。', className: 'bb-world-rail-note' }]
+      : { text: 'この画面からは直せません。タスクを管理している画面で直してください。', className: 'bb-world-rail-note' },
+  }));
+  // The task's id and version are for tracing, so they wait behind the record details.
+  const record = el(doc, 'details', { className: 'bb-world-original' });
+  record.append(el(doc, 'summary', { text: '記録の詳細' }), workspaceDefinition(doc, [['タスクID', site.task_id], ['版', site.source.version ?? '不明']]));
+  blocks.push(workspaceRailBlock(doc, { title: '出典', content: [workspaceDefinition(doc, [['記録', 'タスクの記録'], ['事業', business.name]]), record] }));
+  return blocks;
+}
+
+/**
+ * How the district has grown (AC-22, AC-24): its stage, what it is counted from, how far to the next, and
+ * what changed since this viewer was last here.  Counts of records, never a score.
+ */
+export function workGrowthBlock(doc, { stage, changes }) {
+  const content = [];
+  const head = el(doc, 'p', { className: 'bb-world-growth-stage' });
+  head.append(el(doc, 'strong', { text: stage.label }), el(doc, 'span', { text: `　本設の建物 ${stage.permanent}軒・プレハブ ${stage.prefab}軒` }));
+  content.push(head);
+  content.push(workspaceDefinition(doc, [
+    ['断絶の無い未完了', `${stage.clear_open} / ${stage.open}件`],
+    ['次の段階', stage.next ? `${stage.next.label}まで本設の建物あと${stage.next.needed}軒` : 'いちばん上の段階です'],
+  ]));
+  content.push(el(doc, 'p', {
+    className: 'bb-world-rail-note',
+    text: '本設の建物＝完了して、出典か成果の記録がついた仕事。記録の無い完了はプレハブのままで、件数を増やしても街は育ちません。',
+  }));
+  if (changes) {
+    if (changes.first) {
+      content.push(el(doc, 'p', { className: 'bb-world-rail-note', text: 'この区画に初めて入りました。次回から、前回からの変化を出します（このブラウザに覚えます）。' }));
+    } else if (!changes.items.length) {
+      content.push(el(doc, 'p', { className: 'bb-world-rail-note', text: `前回（${shortTime(changes.since) ?? '時点不明'}）から変わったことはありません。` }));
+    } else {
+      const list = el(doc, 'ul', { className: 'bb-world-rail-list bb-world-growth-changes' });
+      for (const [kind, count] of Object.entries(changes.counts)) {
+        const text = changes.items.find((item) => item.kind === kind)?.text ?? kind;
+        list.append(el(doc, 'li', { className: `is-${kind}`, text: `${text}　${count}件` }));
+      }
+      content.push(el(doc, 'p', { className: 'bb-world-growth-since', text: `前回（${shortTime(changes.since) ?? '時点不明'}）から` }), list);
+    }
+  }
+  return workspaceRailBlock(doc, { title: '区画の育ち', content });
+}
+
+/*
+ * The pulse panel (story-world-three-scales-v1): one small panel over the map whose contents follow the
+ * scale the viewer is at.
+ *   - the world: which businesses have work in progress (a way into each);
+ *   - a business: how far its work has come, its agents, and each gathering of work (a street);
+ *   - a gathering of work: which agent is on which work and how, then the work without an agent.
+ * It is built only from the pulse (`worldPulse`, `districtPulse`) of the records already read; it keeps
+ * nothing and writes nothing.  Its breadcrumb is the way back up.
+ */
+const FLOW_SEGMENTS = Object.freeze([
+  { key: 'done', label: '終えた' },
+  { key: 'in_progress', label: '進行中' },
+  { key: 'waiting', label: '待ち' },
+  { key: 'pending', label: 'これから' },
+]);
+
+function flowBar(doc, counts, { legend = true } = {}) {
+  const wrap = el(doc, 'div', { className: 'bb-world-flow' });
+  const bar = el(doc, 'div', { className: 'bb-world-flow-bar', attrs: { role: 'img', 'aria-label': FLOW_SEGMENTS.map((segment) => `${segment.label}${counts[segment.key]}件`).join('、') } });
+  for (const segment of FLOW_SEGMENTS) {
+    if (!counts[segment.key]) continue;
+    const part = el(doc, 'span', { className: `bb-world-flow-part is-${segment.key}` });
+    part.style.flexGrow = String(counts[segment.key]);
+    bar.append(part);
+  }
+  wrap.append(bar);
+  if (legend) {
+    const list = el(doc, 'ul', { className: 'bb-world-flow-legend' });
+    for (const segment of FLOW_SEGMENTS) {
+      const item = el(doc, 'li', { className: `is-${segment.key}${counts[segment.key] ? '' : ' is-none'}` });
+      item.append(el(doc, 'span', { className: 'bb-world-flow-dot', attrs: { 'aria-hidden': 'true' } }), el(doc, 'span', { text: segment.label }), el(doc, 'strong', { text: String(counts[segment.key]) }));
+      list.append(item);
+    }
+    wrap.append(list);
+  }
+  return wrap;
+}
+
+/** The mark of an agent: its soft colour with the first letter of its name, and a light for how it is there. */
+export function actorMark(doc, actor, { small = false } = {}) {
+  const mark = el(doc, 'span', { className: `bb-world-actor-mark is-${actor.presence}${small ? ' is-small' : ''}`, text: [...String(actor.name)][0] ?? '?', attrs: { title: `${actor.name}：${actor.label}` } });
+  mark.style.setProperty('--bb-world-actor-tone', actor.tone);
+  return mark;
+}
+
+function presenceDetail(work) {
+  if (work.presence === 'running') return work.minutes === 0 ? 'たったいま稼働の知らせ' : `${work.minutes}分前に稼働の知らせ`;
+  if (work.presence === 'quiet') return `最後の稼働の知らせは${work.minutes >= 60 ? `${Math.floor(work.minutes / 60)}時間前` : `${work.minutes}分前`}`;
+  if (work.presence === 'waiting') return work.waiting_on ? `待ち：${work.waiting_on}` : '待ちの理由は未記録';
+  if (work.presence === 'unconfirmed') return '進行中の記録はあるが、稼働の知らせは確認できていない';
+  if (work.presence === 'queued') return 'まだ始めていない';
+  return '記録上は完了';
+}
+
+function pulseWords(counts) {
+  const parts = [];
+  if (counts.in_progress) parts.push(['in_progress', `進行中 ${counts.in_progress}`]);
+  if (counts.waiting) parts.push(['waiting', `待ち ${counts.waiting}`]);
+  if (!parts.length && counts.pending) parts.push(['pending', `これから ${counts.pending}`]);
+  return parts;
+}
+
+function pulseChips(doc, counts) {
+  const chips = el(doc, 'span', { className: 'bb-world-pulse-chips' });
+  for (const [key, text] of pulseWords(counts)) chips.append(el(doc, 'span', { className: `bb-world-pulse-chip is-${key}`, text }));
+  return chips;
+}
+
+/** The pulse of a business in a few words, for the city's nameplate; empty when nothing is open. */
+export function cityPulseChips(doc, pulse) {
+  return pulse ? pulseChips(doc, pulse) : null;
+}
+
+export function createPulsePanel(doc, { onWorld, onCity, onStreet, onSite, onEnterCity, onFold } = {}) {
+  const node = el(doc, 'section', { className: 'bb-world-pulse', attrs: { 'aria-label': 'いまの動き' } });
+  const top = el(doc, 'div', { className: 'bb-world-pulse-top' });
+  const crumbs = el(doc, 'nav', { className: 'bb-world-pulse-crumbs', attrs: { 'aria-label': '見ている階層' } });
+  const fold = el(doc, 'button', { className: 'bb-world-pulse-fold', attrs: { type: 'button', 'aria-expanded': 'true' } });
+  const body = el(doc, 'div', { className: 'bb-world-pulse-body' });
+  top.append(crumbs, fold);
+  node.append(top, body);
+  // Pointer activity in the panel must never start the map's drag or picking gesture underneath.
+  for (const name of ['pointerdown', 'pointerup', 'click', 'dblclick', 'wheel']) node.addEventListener?.(name, (event) => event.stopPropagation?.());
+  let folded = false;
+  try {
+    folded = globalThis.localStorage?.getItem('brainbase.world.pulse.folded') === '1';
+  } catch {
+    folded = false;
+  }
+  function applyFold() {
+    node.classList.toggle('is-folded', folded);
+    body.hidden = folded;
+    fold.setAttribute('aria-expanded', String(!folded));
+    fold.setAttribute('aria-label', folded ? 'いまの動きを開く' : 'いまの動きをたたむ');
+    fold.title = folded ? 'いまの動きを開く' : 'いまの動きをたたむ';
+    fold.textContent = folded ? '＋' : '－';
+  }
+  fold.addEventListener('click', () => {
+    folded = !folded;
+    try {
+      globalThis.localStorage?.setItem('brainbase.world.pulse.folded', folded ? '1' : '0');
+    } catch {
+      // Without storage the panel simply opens unfolded next time.
+    }
+    applyFold();
+    onFold?.(folded);
+  });
+  applyFold();
+
+  function setCrumbs(entries) {
+    const nodes = [];
+    entries.forEach((entry, index) => {
+      if (index) nodes.push(el(doc, 'span', { className: 'bb-world-pulse-sep', text: '›', attrs: { 'aria-hidden': 'true' } }));
+      const last = index === entries.length - 1;
+      if (last || !entry.onClick) {
+        nodes.push(el(doc, 'span', { className: 'bb-world-pulse-crumb is-current', text: entry.text, attrs: last ? { 'aria-current': 'location' } : {} }));
+      } else {
+        const button = el(doc, 'button', { className: 'bb-world-pulse-crumb', text: entry.text, attrs: { type: 'button', title: `${entry.text}に戻る` } });
+        button.addEventListener('click', () => entry.onClick());
+        nodes.push(button);
+      }
+    });
+    crumbs.replaceChildren(...nodes);
+  }
+  const heading = (title, sub) => {
+    const head = el(doc, 'div', { className: 'bb-world-pulse-head' });
+    head.append(el(doc, 'h2', { text: title }));
+    if (sub) head.append(el(doc, 'p', { text: sub }));
+    return head;
+  };
+  const section = (title, ...children) => {
+    const wrap = el(doc, 'div', { className: 'bb-world-pulse-section' });
+    if (title) wrap.append(el(doc, 'h3', { text: title }));
+    wrap.append(...children.filter(Boolean));
+    return wrap;
+  };
+  const note = (text) => el(doc, 'p', { className: 'bb-world-pulse-note', text });
+  const rowButton = (className, onClick, title) => {
+    const button = el(doc, 'button', { className, attrs: { type: 'button', title } });
+    button.addEventListener('click', onClick);
+    return button;
+  };
+
+  function actorsLine(pulse) {
+    if (!pulse.actors.length) {
+      return note(pulse.actors_unconfirmed ? `AIの担当を確認できていない仕事が${pulse.actors_unconfirmed}件あります（いないとは確認できません）。` : 'AIの担当が記録された仕事はありません。');
+    }
+    const line = el(doc, 'div', { className: 'bb-world-pulse-actors' });
+    const marks = el(doc, 'span', { className: 'bb-world-actor-marks' });
+    for (const actor of pulse.actors) marks.append(actorMark(doc, actor));
+    line.append(marks, el(doc, 'span', { text: `AI ${pulse.actors.length}体のうち${pulse.running}体が動いている` }));
+    const wrap = el(doc, 'div');
+    wrap.append(line);
+    if (pulse.actors_unconfirmed) wrap.append(note(`ほかに、AIの担当を確認できていない仕事が${pulse.actors_unconfirmed}件あります。`));
+    return wrap;
+  }
+
+  return {
+    node,
+    hide() { node.hidden = true; },
+    /** The world: `world` from `worldPulse`; `connected` false when the host has no task store. */
+    showWorld({ world, connected }) {
+      node.hidden = false;
+      node.dataset.level = 'world';
+      setCrumbs([{ text: '世界' }]);
+      const nodes = [];
+      if (connected === false) {
+        nodes.push(heading('世界のいま'), note('この画面は仕事の記録につながっていないため、事業ごとの動きは出していません（動きが無いとは確認できません）。'));
+      } else if (!world.rows.length) {
+        nodes.push(heading('世界のいま'), note('事業を読めていません。'));
+      } else {
+        nodes.push(heading('世界のいま', world.read ? `仕事が進行中の事業 ${world.active} / ${world.read}${world.read < world.rows.length ? `（読めない事業 ${world.rows.length - world.read}）` : ''}` : '仕事の動きを読んでいます'));
+        const list = el(doc, 'ul', { className: 'bb-world-pulse-list' });
+        for (const row of world.rows) {
+          const item = el(doc, 'li');
+          const button = rowButton('bb-world-pulse-row', () => onEnterCity?.(row.code), `${row.name}の中を見る`);
+          button.append(el(doc, 'span', { className: 'bb-world-pulse-name', text: row.name }));
+          if (!row.pulse) button.append(el(doc, 'span', { className: 'bb-world-pulse-quiet', text: world.read ? '読めない' : '' }));
+          else if (pulseWords(row.pulse).length) button.append(pulseChips(doc, row.pulse));
+          else button.append(el(doc, 'span', { className: 'bb-world-pulse-quiet', text: row.pulse.done ? '開いた仕事なし' : '仕事の記録なし' }));
+          item.append(button);
+          list.append(item);
+        }
+        nodes.push(list, note('事業を選ぶと、その中の動きを見られます。'));
+      }
+      body.replaceChildren(...nodes);
+    },
+    /** A business: `pulse` from `districtPulse`, or `state` saying why its work is not shown. */
+    showCity({ business, pulse = null, state = null, partial = false }) {
+      node.hidden = false;
+      node.dataset.level = 'city';
+      setCrumbs([{ text: '世界', onClick: onWorld }, { text: business.name }]);
+      const nodes = [heading(`${business.name}のいま`, business.purpose ?? null)];
+      if (!pulse) {
+        nodes.push(note(state ?? '仕事を読んでいます'));
+      } else if (!pulse.counts.total) {
+        nodes.push(note('この事業の仕事の記録はまだありません。'));
+      } else {
+        nodes.push(section(`仕事 ${pulse.counts.total}件${partial ? '（読めた範囲）' : ''}`, flowBar(doc, pulse.counts), actorsLine(pulse), partial ? note('仕事の記録は一部だけ読めています。件数は読めた範囲のものです。') : null));
+        const list = el(doc, 'ul', { className: 'bb-world-pulse-list' });
+        for (const street of pulse.streets) {
+          const item = el(doc, 'li');
+          const name = street.label ?? '何のためか未記録の仕事';
+          const button = rowButton('bb-world-pulse-row is-street', () => onStreet?.(street.key), `「${name}」の仕事とAIを見る`);
+          const line = el(doc, 'span', { className: 'bb-world-pulse-row-line' });
+          line.append(el(doc, 'span', { className: `bb-world-pulse-name${street.label ? '' : ' is-unlabelled'}`, text: name }), el(doc, 'span', { className: 'bb-world-pulse-count', text: `${street.counts.done} / ${street.counts.total}` }));
+          const second = el(doc, 'span', { className: 'bb-world-pulse-row-line' });
+          second.append(flowBar(doc, street.counts, { legend: false }));
+          const marks = el(doc, 'span', { className: 'bb-world-actor-marks' });
+          for (const actor of street.actors) marks.append(actorMark(doc, actor, { small: true }));
+          second.append(marks);
+          button.append(line, second, pulseChips(doc, street.counts));
+          item.append(button);
+          list.append(item);
+        }
+        nodes.push(section('仕事の集まり（通り）', list));
+      }
+      body.replaceChildren(...nodes);
+    },
+    /** A gathering of work: one `street` of the pulse and the `sites` standing on it. */
+    showStreet({ business, street, sites, partial = false }) {
+      node.hidden = false;
+      node.dataset.level = 'street';
+      const name = street.label ?? '何のためか未記録の仕事';
+      setCrumbs([{ text: '世界', onClick: onWorld }, { text: business.name, onClick: onCity }, { text: name }]);
+      const nodes = [heading(name, `${business.name}・${street.counts.total}件のうち${street.counts.done}件を終えた${partial ? '（読めた範囲）' : ''}`), flowBar(doc, street.counts)];
+      const byId = new Map(sites.map((site) => [site.task_id, site]));
+      if (street.actors.length) {
+        const cards = el(doc, 'ul', { className: 'bb-world-actor-cards' });
+        for (const actor of street.actors) {
+          const card = el(doc, 'li', { className: `bb-world-actor-card is-${actor.presence}` });
+          const head = el(doc, 'div', { className: 'bb-world-actor-head' });
+          head.append(actorMark(doc, actor), el(doc, 'strong', { text: actor.name }), el(doc, 'span', { className: `bb-world-presence is-${actor.presence}`, text: actor.label }));
+          card.append(head);
+          const works = el(doc, 'ul', { className: 'bb-world-actor-works' });
+          for (const work of actor.works) {
+            const item = el(doc, 'li');
+            const button = rowButton('bb-world-actor-work', () => onSite?.(work.task_id), 'この仕事の根拠を開く');
+            button.append(el(doc, 'span', { className: 'bb-world-actor-work-title', text: work.title }), el(doc, 'span', { className: `bb-world-actor-work-detail is-${work.presence}`, text: presenceDetail(work) }));
+            item.append(button);
+            works.append(item);
+          }
+          card.append(works);
+          cards.append(card);
+        }
+        nodes.push(section('ここにいるAI', cards));
+      } else {
+        nodes.push(section('ここにいるAI', note(street.actors_unconfirmed ? `AIの担当を確認できていない仕事が${street.actors_unconfirmed}件あります（いないとは確認できません）。` : 'この集まりに、AIの担当が記録された仕事はありません。')));
+      }
+      const withActor = new Set(street.actors.flatMap((actor) => actor.works.map((work) => work.task_id)));
+      const rest = street.task_ids.map((id) => byId.get(id)).filter((site) => site && !withActor.has(site.task_id));
+      if (rest.length) {
+        const list = el(doc, 'ul', { className: 'bb-world-pulse-list' });
+        const order = { in_progress: 0, waiting: 1, pending: 2, completed: 3 };
+        for (const site of [...rest].sort((a, b) => (order[a.work.status] ?? 2) - (order[b.work.status] ?? 2))) {
+          const item = el(doc, 'li');
+          const button = rowButton('bb-world-pulse-row is-work', () => onSite?.(site.task_id), 'この仕事の根拠を開く');
+          const people = site.people?.filter((person) => person.link === 'recorded').map((person) => person.name) ?? [];
+          const who = site.actors_state === 'unconfirmed' ? 'AIの担当は未確認' : people.length ? people.join('・') : '担当の記録なし';
+          button.append(el(doc, 'span', { className: 'bb-world-pulse-name', text: site.title }), el(doc, 'span', { className: 'bb-world-pulse-who', text: `${site.work.label}・${who}` }));
+          item.append(button);
+          list.append(item);
+        }
+        nodes.push(section('AIのいない仕事', list));
+      }
+      body.replaceChildren(...nodes);
+    },
+  };
+}
