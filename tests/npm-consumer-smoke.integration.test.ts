@@ -92,6 +92,15 @@ describe('npm tarball consumer smoke', () => {
           replay: 'passed',
           moduleResolution: expect.stringMatching(/^dist\/organization-connection\.js$/u)
         },
+        organizationMemberInvite: {
+          subpathImport: 'passed',
+          create: 'passed',
+          accept: 'passed',
+          revoke: 'passed',
+          reissue: 'passed',
+          replay: 'passed',
+          moduleResolution: expect.stringMatching(/^dist\/organization-member-invite\.js$/u)
+        },
         contractArtifacts: {
           schema: 'passed',
           fixture: 'passed',
