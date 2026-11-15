@@ -201,6 +201,7 @@
   --bb-row-move-ease: cubic-bezier(.2,.8,.2,1);
   --bb-shadow-compact-dropdown: 0 0 0 1px rgb(27 36 51 / .08), 0 12px 28px rgb(27 36 51 / .18);
   --bb-shadow-control-panel: 0 0 0 1px rgb(27 36 51 / .08), 0 20px 44px -12px rgb(27 36 51 / .28);
+  --bb-shadow-compact-dialog: 0 0 0 1px rgb(27 36 51 / .08), 0 24px 60px -12px rgb(27 36 51 / .32);
   --bb-input-frame-width: 600px;
   --bb-control-panel-width: 372px;
   --bb-control-panel-duration: 160ms;

@@ -217,7 +217,7 @@ export function workspaceHostActions(actions) {
 
 export function workspaceButton(doc, { text, variant = 'default', onClick, disabled = false, attrs = {} } = {}) {
   const button = el(doc, 'button', {
-    className: `bb-ws-button${variant === 'primary' ? ' is-primary' : variant === 'danger' ? ' is-danger' : variant === 'quiet' ? ' is-quiet' : ''}`,
+    className: `bb-ws-button${variant === 'primary' ? ' is-primary' : variant === 'danger' ? ' is-danger' : variant === 'quiet' ? ' is-quiet' : variant === 'icon' ? ' is-icon' : ''}`,
     text,
     attrs: { type: 'button', disabled, ...attrs },
   });
@@ -361,12 +361,16 @@ function nextWorkspaceSequence() {
   const next = ++workspaceSequence;
   return workspaceIdScope ? `${encodeURIComponent(workspaceIdScope)}-${next}` : next;
 }
+const workspaceHelpDismissers = new WeakMap();
+
 /** Shared explanatory help: hover/focus above the control, click for touch. */
-export function workspaceHelp(doc, { text, label } = {}) {
-  const wrap = el(doc, 'span', { className: 'bb-ws-help' });
-  const control = workspaceButton(doc, { text: 'i', attrs: { 'aria-label': `${label}の説明`, 'aria-expanded': 'false' } });
+export function workspaceHelp(doc, { text, label, content, icon = 'i', placement } = {}) {
+  const wrap = el(doc, content === undefined ? 'span' : 'div', { className: 'bb-ws-help' });
+  const control = workspaceButton(doc, { text: icon, attrs: { 'aria-label': `${label}の説明`, 'aria-expanded': 'false' } });
   control.className = 'bb-ws-help-button';
-  const bubble = el(doc, 'span', { className: 'bb-ws-help-bubble', text, attrs: { id: `bb-ws-help-${nextWorkspaceSequence()}`, role: 'tooltip' } });
+  const bubble = el(doc, content === undefined ? 'span' : 'div', { className: 'bb-ws-help-bubble', text, attrs: { id: `bb-ws-help-${nextWorkspaceSequence()}`, role: 'tooltip' } });
+  if (content !== undefined) { bubble.textContent = ''; appendContent(bubble, doc, content); }
+  if (placement === 'bottom-end') toggleWorkspaceClass(wrap, 'bb-ws-help--bottom-end', true);
   control.setAttribute('aria-describedby', bubble.id || bubble.getAttribute?.('id') || bubble.attributes?.id);
   control.addEventListener('click', event => {
     event.stopPropagation(); event.preventDefault();
@@ -374,13 +378,26 @@ export function workspaceHelp(doc, { text, label } = {}) {
     wrap.classList.remove('is-dismissed');
     control.setAttribute('aria-expanded', String(opened));
   });
-  wrap.addEventListener('mouseleave', () => wrap.classList.remove('is-dismissed'));
-  control.addEventListener('blur', () => { wrap.classList.remove('is-open', 'is-dismissed'); control.setAttribute('aria-expanded', 'false'); });
-  control.addEventListener('keydown', event => {
-    if (event.key !== 'Escape') return;
-    wrap.classList.remove('is-open'); wrap.classList.add('is-dismissed');
-    control.setAttribute('aria-expanded', 'false'); event.stopPropagation();
+  let hovered = false;
+  wrap.addEventListener('mouseenter', () => { hovered = true; });
+  wrap.addEventListener('mouseleave', () => {
+    hovered = false;
+    if (!wrap.contains?.(doc.activeElement)) wrap.classList.remove('is-dismissed');
   });
+  wrap.addEventListener('focusout', event => {
+    if (wrap.contains?.(event.relatedTarget)) return;
+    wrap.classList.remove('is-open'); control.setAttribute('aria-expanded', 'false');
+    if (!hovered) wrap.classList.remove('is-dismissed');
+  });
+  const dismissExplanation = event => {
+    if (event.key !== 'Escape' || event.defaultPrevented || wrap.classList.contains('is-dismissed')) return false;
+    if (!wrap.classList.contains('is-open') && !hovered && !wrap.contains?.(doc.activeElement)) return false;
+    event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation?.();
+    wrap.classList.remove('is-open'); wrap.classList.add('is-dismissed');
+    control.setAttribute('aria-expanded', 'false'); return true;
+  };
+  workspaceHelpDismissers.set(wrap, dismissExplanation);
+  control.addEventListener('keydown', dismissExplanation);
   wrap.append(control, bubble); return wrap;
 }
 
@@ -430,17 +447,26 @@ export function workspaceCloseDrawer(dialog, finish) {
 }
 
 /** Native modal, optionally a right drawer. close() animates; dispose() tears down immediately. */
-export function workspaceDialog(doc, { title, content, opener, presentation = 'center', onClose } = {}) {
+export function workspaceDialog(doc, { title, content, opener, presentation = 'center', onClose, appearance, headerTools } = {}) {
   const dialog = el(doc, 'dialog', { className: 'bb-ws-dialog' });
+  if (appearance === 'compact') toggleWorkspaceClass(dialog, 'bb-ws-dialog--compact', true);
   if (presentation === 'drawer') workspaceApplyDrawer(dialog);
   const headingId = `bb-ws-dialog-${nextWorkspaceSequence()}`;
   dialog.setAttribute('aria-labelledby', headingId);
   const head = el(doc, 'header', { className: 'bb-ws-dialog-head' });
   const nativeClose = dialog.close.bind(dialog);
   let disposed = false;
+  const dismissVisibleHelp = event => {
+    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    for (const help of dialog.querySelectorAll?.('.bb-ws-help') ?? []) {
+      if (workspaceHelpDismissers.get(help)?.(event)) return;
+    }
+  };
+  dialog.addEventListener('keydown', dismissVisibleHelp, true);
   const cleanup = () => {
     if (disposed) return;
     disposed = true;
+    dialog.removeEventListener('keydown', dismissVisibleHelp, true);
     drawerClosings.get(dialog)?.();
     dialog.remove();
     try { onClose?.(); } finally {
@@ -460,7 +486,11 @@ export function workspaceDialog(doc, { title, content, opener, presentation = 'c
     nativeClose(); cleanup();
   };
   const close = workspaceButton(doc, { text: '×', attrs: { 'aria-label': '閉じる' }, onClick: () => dialog.close() });
-  head.append(el(doc, 'h2', { text: title, attrs: { id: headingId } }), close);
+  head.append(el(doc, 'h2', { text: title, attrs: { id: headingId } }));
+  if (headerTools) {
+    const tools = el(doc, 'div', { className: 'bb-ws-dialog-tools' }); appendContent(tools, doc, headerTools); head.append(tools);
+  }
+  head.append(close);
   const body = el(doc, 'div', { className: 'bb-ws-dialog-body' }); appendContent(body, doc, content);
   dialog.append(head, body); doc.body.append(dialog);
   dialog.addEventListener('cancel', event => { event.preventDefault(); dialog.close(); });
@@ -475,6 +505,145 @@ export function workspaceFilterChip(doc, { label, onRemove, attrs = {} } = {}) {
   const chip = workspaceButton(doc, { text: `${label} ×`, attrs: { 'aria-label': `${label}を解除`, ...attrs }, onClick: onRemove });
   chip.className += ' bb-ws-filter-chip';
   return chip;
+}
+
+const anchoredPopoverBindings = new WeakMap();
+
+/** Non-modal anchored surface. Content and visibility have independent lifecycles. */
+export function workspaceAnchoredPopover(doc, {
+  anchor, positionAnchor = anchor, content, label, surface = 'default', width = 276, placement = 'bottom', align = 'start', padding, onClose,
+} = {}) {
+  if (!anchor || typeof anchor.getBoundingClientRect !== 'function') throw new TypeError('popover_anchor_required');
+  if (!positionAnchor || typeof positionAnchor.getBoundingClientRect !== 'function') throw new TypeError('popover_position_anchor_required');
+  const element = el(doc, 'div', { className: `bb-ws-anchored-popover${surface === 'muted' ? ' bb-ws-anchored-popover--muted' : ''}`, attrs: {
+    role: 'dialog', 'aria-label': label || '詳細', tabindex: '-1', id: `bb-ws-popover-${nextWorkspaceSequence()}`,
+  } });
+  if (padding === 'none') toggleWorkspaceClass(element, 'bb-ws-anchored-popover--flush', true);
+  const binding = anchoredPopoverBindings.get(anchor) || { original: new Map(['aria-controls', 'aria-expanded', 'aria-haspopup'].map(name => [name, anchor.getAttribute?.(name)])) };
+  const displaced = binding.owner;
+  const owner = {};
+  binding.owner = owner; anchoredPopoverBindings.set(anchor, binding);
+  displaced?.revoke?.();
+  const ownsAnchor = () => anchoredPopoverBindings.get(anchor)?.owner === owner;
+  const panelId = element.getAttribute('id');
+  anchor.setAttribute('aria-controls', panelId); anchor.setAttribute('aria-haspopup', 'dialog'); anchor.setAttribute('aria-expanded', 'false');
+  if (Number.isFinite(width) && width > 0) element.style?.setProperty('--bb-anchored-width', `${width}px`);
+  let opened = false;
+  let destroyed = false;
+  let modalHost;
+  const view = doc.defaultView;
+  const setContent = next => {
+    if (destroyed) return;
+    element.replaceChildren(); appendContent(element, doc, next);
+    if (opened) reposition();
+  };
+  const reposition = () => {
+    if (!opened || destroyed) return;
+    if (anchor.isConnected === false || positionAnchor.isConnected === false) { close({ restoreFocus: false }); return; }
+    const at = positionAnchor.getBoundingClientRect();
+    const box = element.getBoundingClientRect();
+    const viewportWidth = view?.innerWidth || doc.documentElement?.clientWidth || 1024;
+    const viewportHeight = view?.innerHeight || doc.documentElement?.clientHeight || 768;
+    // offset dimensions are layout sizes, unaffected by the entrance transform.
+    const panelWidth = element.offsetWidth || box.width || box.right - box.left;
+    const panelHeight = element.offsetHeight || box.height || box.bottom - box.top;
+    const x = align === 'end' ? at.right - panelWidth : align === 'center' ? at.left + ((at.width ?? at.right - at.left) - panelWidth) / 2 : at.left;
+    const y = placement === 'overlap' ? at.top - 10 : at.bottom + 4;
+    element.style?.setProperty('left', `${Math.max(8, Math.min(x, viewportWidth - panelWidth - 8))}px`);
+    element.style?.setProperty('top', `${Math.max(8, Math.min(y, viewportHeight - panelHeight - 8))}px`);
+  };
+  const removeListeners = () => {
+    doc.removeEventListener?.('pointerdown', outside); doc.removeEventListener?.('keydown', escape);
+    doc.removeEventListener?.('scroll', reposition, true); view?.removeEventListener?.('resize', reposition);
+    modalHost?.removeEventListener?.('close', modalClosed); modalHost = undefined;
+  };
+  const close = ({ restoreFocus = true } = {}) => {
+    if (!opened) return;
+    opened = false; removeListeners(); element.hidden = true; element.inert = true;
+    element.setAttribute('aria-hidden', 'true');
+    if (ownsAnchor()) anchor.setAttribute('aria-expanded', 'false');
+    if (restoreFocus && anchor.isConnected) anchor.focus?.({ preventScroll: true });
+    onClose?.();
+  };
+  const modalClosed = () => close({ restoreFocus: false });
+  const outside = event => {
+    if (!element.contains?.(event.target) && !anchor.contains?.(event.target)) close({ restoreFocus: false });
+  };
+  const escape = event => {
+    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    event.preventDefault(); event.stopPropagation(); close();
+  };
+  const open = ({ focus = true } = {}) => {
+    if (destroyed || opened || !ownsAnchor() || anchor.isConnected === false || positionAnchor.isConnected === false || anchor.disabled || anchor.getAttribute?.('aria-disabled') === 'true') return;
+    // A surface opened inside a native modal must remain inside that top layer.
+    const modal = anchor.closest?.('dialog[open]');
+    (modal || doc.body).append(element); modalHost = modal;
+    modalHost?.addEventListener?.('close', modalClosed);
+    opened = true; element.hidden = false; element.inert = false; element.removeAttribute('aria-hidden');
+    anchor.setAttribute('aria-expanded', 'true'); reposition();
+    if (!opened) return;
+    doc.addEventListener?.('pointerdown', outside); doc.addEventListener?.('keydown', escape);
+    doc.addEventListener?.('scroll', reposition, true); view?.addEventListener?.('resize', reposition);
+    if (focus) (element.querySelector?.('button:not(:disabled),input:not(:disabled),select:not(:disabled),[tabindex="0"]') || element).focus?.({ preventScroll: true });
+  };
+  owner.revoke = () => close({ restoreFocus: false });
+  element.hidden = true; element.inert = true; element.setAttribute('aria-hidden', 'true');
+  setContent(content);
+  return { element, setContent, open, close, reposition, get isOpen() { return opened; }, destroy() {
+    if (destroyed) return;
+    destroyed = true; close({ restoreFocus: false }); removeListeners(); element.remove();
+    // Do not overwrite a newer surface bound to the same trigger.
+    if (ownsAnchor()) {
+      anchoredPopoverBindings.delete(anchor);
+      for (const [name, value] of binding.original) {
+        if (value === null || value === undefined) anchor.removeAttribute?.(name); else anchor.setAttribute(name, value);
+      }
+    }
+  } };
+}
+
+/** A checkable row with sibling status/actions, so retry buttons never nest in buttons. */
+export function workspaceSelectionRow(doc, { label, checked = false, disabled = false, leading, trailing, color, onChange } = {}) {
+  const root = el(doc, 'div', { className: 'bb-ws-selection-row' });
+  const control = workspaceButton(doc, { attrs: { role: 'checkbox', 'aria-label': label } });
+  control.className += ' bb-ws-selection-control';
+  const check = el(doc, 'span', { className: 'bb-ws-selection-check', attrs: { 'aria-hidden': 'true' } });
+  check.append(workspaceActionIcon(doc, 'check')); control.append(check);
+  if (leading) appendContent(control, doc, leading);
+  control.append(el(doc, 'span', { className: 'bb-ws-selection-label', text: label }));
+  root.append(control);
+  if (trailing) {
+    const slot = el(doc, 'span', { className: 'bb-ws-selection-trailing' }); appendContent(slot, doc, trailing); root.append(slot);
+  }
+  if (color) root.style?.setProperty('--bb-selection-color', color);
+  let selected = Boolean(checked), unavailable = Boolean(disabled), destroyed = false;
+  const update = ({ checked: nextChecked, disabled: nextDisabled } = {}) => {
+    if (destroyed) return;
+    if (nextChecked !== undefined) selected = Boolean(nextChecked);
+    if (nextDisabled !== undefined) unavailable = Boolean(nextDisabled);
+    control.setAttribute('aria-checked', String(selected)); control.disabled = unavailable;
+    toggleWorkspaceClass(root, 'is-disabled', unavailable);
+  };
+  const click = () => { if (!destroyed && !unavailable) { update({ checked: !selected }); onChange?.(selected); } };
+  control.addEventListener('click', click); update();
+  return { root, control, update, destroy() { destroyed = true; control.removeEventListener?.('click', click); } };
+}
+
+/** Native button keyboard activation with controlled switch state. */
+export function workspaceSwitch(doc, { label, checked = false, disabled = false, onChange } = {}) {
+  const control = workspaceButton(doc, { attrs: { role: 'switch', 'aria-label': label } });
+  control.className += ' bb-ws-switch';
+  control.append(el(doc, 'span', { className: 'bb-ws-switch-track', attrs: { 'aria-hidden': 'true' } }), el(doc, 'span', { text: label }));
+  let selected = Boolean(checked), unavailable = Boolean(disabled), destroyed = false;
+  const update = ({ checked: nextChecked, disabled: nextDisabled } = {}) => {
+    if (destroyed) return;
+    if (nextChecked !== undefined) selected = Boolean(nextChecked);
+    if (nextDisabled !== undefined) unavailable = Boolean(nextDisabled);
+    control.setAttribute('aria-checked', String(selected)); control.disabled = unavailable;
+  };
+  const click = () => { if (!destroyed && !unavailable) { update({ checked: !selected }); onChange?.(selected); } };
+  control.addEventListener('click', click); update();
+  return { root: control, control, update, destroy() { destroyed = true; control.removeEventListener?.('click', click); } };
 }
 
 /** One filter choice; callers retain selection and lifecycle ownership. */
@@ -654,12 +823,20 @@ function comboboxText(value) {
 export function workspaceCombobox(doc, {
   label, options = [], value = '', placeholder = '選択してください', searchLabel, searchPlaceholder = '絞り込む',
   emptyText = '一致する候補はありません', limit = 100, searchable = 'auto', className, onChange,
-  multiple = false, values = [], selectionLabel = '', renderIcon, showCount = true, showHints = true, align = 'start', appearance,
+  multiple = false, values = [], selectionLabel = '', renderIcon, showCount = true, showHints = true, align = 'start', appearance, boxed = false, matchTriggerWidth = false, triggerHeight, popupWidth, active = false,
 } = {}) {
   const sequence = nextWorkspaceSequence();
   const listId = `bb-ws-combobox-${sequence}-list`;
   const root = el(doc, 'span', { className: ['bb-ws-combobox', className].filter(Boolean).join(' ') });
   if (appearance === 'compact') toggleWorkspaceClass(root, 'bb-ws-combobox--compact', true);
+  if (boxed) { toggleWorkspaceClass(root, 'is-boxed', true); toggleWorkspaceClass(root, 'bb-ws-combobox--stable-box', true); }
+  if (active) toggleWorkspaceClass(root, 'is-active', true);
+  if (matchTriggerWidth) toggleWorkspaceClass(root, 'bb-ws-combobox--match-width', true);
+  if (triggerHeight === 32) toggleWorkspaceClass(root, 'bb-ws-combobox--tall', true);
+  if (Number.isFinite(popupWidth) && popupWidth > 0) {
+    toggleWorkspaceClass(root, 'bb-ws-combobox--fixed-width', true);
+    root.style?.setProperty('--bb-combobox-popup-width', `${popupWidth}px`);
+  }
   if (multiple) root.classList?.add('bb-ws-combobox-multiple');
   if (align === 'end') root.classList?.add('bb-ws-combobox-align-end');
   const trigger = el(doc, 'button', { className: 'bb-ws-combobox-trigger', attrs: { type: 'button', 'aria-haspopup': 'listbox', 'aria-expanded': 'false', 'aria-controls': listId } });
@@ -836,7 +1013,8 @@ export function workspaceCombobox(doc, {
     get values() { return [...state.values]; },
     get isOpen() { return state.open; },
     open, close,
-    update({ options: nextOptions, value: nextValue, values: nextValues, selectionLabel: nextSelectionLabel, disabled } = {}) {
+    update({ options: nextOptions, value: nextValue, values: nextValues, selectionLabel: nextSelectionLabel, disabled, active: nextActive } = {}) {
+      if (nextActive !== undefined) toggleWorkspaceClass(root, 'is-active', Boolean(nextActive));
       const previous = JSON.stringify([state.options, state.value, state.values, state.selectionLabel, state.disabled]);
       if (nextOptions !== undefined) setOptions(nextOptions);
       if (nextSelectionLabel !== undefined) state.selectionLabel = String(nextSelectionLabel ?? '');
@@ -857,6 +1035,13 @@ export function workspaceActionIcon(doc, name) {
   for (const [key, value] of Object.entries({ class: 'bb-ws-action-icon', viewBox: '0 0 24 24', 'aria-hidden': 'true' })) svg.setAttribute(key, value);
   const path = typeof doc.createElementNS === 'function' ? doc.createElementNS('http://www.w3.org/2000/svg', 'path') : doc.createElement('path');
   const paths = { edit: 'M4 20h4L19 9l-4-4L4 16z M13.5 6.5l4 4', undo: 'M4 5v5h5 M4.6 10A8 8 0 1 1 6.3 17.7', check: 'M5 12l5 5 9-10', sliders: 'M4 8h8M18 8h2M4 16h2M12 16h8 M17.4 8a2.4 2.4 0 1 1-4.8 0 2.4 2.4 0 0 1 4.8 0 M11.4 16a2.4 2.4 0 1 1-4.8 0 2.4 2.4 0 0 1 4.8 0', plus: 'M12 5v14M5 12h14', search: 'M21 21l-4.35-4.35M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0', filter: 'M4 7h16M7 12h10M10 17h4', sort: 'M8 4v16m-3-3 3 3 3-3M16 20V4m-3 3 3-3 3 3' };
+  Object.assign(paths, {
+    clock: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M12 7v5l3 2',
+    users: 'M12.2 8a3.2 3.2 0 1 1-6.4 0 3.2 3.2 0 0 1 6.4 0 M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5 M16 5.2a3.2 3.2 0 0 1 0 5.6 M18 14.8c1.9.7 3 2.5 3 5.2',
+    calendar: 'M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2 M8 2v4 M16 2v4 M3 10h18',
+    share: 'M20.6 5a2.6 2.6 0 1 1-5.2 0 2.6 2.6 0 0 1 5.2 0 M8.6 12a2.6 2.6 0 1 1-5.2 0 2.6 2.6 0 0 1 5.2 0 M20.6 19a2.6 2.6 0 1 1-5.2 0 2.6 2.6 0 0 1 5.2 0 M8.3 10.7l7.4-4.3 M8.3 13.3l7.4 4.3',
+    folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+  });
   path.setAttribute('d', paths[name] || paths.filter); svg.append(path); return svg;
 }
 

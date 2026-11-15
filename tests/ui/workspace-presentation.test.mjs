@@ -1,6 +1,6 @@
 import { knowledgeDirectoryToolbar } from '../../ui/knowledge-directory.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { workspaceCompactToolbar, workspaceCombobox, workspaceDetailDrawer, workspaceTopbar, workspaceSearchControl, workspaceApplyDrawer, workspaceCloseDrawer, workspaceDialog, workspaceFilterPopover, workspaceLoadingCard, workspaceDismissNotification } from '../../ui/workspace-kit.js';
+import { workspaceCompactToolbar, workspaceCombobox, workspaceDetailDrawer, workspaceTopbar, workspaceSearchControl, workspaceApplyDrawer, workspaceCloseDrawer, workspaceDialog, workspaceFilterPopover, workspaceLoadingCard, workspaceDismissNotification, workspaceAnchoredPopover, workspaceSelectionRow, workspaceSwitch, workspaceHelp, workspaceActionIcon, workspaceButton } from '../../ui/workspace-kit.js';
 
 // A native-dialog lifecycle model: focus remains inside until close dispatches.
 class Events {
@@ -21,11 +21,12 @@ class Events {
 }
 class Element extends Events {
   constructor(doc, tagName) {
-    super(); this.ownerDocument = doc; this.tagName = tagName.toUpperCase(); this.children = []; this.attributes = {}; this.className = ''; this.hidden = false; this.open = false;
+    super(); this.ownerDocument = doc; this.tagName = tagName.toUpperCase(); this.children = []; this.attributes = {}; this.style = { values: new Map(), setProperty(name, value) { this.values.set(name, value); } }; this.className = ''; this.hidden = false; this.open = false;
     this.classList = {
       add: name => { this.className = [...new Set([...this.className.split(' ').filter(Boolean), name])].join(' '); },
       remove: name => { this.className = this.className.split(' ').filter(item => item !== name).join(' '); },
       contains: name => this.className.split(' ').includes(name),
+      toggle: name => { const active = !this.classList.contains(name); if (active) this.classList.add(name); else this.classList.remove(name); return active; },
     };
   }
   click() { this.dispatch('click'); }
@@ -37,6 +38,7 @@ class Element extends Events {
   remove() { if (this.parentNode) this.parentNode.children = this.parentNode.children.filter(child => child !== this); this.parentNode = null; }
   replaceChildren(...children) { for (const child of [...this.children]) child.remove(); this.append(...children); }
   contains(node) { return this === node || this.children.some(child => child.contains(node)); }
+  querySelectorAll(selector) { return this.children.flatMap(child => [...(selector === '.bb-ws-help' && child.classList.contains('bb-ws-help') ? [child] : []), ...child.querySelectorAll(selector)]); }
   querySelector() { return this.children.find(child => ['BUTTON', 'INPUT', 'SELECT'].includes(child.tagName)) || this.children.map(child => child.querySelector()).find(Boolean); }
   focus() { this.ownerDocument.activeElement = this; }
   showModal() { this.open = true; }
@@ -291,4 +293,182 @@ describe('composable page header and panel', () => {
     const panel = workspaceFilterPopover(doc, { appearance: 'panel' }); doc.body.append(panel.root);
     panel.setOpen(true); panel.setOpen(false); expect(panel.panel.hidden).toBe(true); expect(vi.getTimerCount()).toBe(0); panel.destroy();
   });
+});
+
+describe('opt-in anchored surfaces and controls', () => {
+  it('clamps at viewport edges, follows scroll and releases document listeners and focus', () => {
+    const doc = new Document(); doc.defaultView.innerWidth = 400; doc.defaultView.innerHeight = 300;
+    const anchor = doc.createElement('button'); doc.body.append(anchor);
+    anchor.getBoundingClientRect = () => ({ left: 370, right: 400, top: 270, bottom: 294, width: 30 });
+    const input = doc.createElement('input'); const closed = vi.fn();
+    const pop = workspaceAnchoredPopover(doc, { anchor, content: input, label: 'Synthetic details', width: 276, onClose: closed });
+    pop.element.getBoundingClientRect = () => ({ width: 276, height: 180 });
+    expect(pop.element.hidden).toBe(true); expect(doc.count('scroll')).toBe(0);
+    pop.open(); expect(doc.activeElement).toBe(input);
+    expect(pop.element.style.values.get('left')).toBe('116px'); expect(pop.element.style.values.get('top')).toBe('112px');
+    anchor.getBoundingClientRect = () => ({ left: 10, right: 40, top: 10, bottom: 34, width: 30 });
+    doc.dispatch('scroll'); expect(pop.element.style.values.get('top')).toBe('38px');
+    doc.dispatch('pointerdown', { target: input }); expect(pop.isOpen).toBe(true);
+    doc.dispatch('keydown', { key: 'Escape' }); expect(pop.isOpen).toBe(false); expect(doc.activeElement).toBe(anchor);
+    expect(closed).toHaveBeenCalledOnce(); expect(doc.count('scroll')).toBe(0); expect(doc.count('keydown')).toBe(0);
+    pop.destroy(); expect(pop.element.isConnected).toBe(false); expect(anchor.getAttribute('aria-controls')).toBe(null);
+  });
+  it('does not reopen on late content or steal outside focus and cannot revive after destroy', async () => {
+    const doc = new Document(true); const anchor = doc.createElement('button'); doc.body.append(anchor);
+    const pop = workspaceAnchoredPopover(doc, { anchor, surface: 'muted' });
+    const outside = doc.createElement('input'); doc.body.append(outside); outside.focus();
+    pop.open({ focus: false }); doc.dispatch('pointerdown', { target: outside });
+    pop.setContent(await Promise.resolve(doc.createElement('button')));
+    expect(pop.isOpen).toBe(false); expect(pop.element.hidden).toBe(true); expect(doc.activeElement).toBe(outside);
+    expect(pop.element.classList.contains('bb-ws-anchored-popover--muted')).toBe(true);
+    pop.open(); anchor.remove(); pop.reposition(); expect(pop.isOpen).toBe(false);
+    doc.body.append(anchor); pop.open(); pop.destroy(); pop.setContent(doc.createElement('input')); pop.open();
+    expect(pop.isOpen).toBe(false); expect(pop.element.isConnected).toBe(false); expect(doc.count('pointerdown')).toBe(0);
+  });
+  it('uses the native modal top layer and refuses a disabled opener', () => {
+    const doc = new Document(); const dialog = workspaceDialog(doc, { appearance: 'compact', headerTools: doc.createElement('span') });
+    const anchor = doc.createElement('button'); dialog.children[1].append(anchor); anchor.closest = () => dialog;
+    const pop = workspaceAnchoredPopover(doc, { anchor }); anchor.disabled = true; pop.open(); expect(pop.isOpen).toBe(false);
+    anchor.disabled = false; pop.open(); expect(pop.element.parentNode).toBe(dialog);
+    expect(dialog.classList.contains('bb-ws-dialog--compact')).toBe(true); expect(dialog.children[0].children[1].className).toBe('bb-ws-dialog-tools');
+    dialog.close(); expect(pop.isOpen).toBe(false); expect(doc.count('keydown')).toBe(0); pop.destroy();
+  });
+  it('keeps retry actions outside the checkbox and respects disabled and destroyed state', () => {
+    const doc = new Document(); const retry = doc.createElement('button'); const retryClick = vi.fn(); retry.addEventListener('click', retryClick);
+    const change = vi.fn(); const row = workspaceSelectionRow(doc, { label: 'Synthetic choice', trailing: retry, color: 'var(--bb-color-action)', onChange: change });
+    expect(row.control.contains(retry)).toBe(false); expect(row.root.contains(retry)).toBe(true);
+    row.control.click(); expect(change).toHaveBeenLastCalledWith(true); expect(row.control.getAttribute('aria-checked')).toBe('true');
+    row.update({ disabled: true }); row.control.click(); retry.click(); expect(change).toHaveBeenCalledTimes(1); expect(retryClick).toHaveBeenCalledOnce();
+    row.update({ checked: false, disabled: false }); row.destroy(); row.control.click(); expect(change).toHaveBeenCalledTimes(1);
+    const toggle = workspaceSwitch(doc, { label: 'Synthetic preview', disabled: true, onChange: change });
+    expect(toggle.control.getAttribute('role')).toBe('switch'); toggle.control.click(); expect(change).toHaveBeenCalledTimes(1);
+    toggle.update({ disabled: false }); toggle.control.click(); expect(change).toHaveBeenLastCalledWith(true);
+    toggle.update({ checked: false }); expect(toggle.control.getAttribute('aria-checked')).toBe('false'); toggle.destroy(); toggle.control.click(); expect(change).toHaveBeenCalledTimes(2);
+  });
+  it('adds dropdown presentation only on request and retains the shared chevron and selection', () => {
+    const doc = new Document(); const box = workspaceCombobox(doc, { appearance: 'compact', boxed: true, matchTriggerWidth: true, triggerHeight: 32, popupWidth: 104, active: true, searchable: false, showCount: false, options: [{ value: 'a', label: 'Alpha' }] });
+    expect(box.root.classList.contains('bb-ws-combobox--stable-box')).toBe(true); expect(box.root.classList.contains('bb-ws-combobox--match-width')).toBe(true);
+    const chevron = box.trigger.children[1]; box.open(); box.update({ value: 'a', active: false }); box.close();
+    expect(box.trigger.children[1]).toBe(chevron); expect(box.root.classList.contains('is-active')).toBe(false);
+    const plain = workspaceCombobox(doc); expect(plain.root.classList.contains('bb-ws-combobox--stable-box')).toBe(false);
+    box.destroy(); plain.destroy();
+  });
+  it('accepts structured help as nodes', () => {
+    const doc = new Document(); const content = doc.createElement('dl');
+    const help = workspaceHelp(doc, { label: 'Synthetic help', content, icon: '?', placement: 'bottom-end' });
+    expect(help.children[0].textContent).toBe('?'); expect(help.children[1].children[0]).toBe(content);
+    expect(help.classList.contains('bb-ws-help--bottom-end')).toBe(true);
+  });
+});
+
+describe('anchored control review regressions', () => {
+  it('consumes only the first Escape that dismisses visible help', () => {
+    const doc = new Document(); const help = workspaceHelp(doc, { label: 'Synthetic help', placement: 'bottom-end' });
+    help.classList.add('is-open'); const key = { key: 'Escape', preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    help.children[0].dispatch('keydown', key);
+    expect(key.preventDefault).toHaveBeenCalledOnce(); expect(help.classList.contains('is-dismissed')).toBe(true);
+    const next = { key: 'Escape', preventDefault: vi.fn(), stopPropagation: vi.fn() }; help.children[0].dispatch('keydown', next);
+    expect(next.preventDefault).not.toHaveBeenCalled(); expect(next.stopPropagation).not.toHaveBeenCalled();
+  });
+  it('positions using layout dimensions rather than the animated bounding box', () => {
+    const doc = new Document(); doc.defaultView.innerWidth = 400; doc.defaultView.innerHeight = 300;
+    const anchor = doc.createElement('button'); doc.body.append(anchor);
+    anchor.getBoundingClientRect = () => ({ left: 370, right: 400, top: 270, bottom: 294, width: 30 });
+    const pop = workspaceAnchoredPopover(doc, { anchor });
+    pop.element.offsetWidth = 276; pop.element.offsetHeight = 182;
+    pop.element.getBoundingClientRect = () => ({ width: 259.44, height: 171.08 });
+    pop.open(); expect(pop.element.style.values.get('left')).toBe('116px'); expect(pop.element.style.values.get('top')).toBe('110px'); pop.destroy();
+  });
+  it.each([false, true])('replaces same-anchor bindings without reviving stale ARIA (original attributes: %s)', original => {
+    const doc = new Document(); const anchor = doc.createElement('button'); doc.body.append(anchor);
+    if (original) { anchor.setAttribute('aria-controls', 'synthetic-original'); anchor.setAttribute('aria-expanded', 'true'); anchor.setAttribute('aria-haspopup', 'menu'); }
+    for (const newerFirst of [false, true]) {
+      const first = workspaceAnchoredPopover(doc, { anchor }); first.open();
+      const second = workspaceAnchoredPopover(doc, { anchor }); second.open();
+      expect(first.isOpen).toBe(false); const current = second.element.getAttribute('id');
+      first.open(); expect(first.isOpen).toBe(false);
+      if (newerFirst) { second.destroy(); first.destroy(); }
+      else { first.destroy(); expect(second.isOpen).toBe(true); expect(anchor.getAttribute('aria-expanded')).toBe('true'); expect(anchor.getAttribute('aria-controls')).toBe(current); second.destroy(); }
+      expect(anchor.getAttribute('aria-controls')).toBe(original ? 'synthetic-original' : null);
+      expect(anchor.getAttribute('aria-expanded')).toBe(original ? 'true' : null);
+      expect(anchor.getAttribute('aria-haspopup')).toBe(original ? 'menu' : null);
+      expect(doc.count('keydown')).toBe(0);
+    }
+  });
+  it('only opts out of the compact minimum for an explicit popup width', () => {
+    const doc = new Document(); const fixed = workspaceCombobox(doc, { appearance: 'compact', popupWidth: 104 }); const plain = workspaceCombobox(doc, { appearance: 'compact' });
+    expect(fixed.root.classList.contains('bb-ws-combobox--fixed-width')).toBe(true);
+    expect(plain.root.classList.contains('bb-ws-combobox--fixed-width')).toBe(false); fixed.destroy(); plain.destroy();
+  });
+});
+
+it('uses the shared symbols for neutral date, person and folder controls', () => {
+  const doc = new Document(); const fallback = workspaceActionIcon(doc, 'filter').children[0].getAttribute('d');
+  for (const name of ['clock', 'users', 'calendar', 'share', 'folder']) {
+    const icon = workspaceActionIcon(doc, name);
+    expect(icon.getAttribute('aria-hidden')).toBe('true');
+    expect(icon.children[0].getAttribute('d')).not.toBe(fallback);
+  }
+});
+
+describe('native help interaction ownership', () => {
+  it('keeps an explicit dismissal while focus remains after the pointer leaves', () => {
+    const doc = new Document(); const help = workspaceHelp(doc, { label: 'Synthetic help' }); doc.body.append(help);
+    const control = help.children[0]; let hovering = true;
+    help.matches = () => hovering || help.contains(doc.activeElement);
+    help.dispatch('mouseenter'); control.focus(); control.click();
+    control.dispatch('keydown', { key: 'Escape' }); expect(help.classList.contains('is-dismissed')).toBe(true);
+    hovering = false; help.dispatch('mouseleave'); expect(help.classList.contains('is-dismissed')).toBe(true);
+    hovering = true; help.dispatch('mouseenter'); expect(help.classList.contains('is-dismissed')).toBe(true);
+    control.click(); expect(help.classList.contains('is-dismissed')).toBe(false); expect(help.classList.contains('is-open')).toBe(true);
+    control.dispatch('keydown', { key: 'Escape' }); hovering = false; help.dispatch('mouseleave');
+    const outside = doc.createElement('input'); doc.body.append(outside); outside.focus(); help.dispatch('focusout', { relatedTarget: outside });
+    expect(help.classList.contains('is-dismissed')).toBe(false);
+  });
+  it('routes hover-only Escape before native cancel and releases capture on modal disposal', () => {
+    const doc = new Document(); const help = workspaceHelp(doc, { label: 'Synthetic help' }); help.matches = () => false; help.dispatch('mouseenter');
+    const modal = workspaceDialog(doc, { headerTools: help });
+    expect(doc.activeElement.getAttribute('aria-label')).toBe('閉じる');
+    const first = { key: 'Escape', preventDefault: vi.fn(), stopPropagation: vi.fn(), stopImmediatePropagation: vi.fn() }; modal.dispatch('keydown', first);
+    expect(first.preventDefault).toHaveBeenCalledOnce(); expect(first.stopImmediatePropagation).toHaveBeenCalledOnce(); expect(modal.open).toBe(true);
+    const second = { key: 'Escape', preventDefault: vi.fn() }; modal.dispatch('keydown', second); expect(second.preventDefault).not.toHaveBeenCalled();
+    help.dispatch('mouseleave'); help.remove(); modal.dispatch('keydown', second); expect(second.preventDefault).not.toHaveBeenCalled();
+    modal.dispose(); expect(modal.count('keydown')).toBe(0); expect(doc.count('keydown')).toBe(0);
+  });
+});
+
+it('uses actual focus containment even if selector matching does not report focus-within', () => {
+  const doc = new Document(); const help = workspaceHelp(doc, { label: 'Synthetic focus help' }); help.matches = () => false;
+  const modal = workspaceDialog(doc, { headerTools: help }); help.children[0].focus();
+  const event = { key: 'Escape', preventDefault: vi.fn() }; modal.dispatch('keydown', event);
+  expect(event.preventDefault).toHaveBeenCalledOnce(); expect(modal.open).toBe(true); modal.dispose();
+});
+
+it('makes a flush anchored surface explicit while preserving default and muted padding classes', () => {
+  const doc = new Document(); const anchor = doc.createElement('button'); doc.body.append(anchor);
+  const normal = workspaceAnchoredPopover(doc, { anchor }); expect(normal.element.classList.contains('bb-ws-anchored-popover--flush')).toBe(false); normal.destroy();
+  const muted = workspaceAnchoredPopover(doc, { anchor, surface: 'muted' }); expect(muted.element.classList.contains('bb-ws-anchored-popover--flush')).toBe(false); muted.destroy();
+  const flush = workspaceAnchoredPopover(doc, { anchor, padding: 'none' }); expect(flush.element.classList.contains('bb-ws-anchored-popover--flush')).toBe(true); flush.destroy();
+});
+
+it('positions against a separate cell while leaving control semantics and focus on the original trigger', () => {
+  const doc = new Document(); doc.defaultView.innerWidth = 800; doc.defaultView.innerHeight = 600;
+  const trigger = doc.createElement('button'), cell = doc.createElement('div'); doc.body.append(cell); cell.append(trigger);
+  trigger.getBoundingClientRect = () => ({ left: 310, right: 340, top: 330, bottom: 352, width: 30 });
+  cell.getBoundingClientRect = () => ({ left: 300, right: 500, top: 220, bottom: 360, width: 200 });
+  const pop = workspaceAnchoredPopover(doc, { anchor: trigger, positionAnchor: cell, align: 'center', placement: 'overlap' });
+  pop.element.offsetWidth = 276; pop.element.offsetHeight = 182; pop.open();
+  expect(pop.element.style.values.get('left')).toBe('262px'); expect(pop.element.style.values.get('top')).toBe('210px');
+  expect(trigger.getAttribute('aria-controls')).toBe(pop.element.getAttribute('id')); expect(cell.getAttribute('aria-controls')).toBe(null);
+  pop.close(); expect(doc.activeElement).toBe(trigger);
+  pop.open(); doc.body.append(trigger); cell.remove(); pop.reposition(); expect(pop.isOpen).toBe(false); pop.open(); expect(pop.isOpen).toBe(false);
+  doc.body.append(cell); pop.open(); expect(pop.isOpen).toBe(true); trigger.remove(); pop.reposition(); expect(pop.isOpen).toBe(false); pop.destroy();
+});
+
+it('opts into an icon button without removing its accessible name or activation handler', () => {
+  const doc = new Document(); const activate = vi.fn();
+  const button = workspaceButton(doc, { variant: 'icon', attrs: { 'aria-label': 'Synthetic settings' }, onClick: activate });
+  button.append(workspaceActionIcon(doc, 'share')); button.click();
+  expect(button.classList.contains('is-icon')).toBe(true); expect(button.getAttribute('aria-label')).toBe('Synthetic settings'); expect(activate).toHaveBeenCalledOnce();
+  expect(workspaceButton(doc).classList.contains('is-icon')).toBe(false);
 });
