@@ -62,7 +62,9 @@ describe('task-bound semantic preparation gate in the portable Host', () => {
     await expect(current.stop({ ...adapter(), scope: { ...scope, task_ref: 'other' } })).rejects.toThrow('binding_changed');
   });
 
-  it('keeps independent tasks and contract revisions separate', async () => {
+  // This journey performs repeated real filesystem writes; shared CI runners
+  // can exceed Vitest's 5s default even when every assertion succeeds.
+  it('keeps independent tasks and contract revisions separate', { timeout: 30_000 }, async () => {
     const { turn } = await setup();
     await (await turn('one')).stop();
     for (const [id, changed] of [['two', { ...scope, task_ref: 'other' }], ['three', { ...scope, contract_revision: '2' }]] as const) {
