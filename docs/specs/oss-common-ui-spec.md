@@ -249,3 +249,97 @@ The shared review orange is `--bb-color-review`; the inbox approval stripe alias
 - 作成入力は会議名と保存先を必須にし、参加候補と自由入力を分ける。既存create callbackで保存/readbackした後、現在の表示条件を変えずに一覧へ戻る。選択範囲外の作成も既存host readbackを維持する。
 
 横一覧のおすすめは、参加記録から得た自分のプロジェクトを選択欄へ反映する。ホストの明示選択を維持している間は別の自分条件を重ねず、手動選択とおすすめ復帰は既存のホストcallbackと未保存保護を通す。取得・認可経路は変更しない。
+
+### Anchored surfaces and compact controls (explicit opt-in)
+
+`workspaceAnchoredPopover(document, { anchor, content, label, surface, width,
+placement, align, onClose })` creates a **closed**, non-modal dialog surface.
+`surface` is `default` (white) or `muted` (the existing segmented surface),
+`width` is a numeric CSS pixel width (default 276), `placement` is `bottom`
+(default) or `overlap`, and `align` is `start` (default), `center`, or `end`.
+The returned controller exposes `element`, `isOpen`, `setContent(content)`,
+`open({ focus: true })`, `close({ restoreFocus: true })`, `reposition()`, and
+`destroy()`. Content changes never open a closed surface. A destroyed controller
+cannot reopen. Hosts own content, close buttons, selection, and asynchronous
+requests; they must destroy surfaces when leaving their view or replacing an
+anchor. Rendering another representation must not revive an old surface.
+
+The surface clamps to an 8px viewport inset and follows document scrolling and
+window resizing. Escape restores the opener; outside pointer dismissal preserves
+the clicked control's focus. A surface inside an open native dialog remains in
+that dialog's top layer and closes with it. Disabled/disconnected anchors do not
+open. Destroy removes listeners, nodes, and its own trigger accessibility state
+without overwriting a newer binding. Binding another controller to the same
+anchor closes and revokes the previous controller; the last current controller
+restores the anchor attributes that predated the first binding. Keyboard focus remains visible, and reduced
+motion disables the entrance animation. This primitive has no provider,
+organization, authorization, or persistence concepts.
+
+`workspaceDialog({ appearance: 'compact', headerTools })` retains the native
+modal contract while opting into a 440px surface, compact heading/padding and
+rounded presentation. `headerTools` accepts nodes before the close button.
+Omitting the options preserves the original dialog. `workspaceHelp` accepts
+`content` nodes, `icon` (default `i`), and `placement: 'bottom-end'` for a compact
+help control and structured explanatory content. The host owns the explanation.
+
+`workspaceCombobox({ appearance: 'compact', boxed: true, triggerHeight: 32,
+matchTriggerWidth: true, popupWidth, active })` opts into a stable boxed trigger.
+Hover/expanded never change its edge; `active` changes only the selected surface
+and can be updated with `update({ active })`. The shared chevron does not change
+shape. `matchTriggerWidth` makes the popup exactly the trigger width;
+`popupWidth` sets a numeric pixel width otherwise. Existing selection/search/
+keyboard/disabled contracts and default presentation are unchanged. Keyboard
+focus remains distinguishable even when hover and expanded edges are stable.
+
+`workspaceSelectionRow({ label, checked, disabled, leading, trailing, color,
+onChange })` returns `{ root, control, update({ checked, disabled }), destroy }`.
+The `control` is a named checkbox button with native Space/Enter activation.
+`leading` is decorative/content before the label; `trailing` is a **sibling** slot
+for status or an independent retry button, never a nested button. `color` is a
+host-supplied CSS color/token for the check; it carries no business meaning.
+`workspaceSwitch({ label, checked, disabled, onChange })` returns the same
+controller shape, with `root === control` and `role=switch`. Both notify the
+host of a changed boolean immediately; hosts retain request, rollback and save
+ownership, and synchronize state with `update`. Destroy detaches activation.
+
+Compact dialog action buttons composed under `.bb-ws-actions` use 34px height,
+14px horizontal padding and 13px text. Hosts supply actions/content, rather than
+overriding shared button presentation. Structured help consumes the first Escape
+only while its explanation is visible; the next Escape reaches the native modal.
+Popup positioning uses untransformed layout dimensions so entrance animation
+cannot invalidate viewport clamping. Explicit combobox `popupWidth` opts out of
+the legacy 150px minimum; `matchTriggerWidth` takes precedence when both are set.
+`workspaceActionIcon` also supports the business-neutral `clock`, `users`,
+`calendar`, `share`, and `folder` symbols; icon meaning and accessible names remain
+with the owning controls.
+
+Explanation Escape priority is owned by the containing `workspaceDialog`:
+a capture handler looks up only help nodes still present in that dialog, and
+dismisses a currently visible explanation before the native modal or a nested
+choice receives that key. The same key cannot dismiss two layers. Help keeps an
+explicit Escape dismissal while either pointer hover or focus remains inside;
+moving the mouse alone cannot revive a focused explanation. Both pointer and
+focus must leave before a new automatic interaction can show it; clicking is an
+explicit reopen. The dialog removes its capture listener during close/dispose;
+help keeps only node-local listeners and a weak lookup, with no document/window
+listener or persistent subscription to detached content.
+
+Anchored surfaces accept `padding: 'none'` for host content that already owns its
+internal spacing. This adds an explicit flush class; omitted padding retains the
+white surface's 14px/8px/8px spacing or the muted surface's 16px bottom spacing.
+Explanation dismissal uses received mouseenter/mouseleave state and actual focus
+containment, not CSS `matches(':hover,:focus-within')`, which can disagree with
+computed tooltip visibility during native pointer sequences.
+
+`workspaceAnchoredPopover({ anchor, positionAnchor })` can measure a separate
+layout node (for example a containing cell) without changing the trigger's
+ARIA, outside-click behavior, or focus restoration. `positionAnchor` defaults to
+`anchor`. Both must remain connected; removing either closes the surface and
+prevents reopening until they are connected again. Placement/alignment/clamping
+are otherwise unchanged.
+
+`workspaceButton({ variant: 'icon', attrs: { 'aria-label': name } })` explicitly
+opts into a 32px square icon control with zero padding, 16px decorative SVG and a
+stable inset 1px edge. Hover/expanded change only surface/foreground, including
+inside `workspaceTopbar`. Hosts supply the accessible name and icon node; button
+activation/disabled and default button variants are unchanged.
