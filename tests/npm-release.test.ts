@@ -818,7 +818,7 @@ describe('npm release CLI', () => {
       'git merge-base --is-ancestor ' + sha + ' trusted/develop',
       'git status --porcelain=v1 --untracked-files=all',
       'npm run build',
-      'npm test -- --maxWorkers=2',
+      'npm test -- --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000',
       'npm audit --omit=dev',
       'git status --porcelain=v1 --untracked-files=all'
     ]);
