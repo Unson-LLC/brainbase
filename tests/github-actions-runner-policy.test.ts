@@ -47,12 +47,13 @@ describe('public CI self-hosted runner policy', () => {
     expect(publishJob).not.toMatch(/github\.event\.pull_request/u);
   });
 
-  it('AC-011 posts verify-skill on a hosted runner for same-repository heads into develop only', async () => {
+  it('AC-011 posts verify-skill on a hosted runner for same-repository heads into every target branch', async () => {
     const workflow = await readRepoFile('.github/workflows/verify-skill.yml');
     expect(workflow.match(/^[ \t]*runs-on:.*$/gmu)?.map((line) => line.trim())).toEqual(['runs-on: ubuntu-latest']);
-    expect(workflow).toMatch(/  pull_request:\n    branches: \[develop\]\n/u);
+    expect(workflow).toMatch(/  pull_request:\n    types:/u);
+    expect(workflow).not.toMatch(/branches:|skipped for base|\$base/u);
     expect(workflow).toMatch(/github\.event\.pull_request\.head\.repo\.full_name == github\.repository/u);
-    expect(workflow).toMatch(/if \[ "\$base" != develop \]; then/u);
+    expect(workflow).toContain('python3 .github/scripts/verify_skill_status.py "$GITHUB_REPOSITORY" "$PR_NUMBER"');
     expect(workflow).not.toMatch(/pull_request_target:|secrets\.|id-token:\s*write|contents:\s*write/u);
     expect(workflow).toMatch(/persist-credentials: false/u);
     for (const line of workflow.match(/^[ \t]*-?[ \t]*uses:.*$/gmu) ?? []) {
