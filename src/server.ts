@@ -24,7 +24,7 @@ import {
   decodePersonalKnowledgeContextHeader,
   PERSONAL_KNOWLEDGE_CONTRACT_VERSION,
   validatePersonalKnowledgeContext,
-  type PersonalKnowledgeClient,
+  PersonalKnowledgeClient,
   type PersonalKnowledgeContext,
   type PersonalKnowledgeEventInput,
   type PersonalKnowledgeStore
@@ -69,6 +69,7 @@ const personalKnowledgeEventSchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional()
 }).strict();
 
+const personalKnowledgeRejectSchema = z.object({ event_id: z.string().trim().min(1) }).strict();
 const personalKnowledgeContextSchema = z.object({}).strict();
 const personalKnowledgeRegisterSchema = z.object({ event: personalKnowledgeEventSchema }).strict();
 const personalKnowledgeSearchSchema = z.object({
@@ -277,6 +278,17 @@ export const toolDefinitions = [
     }
   },
   {
+    name: 'personal_knowledge_reject',
+    description: 'Retract an event through the authenticated Personal Knowledge API. Requires API storage; identity comes from trusted configuration. This is not physical deletion.',
+    annotations: { readOnlyHint: false, destructiveHint: true },
+    inputSchema: {
+      type: 'object',
+      required: ['event_id'],
+      additionalProperties: false,
+      properties: { event_id: { type: 'string', minLength: 1 } }
+    }
+  },
+  {
     name: 'personal_knowledge_search',
     description: 'Search the explicitly configured v1 personal knowledge context. The result includes the verified context and never falls back to another store.',
     inputSchema: {
@@ -457,6 +469,7 @@ export const toolDefinitions = [
 const managedPersonalKnowledgeToolNames = new Set([
   'personal_knowledge_context',
   'personal_knowledge_register',
+  'personal_knowledge_reject',
   'personal_knowledge_search'
 ]);
 
@@ -548,6 +561,14 @@ function configuredPersonalKnowledgeRuntime(): PersonalKnowledgeRuntime {
 }
 
 async function callPersonalKnowledgeTool(name: string, rawArgs: unknown): Promise<unknown> {
+  if (name === 'personal_knowledge_reject') {
+    const args = personalKnowledgeRejectSchema.parse(rawArgs ?? {});
+    const runtime = configuredPersonalKnowledgeRuntime();
+    if (!(runtime instanceof PersonalKnowledgeClient)) {
+      throw new Error('Personal Knowledge rejection requires authenticated API storage; local retraction is not supported.');
+    }
+    return runtime.reject(args.event_id);
+  }
   const runtime = configuredPersonalKnowledgeRuntime();
   if (name === 'personal_knowledge_context') {
     personalKnowledgeContextSchema.parse(rawArgs ?? {});
@@ -567,7 +588,7 @@ async function callPersonalKnowledgeTool(name: string, rawArgs: unknown): Promis
 export async function callBrainbaseTool(name: string, rawArgs: unknown = {}, options: { foundation?: FoundationPublicConnection } = {}): Promise<unknown> {
   const mode = configuredPersonalKnowledgeMode();
   if (mode === 'managed_cloud' && !isPersonalKnowledgeTool(name)) {
-    throw new Error('managed_cloud Personal Knowledge MCP only permits personal_knowledge_context, personal_knowledge_register, and personal_knowledge_search.');
+    throw new Error('managed_cloud Personal Knowledge MCP only permits personal_knowledge_context, personal_knowledge_register, personal_knowledge_reject, and personal_knowledge_search.');
   }
   if (name.startsWith('foundation_')) return callFoundationPublicTool(name, rawArgs, options.foundation);
   if (isPersonalKnowledgeTool(name)) {

@@ -26,23 +26,28 @@
 
 | ジョブ名 | 目的 | ワークフロー | ランナー |
 | --- | --- | --- | --- |
-| PR headの正式release検証（`formal-release-validate-linux`） | pull requestのimmutableなheadでbuild、完全テスト、production依存監査、pack、consumer smokeを実行し、proofとtarballを短期保存する | `.github/workflows/test.yml`（`pull_request`） | `[self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]` |
+| PR headの正式release検証（`formal-release-validate-linux`） | pull requestのimmutableなheadでbuild、完全テスト、production依存監査、pack、consumer smokeを実行し、proofとtarballを短期保存する | `.github/workflows/test.yml`（`pull_request`） | `[self-hosted, Linux, X64, unson-ci-linux]` |
+| 検証記録のstatus（`Post verify-skill status`） | `develop`あてのpull requestの本文とコメントから、書き込み権限のある投稿者の`RUNNER_VERIFY`行を読み、現在のheadに`verify-skill`のcommit statusを付ける | `.github/workflows/verify-skill.yml`（`pull_request`・`issue_comment`） | `ubuntu-latest` |
 
 ## 手動実行
 
 | ジョブ名 | 目的 | ワークフロー | ランナー |
 | --- | --- | --- | --- |
-| Cloudflare Worker secret同期 | 対象account IDを固定確認し、`brainbase-tenant-runtime`の`BRAINBASE_SERVICE_JWT`を1件だけ更新する | `.github/workflows/docs-cloudflare-pages.yml` | `[self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]` |
+| Cloudflare Worker secret同期 | 対象account IDを固定確認し、`brainbase-tenant-runtime`の`BRAINBASE_SERVICE_JWT`を1件だけ更新する | `.github/workflows/docs-cloudflare-pages.yml` | `[self-hosted, Linux, X64, unson-ci-linux]` |
 
 ## ランナー
 
 CIの通常jobは、組織のself-hosted runnerである次のラベルだけで実行する。
 
 ```yaml
-runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
+runs-on: [self-hosted, Linux, X64, unson-ci-linux]
 ```
 
+`unson-ci-linux`は「CIの標準環境（Ubuntu 24.04、x64のNode 22、python3、PostgreSQL 16、共有の`~/.npm`）を入れ終えたLinuxランナー」を表す組織共通の目印で、特定の機械を指さない。EVO-X2のWSLのLinuxランナー12本に付いており、ほかの機械（Beelinkなど）は環境を確かめてから同じ目印を付けて加える。workflowで新しい目印を使う前に、必ずランナー側へ先に付ける。付いたランナーが1本もないと、jobは待ちのまま止まる。自前のランナーが止まったときや詰まったときは、変数`CI_RUNNER_BACKUP`を`on`にしてGitHub-hosted runner（`ubuntu-latest`）へ逃がす。
+
 例外は、npm provenance（sigstoreの来歴署名）を付けて公開する`npm-publish.yml`のpublish jobだけで、`runs-on: ubuntu-latest`で実行する。npmはprovenanceをGitHub-hosted runnerからしか受け付けず、self-hosted runnerでは`npm publish --provenance`が`E422 Unsupported GitHub Actions runner environment: "self-hosted"`で拒否される（2026-10-15、0.41.5のrun 38713407935）。`test.yml`の`formal-release-validate-linux`は同じself-hostedラベルで実行する。このjobは`contents: read`だけを持ち、Secrets・OIDC・npm公開・deploy権限を持たない。publish jobはpull requestのheadを読まず、`main`とvalidate jobが作ったartifactだけを使う。
+
+`verify-skill.yml`もGitHub-hosted runnerで実行する。マージ用のwrapperは`develop`あてのpull requestに`verify-skill`のcommit statusを求め、このjobがそのstatusを付ける。PRコメントは誰でも書けるので、`issue_comment`で動くこのjobを組織のmachineに載せない。コメントのときは既定ブランチのスクリプトだけを実行する。`pull_request`では、headがこのリポジトリ自身のときだけ動く。`develop`以外あてのpull requestにはstatusを付けない。判定は`.github/scripts/verify_skill_status.py`で、記録の形式と信頼の条件は社内のrunner-mergeの手順と同じにする。
 
 EVO-X2は1台の機械に複数のrunnerを載せている。Vitestは既定で機械のコア数に合わせて並列数を決めるため、複数のjobが同時に動くと機械が飽和し、変更と無関係なテストが5秒の上限で落ちる（2026-10-15、PR #786で3回続けて発生）。`test.yml`のテストは`--maxWorkers=4`で並列数を固定する。手元で全テストを3本同時に走らせると、既定では各9〜10件が時間切れになり、4に固定すると全件合格した。
 

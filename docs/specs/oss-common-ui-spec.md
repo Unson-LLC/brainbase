@@ -31,9 +31,12 @@ Mana委任UI（`ui/outcome-mana`、そのCSSと`ui/icons/mana`）は、0.8.0の�
 
 ### ページヘッダー
 
-- `workspaceTopbar(document, { title })` はタイトルだけの共通バー。本文と同じcanvas背景、文字20px/28px・weight600、上12px・下16px・左右32px（高さ56px）。下線・装飾は付けない。寸法は `--bb-page-header-*` / `--bb-page-title-*` を参照する。スクロール領域の上端へsticky固定し、本文やfocus対象を隠さない。ホストはバーの直下に追加の上余白を入れない。
+- `workspaceTopbar(document, { title, query })` はタイトルと任意の検索欄を持つ共通バー。検索が不要ならqueryを省略する。返されたheaderの `setQuery(input | null)` で所有元のinputとhandlerを保持して検索を更新でき、最初の子要素は常にh1。本文と同じcanvas背景、文字20px/28px・weight600、上12px・下16px・左右32px（高さ56px）。下線・装飾は付けない。寸法は `--bb-page-header-*` / `--bb-page-title-*` を参照する。スクロール領域の上端へsticky固定し、本文やfocus対象を隠さない。ホストはバーの直下に追加の上余白を入れない。
+- `workspaceSearchControl(document, { input })` は幅240px・高さ36px・文字13px・アイコン16pxの共通検索部品。白い面と通常の枠を持ち、ヘッダー内と本文操作帯で同じ部品を使う。入力の値・検索処理・ラベルは所有元が渡す。
 - 件数、追加ボタン、画面固有のフィルターは本文の操作帯に置く。全ページ共通の用途が定義されていない3点メニューは追加しない。
 - 世界のような没入型キャンバスはヘッダーを出さず、画面上端から内容を表示する。
+- 単独ページの本文見出しもH1とし、`--bb-page-title-font-size` / `--bb-page-title-line-height` / `--bb-page-title-font-weight` を参照する。画面・viewportごとのサイズを定義しない。
+- `workspacePageHeader` のleadは60字以内・1文までを表示し、それを超える全文は既存 `workspaceHelp` の「？」へ置く。`help` で明示の補足も渡せる。長いleadの全文に補足を続け、説明を失わない。権限を含むleadを呼び出し元で組み立てる場合は `preserveLead: true` で自動分割を止め、操作説明だけを `help` に渡す。状態・権限・失敗・出典は説明と分けて維持する。
 - `workspacePageHeader` は本文の説明・出典・操作を組み立てる既存部品。共通バーを使うホストは `.bb-ws-has-topbar` で重複タイトルを省き、固有の操作や説明を保持する。
 
 ### 文字の濃さと主ボタン・失敗のカード
@@ -49,6 +52,7 @@ Mana委任UI（`ui/outcome-mana`、そのCSSと`ui/icons/mana`）は、0.8.0の�
 - 継続して内容が更新される詳細は `workspaceDetailDrawer` を使う。`setContent` は内容更新、`open` は明示的なユーザー操作や詳細リンク、`close` は終了、`dispose` は画面破棄に対応する。
 - 単発の詳細は `workspaceDialog(..., { presentation: 'drawer' })`。ホスト所有のdialogは `workspaceApplyDrawer` / `workspaceCloseDrawer` を使い同じ幅・開閉モーション・reduced motionへ揃える。
 - Escape、背景クリック、閉じるボタン、モーダルのfocus制御、閉じた後の選択行へのfocus復帰を保持する。非同期応答が来ても、閉じたdrawerを勝手に開き直さない。画面離脱時は破棄して古い応答が前画面を復活させない。
+- 背景クリックで閉じる動作は `closedby="any"` をブラウザに任せる。未対応のブラウザ（Safari）だけ、機能検出のうえでポインタ位置の判定を使う。どちらも `cancel` と同じ終了処理を通る。
 - 知識・議事録は `detailPresentation: 'drawer'` を明示できる。互換性のため未指定時は既存のinline表示を保持する。会議作成、保存結果、失敗、再試行も到達可能な状態に保つ。
 
 ### 所有と変更手順
@@ -56,6 +60,16 @@ Mana委任UI（`ui/outcome-mana`、そのCSSと`ui/icons/mana`）は、0.8.0の�
 共通UIとトークンはこのOSSリポジトリ、組織のルーティング・認証・権限・監査は組織ホスト、テナントの値は設定リポジトリが所有する。[所有境界ADR](../architecture/oss-organization-ui-ownership.md)に従う。ブランド資料とトークンの役割も同ADRを参照する。
 
 共通部品の変更はOSSへ先に実装・テストし、正式公開npmのexact pinを組織ホストへ取り込む。ホストによるコピー、共通CSSの上書き、DOM監視での共通部品の移設は避け、明示的なオプションとライフサイクルで合成する。
+
+### Webの機能の選び方
+
+`ui/` のHTML・CSS・ブラウザ側JavaScriptを書く前に、`modern-web-guidance`（版は `package.json` のdevDependenciesに固定）で該当するガイドを読む。手順は `.claude/skills/modern-web-guidance/SKILL.md`。一部のブラウザが未対応の機能は、機能検出つきの代替を残す。`tests/ui/modern-web-legacy-scan.test.mjs` が `ui/` に古い書き方が入るのを止めるが、機械的に見るのはガイドの約20%である。
+
+対応ブラウザの基準は、機能ごとのBaselineの区分で決める。2026-11-12時点の `ui/` の使い方（`:has()`、`color-mix()`、`dvh`、`inert` を代替なしで使う）を追認したもので、変えるときはこの節を先に直す。
+
+- Widely available: そのまま使う。
+- Newly available: 使ってよい。無いブラウザで操作が止まる機能は、機能検出つきの代替を置く。
+- Limited availability（主要ブラウザのどれかが未対応）: 無くても操作が完結する上乗せとしてだけ使う。代替は既存の処理を機能検出で囲んで残す。例は `closedby`。
 
 ### 検証
 
@@ -76,7 +90,9 @@ desktop/mobile、長いタイトル、スクロール時の固定、詳細の開
 
 The shared appearance is 44px high, 13px text at weight500, no gap and 12px internal horizontal padding. Hover does not change foreground or background. The 1px baseline and 2px selected indicator share the same bottom edge. Strips scroll horizontally within their own bounds, preserve hidden nodes and show keyboard focus. Layout gutters and vertical margins remain the host's responsibility. Use `bb-ws-tab-count` only for existing counts, and `bb-ws-tabs--summary` when a tab already has a secondary line.
 
-`workspaceTabStrip(root, { memoryKey })` is the opt-in for keyboard switching and a sliding indicator ([Story](../stories/story-shared-tab-strip-keys-and-indicator-v1.md)). It applies `workspaceTabList` and returns `{ root, update, destroy }`; calling it again on the same root returns the same controller. On a `role="tab"` child, ←/→ move to the previous/next tab and wrap, Home/End go to the first/last; hidden and disabled tabs are skipped and modified keys are ignored. Selection is made by calling the tab's own `click()`, so the host's handler stays the owner. Only the selected tab has `tabindex="0"`. When the host redraws after a key move, focus returns to the new selected tab and it is scrolled into view, unless the viewer has moved focus elsewhere. The 2px indicator becomes one `::after` bar that slides between tabs; strips redrawn as new nodes pass the same `memoryKey` so the bar slides from the previous position. A host that replaces the children of a kept root calls `update()` after drawing. Reduced motion removes the slide. When a tab cannot be measured, the per-tab indicator above stays.
+`workspaceTabStrip(root, { memoryKey, appearance })` is the opt-in for keyboard switching and a sliding indicator ([Story](../stories/story-shared-tab-strip-keys-and-indicator-v1.md)). It applies `workspaceTabList` and returns `{ root, update, destroy }`; calling it again on the same root returns the same controller. On a `role="tab"` child, ←/→ move to the previous/next tab and wrap, Home/End go to the first/last; hidden and disabled tabs are skipped and modified keys are ignored. Selection is made by calling the tab's own `click()`, so the host's handler stays the owner. Only the selected tab has `tabindex="0"`. When the host redraws after a key move, focus returns to the new selected tab and it is scrolled into view, unless the viewer has moved focus elsewhere. The 2px indicator becomes one `::after` bar that slides between tabs; strips redrawn as new nodes pass the same `memoryKey` so the bar slides from the previous position. A host that replaces the children of a kept root calls `update()` after drawing. Reduced motion removes the slide. When a tab cannot be measured, the per-tab indicator above stays.
+
+The optional `appearance: 'prominent'` applies `.bb-ws-tabs--prominent`, the shared card-inbox appearance: 43px tabs, 14px text at weight500 (selected 600), 16px horizontal padding, 4px gap, `--bb-tab-prominent-ink` foreground/2px indicator (defaults to `--bb-color-accent`) and `--bb-tab-prominent-hover` (defaults to `--bb-inbox-tab-hover`). At 768px and below it wraps with 10px horizontal padding and uses a per-tab underline. The card inbox explicitly selects this variant; ordinary inbox and unspecified strips keep their prior appearance. Selection uses the existing ARIA state; hosts call `update()` after updating kept strips. Use the shared variant instead of importing inbox CSS or copying its selectors into hosts. Container placement and margins stay with the host; prominent strips do not draw a baseline, so the host toolbar owns its bottom border. The optional ink/hover properties are resolved with fallbacks on the strip instead of root aliases, preserving scoped accent/hover customization. A host with a different local accent can explicitly inject `--bb-tab-prominent-ink: var(--bb-color-action)` on its toolbar without overriding shared selectors.
 
 Application must be explicit: do not style every `role=tablist` globally. Task list/kanban/Gantt view modes remain unmarked and retain their existing segmented appearance. Search toolbar placement and intake-page styling are independent changes. Organization hosts consume the published exact-pinned package; source-backed previews do not replace that release gate.
 
@@ -136,3 +152,18 @@ Hosts set the following custom properties on their navigation container instead 
 | `--bb-area-section-link-indicator-display` | `inline` (`none` hides the decorative chevron) |
 
 The heading link's padding-top token replaces the top edge of the label padding, as before. Presentation options do not change routing, remembered screens, section links, counts, keyboard focus or hidden-screen behavior. Hosts consume the published exact-pinned package for these options.
+
+### セグメント型タブと絞り込み
+
+- `workspaceTabStrip(root, { appearance: 'segmented' })` は外枠36px・内側30pxの囲みタブ。既存default/prominentの外観は変えない。選択状態・クリック処理は所有元、キー操作と選択面の移動・再描画後のfocusは共通部品が持つ。
+- `workspaceFilterPopover` は幅280px・余白16px・角丸12pxの共通surfaceを持つ。`appearance: 'icon'` は36pxの絞り込みアイコンボタン。既存文字triggerは省略時のまま。条件やmenu semanticsは所有元が保持する。
+- `setOpen(value, focus = false)` と `isOpen` が論理的な開閉の正本。閉じるとすぐaria-expandedをfalse、panelをinert/aria-hiddenにして非操作にし、180msで上へ8px移動しながら消したあとhiddenにする。開く動きは240ms。閉じる途中のhiddenを開閉判定に使わない。
+- 再openは終了待ちを取り消す。`destroy()` は即時非表示・timer/listener清掃。Escapeはtriggerへfocusを戻し、reduced motionでは終了を待たずに非表示にする。DOM監視や見本専用のghostコピーは本体へ持ち込まない。
+
+### Directory filter choices and applied conditions
+
+`workspaceFilterOption(document, { label, count, checked, disabled, role, attrs, onClick })` returns a button with separate check, label and count cells. `count` may be an unknown/partial description and is never inferred as zero. Selection is expressed by `aria-checked` and a check, with a neutral background; only hover paints the row. Callers retain condition changes, dismissal and focus.
+
+`workspaceFilterChip(document, { label, onRemove, attrs })` provides the shared mint applied-condition surface and individual remove action. The host retains removal and focus behavior. Search-bearing topbars use `--bb-page-header-inline-end` (default `--bb-space-5`) to align the search edge with the host content gutter.
+
+The shared review orange is `--bb-color-review`; the inbox approval stripe aliases this token. Knowledge directory type labels use explicit type tokens and retain their text. `judgment`/`decision` and `document`/`knowledge` aliases share their respective type color; missing or unrecognized types retain the neutral label.

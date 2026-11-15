@@ -51,7 +51,13 @@
 .objective-editor-root textarea { font: inherit; }
 .objective-editor-root h1,
 .objective-editor-root p { margin: 0; }
-.objective-editor-root h1 { margin: 4px 0 8px; font-size: clamp(1.45rem, 3vw, 2rem); letter-spacing: -.02em; line-height: 1.25; }
+.objective-editor-root h1 {
+  margin: 4px 0 8px;
+  letter-spacing: -.02em;
+  font-size: var(--bb-page-title-font-size);
+  font-weight: var(--bb-page-title-font-weight);
+  line-height: var(--bb-page-title-line-height);
+}
 .objective-editor-root [hidden],
 .bb-objective-rail [hidden] { display: none !important; }
 
@@ -236,9 +242,9 @@ textarea.objective-editor-input { min-height: 5.4rem; resize: vertical; }
 .bb-objective-judgment.is-draft { color: var(--bb-color-warning); }
 .bb-objective-judgment.is-unresolved { color: var(--bb-color-quiet); font-weight: 500; }
 .bb-objective-story { margin-top: var(--bb-space-6); }
-.bb-objective-notice-body { display: grid; gap: var(--bb-space-2); min-width: 0; }
+.bb-objective-notice-body { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
 .bb-objective-notice-body p { margin: 0; overflow-wrap: anywhere; }
-.bb-objective-notice-body .bb-ws-button { justify-self: start; }
+.bb-objective-notice-body .bb-ws-button { min-height: 20px; padding: 0 5px; font-size: 11px; }
 
 .bb-objective-rail { display: block; }
 .bb-objective-rail > .bb-ws-notice { margin: var(--bb-space-4) 0 0; }
@@ -285,4 +291,21 @@ textarea.objective-editor-input { min-height: 5.4rem; resize: vertical; }
   .objective-editor-inline-form { grid-template-columns: 1fr; }
   .objective-editor-criterion-row { grid-template-columns: 1fr 1fr; }
   .objective-editor-criterion-row .objective-editor-button-danger { grid-column: 1 / -1; justify-self: start; }
+}
+
+/* Keep scope/status notices compact, including host-supplied source notices. */
+.bb-objective-workspace .bb-ws-notice,
+.bb-objective-rail .bb-ws-notice {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 10px;
+  width: fit-content;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 8px 0;
+  padding: 6px 10px;
+  line-height: 1.5;
+}
+@media (max-width: 760px) {
+  .bb-objective-workspace .bb-ws-notice,
+  .bb-objective-rail .bb-ws-notice { grid-template-columns: minmax(0, 1fr); }
 }
