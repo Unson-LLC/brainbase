@@ -26,9 +26,6 @@ jobs:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
     timeout-minutes: 30
-    env:
-      # Keep fixtures separate from other runner slots and their /tmp cleanup.
-      TMPDIR: ${{ runner.temp }}
     services:
       postgres:
         image: postgres:16
@@ -75,6 +72,7 @@ jobs:
       - name: Run complete package suite on Node 22
         if: ${{ matrix.suite == 'complete' }}
         env:
+          TMPDIR: ${{ runner.temp }}
           CANONICAL_TASK_PG_TEST_ADMIN_URL: postgresql://postgres:local-ci-test-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgres
           CANONICAL_TASK_PG_TEST_URL: postgresql://postgres:local-ci-test-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgres
           CANONICAL_TASK_PG_TEST_REQUIRED: '1'
@@ -82,6 +80,8 @@ jobs:
 
       - name: Run representative integration suite on Node 20
         if: ${{ matrix.suite == 'representative' }}
+        env:
+          TMPDIR: ${{ runner.temp }}
         run: npm run test:integration -- --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000
 
       - name: Summarize failed or cancelled package validation
@@ -100,9 +100,6 @@ jobs:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
     timeout-minutes: 30
-    env:
-      # Keep fixtures separate from other runner slots and their /tmp cleanup.
-      TMPDIR: ${{ runner.temp }}
     permissions:
       contents: read
     steps:
@@ -142,6 +139,7 @@ jobs:
 
       - name: Run formal release validation without publication credentials
         env:
+          TMPDIR: ${{ runner.temp }}
           RELEASE_SHA: ${{ steps.target.outputs.sha }}
           RELEASE_VERSION: ${{ steps.target.outputs.version }}
           TRUSTED_REF: ${{ steps.target.outputs.trusted_ref }}
