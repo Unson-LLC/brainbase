@@ -9,5 +9,10 @@ export function sharedRunnerTimeouts(env) {
 }
 
 export default defineConfig({
-  test: sharedRunnerTimeouts(process.env),
+  test: {
+    ...sharedRunnerTimeouts(process.env),
+    // Puts fixture-heavy tests' throwaway data on memory-backed /dev/shm when it
+    // exists, so they do not wait on a disk that other CI jobs are writing to.
+    globalSetup: ['./tests/helpers/fixture-root.global-setup.mjs'],
+  },
 });
