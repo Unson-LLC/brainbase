@@ -18,10 +18,13 @@
 
 ```text
 waiting -> claimed -> resumed
-waiting/claimed -> handoff_required  (premise changed; new Problem required)
-waiting/claimed -> reconciliation_wait (external effect unknown)
-waiting/claimed -> failed | cancelled
+claimed -> claimed                                      (handoff of an expired lease)
+waiting/claimed/handoff_required -> handoff_required    (premise changed; new Problem required)
+waiting/claimed/handoff_required -> reconciliation_wait (external effect unknown)
+reconciliation_wait -> effect_confirmed | waiting | reconciliation_wait (reconciled: performed | not performed | still unknown)
 ```
+
+遷移の正本は `src/durable-waits.ts` の `DURABLE_WAIT_TRANSITIONS`（[`company-os-durable-wait-transition-table-v1`](./company-os-durable-wait-transition-table-v1.md)）。`failed` と `cancelled` は型と保存済みledgerの読み取りにだけあり、そこへ進む操作は無い。
 
 - `create` は event condition または deadline/review interval の少なくとも一つを要求する。
 - `claim` は event と timer の入力を同じ atomic mutation で競合解決する。claim request は `request_id`、lease owner、token に結合する。同じ wait の active claim があれば、二つ目の入力は同じ claim を返すが `claimed_by_this_request: false` とし、その request の principal/request_id では `resume` できない。勝者の再試行だけが同じ claim を `claimed_by_this_request: true` で受け取れる。
