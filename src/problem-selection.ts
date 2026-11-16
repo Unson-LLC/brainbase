@@ -20,8 +20,11 @@ import type {
 } from './problem-candidates.js';
 import {
   createJudgmentDAGCompositionDefinition,
+  JudgmentDAGCompositionError,
   executeJudgmentDAGComposition,
   type JudgmentDAGCompositionDefinition,
+  type JudgmentDAGCompositionErrorCode,
+  type JudgmentDAGCompositionStatus,
   type JudgmentDAGCompositionRunRecord,
   type JudgmentDAGCompositionRunRequest,
   type JudgmentDAGProblemSnapshotReference
@@ -133,6 +136,119 @@ export interface ProblemSelectionEvaluationResult {
   readonly assessments?: readonly ProblemSelectionCandidateAssessment[];
   readonly unknowns?: readonly ProblemSelectionUnknown[];
   readonly objectiveConflicts?: readonly ProblemSelectionObjectiveConflict[];
+}
+
+/**
+ * The immutable identity that the Company OS producer binds to a run.
+ *
+ * This is an input from a trusted Host/Company Authority context, not an
+ * authentication assertion. OSS intentionally does not infer or authenticate
+ * a caller from these fields. The producer and Organization store must verify
+ * the binding and the current ACL before accepting an event.
+ */
+export interface JudgmentDAGCompositionRunHistoryBinding {
+  readonly organization_id: string;
+  readonly tenant_id: string;
+  readonly owner_person_id: string;
+  readonly project_code: string | null;
+  readonly turn_ref: string;
+}
+
+export type JudgmentDAGCompositionRunHistoryProducerName =
+  | 'company_os'
+  | 'codex'
+  | 'claude_code'
+  | 'mana';
+
+export interface JudgmentDAGCompositionRunHistorySource {
+  readonly producer: JudgmentDAGCompositionRunHistoryProducerName;
+  readonly producer_revision: string;
+}
+
+/** References must be supplied by the trusted producer from actual reads. */
+export interface JudgmentDAGCompositionRunHistoryReferences {
+  readonly problem_snapshot: JudgmentDAGProblemSnapshotReference;
+  readonly foundation: readonly JudgmentDAGJSONValue[];
+  readonly evidence: readonly JudgmentDAGJSONValue[];
+}
+
+export type JudgmentDAGCompositionRunHistoryState =
+  | 'started'
+  | JudgmentDAGCompositionStatus
+  | 'unknown';
+
+export type JudgmentDAGCompositionRunHistoryFailureCode = JudgmentDAGCompositionErrorCode | 'unknown';
+
+export interface JudgmentDAGCompositionRunHistoryFailure {
+  readonly code: JudgmentDAGCompositionRunHistoryFailureCode;
+  /** This message is fixed; raw executor/store exceptions are never persisted. */
+  readonly message: string;
+}
+
+export interface JudgmentDAGCompositionRunHistoryLifecycle {
+  readonly lifecycle_event_id: string;
+  readonly state: JudgmentDAGCompositionRunHistoryState;
+  readonly recorded_at: string;
+  readonly failure: JudgmentDAGCompositionRunHistoryFailure | null;
+}
+
+/**
+ * Port event understood by a trusted Host adapter and the Organization native
+ * store. The adapter may map this event to its envelope/store API, but it
+ * must preserve the run body and binding fields exactly.
+ */
+export interface JudgmentDAGCompositionRunHistoryEvent {
+  readonly run_id: string;
+  readonly binding: JudgmentDAGCompositionRunHistoryBinding;
+  readonly source: JudgmentDAGCompositionRunHistorySource;
+  readonly semantic_scope: JudgmentDAGCompositionDefinition['scope'];
+  readonly lifecycle: JudgmentDAGCompositionRunHistoryLifecycle;
+  readonly composition_run: JudgmentDAGCompositionRunRecord | null;
+  readonly references: JudgmentDAGCompositionRunHistoryReferences;
+}
+
+/**
+ * Company OS native storage boundary. Implementations own trusted binding,
+ * current ACL, idempotency, and conflict checks. A caller that merely passes
+ * a body to this port is not thereby trusted.
+ *
+ * Retry contract: the caller supplies stable lifecycle_event_id and
+ * recorded_at values, including timestamps. A producer may retry its own
+ * transport with the identical event; this wrapper never retries the
+ * executor and never creates a new event identity or time.
+ */
+export interface JudgmentDAGCompositionRunHistoryProducer {
+  readonly append: (
+    event: JudgmentDAGCompositionRunHistoryEvent
+  ) => void | Promise<void>;
+}
+
+/** Short alias for callers that name the boundary as a CompositionRun port. */
+export type JudgmentDAGCompositionRunProducer = JudgmentDAGCompositionRunHistoryProducer;
+
+export interface JudgmentDAGCompositionRunHistoryLifecycleInput {
+  readonly lifecycle_event_id: string;
+  readonly recorded_at: string;
+}
+
+export interface JudgmentDAGCompositionRunHistoryOptions {
+  readonly producer: JudgmentDAGCompositionRunHistoryProducer;
+  /** Trusted binding supplied by Host/Company Authority; OSS does not derive it. */
+  readonly binding: JudgmentDAGCompositionRunHistoryBinding;
+  readonly source: JudgmentDAGCompositionRunHistorySource;
+  readonly references: JudgmentDAGCompositionRunHistoryReferences;
+  readonly started: JudgmentDAGCompositionRunHistoryLifecycleInput;
+  readonly terminal: JudgmentDAGCompositionRunHistoryLifecycleInput;
+}
+
+interface JudgmentDAGCompositionRunHistoryMetadata {
+  readonly run_id: string;
+  readonly binding: JudgmentDAGCompositionRunHistoryBinding;
+  readonly source: JudgmentDAGCompositionRunHistorySource;
+  readonly semantic_scope: JudgmentDAGCompositionDefinition['scope'];
+  readonly references: JudgmentDAGCompositionRunHistoryReferences;
+  readonly started: JudgmentDAGCompositionRunHistoryLifecycleInput;
+  readonly terminal: JudgmentDAGCompositionRunHistoryLifecycleInput;
 }
 
 export interface ProblemSelectionEvaluationRequest {
@@ -939,6 +1055,128 @@ export const runProblemSelection = createProblemSelection;
 /** Alias for callers that name the operation as a selection. */
 export const selectProblem = createProblemSelection;
 
+const SAFE_COMPOSITION_FAILURE_MESSAGE = 'DAG composition failed before a run record was returned';
+const SAFE_COMPOSITION_HISTORY_FAILURE_MESSAGE = 'DAG composition history could not be saved';
+const SAFE_COMPOSITION_RESULT_FAILURE_MESSAGE = 'selection composition result could not be read';
+
+function snapshotCompositionHistoryMetadata(
+  request: JudgmentDAGCompositionRunRequest,
+  options: JudgmentDAGCompositionRunHistoryOptions
+): JudgmentDAGCompositionRunHistoryMetadata {
+  // Producer adapters receive a frozen JSON-only snapshot. This keeps a
+  // producer from changing the binding, references, run id, or scope between
+  // the started event and the terminal event while it performs persistence.
+  // Only metadata is cloned here: the request also contains executable
+  // snapshot/DAG/contract/port adapters and is intentionally never cloned.
+  return deepFreeze({
+    run_id: request.run_id,
+    binding: cloneJson(options.binding, 'compositionRunHistory.binding') as unknown as JudgmentDAGCompositionRunHistoryBinding,
+    source: cloneJson(options.source, 'compositionRunHistory.source') as unknown as JudgmentDAGCompositionRunHistorySource,
+    semantic_scope: cloneJson(request.delegation.scope, 'compositionRunHistory.semantic_scope') as unknown as JudgmentDAGCompositionDefinition['scope'],
+    references: cloneJson(options.references, 'compositionRunHistory.references') as unknown as JudgmentDAGCompositionRunHistoryReferences,
+    started: cloneJson(options.started, 'compositionRunHistory.started') as unknown as JudgmentDAGCompositionRunHistoryLifecycleInput,
+    terminal: cloneJson(options.terminal, 'compositionRunHistory.terminal') as unknown as JudgmentDAGCompositionRunHistoryLifecycleInput
+  });
+}
+
+function compositionHistoryReview(reason: string): ProblemSelectionEvaluationResult {
+  return {
+    status: 'human_review_required',
+    reason,
+    unknowns: [{ status: 'unknown', reason }],
+    objectiveConflicts: []
+  };
+}
+
+function compositionHistorySaveFailure(): ProblemSelectionEvaluationResult {
+  const reason = `selection composition history unavailable: ${SAFE_COMPOSITION_HISTORY_FAILURE_MESSAGE}`;
+  return compositionHistoryReview(reason);
+}
+
+function compositionFailureCode(cause: unknown): JudgmentDAGCompositionRunHistoryFailureCode {
+  return cause instanceof JudgmentDAGCompositionError ? cause.code : 'unknown';
+}
+
+function compositionHistoryEvent(
+  metadata: JudgmentDAGCompositionRunHistoryMetadata,
+  lifecycle: JudgmentDAGCompositionRunHistoryLifecycleInput,
+  state: JudgmentDAGCompositionRunHistoryState,
+  compositionRun: JudgmentDAGCompositionRunRecord | null,
+  failure: JudgmentDAGCompositionRunHistoryFailure | null
+): JudgmentDAGCompositionRunHistoryEvent {
+  return deepFreeze({
+    run_id: metadata.run_id,
+    binding: metadata.binding,
+    source: metadata.source,
+    semantic_scope: metadata.semantic_scope,
+    lifecycle: {
+      lifecycle_event_id: lifecycle.lifecycle_event_id,
+      state,
+      recorded_at: lifecycle.recorded_at,
+      failure
+    },
+    composition_run: compositionRun,
+    references: metadata.references
+  });
+}
+
+async function appendCompositionHistoryEvent(
+  options: JudgmentDAGCompositionRunHistoryOptions,
+  event: JudgmentDAGCompositionRunHistoryEvent
+): Promise<boolean> {
+  try {
+    await options.producer.append(event);
+    return true;
+  } catch {
+    // The persistence implementation may retry its own transport. The
+    // wrapper does not retry or expose the store's raw error.
+    return false;
+  }
+}
+
+function isCompositionRunStatus(value: unknown): value is JudgmentDAGCompositionStatus {
+  return value === 'completed' || value === 'failed' || value === 'held';
+}
+
+function sameCompositionHistoryJson(left: unknown, right: unknown): boolean {
+  try {
+    return canonicalJson(left) === canonicalJson(right);
+  } catch {
+    return false;
+  }
+}
+
+function isCompositionRunBoundToHistoryMetadata(
+  run: JudgmentDAGCompositionRunRecord,
+  metadata: JudgmentDAGCompositionRunHistoryMetadata
+): boolean {
+  return (
+    run.run_id === metadata.run_id &&
+    isCompositionRunStatus(run.status) &&
+    sameCompositionHistoryJson(run.delegation.scope, metadata.semantic_scope) &&
+    sameCompositionHistoryJson(run.problem_snapshot, metadata.references.problem_snapshot)
+  );
+}
+
+function compositionResultFromRun(
+  run: JudgmentDAGCompositionRunRecord,
+  resultInvocationId: string | undefined
+): ProblemSelectionEvaluationResult {
+  if (run.status !== 'completed') {
+    const reason = `selection composition status is ${run.status}`;
+    return compositionHistoryReview(reason);
+  }
+  const child = resultInvocationId === undefined
+    ? run.children[run.children.length - 1]
+    : run.children.find((entry) => entry.invocation_id === resultInvocationId);
+  if (child === undefined) return compositionHistoryReview('selection composition returned no designated result child');
+  if (child.result.status !== 'completed' || !isPlainRecord(child.result.conclusion)) {
+    const reason = child.result.reason ?? `selection child status is ${child.result.status}`;
+    return compositionHistoryReview(reason);
+  }
+  return child.result.conclusion as unknown as ProblemSelectionEvaluationResult;
+}
+
 /**
  * Adapter helper for a composition whose designated child returns the
  * selection contract in its conclusion. The meta Problem remains the exact
@@ -948,27 +1186,86 @@ export const selectProblem = createProblemSelection;
 export async function evaluateProblemSelectionWithComposition(input: {
   readonly compositionRequest: JudgmentDAGCompositionRunRequest;
   readonly resultInvocationId?: string;
+  readonly compositionRunHistory?: JudgmentDAGCompositionRunHistoryOptions;
 }): Promise<ProblemSelectionEvaluationResult> {
+  const history = input.compositionRunHistory;
+  let historyMetadata: JudgmentDAGCompositionRunHistoryMetadata | undefined;
+  if (history !== undefined) {
+    try {
+      historyMetadata = snapshotCompositionHistoryMetadata(input.compositionRequest, history);
+    } catch {
+      return compositionHistoryReview(`selection composition unavailable: ${SAFE_COMPOSITION_FAILURE_MESSAGE}`);
+    }
+  }
+  if (history !== undefined) {
+    const startedEvent = compositionHistoryEvent(
+      historyMetadata!,
+      historyMetadata!.started,
+      'started',
+      null,
+      null
+    );
+    if (!await appendCompositionHistoryEvent(history, startedEvent)) return compositionHistorySaveFailure();
+  }
+
   let run: JudgmentDAGCompositionRunRecord;
   try {
     run = await executeJudgmentDAGComposition(input.compositionRequest);
   } catch (cause) {
-    const reason = cause instanceof Error ? cause.message : 'DAG composition failed';
-    return { status: 'human_review_required', reason: `selection composition unavailable: ${reason}`, unknowns: [{ status: 'unknown', reason }], objectiveConflicts: [] };
+    const failureCode = compositionFailureCode(cause);
+    if (history !== undefined) {
+      const failureEvent = compositionHistoryEvent(
+        historyMetadata!,
+        historyMetadata!.terminal,
+        failureCode === 'unknown' ? 'unknown' : 'failed',
+        null,
+        { code: failureCode, message: SAFE_COMPOSITION_FAILURE_MESSAGE }
+      );
+      if (!await appendCompositionHistoryEvent(history, failureEvent)) return compositionHistorySaveFailure();
+    }
+    return compositionHistoryReview(`selection composition unavailable: ${SAFE_COMPOSITION_FAILURE_MESSAGE}`);
   }
-  if (run.status !== 'completed') {
-    const reason = `selection composition status is ${run.status}`;
-    return { status: 'human_review_required', reason, unknowns: [{ status: 'unknown', reason }], objectiveConflicts: [] };
+
+  if (history !== undefined) {
+    let terminalEvent: JudgmentDAGCompositionRunHistoryEvent;
+    try {
+      if (!isCompositionRunBoundToHistoryMetadata(run, historyMetadata!)) {
+        terminalEvent = compositionHistoryEvent(
+          historyMetadata!,
+          historyMetadata!.terminal,
+          'unknown',
+          null,
+          { code: 'unknown', message: SAFE_COMPOSITION_FAILURE_MESSAGE }
+        );
+      } else {
+        terminalEvent = compositionHistoryEvent(
+          historyMetadata!,
+          historyMetadata!.terminal,
+          run.status,
+          cloneJson(run, 'compositionRunHistory.composition_run') as unknown as JudgmentDAGCompositionRunRecord,
+          null
+        );
+      }
+    } catch {
+      terminalEvent = compositionHistoryEvent(
+        historyMetadata!,
+        historyMetadata!.terminal,
+        'unknown',
+        null,
+        { code: 'unknown', message: SAFE_COMPOSITION_FAILURE_MESSAGE }
+      );
+    }
+    if (!await appendCompositionHistoryEvent(history, terminalEvent)) return compositionHistorySaveFailure();
+    if (terminalEvent.composition_run === null) return compositionHistoryReview(SAFE_COMPOSITION_RESULT_FAILURE_MESSAGE);
   }
-  const child = input.resultInvocationId === undefined
-    ? run.children[run.children.length - 1]
-    : run.children.find((entry) => entry.invocation_id === input.resultInvocationId);
-  if (child === undefined) return { status: 'human_review_required', reason: 'selection composition returned no designated result child', unknowns: [{ status: 'unknown', reason: 'missing selection result child' }], objectiveConflicts: [] };
-  if (child.result.status !== 'completed' || !isPlainRecord(child.result.conclusion)) {
-    const reason = child.result.reason ?? `selection child status is ${child.result.status}`;
-    return { status: 'human_review_required', reason, unknowns: [{ status: 'unknown', reason }], objectiveConflicts: [] };
+
+  try {
+    return compositionResultFromRun(run, input.resultInvocationId);
+  } catch {
+    // The terminal event was appended before this extraction. Keep the
+    // persisted run while requiring a human review of the derived selection.
+    return compositionHistoryReview(SAFE_COMPOSITION_RESULT_FAILURE_MESSAGE);
   }
-  return child.result.conclusion as unknown as ProblemSelectionEvaluationResult;
 }
 
 function selectionRecordPayload(record: ProblemSelectionRecord): ProblemSelectionRecord {

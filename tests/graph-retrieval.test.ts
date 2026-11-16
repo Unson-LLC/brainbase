@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { retrieveGraph } from '../src/graph-retrieval.js';
+import { createHttpEmbeddingProvider, type EmbeddingFetchResponse } from '../src/embedding-provider.js';
 import { canonicalResolutionGraph } from './canonical-resolution-fixture.js';
 import type { PersonalOs } from '../src/types.js';
 
@@ -109,6 +110,24 @@ describe('retrieveGraph', () => {
       id: 'bad-zero',
       embed: async (texts: string[]) => texts.map(() => [0, 0])
     })).rejects.toThrow('GRAPH-RETRIEVAL-EMBEDDING-ZERO');
+  });
+
+  it('surfaces an exhausted embedding balance from semantic search as a quota signal', async () => {
+    const quotaProvider = (status: number, body: unknown) => createHttpEmbeddingProvider({
+      url: 'http://127.0.0.1:11434/v1/embeddings',
+      model: 'm',
+      fetch: async () => new Response(JSON.stringify(body), { status }) as unknown as EmbeddingFetchResponse
+    });
+
+    // HTTP 402 is the primary quota signal.
+    await expect(retrieveGraph(os(), { query: 'Atlas', asOf }, quotaProvider(402, { error: 'embedding_provider_http_error' })))
+      .rejects.toThrow(/embedding_provider_quota_exhausted/);
+    // A quota body code surfaces the same way even when the status is not 402.
+    await expect(retrieveGraph(os(), { query: 'Atlas', asOf }, quotaProvider(503, { code: 'embedding_provider_quota_exhausted' })))
+      .rejects.toThrow(/prepaid balance/);
+    // Other upstream failures stay a generic embedding error, not a quota claim.
+    await expect(retrieveGraph(os(), { query: 'Atlas', asOf }, quotaProvider(503, { code: 'graph_vector_search_unavailable', message: 'internal secret' })))
+      .rejects.toThrow(/embedding_request_failed/);
   });
 
   it('returns only final-hop decisions at limit one with the exact traversal path', async () => {

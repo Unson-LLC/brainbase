@@ -28,7 +28,6 @@ const FIXTURE_STATUS = Object.freeze({
   data_dir: '/synthetic/ux06-personal-web',
   journal_root: '/synthetic/ux06-personal-web/judgment-journal',
   graph: { status: 'ready', format: 'v2', commands: [] },
-  organization_graph: { status: 'not_connected' },
 });
 
 const INDEX_HTML = `<!doctype html>

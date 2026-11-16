@@ -3,12 +3,17 @@ import {
   createFoundationHttpRouter,
   createObjectiveFoundationRoute,
   type FoundationHttpCsrfVerifier,
-  type FoundationHttpRouter
+  type FoundationHttpRoute,
+  type FoundationHttpRouter,
+  type ObjectiveDefinitionBuilder
 } from './foundation-http.js';
 import { checkObjectiveReadiness } from './company-os-objectives.js';
 import { createFoundationPublicProvider, createFoundationPublicRoute } from './foundation-public-provider.js';
-import { createGraphFoundationReaders, type GraphFoundationHistoryRow } from './graph-foundation-reader.js';
+import { createGraphFoundationReaders, type GraphFoundationHistoryRow, type GraphFoundationReaders } from './graph-foundation-reader.js';
 import { FoundationStoreError, type FoundationStoreContext } from './foundation-store.js';
+import { digestFoundationDefinition, nextFoundationRevision, type FoundationRef } from './foundation-catalog.js';
+import { validateFoundationGraphWrite } from './foundation-graph-write.js';
+import type { ObjectiveDefinition } from './ontology-foundation.js';
 
 /**
  * Readiness probe for the Graph history contract used by the public adapter.
@@ -30,6 +35,8 @@ export const FOUNDATION_GRAPH_READY_SQL = `SELECT
         AND tgfoid = to_regprocedure('public.guard_graph_foundation_revision_mutation()')) AS ready`;
 
 export const FOUNDATION_GRAPH_CONTRACT_VERSION = 'foundation-graph-http.v1' as const;
+export const FOUNDATION_OVERVIEW_CONTRACT_VERSION = 'foundation-overview.v1' as const;
+const FOUNDATION_CATALOG_PATH = '/api/foundation/catalog' as const;
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -64,7 +71,63 @@ export interface FoundationGraphHttpOptions {
   ) => Promise<T>;
   /** Host-owned CSRF verification port for mutation requests. */
   readonly csrf?: FoundationHttpCsrfVerifier;
+  /** Canonical host writer, using this request's authenticated transaction.
+   * Must enforce current ACL, tenant/project access and expectedRevision CAS;
+   * null means create-only. Never connect a low-level or maintenance writer.
+   */
+  readonly writeObjectiveDraft?: (input: FoundationGraphObjectiveWriteInput) => Promise<void>;
   readonly bodyLimitBytes?: number;
+}
+
+export interface FoundationGraphObjectiveWriteInput {
+  readonly definition: ObjectiveDefinition;
+  readonly expectedRevision: string | null;
+  readonly projectCode: string;
+  readonly identity: FoundationGraphTrustedIdentity;
+  readonly client: FoundationGraphQueryClient;
+}
+
+class FoundationGraphResponseError extends Error {
+  constructor(readonly response: Response) {
+    super('Foundation mutation was rejected');
+  }
+}
+
+/** Domain proposals can never supply the host's authority or provenance. */
+function graphObjectiveBuilder(projectCode: string): ObjectiveDefinitionBuilder {
+  return ({ operation, body, context, current, expectedRevision }) => {
+    if (body.adoptionState !== undefined && body.adoptionState !== 'draft') {
+      throw new FoundationStoreError('invalid_input', 'Objective writes accept draft definitions only');
+    }
+    const domain: Record<string, unknown> = {};
+    for (const key of ['meaning', 'desiredState', 'beneficiaryIds', 'criteria', 'evaluationPeriod', 'accountableId', 'epistemicState']) {
+      if (body[key] !== undefined) domain[key] = body[key];
+    }
+    const blank = (value: unknown) => value === undefined || value === null || (typeof value === 'string' && !value.trim());
+    if (isRecord(domain.evaluationPeriod)
+      && blank(domain.evaluationPeriod.from) && blank(domain.evaluationPeriod.until)) delete domain.evaluationPeriod;
+    if (blank(domain.accountableId)) delete domain.accountableId;
+    if (operation === 'update') {
+      if (!current) throw new FoundationStoreError('not_found', 'The current Objective is required');
+      if (current.revision !== expectedRevision) {
+        throw new FoundationStoreError('revision_conflict', 'Objective changed; reload before saving', { currentRevision: current.revision });
+      }
+      return {
+        ...domain, id: current.id, type: 'objective', revision: nextFoundationRevision(current.revision),
+        adoptionState: 'draft', acl: current.acl, scope: current.scope, storage: current.storage,
+        provenance: current.provenance, authorizedUses: current.authorizedUses
+      } as unknown as ObjectiveDefinition;
+    }
+    const id = typeof body.id === 'string' ? body.id.trim() : '';
+    if (!id) throw new FoundationStoreError('invalid_input', 'id is required');
+    return {
+      ...domain, id, type: 'objective', revision: '1', adoptionState: 'draft',
+      acl: { ownerId: context.principal, visibility: 'private', readerIds: [], writerIds: [] },
+      scope: { subjectIds: [projectCode], validFrom: new Date().toISOString() },
+      storage: 'candidate', authorizedUses: ['draft'],
+      provenance: [{ sourceId: 'foundation-objective-editor', sourceKind: 'candidate', evidenceIds: [] }]
+    } as unknown as ObjectiveDefinition;
+  };
 }
 
 const DEFAULT_BODY_LIMIT_BYTES = 65_536;
@@ -79,6 +142,16 @@ function jsonResponse(status: number, value: unknown): Response {
   return new Response(JSON.stringify(value), {
     status,
     headers: { 'content-type': 'application/json' }
+  });
+}
+
+function methodNotAllowed(allow: readonly string[]): Response {
+  return new Response(JSON.stringify({ error: { code: 'method_not_allowed' } }), {
+    status: 405,
+    headers: {
+      'content-type': 'application/json',
+      allow: allow.join(', ')
+    }
   });
 }
 
@@ -192,6 +265,25 @@ async function readJsonForScopeCheck(request: Request, bodyLimitBytes: number): 
   }
 }
 
+async function catalogRequestHasBody(request: Request, bodyLimitBytes: number): Promise<boolean> {
+  const contentLength = Number(request.headers.get('content-length'));
+  if (Number.isFinite(contentLength) && contentLength > 0) return true;
+  if (Number.isFinite(contentLength) && contentLength > bodyLimitBytes) return true;
+  if (!request.body) return false;
+  try {
+    return (await request.clone().text()).length > 0;
+  } catch {
+    return true;
+  }
+}
+
+function catalogQueryIsStrict(url: URL): boolean {
+  for (const key of url.searchParams.keys()) {
+    if (key !== 'scope_id') return false;
+  }
+  return true;
+}
+
 function identityIsValid(identity: FoundationGraphTrustedIdentity | null): identity is FoundationGraphTrustedIdentity {
   if (!identity) return false;
   return typeof identity.principal === 'string'
@@ -207,6 +299,43 @@ function selectedScopeIsAllowed(identity: FoundationGraphTrustedIdentity, scopeI
 
 function readyResult(result: FoundationGraphQueryResult): boolean {
   return result.rows[0]?.ready === true;
+}
+
+function createFoundationCatalogRoute(
+  readers: GraphFoundationReaders,
+  scopeId: string,
+  context: FoundationStoreContext
+): FoundationHttpRoute {
+  return {
+    name: 'foundation-catalog',
+    methods: ['GET'],
+    paths: [`GET ${FOUNDATION_CATALOG_PATH}`],
+    matches(request) {
+      return new URL(request.url).pathname === FOUNDATION_CATALOG_PATH;
+    },
+    async handle(request) {
+      if ((request.method || 'GET').toUpperCase() !== 'GET') return methodNotAllowed(['GET']);
+
+      // Resolve all collections before constructing the response. A failed
+      // history/ACL read must never be represented as an empty partial catalog.
+      const objectives = await readers.store.list('objective', context);
+      const variables = await readers.store.list('variable', context);
+      const models = await readers.store.list('model', context);
+      const philosophies = await readers.listPhilosophies(context);
+      // Philosophies without recorded applicability are still read by the
+      // judgment frame catalog; report them separately rather than as absent.
+      const philosophiesWithoutApplicability = await readers.listUnscopedPhilosophies(context);
+      return jsonResponse(200, {
+        contractVersion: FOUNDATION_OVERVIEW_CONTRACT_VERSION,
+        scopeId,
+        objectives,
+        variables,
+        models,
+        philosophies,
+        philosophies_without_applicability: philosophiesWithoutApplicability
+      });
+    }
+  };
 }
 
 /**
@@ -252,6 +381,17 @@ export function createFoundationGraphHttpHandler(options: FoundationGraphHttpOpt
         return jsonResponse(403, { error: { code: 'scope_not_allowed' } });
       }
 
+      const isCatalog = url.pathname === FOUNDATION_CATALOG_PATH;
+      if (isCatalog && (request.method || 'GET').toUpperCase() !== 'GET') {
+        return methodNotAllowed(['GET']);
+      }
+      if (isCatalog && !catalogQueryIsStrict(url)) {
+        return jsonResponse(400, { error: { code: 'unknown_query_parameter' } });
+      }
+      if (isCatalog && await catalogRequestHasBody(request, bodyLimitBytes)) {
+        return jsonResponse(400, { error: { code: 'body_not_allowed' } });
+      }
+
       const body = await readJsonForScopeCheck(request, bodyLimitBytes);
       if (hasFoundationScopeOverride(request, body, scopeId, identity.organizationId)) {
         return jsonResponse(403, { error: { code: 'scope_not_allowed' } });
@@ -286,19 +426,47 @@ export function createFoundationGraphHttpHandler(options: FoundationGraphHttpOpt
           });
           const provider = createFoundationPublicProvider(readers);
           const route = createFoundationPublicRoute(provider);
+          const catalogRoute = createFoundationCatalogRoute(readers, scopeId, context);
+          const writeObjective = async (definition: ObjectiveDefinition, expectedRevision: string | null): Promise<FoundationRef> => {
+            if (!options.writeObjectiveDraft) {
+              throw new FoundationStoreError('unsupported_graph', 'Objective writes are not configured');
+            }
+            const current = expectedRevision === null ? undefined
+              : await readers.store.readLatest('objective', definition.id, context);
+            if (expectedRevision !== null && !current) throw new FoundationStoreError('not_found', 'Objective was not found');
+            if (current && current.definition.revision !== expectedRevision) {
+              throw new FoundationStoreError('revision_conflict', 'Objective changed; reload before saving', { currentRevision: current.definition.revision });
+            }
+            const checked = validateFoundationGraphWrite({
+              context: { principal: identity.principal, projectCode: scopeId },
+              row: { id: definition.id, type: 'objective', projectCode: scopeId, revision: definition.revision, payload: { foundation: definition } },
+              expectedNextRevision: expectedRevision === null ? '1' : nextFoundationRevision(expectedRevision),
+              ...(current ? { currentDefinition: current.definition } : {})
+            });
+            if (!checked.valid || !checked.normalized) {
+              const denied = checked.issues.some((issue) => ['WRITER_NOT_AUTHORIZED', 'OWNER_MISMATCH', 'ACL_CHANGE_FORBIDDEN', 'SCOPE_VIOLATION'].includes(issue.code));
+              throw new FoundationStoreError(denied ? 'authorization_denied' : 'invalid_input', 'Objective draft validation failed');
+            }
+            const candidate = checked.normalized.definition as ObjectiveDefinition;
+            await options.writeObjectiveDraft({ definition: candidate, expectedRevision, projectCode: scopeId, identity, client });
+            const saved = await readers.store.read({ id: candidate.id, type: 'objective', revision: candidate.revision }, context);
+            const digest = digestFoundationDefinition(candidate);
+            if (!saved || saved.digest !== digest) {
+              throw new FoundationStoreError('readback_mismatch', 'The saved Objective revision could not be verified');
+            }
+            return { id: candidate.id, type: 'objective', revision: candidate.revision, digest };
+          };
           const objectiveRoute = createObjectiveFoundationRoute({
+            ...(options.writeObjectiveDraft ? { buildDefinition: graphObjectiveBuilder(scopeId) } : {}),
+            bodyLimitBytes,
             objectives: {
-              async createObjective() {
-                throw new FoundationStoreError('unsupported_graph', 'Objective writes are not configured for the Graph read adapter');
-              },
+              createObjective: (definition) => writeObjective(definition, null),
               async readObjective(id, objectiveContext, revision) {
                 return revision === undefined
                   ? readers.store.readLatest('objective', id, objectiveContext)
                   : readers.store.read({ id, type: 'objective', revision }, objectiveContext);
               },
-              async updateObjective() {
-                throw new FoundationStoreError('unsupported_graph', 'Objective writes are not configured for the Graph read adapter');
-              },
+              updateObjective: (_id, expectedRevision, definition) => writeObjective(definition, expectedRevision),
               async checkObjectiveReadiness(id, objectiveContext, revision) {
                 return checkObjectiveReadiness(readers.store, id, objectiveContext, revision);
               },
@@ -308,15 +476,22 @@ export function createFoundationGraphHttpHandler(options: FoundationGraphHttpOpt
           const handler = createFoundationHttpRouter({
             resolveContext: () => context,
             csrf: options.csrf,
-            routes: [route, objectiveRoute],
+            routes: [catalogRoute, route, objectiveRoute],
             bodyLimitBytes
           });
-          return handler.handle(request);
+          const result = await handler.handle(request);
+          // The common HTTP router renders domain errors. Re-throw the response
+          // until the host transaction rolls back, including failed readback.
+          if (!['GET', 'HEAD'].includes(request.method.toUpperCase()) && result.status >= 400) {
+            throw new FoundationGraphResponseError(result);
+          }
+          return result;
         });
         return response instanceof Response
           ? response
           : jsonResponse(503, { error: { code: 'foundation_provider_unavailable' } });
-      } catch {
+      } catch (error) {
+        if (error instanceof FoundationGraphResponseError) return error.response;
         return jsonResponse(503, { error: { code: 'foundation_provider_unavailable' } });
       }
     }

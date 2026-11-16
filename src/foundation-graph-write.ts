@@ -1,5 +1,6 @@
 import {
   cloneFoundationDefinition,
+  digestFoundationDefinition,
   nextFoundationRevision
 } from './foundation-catalog.js';
 import type {
@@ -24,6 +25,11 @@ export const FOUNDATION_GRAPH_WRITE_CONTRACT_VERSION = 'foundation-graph-draft-w
 const FOUNDATION_TYPES: readonly FoundationType[] = ['objective', 'variable', 'model', 'constraint'];
 const REVISION_PATTERN = /^[1-9]\d*$/u;
 const FOUNDATION_USES_DRAFT = ['draft'] as const;
+/** ADR-015 F2: an adopted definition may be used for judgment and evaluation, never execution. */
+const FOUNDATION_USES_ADOPTED = ['draft', 'judgment', 'evaluation'] as const;
+const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/u;
+
+export const FOUNDATION_GRAPH_ADOPTION_CONTRACT_VERSION = 'foundation-graph-adoption.v1' as const;
 
 export type FoundationGraphWriteOperation = 'create' | 'update';
 
@@ -42,7 +48,12 @@ export type FoundationGraphWriteIssueCode =
   | 'ACL_CHANGE_FORBIDDEN'
   | 'WRITER_NOT_AUTHORIZED'
   | 'SCOPE_VIOLATION'
-  | 'PROJECT_MISMATCH';
+  | 'PROJECT_MISMATCH'
+  | 'ADOPTION_TARGET_CHANGED'
+  | 'ADOPTER_IS_OWNER'
+  | 'ALREADY_ADOPTED'
+  | 'DEFINITION_NOT_READY'
+  | 'AUTHORITY_REQUIRED';
 
 export interface FoundationGraphWriteIssue {
   readonly code: FoundationGraphWriteIssueCode;
@@ -312,6 +323,170 @@ export function normalizeFoundationGraphWrite(
 
 /** Descriptive alias for callers that use the validation/normalization pair. */
 export const validateAndNormalizeFoundationGraphWrite = normalizeFoundationGraphWrite;
+
+/**
+ * ADR-015: adopt the current Foundation draft for judgment and evaluation.
+ *
+ * The adopter names the revision and digest they reviewed. The contract only
+ * succeeds when that is the current Graph revision, the adopter is not the
+ * draft's owner, and the unchanged definition passes the judgment and
+ * evaluation checks. The adopted definition is the next revision with the same
+ * content; only the adoption state, authorized uses, storage class and an
+ * appended decision provenance entry change. Whether the adopter holds the
+ * required organization authority is decided by the host before this call and
+ * passed in as `adoption.authorityRef`.
+ */
+export interface FoundationGraphAdoptionInput {
+  readonly context: FoundationGraphWriteContext;
+  /** The current Graph row, as read under the adopter's access in the same transaction. */
+  readonly row: FoundationGraphWriteRow;
+  /** What the adopter reviewed. */
+  readonly expected: { readonly revision: string; readonly digest: string };
+  readonly adoption: { readonly authorityRef: string; readonly adoptedAt: string };
+}
+
+export interface FoundationGraphAdoptionRecord {
+  readonly adoptedBy: string;
+  readonly authorityRef: string;
+  readonly adoptedRevision: string;
+  readonly adoptedDigest: string;
+  readonly adoptedAt: string;
+}
+
+export interface FoundationGraphAdoptionResult {
+  readonly contractVersion: typeof FOUNDATION_GRAPH_ADOPTION_CONTRACT_VERSION;
+  readonly operation: 'adopt';
+  readonly projectCode: string;
+  readonly row: {
+    readonly id: string;
+    readonly type: FoundationType;
+    readonly revision: string;
+    readonly projectCode: string;
+    readonly payload: {
+      readonly foundation: FoundationDefinition;
+      readonly adoption: FoundationGraphAdoptionRecord;
+    };
+  };
+  readonly definition: FoundationDefinition;
+  readonly adoption: FoundationGraphAdoptionRecord;
+}
+
+export interface FoundationGraphAdoptionValidationResult {
+  readonly valid: boolean;
+  readonly status: 'valid' | 'invalid';
+  readonly issues: readonly FoundationGraphWriteIssue[];
+  readonly normalized?: FoundationGraphAdoptionResult;
+}
+
+export function validateFoundationGraphAdoption(input: unknown): FoundationGraphAdoptionValidationResult {
+  const issues: FoundationGraphWriteIssue[] = [];
+  const fail = (): FoundationGraphAdoptionValidationResult => ({ valid: false, status: 'invalid', issues });
+  if (!isRecord(input) || !isRecord(input.context) || !isRecord(input.row) || !isRecord(input.expected) || !isRecord(input.adoption)) {
+    issues.push({ code: 'INVALID_INPUT', path: 'input', message: 'Adoption needs context, row, expected and adoption objects.' });
+    return fail();
+  }
+  const context = input.context as unknown as FoundationGraphWriteContext;
+  const row = input.row as unknown as FoundationGraphWriteRow;
+  const expected = input.expected;
+  const adoption = input.adoption;
+  validateContext(context, issues);
+  validateGraphRow(row, issues);
+  if (isNonEmptyString(row.projectCode) && isNonEmptyString(context.projectCode) && row.projectCode !== context.projectCode) {
+    issues.push({ code: 'PROJECT_MISMATCH', path: 'row.projectCode', message: 'Graph row projectCode must match the trusted selected project.' });
+  }
+  if (!isCanonicalRevision(expected.revision) || typeof expected.digest !== 'string' || !DIGEST_PATTERN.test(expected.digest)) {
+    issues.push({ code: 'INVALID_INPUT', path: 'expected', message: 'expected needs the reviewed revision and its sha256 digest.' });
+  }
+  if (!isNonEmptyString(adoption.authorityRef)) {
+    issues.push({ code: 'AUTHORITY_REQUIRED', path: 'adoption.authorityRef', message: 'Adoption requires the evidence of the adopter\'s organization authority.' });
+  }
+  if (typeof adoption.adoptedAt !== 'string' || !isRfc3339(adoption.adoptedAt)) {
+    issues.push({ code: 'INVALID_INPUT', path: 'adoption.adoptedAt', message: 'adoption.adoptedAt must be an RFC 3339 timestamp.' });
+  }
+  if (issues.length > 0) return fail();
+
+  const rowType = resolveRowType(row);
+  const current = unwrapFoundation(row.payload.foundation);
+  const currentResult = validateFoundationDefinition(current, { use: 'draft' });
+  appendDefinitionIssues(issues, 'row.payload.foundation', currentResult.issues);
+  if (!currentResult.valid || !isFoundationDefinitionRecord(current) || !rowType) return fail();
+  if (current.id !== row.id || current.type !== rowType || current.revision !== row.revision) {
+    issues.push({ code: 'ROW_DEFINITION_MISMATCH', path: 'row.payload.foundation', message: 'The current definition must match the Graph row identity and revision.' });
+    return fail();
+  }
+  const currentDefinition = current as unknown as FoundationDefinition;
+  const currentDigest = digestFoundationDefinition(currentDefinition);
+  if (expected.revision !== current.revision || expected.digest !== currentDigest) {
+    issues.push({
+      code: 'ADOPTION_TARGET_CHANGED',
+      path: 'expected',
+      message: `The reviewed revision ${String(expected.revision)} is not the current revision ${current.revision} with the same content.`
+    });
+  }
+  if (current.adoptionState !== 'draft') {
+    issues.push({ code: 'ALREADY_ADOPTED', path: 'row.payload.foundation.adoptionState', message: `Only a draft can be adopted; the current revision is ${String(current.adoptionState)}.` });
+  }
+  if (current.acl.ownerId === context.principal) {
+    issues.push({ code: 'ADOPTER_IS_OWNER', path: 'context.principal', message: 'The owner of a draft cannot adopt it.' });
+  }
+  validateCandidateScope(current, context, issues);
+  if (issues.length > 0) return fail();
+
+  let revision: string;
+  try {
+    revision = nextFoundationRevision(current.revision);
+  } catch {
+    issues.push({ code: 'REVISION_CONFLICT', path: 'row.revision', message: 'The next revision cannot be derived from the current revision.' });
+    return fail();
+  }
+  const authorityRef = String(adoption.authorityRef);
+  const adopted = cloneFoundationDefinition(currentDefinition);
+  adopted.revision = revision;
+  adopted.adoptionState = 'approved';
+  adopted.storage = 'ontology';
+  adopted.authorizedUses = [...FOUNDATION_USES_ADOPTED];
+  adopted.provenance = [
+    ...adopted.provenance,
+    { sourceId: `foundation-adoption:${current.id}@${current.revision}`, sourceKind: 'decision', evidenceIds: [authorityRef] }
+  ];
+  for (const use of ['judgment', 'evaluation'] as const) {
+    const ready = validateFoundationDefinition(adopted, { use });
+    if (!ready.valid) {
+      for (const issue of ready.issues) {
+        issues.push({ code: 'DEFINITION_NOT_READY', path: `row.payload.foundation.${issue.path}`, message: `Not ready for ${use}: ${issue.message}` });
+      }
+    }
+  }
+  if (issues.length > 0) return fail();
+
+  const record: FoundationGraphAdoptionRecord = {
+    adoptedBy: context.principal,
+    authorityRef,
+    adoptedRevision: current.revision,
+    adoptedDigest: currentDigest,
+    adoptedAt: String(adoption.adoptedAt)
+  };
+  return {
+    valid: true,
+    status: 'valid',
+    issues: [],
+    normalized: {
+      contractVersion: FOUNDATION_GRAPH_ADOPTION_CONTRACT_VERSION,
+      operation: 'adopt',
+      projectCode: context.projectCode,
+      row: { id: current.id, type: rowType, revision, projectCode: context.projectCode, payload: { foundation: adopted, adoption: record } },
+      definition: adopted,
+      adoption: record
+    }
+  };
+}
+
+/** Normalize a valid adoption or throw with the complete validation issues. */
+export function normalizeFoundationGraphAdoption(input: unknown): FoundationGraphAdoptionResult {
+  const result = validateFoundationGraphAdoption(input);
+  if (!result.valid || !result.normalized) throw new FoundationGraphWriteError(result.issues);
+  return result.normalized;
+}
 
 function validateContext(
   context: FoundationGraphWriteContext,

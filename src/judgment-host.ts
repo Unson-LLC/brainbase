@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import {
   closeSync,
   constants as fsConstants,
@@ -21,6 +22,14 @@ import {
   type JudgmentAutonomyEvaluation,
   type JudgmentAutonomyResolver
 } from './judgment-autonomy.js';
+import {
+  toKnowledgeEventFromJudgmentEpisode,
+  type JudgmentKnowledgeEvent
+} from './judgment-event-adapter.js';
+import type { JudgmentKnowledgeEventSink } from './judgment-event-outbox.js';
+import { canonicalJson } from './judgment-resolution-contract.js';
+
+import { taskProgressScopeSchema, taskProgressObservationSchema, type JudgmentTaskProgressAdapter } from './judgment-task-progress.js';
 
 type Environment = Record<string, string | undefined>;
 
@@ -83,6 +92,24 @@ export interface JudgmentNodeDefinition {
   instruction: string;
 }
 
+/**
+ * The resolver adapter binding accepted by the Host. The adapter identity is
+ * supplied by the Host configuration and is never inferred from a receipt.
+ */
+export interface JudgmentHostBinding {
+  adapter_id: string;
+  adapter_version: string;
+  status: 'managed';
+  enforcement_level: 'host_contract';
+}
+
+const DEFAULT_HOST_BINDING: JudgmentHostBinding = Object.freeze({
+  adapter_id: 'brainbase-local',
+  adapter_version: '1',
+  status: 'managed',
+  enforcement_level: 'host_contract'
+});
+
 export interface JudgmentReceipt {
   resolution_id: string;
   resolved_at: string;
@@ -93,12 +120,7 @@ export interface JudgmentReceipt {
   status: 'resolved' | 'needs_clarification';
   runtime_version: string;
   manifest_digest: string;
-  host_binding: {
-    adapter_id: 'brainbase-local';
-    adapter_version: '1';
-    status: 'managed';
-    enforcement_level: 'host_contract';
-  };
+  host_binding: JudgmentHostBinding;
   project_code?: string;
   classification: JudgmentClassification | null;
   classification_evidence: {
@@ -128,11 +150,16 @@ export interface JudgmentHookOutput {
 
 export interface JudgmentHostOptions {
   env?: Environment;
+  taskProgress?: JudgmentTaskProgressAdapter;
   resolver?: (request: JudgmentRequest) => Promise<JudgmentReceipt>;
+  /** Expected resolver binding; defaults to the built-in local adapter. */
+  expectedHostBinding?: JudgmentHostBinding;
   autonomyResolver?: JudgmentAutonomyResolver;
   autonomyMode?: JudgmentAutonomyMode;
   autonomyCanaryProjects?: readonly string[];
   trustedConversationMessages?: ConversationMessage[];
+  /** Optional adapter-owned queue. The default Host lifecycle remains unchanged. */
+  knowledgeEventSink?: JudgmentKnowledgeEventSink;
 }
 
 export type JudgmentAutonomyMode = 'off' | 'canary' | 'on';
@@ -180,6 +207,7 @@ export interface JudgmentEpisode {
     zero_call_display_line: string | null;
     zero_call_display_line_digest: string | null;
   };
+  task_progress_scope?: ReturnType<typeof taskProgressScopeSchema.parse>;
   episode_digest: string;
 }
 
@@ -247,7 +275,7 @@ export interface JudgmentAutonomyReceipt {
 
 export interface JudgmentStopBlock {
   decision: 'block';
-  block_kind?: 'autonomy_continue' | 'audit_repair';
+  block_kind?: 'autonomy_continue' | 'audit_repair' | 'semantic_replan';
   reason: string;
 }
 
@@ -317,31 +345,8 @@ const DOMAIN_TERMS: Array<[JudgmentClassification['domains'][number], string[]]>
 const FOLLOW_UP_TERMS = ['that', 'it', 'continue', 'do that', 'それ', 'その形', 'これ', 'こちら', '続けて', 'もう一度', 'では', 'それでいい', 'そうして'];
 const AUTHORITY_INTENTS = new Set<JudgmentClassification['intent']>(['implement', 'operate']);
 
-export function canonicalJson(value: unknown): string {
-  if (value === null || typeof value === 'boolean' || typeof value === 'string') return JSON.stringify(value);
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw new TypeError('canonical JSON only supports finite numbers');
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) return `[${value.map((entry) => canonicalJson(entry)).join(',')}]`;
-  if (value && typeof value === 'object') {
-    return `{${Object.keys(value).sort(compareCodePoints).map((key) => {
-      const entry = (value as Record<string, unknown>)[key];
-      if (entry === undefined) throw new TypeError('canonical JSON does not support undefined');
-      return `${JSON.stringify(key)}:${canonicalJson(entry)}`;
-    }).join(',')}}`;
-  }
-  throw new TypeError(`canonical JSON does not support ${typeof value}`);
-}
-
-function compareCodePoints(left: string, right: string): number {
-  const a = Array.from(left, (value) => value.codePointAt(0) as number);
-  const b = Array.from(right, (value) => value.codePointAt(0) as number);
-  for (let index = 0; index < Math.min(a.length, b.length); index += 1) {
-    if (a[index] !== b[index]) return a[index] - b[index];
-  }
-  return a.length - b.length;
-}
+// canonicalJson is the shared judgment resolution contract; re-exported so existing importers keep working.
+export { canonicalJson };
 
 function sha256(value: string | Buffer): string {
   return createHash('sha256').update(value).digest('hex');
@@ -349,6 +354,25 @@ function sha256(value: string | Buffer): string {
 
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function normalizeExpectedHostBinding(value: JudgmentHostBinding | undefined): JudgmentHostBinding {
+  const candidate = value === undefined ? DEFAULT_HOST_BINDING : record(value);
+  if (!candidate
+    || typeof candidate.adapter_id !== 'string'
+    || candidate.adapter_id.trim().length === 0
+    || typeof candidate.adapter_version !== 'string'
+    || candidate.adapter_version.trim().length === 0
+    || candidate.status !== 'managed'
+    || candidate.enforcement_level !== 'host_contract') {
+    throw new Error('judgment_host_binding_config_invalid');
+  }
+  return {
+    adapter_id: candidate.adapter_id,
+    adapter_version: candidate.adapter_version,
+    status: 'managed',
+    enforcement_level: 'host_contract'
+  };
 }
 
 function contentText(content: unknown): string {
@@ -492,21 +516,26 @@ function readCanonicalTranscript(
 }
 
 function findRepoRoot(start: string): string | null {
-  let current = resolve(start);
-  for (;;) {
-    try {
-      statSync(join(current, '.git'));
-      return current;
-    } catch {
-      const parent = dirname(current);
-      if (parent === current) return null;
-      current = parent;
+  try {
+    const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
+    return execFileSync('git', ['-C', resolve(start), 'rev-parse', '--show-toplevel'], {
+      encoding: 'utf8',
+      env: { ...env, LC_ALL: 'C' },
+      timeout: 2000,
+      stdio: ['ignore', 'pipe', 'pipe']
+    }).replace(/\r?\n$/u, '') || null;
+  } catch (error) {
+    const stderr = error instanceof Error && 'stderr' in error ? String(error.stderr) : '';
+    const reason = stderr.includes('dubious ownership') ? 'unsafe_repository'
+      : error instanceof Error && 'code' in error && error.code === 'ETIMEDOUT' ? 'timeout' : null;
+    if (reason) {
+      process.stderr.write(`${JSON.stringify({ event: 'judgment_repository_discovery_failed', reason })}\n`);
     }
+    return null;
   }
 }
 
-function instructionBindings(cwd: string): Array<{ scope: string; source_ref: string; digest: string }> {
-  const discoveredRoot = findRepoRoot(cwd);
+function instructionBindings(cwd: string, discoveredRoot: string | null): Array<{ scope: string; source_ref: string; digest: string }> {
   if (!discoveredRoot) return [];
   const root = realpathSync(discoveredRoot);
   const workingDirectory = realpathSync(resolve(cwd));
@@ -579,7 +608,11 @@ function acceptedProjection(receipt: JudgmentReceipt): Record<string, unknown> {
   };
 }
 
-function readAdoptionEntry(path: string): JudgmentAdoptionEntry {
+function readAdoptionEntry(
+  path: string,
+  expectedHostBinding: JudgmentHostBinding = DEFAULT_HOST_BINDING
+): JudgmentAdoptionEntry {
+  const expectedBinding = normalizeExpectedHostBinding(expectedHostBinding);
   let parsed: unknown;
   try {
     parsed = JSON.parse(readFileSync(path, 'utf8'));
@@ -605,7 +638,7 @@ function readAdoptionEntry(path: string): JudgmentAdoptionEntry {
   if (entry.request_text_digest !== sha256(request.request)) {
     throw new Error(`judgment_journal_request_digest_mismatch:${basename(path)}`);
   }
-  const verifiedReceipt = verifyReceipt(receipt, request);
+  const verifiedReceipt = verifyReceipt(receipt, request, expectedBinding);
   if (entry.schema_version === 'brainbase-judgment-adoption-v2') {
     if (typeof entry.receipt_digest !== 'string'
       || entry.receipt_digest !== sha256(canonicalJson(verifiedReceipt))) {
@@ -631,7 +664,12 @@ function readAdoptionEntry(path: string): JudgmentAdoptionEntry {
   };
 }
 
-function priorReceipts(sessionRef: string, currentTurnId: string, env: Environment): Array<Record<string, unknown>> {
+function priorReceipts(
+  sessionRef: string,
+  currentTurnId: string,
+  env: Environment,
+  expectedHostBinding: JudgmentHostBinding = DEFAULT_HOST_BINDING
+): Array<Record<string, unknown>> {
   const { directory, target } = journalPaths(sessionRef, currentTurnId, env);
   let names: string[];
   try {
@@ -641,7 +679,7 @@ function priorReceipts(sessionRef: string, currentTurnId: string, env: Environme
     throw error;
   }
   return names.filter((name) => name !== basename(target)).map((name) => {
-    const entry = readAdoptionEntry(join(directory, name));
+    const entry = readAdoptionEntry(join(directory, name), expectedHostBinding);
     if (entry.request.conversation_context.session_ref !== sessionRef) {
       throw new Error(`judgment_journal_session_mismatch:${name}`);
     }
@@ -654,8 +692,13 @@ export function buildJudgmentRequest(
   payload: JudgmentHookPayload,
   {
     env = process.env,
-    trustedConversationMessages
-  }: { env?: Environment; trustedConversationMessages?: ConversationMessage[] } = {}
+    trustedConversationMessages,
+    expectedHostBinding
+  }: {
+    env?: Environment;
+    trustedConversationMessages?: ConversationMessage[];
+    expectedHostBinding?: JudgmentHostBinding;
+  } = {}
 ): JudgmentRequest {
   const request = typeof payload.prompt === 'string' && payload.prompt.trim() ? payload.prompt : '';
   const turnId = typeof payload.turn_id === 'string' ? payload.turn_id.trim() : '';
@@ -681,14 +724,14 @@ export function buildJudgmentRequest(
     schema_version: 'brainbase-conversation-context-v1' as const,
     session_ref: sessionRef,
     messages: messages.map((message, sequence) => ({ ...message, sequence })),
-    prior_receipts: priorReceipts(sessionRef, turnId, env),
+    prior_receipts: priorReceipts(sessionRef, turnId, env, expectedHostBinding),
     runtime: {
       host: 'codex' as const,
       model: typeof payload.model === 'string' && payload.model ? payload.model : null,
       permission_mode: typeof payload.permission_mode === 'string' && payload.permission_mode ? payload.permission_mode : null,
       project_binding: projectBinding
     },
-    instruction_bindings: instructionBindings(cwd),
+    instruction_bindings: instructionBindings(cwd, repoRoot),
     completeness: transcript.complete ? 'complete' as const : 'partial' as const
   };
   return {
@@ -902,17 +945,22 @@ function receiptPlanDigest(receipt: Record<string, unknown>): string {
   return sha256(canonicalJson(planValue));
 }
 
-function verifyReceipt(receipt: JudgmentReceipt, request: JudgmentRequest): JudgmentReceipt {
+function verifyReceipt(
+  receipt: JudgmentReceipt,
+  request: JudgmentRequest,
+  expectedHostBinding: JudgmentHostBinding = DEFAULT_HOST_BINDING
+): JudgmentReceipt {
+  const expectedBinding = normalizeExpectedHostBinding(expectedHostBinding);
   if (!record(receipt) || receipt.turn_id !== request.turn_id) throw new Error('judgment_receipt_turn_mismatch');
   if (receipt.request_digest !== sha256(canonicalJson(request))) throw new Error('judgment_receipt_request_mismatch');
   if (receipt.context_digest !== sha256(canonicalJson(request.conversation_context))) throw new Error('judgment_receipt_context_mismatch');
   if (receipt.runtime_version !== RUNTIME_VERSION || receipt.manifest_digest !== MANIFEST_DIGEST) {
     throw new Error('judgment_receipt_runtime_mismatch');
   }
-  if (receipt.host_binding?.adapter_id !== 'brainbase-local'
-    || receipt.host_binding.adapter_version !== '1'
-    || receipt.host_binding.status !== 'managed'
-    || receipt.host_binding.enforcement_level !== 'host_contract') {
+  if (receipt.host_binding?.adapter_id !== expectedBinding.adapter_id
+    || receipt.host_binding.adapter_version !== expectedBinding.adapter_version
+    || receipt.host_binding.status !== expectedBinding.status
+    || receipt.host_binding.enforcement_level !== expectedBinding.enforcement_level) {
     throw new Error('judgment_receipt_binding_unmanaged');
   }
   if (!Array.isArray(receipt.active_node_definitions) || receipt.active_node_definitions.length === 0) {
@@ -924,10 +972,14 @@ function verifyReceipt(receipt: JudgmentReceipt, request: JudgmentRequest): Judg
   return receipt;
 }
 
-function existingAdoption(request: JudgmentRequest, env: Environment): JudgmentAdoptionEntry | null {
+function existingAdoption(
+  request: JudgmentRequest,
+  env: Environment,
+  expectedHostBinding: JudgmentHostBinding = DEFAULT_HOST_BINDING
+): JudgmentAdoptionEntry | null {
   const { target } = journalPaths(request.conversation_context.session_ref, request.turn_id, env);
   try {
-    const entry = readAdoptionEntry(target);
+    const entry = readAdoptionEntry(target, expectedHostBinding);
     if (entry.request_text_digest !== sha256(request.request)
       || entry.request.turn_id !== request.turn_id
       || entry.request.conversation_context.session_ref !== request.conversation_context.session_ref) {
@@ -940,7 +992,11 @@ function existingAdoption(request: JudgmentRequest, env: Environment): JudgmentA
   }
 }
 
-function existingAdoptionForPayload(payload: JudgmentHookPayload, env: Environment): JudgmentAdoptionEntry | null {
+function existingAdoptionForPayload(
+  payload: JudgmentHookPayload,
+  env: Environment,
+  expectedHostBinding: JudgmentHostBinding = DEFAULT_HOST_BINDING
+): JudgmentAdoptionEntry | null {
   const request = typeof payload.prompt === 'string' && payload.prompt.trim() ? payload.prompt : '';
   const turnId = typeof payload.turn_id === 'string' ? payload.turn_id.trim() : '';
   const sessionId = typeof payload.session_id === 'string' ? payload.session_id : '';
@@ -948,7 +1004,7 @@ function existingAdoptionForPayload(payload: JudgmentHookPayload, env: Environme
   const sessionRef = sha256(sessionId);
   const { target } = journalPaths(sessionRef, turnId, env);
   try {
-    const entry = readAdoptionEntry(target);
+    const entry = readAdoptionEntry(target, expectedHostBinding);
     if (entry.request_text_digest !== sha256(request)
       || entry.request.turn_id !== turnId
       || entry.request.conversation_context.session_ref !== sessionRef) {
@@ -961,7 +1017,12 @@ function existingAdoptionForPayload(payload: JudgmentHookPayload, env: Environme
   }
 }
 
-function adoptReceipt(request: JudgmentRequest, receipt: JudgmentReceipt, env: Environment): JudgmentAdoptionEntry {
+function adoptReceipt(
+  request: JudgmentRequest,
+  receipt: JudgmentReceipt,
+  env: Environment,
+  expectedHostBinding: JudgmentHostBinding = DEFAULT_HOST_BINDING
+): JudgmentAdoptionEntry {
   const { directory, target } = journalPaths(request.conversation_context.session_ref, request.turn_id, env);
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const ownerAudit = buildOwnerAudit(request, receipt);
@@ -987,7 +1048,7 @@ function adoptReceipt(request: JudgmentRequest, receipt: JudgmentReceipt, env: E
       return entry;
     } catch (error) {
       if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error;
-      return existingAdoption(request, env) as JudgmentAdoptionEntry;
+      return existingAdoption(request, env, expectedHostBinding) as JudgmentAdoptionEntry;
     }
   } finally {
     if (descriptor !== null) {
@@ -1107,8 +1168,12 @@ function readEpisode(path: string): JudgmentEpisode {
   return value as unknown as JudgmentEpisode;
 }
 
-function verifyEpisodeAdoption(episode: JudgmentEpisode, adoptionPath: string): void {
-  const adoption = readAdoptionEntry(adoptionPath);
+function verifyEpisodeAdoption(
+  episode: JudgmentEpisode,
+  adoptionPath: string,
+  expectedHostBinding: JudgmentHostBinding = DEFAULT_HOST_BINDING
+): void {
+  const adoption = readAdoptionEntry(adoptionPath, expectedHostBinding);
   if (sha256(canonicalJson(adoption.receipt)) !== episode.initial_receipt_digest
     || adoption.request.turn_id !== episode.turn_id
     || adoption.request.conversation_context.session_ref !== episode.session_ref) {
@@ -1395,6 +1460,7 @@ function successOutput(
 
 export async function runJudgmentHost(payload: JudgmentHookPayload, options: JudgmentHostOptions = {}): Promise<JudgmentHookOutput> {
   const env = options.env ?? process.env;
+  const expectedHostBinding = normalizeExpectedHostBinding(options.expectedHostBinding);
   const sessionId = typeof payload.session_id === 'string' ? payload.session_id : '';
   const turnId = typeof payload.turn_id === 'string' ? payload.turn_id.trim() : '';
   if (!sessionId || !turnId) throw new TypeError('UserPromptSubmit requires prompt, turn_id, and session_id');
@@ -1402,7 +1468,7 @@ export async function runJudgmentHost(payload: JudgmentHookPayload, options: Jud
   return withTurnLock(paths.lock, async () => {
     try {
       const episode = readEpisode(paths.episode);
-      verifyEpisodeAdoption(episode, paths.target);
+      verifyEpisodeAdoption(episode, paths.target, expectedHostBinding);
       const requestText = typeof payload.prompt === 'string' ? payload.prompt.trim() : '';
       if (!requestText || episode.request_text_digest !== sha256(requestText)) {
         throw new Error('judgment_episode_binding_mismatch');
@@ -1412,16 +1478,18 @@ export async function runJudgmentHost(payload: JudgmentHookPayload, options: Jud
       if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
     }
 
-    const adopted = existingAdoptionForPayload(payload, env);
+    const adopted = existingAdoptionForPayload(payload, env, expectedHostBinding);
     const request = adopted?.request ?? buildJudgmentRequest(payload, {
       env,
-      trustedConversationMessages: options.trustedConversationMessages
+      trustedConversationMessages: options.trustedConversationMessages,
+      expectedHostBinding
     });
-    const existing = adopted ?? existingAdoption(request, env);
+    const existing = adopted ?? existingAdoption(request, env, expectedHostBinding);
     const adoption = existing ?? adoptReceipt(
       request,
-      verifyReceipt(await (options.resolver ?? resolveLocalJudgment)(request), request),
-      env
+      verifyReceipt(await (options.resolver ?? resolveLocalJudgment)(request), request, expectedHostBinding),
+      env,
+      expectedHostBinding
     );
     const episodeWithoutDigest = {
       schema_version: 'brainbase-judgment-episode-v1' as const,
@@ -1431,6 +1499,7 @@ export async function runJudgmentHost(payload: JudgmentHookPayload, options: Jud
       request_text_digest: sha256(request.request),
       initial_receipt_digest: sha256(canonicalJson(adoption.receipt)),
       adoption,
+      ...(options.taskProgress ? { task_progress_scope: taskProgressScopeSchema.parse(options.taskProgress.scope) } : {}),
       audit_contract: {
         schema_version: 'brainbase-owner-audit-contract-v1' as const,
         repair_body_policy: 'preserve' as const,
@@ -1546,7 +1615,11 @@ function toolDisplayLine(
   return `📚 ${contract.label}: 「${target}」→ ${result} ✓`;
 }
 
-async function recordToolUse(payload: JudgmentHookPayload, env: Environment): Promise<JudgmentToolEvent | null> {
+async function recordToolUse(
+  payload: JudgmentHookPayload,
+  env: Environment,
+  expectedHostBinding: JudgmentHostBinding = DEFAULT_HOST_BINDING
+): Promise<JudgmentToolEvent | null> {
   const { sessionRef, turnId } = hookIdentity(payload);
   const paths = journalPaths(sessionRef, turnId, env);
   const toolUseId = typeof payload.tool_use_id === 'string' ? payload.tool_use_id.trim() : '';
@@ -1558,7 +1631,7 @@ async function recordToolUse(payload: JudgmentHookPayload, env: Environment): Pr
     let episode: JudgmentEpisode;
     try {
       episode = readEpisode(paths.episode);
-      verifyEpisodeAdoption(episode, paths.target);
+      verifyEpisodeAdoption(episode, paths.target, expectedHostBinding);
     } catch (error) {
       if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
         throw new Error('judgment_orphan_post_tool_use');
@@ -1710,7 +1783,8 @@ function persistAutonomyReceipt(
 
 async function autonomyStopSnapshot(
   payload: JudgmentHookPayload,
-  env: Environment
+  env: Environment,
+  expectedHostBinding: JudgmentHostBinding = DEFAULT_HOST_BINDING
 ): Promise<JudgmentAutonomyStopSnapshot | null> {
   const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : '';
   if (!answer.trim()) return null;
@@ -1720,7 +1794,7 @@ async function autonomyStopSnapshot(
     let episode: JudgmentEpisode;
     try {
       episode = readEpisode(paths.episode);
-      verifyEpisodeAdoption(episode, paths.target);
+      verifyEpisodeAdoption(episode, paths.target, expectedHostBinding);
     } catch (error) {
       if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
         throw new Error('judgment_orphan_stop');
@@ -1753,6 +1827,97 @@ async function autonomyStopSnapshot(
   });
 }
 
+async function evaluateTaskProgressStop(
+  payload: JudgmentHookPayload, env: Environment, options: JudgmentHostOptions
+): Promise<JudgmentStopBlock | null> {
+  const { sessionRef, turnId } = hookIdentity(payload);
+  const paths = journalPaths(sessionRef, turnId, env);
+  return withTurnLock(paths.lock, async () => {
+    let episode: JudgmentEpisode;
+    try { episode = readEpisode(paths.episode); } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        throw new Error('judgment_orphan_stop');
+      }
+      throw error;
+    }
+    verifyEpisodeAdoption(episode, paths.target, options.expectedHostBinding);
+    if (!episode.task_progress_scope) return null;
+    const scope = taskProgressScopeSchema.parse(episode.task_progress_scope);
+    const adapter = options.taskProgress;
+    if (!adapter || canonicalJson(taskProgressScopeSchema.parse(adapter.scope)) !== canonicalJson(scope)) {
+      throw new Error('judgment_task_progress_binding_changed');
+    }
+    try { readFinal(paths.final); return null; } catch (error) {
+      if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
+    }
+    const events = readEvents(paths.events);
+    const snapshot = {
+      episode_digest: episode.episode_digest,
+      event_set_digest: sha256(canonicalJson(events)),
+      request: episode.adoption.request.request,
+      events
+    };
+    const scopeRef = sha256(canonicalJson(scope));
+    const directory = join(journalRoot(env), 'task-progress', scopeRef);
+    return withTurnLock(`${directory}.lock`, async () => {
+      mkdirSync(directory, { recursive: true, mode: 0o700 });
+      const entries = readdirSync(directory).sort().map((name) => {
+        const entry = readJsonArtifact(join(directory, name));
+        if (entry.entry_digest !== artifactDigest(entry, 'entry_digest')) {
+          throw new Error('judgment_task_progress_journal_corrupt');
+        }
+        return entry;
+      });
+      let preparationCount = 0;
+      let previousDigest: unknown = null;
+      for (const entry of entries) {
+        if (entry.scope_ref !== scopeRef || entry.previous_digest !== previousDigest) {
+          throw new Error('judgment_task_progress_chain_corrupt');
+        }
+        const observation = taskProgressObservationSchema.parse(entry.observation);
+        if (observation.kind === 'preparation_only') preparationCount += 1;
+        if (observation.kind === 'verified_outcome') preparationCount = 0;
+        previousDigest = entry.entry_digest;
+      }
+      const snapshotRef = sha256(canonicalJson({ episode: snapshot.episode_digest, events: snapshot.event_set_digest }));
+      const replay = entries.find((entry) => entry.snapshot_ref === snapshotRef);
+      if (replay) {
+        if (replay.replan_required !== true) return null;
+        throw new Error('judgment_task_progress_replan_requires_new_evidence');
+      }
+      const successfulIds = new Set(events.filter((event) => event.success).map((event) => event.tool_use_id));
+      const observation = taskProgressObservationSchema.parse(await adapter.assess(snapshot));
+      if (observation.kind !== 'waiting'
+        && !observation.evidence_tool_use_ids.every((id) => successfulIds.has(id))) {
+        throw new Error('judgment_task_progress_evidence_not_in_episode');
+      }
+      if (observation.kind === 'verified_outcome') {
+        if (entries.some((entry) => {
+          const prior = taskProgressObservationSchema.parse(entry.observation);
+          return prior.kind === 'verified_outcome' && prior.verification_ref === observation.verification_ref;
+        })) throw new Error('judgment_task_progress_outcome_repeated');
+        if (!await adapter.verifyOutcome({ ...snapshot, observation })) {
+          throw new Error('judgment_task_progress_outcome_unverified');
+        }
+        preparationCount = 0;
+      }
+      if (observation.kind === 'preparation_only') preparationCount += 1;
+      const replanRequired = observation.kind === 'preparation_only' && preparationCount >= 2;
+      const entry = {
+        scope_ref: scopeRef, snapshot_ref: snapshotRef, previous_digest: previousDigest,
+        observation, replan_required: replanRequired
+      };
+      writeImmutableJson(join(directory, `${String(entries.length + 1).padStart(8, '0')}.json`), {
+        ...entry, entry_digest: sha256(canonicalJson(entry))
+      });
+      return replanRequired ? {
+        decision: 'block', block_kind: 'semantic_replan',
+        reason: '同じ完了条件について準備だけの反復を検出しました。資料を増やす継続を止め、業務成果または新しい否定結果を検証できる方針へ切り替えてください。完了・本人受入とは扱いません。'
+      } : null;
+    });
+  });
+}
+
 async function evaluateAutonomyStop(
   payload: JudgmentHookPayload,
   env: Environment,
@@ -1760,7 +1925,7 @@ async function evaluateAutonomyStop(
 ): Promise<JudgmentStopBlock | null> {
   const config = resolveAutonomyMode(options, env);
   if (config.mode === 'off') return null;
-  const snapshot = await autonomyStopSnapshot(payload, env);
+  const snapshot = await autonomyStopSnapshot(payload, env, options.expectedHostBinding);
   if (!snapshot) return null;
   if (config.mode === 'canary'
     && (!snapshot.context.project_code || !config.canaryProjects.includes(snapshot.context.project_code))) {
@@ -1778,7 +1943,7 @@ async function evaluateAutonomyStop(
   const paths = journalPaths(sessionRef, turnId, env);
   const stillActive = await withTurnLock(paths.lock, async () => {
     const episode = readEpisode(paths.episode);
-    verifyEpisodeAdoption(episode, paths.target);
+    verifyEpisodeAdoption(episode, paths.target, options.expectedHostBinding);
     if (episode.episode_digest !== snapshot.episode_digest) {
       throw new Error('judgment_autonomy_episode_changed');
     }
@@ -1813,7 +1978,9 @@ async function evaluateAutonomyStop(
 
 async function finalizeEpisode(
   payload: JudgmentHookPayload,
-  env: Environment
+  env: Environment,
+  knowledgeEventSink?: JudgmentKnowledgeEventSink,
+  expectedHostBinding: JudgmentHostBinding = DEFAULT_HOST_BINDING
 ): Promise<JudgmentFinalReceipt | JudgmentStopBlock> {
   const { sessionRef, turnId } = hookIdentity(payload);
   const paths = journalPaths(sessionRef, turnId, env);
@@ -1822,7 +1989,7 @@ async function finalizeEpisode(
     let episode: JudgmentEpisode;
     try {
       episode = readEpisode(paths.episode);
-      verifyEpisodeAdoption(episode, paths.target);
+      verifyEpisodeAdoption(episode, paths.target, expectedHostBinding);
     } catch (error) {
       if (error instanceof Error && 'code' in error && error.code === 'ENOENT') throw new Error('judgment_orphan_stop');
       throw error;
@@ -1840,6 +2007,13 @@ async function finalizeEpisode(
         || existing.answer_digest !== answerDigest) {
         throw new Error('judgment_final_conflict');
       }
+      await enqueueFinalizedKnowledgeEvent(
+        knowledgeEventSink,
+        sessionRef,
+        turnId,
+        existing,
+        payload.last_assistant_message ?? ''
+      );
       return existing;
     } catch (error) {
       if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
@@ -1921,8 +2095,30 @@ async function finalizeEpisode(
       final_digest: sha256(canonicalJson(finalWithoutDigest))
     };
     writeImmutableJson(paths.final, final as unknown as Record<string, unknown>);
+    await enqueueFinalizedKnowledgeEvent(knowledgeEventSink, sessionRef, turnId, final, answer);
     return final;
   });
+}
+
+async function enqueueFinalizedKnowledgeEvent(
+  sink: JudgmentKnowledgeEventSink | undefined,
+  sessionRef: string,
+  turnId: string,
+  final: JudgmentFinalReceipt,
+  answer: string
+): Promise<JudgmentKnowledgeEvent | null> {
+  if (!sink) return null;
+  const event = toKnowledgeEventFromJudgmentEpisode({
+    episode_id: `${sessionRef}:${turnId}`,
+    session_id: sessionRef,
+    turn_id: turnId,
+    finalized_at: final.finalized_at,
+    answer_digest: final.answer_digest,
+    completion_status: 'complete',
+    final_answer: answer
+  });
+  if (event) await sink.enqueue(event);
+  return event;
 }
 
 export async function processJudgmentHook(
@@ -1931,15 +2127,18 @@ export async function processJudgmentHook(
 ): Promise<JudgmentHookOutput | JudgmentFinalReceipt | JudgmentStopBlock | { systemMessage: string } | Record<string, never>> {
   const eventName = payload.hook_event_name ?? payload.hookEventName ?? 'UserPromptSubmit';
   const env = options.env ?? process.env;
+  const expectedHostBinding = normalizeExpectedHostBinding(options.expectedHostBinding);
   if (eventName === 'UserPromptSubmit') return runJudgmentHost(payload, options);
   if (eventName === 'PostToolUse') {
-    const event = await recordToolUse(payload, env);
+    const event = await recordToolUse(payload, env, expectedHostBinding);
     return event ? { systemMessage: event.display_line } : {};
   }
   if (eventName === 'Stop') {
+    const progressBlock = await evaluateTaskProgressStop(payload, env, options);
+    if (progressBlock) return progressBlock;
     const autonomyBlock = await evaluateAutonomyStop(payload, env, options);
     if (autonomyBlock) return autonomyBlock;
-    const output = await finalizeEpisode(payload, env);
+    const output = await finalizeEpisode(payload, env, options.knowledgeEventSink, expectedHostBinding);
     if ('decision' in output && output.decision === 'block' && payload.stop_hook_active === true) {
       throw new Error('judgment_stop_repair_exhausted');
     }

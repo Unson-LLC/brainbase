@@ -1,0 +1,260 @@
+/*
+ * Read-only Foundation overview. Load after brainbase-tokens.css and
+ * workspace-kit.css. The screen uses the shared workspace parts for page
+ * framing and adds only the cards, references, and pagination unique to this
+ * catalog projection.
+ */
+
+.bb-fov {
+  min-width: 0;
+  color: var(--bb-color-ink);
+}
+
+.bb-fov-section {
+  min-width: 0;
+}
+
+.bb-fov-objective-ledger .bb-ws-ledger-row {
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.4fr) minmax(100px, .7fr);
+}
+
+.bb-fov-objective-card,
+.bb-fov-philosophy-card,
+.bb-fov-model-card {
+  min-width: 0;
+  border-top: 1px solid var(--bb-color-border);
+  padding: 24px 0;
+}
+
+.bb-fov-objective-card h3,
+.bb-fov-philosophy-card h3,
+.bb-fov-model-card h3 {
+  margin: 0;
+  color: var(--bb-color-ink);
+  font-size: 17px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.bb-fov-objective-card .bb-ws-definition,
+.bb-fov-model-card .bb-ws-definition,
+.bb-fov-philosophy-card .bb-ws-definition {
+  margin-top: 16px;
+}
+
+.bb-fov-status {
+  margin: 7px 0 0;
+  color: var(--bb-color-muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.bb-fov-list {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.bb-fov-list li,
+.bb-fov-ref-list li {
+  overflow-wrap: anywhere;
+}
+
+.bb-fov-criteria {
+  display: grid;
+  gap: 7px;
+}
+
+.bb-fov-criteria-text {
+  margin: 0;
+  color: var(--bb-color-muted);
+  line-height: 1.55;
+}
+
+.bb-fov-criteria-text-list {
+  color: var(--bb-color-muted);
+}
+
+.bb-fov-list .is-unrecorded,
+.bb-fov-ref-list .is-unrecorded,
+.bb-fov-recorded-notice.is-unrecorded,
+.bb-fov-gap .is-unrecorded {
+  color: var(--bb-color-quiet);
+}
+
+.bb-fov-current-state {
+  display: grid;
+  gap: 6px;
+}
+
+.bb-fov-current-state strong {
+  color: var(--bb-color-ink);
+  font-weight: var(--bb-font-weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.bb-fov-current-state .bb-ws-definition {
+  margin: 4px 0 0;
+}
+
+.bb-fov-current-missing {
+  color: var(--bb-color-muted);
+}
+
+.bb-fov-recorded-notice {
+  margin: 0;
+  color: var(--bb-color-muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.bb-fov-gap {
+  margin-top: 18px;
+  border-left: 3px solid var(--bb-color-warning);
+  padding: 10px 14px;
+  background: var(--bb-color-warning-soft);
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.bb-fov-gap strong {
+  color: var(--bb-color-warning);
+}
+
+.bb-fov-gap p {
+  margin: 0;
+}
+
+.bb-fov-gap .bb-fov-list {
+  margin-top: 5px;
+}
+
+.bb-fov-philosophy-grid,
+.bb-fov-model-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 28px;
+}
+
+.bb-fov-philosophy-statement {
+  margin: 12px 0 0;
+  color: var(--bb-color-ink);
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+.bb-fov-philosophy-card > p:not(.bb-fov-status):not(.bb-fov-philosophy-statement) {
+  margin: 8px 0 0;
+  color: var(--bb-color-muted);
+  line-height: 1.55;
+}
+
+
+.bb-fov-ref-list {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.bb-fov-model-search {
+  display: grid;
+  gap: 6px;
+  max-width: 520px;
+  margin: 0 0 18px;
+}
+
+.bb-fov-model-search label {
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  font-weight: var(--bb-font-weight-medium);
+}
+
+.bb-fov-search-input {
+  width: 100%;
+  min-height: 40px;
+  box-sizing: border-box;
+  border: 1px solid var(--bb-color-control-border);
+  border-radius: var(--bb-radius-sm);
+  padding: 9px 12px;
+  background: var(--bb-color-panel);
+  color: var(--bb-color-ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.bb-fov-search-input:focus {
+  outline: 2px solid var(--bb-color-focus);
+  outline-offset: 1px;
+}
+
+.bb-fov-pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid var(--bb-color-border);
+  padding-top: 14px;
+}
+
+.bb-fov-pager > span {
+  min-width: 48px;
+  color: var(--bb-color-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.bb-fov [hidden] {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .bb-fov-objective-ledger .bb-ws-ledger-row {
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) 84px;
+  }
+
+  .bb-fov-philosophy-grid,
+  .bb-fov-model-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bb-fov-objective-card .bb-ws-definition,
+  .bb-fov-model-card .bb-ws-definition,
+  .bb-fov-philosophy-card .bb-ws-definition {
+    grid-template-columns: minmax(90px, .55fr) minmax(0, 1fr);
+  }
+}
+
+/* Catalog provenance is secondary to the topic, but remains visible on every card. */
+.bb-fov-source { display: inline-block; margin: 0 0 12px; padding: 4px 10px; border-radius: 999px; background: var(--bb-surface-subtle, #f4f4f8); color: var(--bb-text-muted, #62626e); font-size: 12px; overflow-wrap: anywhere; }
+
+.bb-fov-objective-ledger .bb-ws-ledger-row { grid-template-columns: minmax(180px,1.2fr) minmax(200px,1.3fr) minmax(150px,1fr) 110px; }
+.bb-fov-objective-ledger .bb-ws-ledger-row > span { white-space: normal; line-height: 1.7; }
+.bb-fov-objective-ledger .bb-ws-ledger-row:is(.is-selected,:hover) { background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface); box-shadow: inset 3px 0 var(--bb-color-accent); }
+.bb-fov .bb-ws-section-title { display: flex; align-items: center; gap: 8px; }
+.bb-fov-philosophy-grid { grid-template-columns: minmax(0,1fr); }
+.bb-fov-philosophy-card { border-top: 0; width: 100%; box-sizing: border-box; }
+.bb-fov-reading { display: grid; gap: 26px; }
+.bb-fov-reading > section > h3 { margin: 0 0 10px; color: var(--bb-color-muted); font-size: 12px; font-weight: var(--bb-font-weight-medium); line-height: 1.5; }
+.bb-fov-reading .bb-ws-definition { margin: 0; grid-template-columns: 100px minmax(0,1fr); gap: 10px 20px; font-size: 14px; line-height: 1.8; }
+.bb-fov-reading .bb-fov-current-state { padding: 16px; border: 1px solid var(--bb-color-border); border-radius: 10px; background: var(--bb-color-canvas); gap: 12px; }
+.bb-fov-original { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--bb-color-border); font-size: 12px; color: var(--bb-color-muted); }
+.bb-fov-original > summary { cursor: pointer; }
+.bb-fov-missing { color: var(--bb-color-record-missing); }
+@media (max-width: 760px) { .bb-fov-objective-ledger { overflow-x: auto; } .bb-fov-objective-ledger .bb-ws-ledger-row { min-width: 760px; } }
+@media (max-width: 480px) { .bb-fov-reading .bb-ws-definition { grid-template-columns: 1fr; gap: 4px; } .bb-fov-reading dd { margin-bottom: 12px; } }
+.bb-fov-philosophy-card .bb-fov-original { border-top: 0; padding-top: 0; }
+.bb-fov-model-card .bb-fov-original { margin-top: 12px; padding-top: 10px; overflow-wrap: anywhere; }
+.bb-fov-objective-ledger .bb-ws-ledger-row:focus-visible { outline: 2px solid var(--bb-color-focus); outline-offset: 2px; }
+/* Whose what an objective waits for, and what can be done with it (story-objective-row-actions-v1). */
+.bb-fov-waiting { display: grid; gap: 2px; min-width: 0; }
+.bb-fov-waiting strong { font-weight: var(--bb-font-weight-medium); }
+.bb-fov-waiting small { color: var(--bb-color-muted); font-size: 12px; line-height: 1.4; }
+.bb-fov-ledger-hint { margin: 8px 0 0; color: var(--bb-color-muted); font-size: 12px; }
+.bb-fov-actions { display: grid; gap: 8px; justify-items: start; padding: 12px; border: 1px solid var(--bb-color-border); border-radius: 8px; background: var(--bb-color-surface-subtle, rgb(0 0 0 / 2%)); }
+.bb-fov-actions h3 { margin: 0; }
+.bb-fov-action-note { margin: 0; color: var(--bb-color-muted); font-size: 13px; }
+.bb-fov-action-note.is-unavailable { color: var(--bb-color-ink); }

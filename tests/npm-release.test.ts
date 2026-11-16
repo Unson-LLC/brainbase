@@ -11,13 +11,18 @@ import {
   classifyOidcEndpoint,
   commandFailureMessage,
   compareSemver,
+  NPM_REGISTRY_CONVERGENCE_ATTEMPTS,
+  NPM_REGISTRY_CONVERGENCE_MAX_DELAY_MS,
+  npmRegistryConvergenceDelays,
   createReleaseArtifact,
   npmDistTag,
   releaseStagingTag,
+  isVersionPublishedAtSha,
   planRelease,
   readNpmMetadata,
   reconcileDistTag,
   reconcileNpmRelease,
+  resolveReleasePlan,
   validateReleaseCandidate,
   verifyNpmRelease
 } from '../scripts/npm-release.mjs';
@@ -41,8 +46,8 @@ describe('serialized publication context', () => {
       aud: 'brainbase-npm-publish',
       repository: 'Unson-LLC/brainbase',
       run_id: '123',
-      workflow_ref: 'Unson-LLC/brainbase/.github/workflows/npm-publish.yml@refs/heads/develop',
-      ref: 'refs/heads/develop',
+      workflow_ref: 'Unson-LLC/brainbase/.github/workflows/npm-publish.yml@refs/heads/main',
+      ref: 'refs/heads/main',
       ...overrides
     })).toString('base64url');
     return `${header}.${payload}.test-signature`;
@@ -237,6 +242,27 @@ async function releaseRoot() {
   return { root, sha: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim() };
 }
 
+async function bumpedReleaseRoot() {
+  const { root, sha: beforeSha } = await releaseRoot();
+  await writeFile(path.join(root, 'package.json'), JSON.stringify({
+    name: '@unson/brainbase-mcp',
+    version: '0.1.1'
+  }));
+  execFileSync('git', ['add', 'package.json'], { cwd: root });
+  execFileSync('git', ['commit', '-qm', 'bump'], { cwd: root });
+  const afterSha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+  return { root, beforeSha, afterSha, version: '0.1.1' };
+}
+
+async function installFakeNpmView(fakeBin: string, payload: string | null) {
+  const fakeNpm = path.join(fakeBin, 'npm');
+  const body = payload === null
+    ? 'echo "npm ERR! code E404" >&2; exit 1'
+    : `printf '%s\\n' '${payload.replace(/'/gu, "'\\''")}'`;
+  await writeFile(fakeNpm, `#!/bin/sh\nif [ "$1" = "view" ]; then\n  ${body}\nfi\nexit 0\n`);
+  await chmod(fakeNpm, 0o755);
+}
+
 async function releaseProof(sha: string, trustedRef = 'trusted/develop') {
   const directory = await mkdtemp(path.join(tmpdir(), 'brainbase-npm-artifact-'));
   temporaryRoots.push(directory);
@@ -285,6 +311,133 @@ describe('npm release CLI', () => {
     expect(planRelease('0.2.0', '0.1.0')).toEqual({ releaseRequired: false, version: '0.1.0' });
   });
 
+  it('detects when a version is already published at the release SHA', async () => {
+    const metadata = vi.fn(async () => ({ version: '0.45.0', gitHead: 'abc' }));
+    await expect(isVersionPublishedAtSha('@unson/brainbase-mcp', '0.45.0', 'abc', metadata)).resolves.toBe(true);
+    await expect(isVersionPublishedAtSha('@unson/brainbase-mcp', '0.45.0', 'def', metadata)).resolves.toBe(false);
+    await expect(isVersionPublishedAtSha('@unson/brainbase-mcp', '0.45.0', 'abc', async () => null)).resolves.toBe(false);
+  });
+
+  it('resolveReleasePlan skips when the registry already has the release gitHead', async () => {
+    const { root, beforeSha, afterSha, version } = await bumpedReleaseRoot();
+    const matching = await resolveReleasePlan(beforeSha, afterSha, {
+      root,
+      metadata: vi.fn().mockResolvedValue({ version, gitHead: afterSha })
+    });
+    expect(matching).toEqual({
+      release_required: false,
+      package_name: '@unson/brainbase-mcp',
+      version,
+      sha: afterSha
+    });
+
+    const mismatched = await resolveReleasePlan(beforeSha, afterSha, {
+      root,
+      metadata: vi.fn().mockResolvedValue({ version, gitHead: '0'.repeat(40) })
+    });
+    expect(mismatched.release_required).toBe(true);
+
+    const unpublished = await resolveReleasePlan(beforeSha, afterSha, {
+      root,
+      metadata: vi.fn().mockResolvedValue(null)
+    });
+    expect(unpublished.release_required).toBe(true);
+  });
+
+  it('plan CLI writes release_required from registry-aware resolveReleasePlan', async () => {
+    const version = '0.1.1';
+    const fakeBin = await mkdtemp(path.join(tmpdir(), 'brainbase-fake-npm-plan-'));
+    const cliRoot = await mkdtemp(path.join(tmpdir(), 'brainbase-release-plan-cli-'));
+    const outputPath = path.join(cliRoot, 'github-output');
+    temporaryRoots.push(fakeBin, cliRoot);
+    await mkdir(path.join(cliRoot, 'scripts'));
+    await copyFile(path.join(process.cwd(), 'scripts/npm-release.mjs'), path.join(cliRoot, 'scripts/npm-release.mjs'));
+    await copyFile(path.join(process.cwd(), 'scripts/npm-consumer-smoke.mjs'), path.join(cliRoot, 'scripts/npm-consumer-smoke.mjs'));
+    execFileSync('git', ['init', '-q'], { cwd: cliRoot });
+    execFileSync('git', ['config', 'user.email', 'release-test@example.com'], { cwd: cliRoot });
+    execFileSync('git', ['config', 'user.name', 'Release Test'], { cwd: cliRoot });
+    await writeFile(path.join(cliRoot, 'package.json'), JSON.stringify({
+      name: '@unson/brainbase-mcp',
+      version: '0.1.0'
+    }));
+    execFileSync('git', ['add', 'package.json', 'scripts/npm-release.mjs', 'scripts/npm-consumer-smoke.mjs'], { cwd: cliRoot });
+    execFileSync('git', ['commit', '-qm', 'base'], { cwd: cliRoot });
+    const planBefore = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: cliRoot, encoding: 'utf8' }).trim();
+    await writeFile(path.join(cliRoot, 'package.json'), JSON.stringify({
+      name: '@unson/brainbase-mcp',
+      version
+    }));
+    execFileSync('git', ['add', 'package.json'], { cwd: cliRoot });
+    execFileSync('git', ['commit', '-qm', 'bump'], { cwd: cliRoot });
+    const planAfter = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: cliRoot, encoding: 'utf8' }).trim();
+
+    await installFakeNpmView(fakeBin, JSON.stringify({ version, gitHead: planAfter }));
+    execFileSync(process.execPath, [
+      'scripts/npm-release.mjs',
+      'plan',
+      '--before', planBefore,
+      '--after', planAfter
+    ], {
+      cwd: cliRoot,
+      env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}`, GITHUB_OUTPUT: outputPath }
+    });
+    expect(await readFile(outputPath, 'utf8')).toMatch(/^release_required=false\n/mu);
+  });
+
+  it('already-published CLI exits 0 only when registry gitHead matches', async () => {
+    const fakeBin = await mkdtemp(path.join(tmpdir(), 'brainbase-fake-npm-already-'));
+    temporaryRoots.push(fakeBin);
+    const sha = 'a'.repeat(40);
+    const version = '0.45.0';
+    const payload = JSON.stringify({ version, gitHead: sha });
+
+    await installFakeNpmView(fakeBin, payload);
+    const matching = execFileSync(process.execPath, [
+      'scripts/npm-release.mjs',
+      'already-published',
+      '--version', version,
+      '--sha', sha
+    ], {
+      cwd: process.cwd(),
+      env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}` }
+    });
+    expect(matching.toString()).toBe('');
+
+    await installFakeNpmView(fakeBin, JSON.stringify({ version, gitHead: 'b'.repeat(40) }));
+    let mismatchStatus: number | null = null;
+    try {
+      execFileSync(process.execPath, [
+        'scripts/npm-release.mjs',
+        'already-published',
+        '--version', version,
+        '--sha', sha
+      ], {
+        cwd: process.cwd(),
+        env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}` }
+      });
+    } catch (error) {
+      mismatchStatus = (error as NodeJS.ErrnoException & { status?: number }).status ?? null;
+    }
+    expect(mismatchStatus).toBe(1);
+
+    await installFakeNpmView(fakeBin, null);
+    let missingStatus: number | null = null;
+    try {
+      execFileSync(process.execPath, [
+        'scripts/npm-release.mjs',
+        'already-published',
+        '--version', version,
+        '--sha', sha
+      ], {
+        cwd: process.cwd(),
+        env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}` }
+      });
+    } catch (error) {
+      missingStatus = (error as NodeJS.ErrnoException & { status?: number }).status ?? null;
+    }
+    expect(missingStatus).toBe(1);
+  });
+
   it('rejects immutable version collisions', () => {
     expect(() => assertPublishedMetadata(
       { version: '0.1.0', gitHead: 'other' },
@@ -313,6 +466,73 @@ describe('npm release CLI', () => {
       reconcileTag
     })).rejects.toThrow(/published versions are immutable/u);
     expect(reconcileTag).not.toHaveBeenCalled();
+  });
+
+  it('queries npm view with --prefer-online so readback revalidates the registry', () => {
+    const spawn = vi.fn().mockReturnValue({ status: 0, stdout: '{"version":"0.1.0"}', stderr: '' });
+    readNpmMetadata('@unson/brainbase-mcp', '0.1.0', '.', spawn);
+    const args = spawn.mock.calls[0][1] as string[];
+    expect(args).toContain('--prefer-online');
+    expect(args).not.toContain('--cache');
+  });
+
+  it('bypasses the local npm cache with a throwaway cache directory when asked', async () => {
+    const { existsSync } = await import('node:fs');
+    let cacheDirectory = '';
+    const spawn = vi.fn((_command: string, args: string[]) => {
+      cacheDirectory = args[args.indexOf('--cache') + 1];
+      expect(existsSync(cacheDirectory)).toBe(true);
+      return { status: 1, stderr: 'npm error code E404\nNo match found for version 0.1.0', stdout: '' };
+    });
+    expect(readNpmMetadata('@unson/brainbase-mcp', '0.1.0', '.', spawn, { bypassCache: true })).toBeNull();
+    expect(spawn.mock.calls[0][1]).toEqual(expect.arrayContaining(['--prefer-online', '--cache']));
+    expect(cacheDirectory).toContain('brainbase-npm-readback-cache-');
+    expect(existsSync(cacheDirectory)).toBe(false);
+  });
+
+  it('uses a convergence window longer than the registry packument max-age of 300 s', () => {
+    const delays = npmRegistryConvergenceDelays();
+    expect(delays).toHaveLength(NPM_REGISTRY_CONVERGENCE_ATTEMPTS - 1);
+    expect(Math.max(...delays)).toBe(NPM_REGISTRY_CONVERGENCE_MAX_DELAY_MS);
+    const total = delays.reduce((sum, value) => sum + value, 0);
+    expect(total).toBeGreaterThan(300_000);
+    expect(total).toBeLessThanOrEqual(10 * 60_000);
+  });
+
+  it('retries past a cached pre-publish 404 by bypassing the cache after the first readback', async () => {
+    const { root, sha } = await releaseRoot();
+    const proof = await releaseProof(sha);
+    const metadata = vi.fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ version: '0.1.0', gitHead: sha, 'dist.integrity': proof.tarballIntegrity });
+    await reconcileNpmRelease({
+      root,
+      packageName: '@unson/brainbase-mcp',
+      version: '0.1.0',
+      expectedSha: sha,
+      trustedRef: 'trusted/develop',
+      metadata,
+      execute: vi.fn(() => ''),
+      delay: async () => undefined,
+      validationProof: proof,
+      reconcileTag: vi.fn().mockResolvedValue({ tag: 'latest', version: '0.1.0' }),
+      cleanupStagingTag: vi.fn().mockResolvedValue(undefined)
+    });
+    expect(metadata).toHaveBeenCalledTimes(4);
+    expect(metadata.mock.calls[0][4]).toBeUndefined();
+    expect(metadata.mock.calls[1][4]).toEqual({ bypassCache: false });
+    expect(metadata.mock.calls[2][4]).toEqual({ bypassCache: true });
+    expect(metadata.mock.calls[3][4]).toEqual({ bypassCache: true });
+  });
+
+  it('reads versions and dist-tags with --prefer-online when reconciling the dist-tag', async () => {
+    const execute = vi.fn((_command: string, args: string[]) => args[1] === '@unson/brainbase-mcp' && args.includes('versions') ? '["0.1.0"]' : '{"latest":"0.1.0"}');
+    await reconcileDistTag('@unson/brainbase-mcp', '0.1.0', '.', execute);
+    const views = execute.mock.calls.filter(([, args]) => args[0] === 'view');
+    expect(views.length).toBeGreaterThan(0);
+    for (const [, args] of views) expect(args).toContain('--prefer-online');
   });
 
   it('treats only npm 404 as unpublished', () => {
@@ -500,7 +720,7 @@ describe('npm release CLI', () => {
       cleanupStagingTag
     })).rejects.toThrow(/registry integrity does not match/u);
 
-    expect(metadata).toHaveBeenCalledTimes(9);
+    expect(metadata).toHaveBeenCalledTimes(1 + NPM_REGISTRY_CONVERGENCE_ATTEMPTS);
     expect(reconcileTag).not.toHaveBeenCalled();
     expect(cleanupStagingTag).not.toHaveBeenCalled();
   });
@@ -598,7 +818,7 @@ describe('npm release CLI', () => {
       'git merge-base --is-ancestor ' + sha + ' trusted/develop',
       'git status --porcelain=v1 --untracked-files=all',
       'npm run build',
-      'npm test',
+      'npm test -- --maxWorkers=2 --testTimeout=30000 --hookTimeout=30000',
       'npm audit --omit=dev',
       'git status --porcelain=v1 --untracked-files=all'
     ]);

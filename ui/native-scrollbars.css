@@ -1,0 +1,18 @@
+
+@property --bb-scrollbar-opacity { syntax: "<number>"; inherits: false; initial-value: 0; }
+:root.bb-native-scrollbars, .bb-native-scrollbars :is(.bb-scrollable, .sidebar, .bb-shell-sidebar, .bb-shell-main, .bb-shell-rail, .bb-ws-dialog, .mutation-dialog) {
+  --bb-scrollbar-rgb: var(--bb-color-scrollbar-rgb); --bb-scrollbar-opacity: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--bb-scrollbar-rgb),var(--bb-scrollbar-opacity)) transparent;
+  transition: --bb-scrollbar-opacity 450ms ease;
+}
+.bb-native-scrollbars :is(.sidebar,.bb-shell-sidebar) { --bb-scrollbar-rgb: var(--bb-color-scrollbar-dark-rgb); }
+:root.bb-native-scrollbars.bb-is-scrolling, .bb-native-scrollbars .bb-is-scrolling { --bb-scrollbar-opacity: .28; }
+:root.bb-native-scrollbars::-webkit-scrollbar, .bb-native-scrollbars :is(.bb-scrollable,.sidebar,.bb-shell-sidebar,.bb-shell-main,.bb-shell-rail,.bb-ws-dialog,.mutation-dialog)::-webkit-scrollbar { width: 6px; height: 6px; }
+:root.bb-native-scrollbars::-webkit-scrollbar-track, .bb-native-scrollbars :is(.bb-scrollable,.sidebar,.bb-shell-sidebar,.bb-shell-main,.bb-shell-rail,.bb-ws-dialog,.mutation-dialog)::-webkit-scrollbar-track { background: transparent; }
+:root.bb-native-scrollbars::-webkit-scrollbar-thumb, .bb-native-scrollbars :is(.bb-scrollable,.sidebar,.bb-shell-sidebar,.bb-shell-main,.bb-shell-rail,.bb-ws-dialog,.mutation-dialog)::-webkit-scrollbar-thumb { background: rgba(var(--bb-scrollbar-rgb),var(--bb-scrollbar-opacity)); border-radius: 8px; }
+@media (prefers-reduced-motion: reduce) { :root.bb-native-scrollbars, .bb-native-scrollbars :is(.bb-scrollable,.sidebar,.bb-shell-sidebar,.bb-shell-main,.bb-shell-rail,.bb-ws-dialog,.mutation-dialog) { transition: none; } }
+@media (forced-colors: active) {
+  :root.bb-native-scrollbars, .bb-native-scrollbars :is(.bb-scrollable,.sidebar,.bb-shell-sidebar,.bb-shell-main,.bb-shell-rail,.bb-ws-dialog,.mutation-dialog) { scrollbar-width: auto; scrollbar-color: auto; }
+  :root.bb-native-scrollbars::-webkit-scrollbar-thumb, .bb-native-scrollbars :is(.bb-scrollable,.sidebar,.bb-shell-sidebar,.bb-shell-main,.bb-shell-rail,.bb-ws-dialog,.mutation-dialog)::-webkit-scrollbar-thumb { background: CanvasText; }
+}

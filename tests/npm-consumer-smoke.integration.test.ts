@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createReleaseArtifact } from '../scripts/npm-release.mjs';
 
+const NPM_CONSUMER_SMOKE_TIMEOUT_MS = 180_000;
 const temporaryRoots: string[] = [];
 
 afterEach(async () => {
@@ -90,6 +91,15 @@ describe('npm tarball consumer smoke', () => {
           readback: 'passed',
           replay: 'passed',
           moduleResolution: expect.stringMatching(/^dist\/organization-connection\.js$/u)
+        },
+        organizationMemberInvite: {
+          subpathImport: 'passed',
+          create: 'passed',
+          accept: 'passed',
+          revoke: 'passed',
+          reissue: 'passed',
+          replay: 'passed',
+          moduleResolution: expect.stringMatching(/^dist\/organization-member-invite\.js$/u)
         },
         contractArtifacts: {
           schema: 'passed',
@@ -193,5 +203,5 @@ describe('npm tarball consumer smoke', () => {
     });
     expect(result.consumerRoot).not.toContain(root);
     await expect(access(result.consumerRoot)).rejects.toMatchObject({ code: 'ENOENT' });
-  }, 60_000);
+  }, NPM_CONSUMER_SMOKE_TIMEOUT_MS);
 });

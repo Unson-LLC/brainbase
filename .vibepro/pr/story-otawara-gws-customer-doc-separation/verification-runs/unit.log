@@ -1,0 +1,80 @@
+
+> @unson/brainbase-mcp@0.41.13 test
+> vitest run --exclude tests/npm-prepublication-evidence.integration.test.ts --maxWorkers=4
+
+
+ RUN  v4.1.8 /workspace
+
+ ❯ tests/npm-consumer-smoke.integration.test.ts (1 test | 1 failed) 8757ms
+     × runs the public CLI and MCP tools/list plus the public runner API from a fresh installed consumer 8756ms
+ ❯ tests/npm-release.test.ts (54 tests | 2 failed) 30210ms
+     × rejects a dirty checkout before validation or publication 14325ms
+     × fixes publication authority to the Brainbase package 14303ms
+ ❯ tests/personal-memory-handover.test.ts (10 tests | 1 failed) 224ms
+     × rejects a malformed receipt file instead of guessing registration state 13ms
+
+ Test Files  3 failed | 207 passed (210)
+      Tests  4 failed | 2432 passed (2436)
+   Start at  08:16:14
+   Duration  40.80s (transform 5.70s, setup 0ms, import 18.08s, tests 124.21s, environment 15ms)
+
+npm notice
+npm notice New major version of npm available! 10.9.9 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+consumer smoke could not resolve npm-cli.js from Node or the system npm installation
+npm notice
+npm notice New major version of npm available! 10.9.9 -> 12.2.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.0
+npm notice To update run: npm install -g npm@12.2.0
+npm notice
+(node:31391) Warning: Failed to clean up committed SSOT transaction /tmp/brainbase-atomic-fjgjmh/.brainbase-transaction-a7855320-e88c-4249-8dbe-f1c7d6bbab36: Injected committed SSOT transaction cleanup failure
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/npm-consumer-smoke.integration.test.ts > npm tarball consumer smoke > runs the public CLI and MCP tools/list plus the public runner API from a fresh installed consumer
+Error: Command failed: /exec-daemon/node /workspace/scripts/npm-consumer-smoke.mjs /tmp/brainbase-consumer-artifact-I8wnDI/unson-brainbase-mcp-0.41.13.tgz
+consumer smoke could not resolve npm-cli.js from Node or the system npm installation
+
+ ❯ tests/npm-consumer-smoke.integration.test.ts:51:25
+     49|       HTTPS_PROXY: 'http://proxy-user:proxy-password@example.invalid:8…
+     50|     };
+     51|     const smokeOutput = execFileSync(process.execPath, [
+       |                         ^
+     52|       path.join(root, 'scripts/npm-consumer-smoke.mjs'), artifact.tarb…
+     53|     ], {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  tests/npm-release.test.ts > npm release CLI > rejects a dirty checkout before validation or publication
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/npm-release.test.ts:785:3
+    783|   });
+    784|
+    785|   it('rejects a dirty checkout before validation or publication', asyn…
+       |   ^
+    786|     const { root, sha } = await releaseRoot();
+    787|     const proofDirectory = await mkdtemp(path.join(tmpdir(), 'brainbas…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  tests/npm-release.test.ts > npm release CLI > fixes publication authority to the Brainbase package
+Error: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ tests/npm-release.test.ts:800:3
+    798|   });
+    799|
+    800|   it('fixes publication authority to the Brainbase package', async () …
+       |   ^
+    801|     const { root, sha } = await releaseRoot();
+    802|     await expect(reconcileNpmRelease({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  tests/personal-memory-handover.test.ts > H7 local memory re-registration > rejects a malformed receipt file instead of guessing registration state
+Error: ENOTEMPTY: directory not empty, rmdir '/tmp/brainbase-memory-handover-SL2JNc'
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+

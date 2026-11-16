@@ -1,0 +1,1089 @@
+/*
+ * Foundation overview: the first read-only view of a selected project.
+ *
+ * The host supplies an authenticated, scope-bound `port.readCatalog()`; this
+ * module never fetches a database, writes a record, or treats a failed read as
+ * an empty catalog.  The screen deliberately keeps recorded facts, missing
+ * definitions, and hypotheses visually separate.
+ */
+
+// A new lazy screen must not reuse the pre-loading-stage kit cached by an open tab.
+// The capability query gives this compatible kit its own browser module identity.
+import * as workspaceKit from './workspace-kit.js?capability=loading-stage-v1';
+const {
+  workspaceButton,
+  workspaceDefinition,
+  workspaceLedger,
+  workspaceNotice,
+  workspacePageHeader,
+  workspaceSectionTitle,
+  workspaceHelp, workspaceDialog, workspaceDisclosure, workspaceErrorCard, workspaceLoadingCard, workspaceLoadingStage, workspaceDismissNotification,
+} = workspaceKit;
+
+export const FOUNDATION_OVERVIEW_CONTRACT_VERSION = 'foundation-overview.v1';
+export const FOUNDATION_OVERVIEW_PAGE_SIZE = 50;
+
+const ADOPTION_LABELS = Object.freeze({
+  draft: '草案',
+  proposed: '提案中',
+  approved: '承認済み',
+  retired: '終了',
+});
+const EPISTEMIC_LABELS = Object.freeze({
+  unverified: '未検証',
+  hypothesis: '仮説',
+  supported: '支持',
+  verified: '検証済み',
+  refuted: '反証',
+});
+const VALIDATION_LABELS = Object.freeze({
+  unverified: '未検証',
+  in_progress: '検証中',
+  supported: '支持',
+  verified: '検証済み',
+  refuted: '反証',
+});
+const USE_LABELS = Object.freeze({
+  draft: '草案',
+  judgment: '判断',
+  evaluation: '評価',
+  execution: '実行',
+});
+const PHILOSOPHY_STATUS_LABELS = Object.freeze({
+  active: '有効',
+  draft: '草案',
+  proposed: '提案中',
+  inactive: '停止',
+  retired: '終了',
+  archived: '終了',
+});
+const OPERATOR_LABELS = Object.freeze({ at_least: '以上', at_most: '以下', equals: '一致' });
+const SOURCE_KIND_LABELS = Object.freeze({
+  candidate: '候補からの登録',
+  document: '文書',
+  observation: '観察',
+  decision: '決定',
+  import: '取り込み',
+});
+// A record without a name is said to have none; its id stays in the record details (P9).
+const UNNAMED_RECORD = '名前の記録なし';
+const UNNAMED_VARIABLE = '名前の記録がない変数';
+
+export class FoundationOverviewError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'FoundationOverviewError';
+    this.code = code;
+  }
+}
+
+function isObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function nonEmpty(value) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function getDocument(explicit) {
+  const value = explicit ?? (typeof document === 'undefined' ? null : document);
+  if (!value || typeof value.createElement !== 'function') throw new TypeError('document_unavailable');
+  return value;
+}
+
+function makeElement(doc, tag, { className, text, attrs = {}, value, hidden, disabled } = {}) {
+  const element = doc.createElement(tag);
+  if (className) element.className = className;
+  if (text !== undefined && text !== null) element.textContent = String(text);
+  for (const [name, attrValue] of Object.entries(attrs)) {
+    if (attrValue === undefined || attrValue === null || attrValue === false) continue;
+    element.setAttribute(name, attrValue === true ? '' : String(attrValue));
+  }
+  if (value !== undefined && 'value' in element) element.value = String(value);
+  if (hidden !== undefined) element.hidden = Boolean(hidden);
+  if (disabled !== undefined) element.disabled = Boolean(disabled);
+  return element;
+}
+
+function append(parent, ...children) {
+  parent.append(...children.filter((child) => child !== null && child !== undefined));
+  return parent;
+}
+
+function firstValue(source, ...keys) {
+  if (!isObject(source)) return undefined;
+  for (const key of keys) {
+    if (source[key] !== undefined && source[key] !== null) return source[key];
+  }
+  return undefined;
+}
+
+function error(code, message) {
+  return new FoundationOverviewError(code, message);
+}
+
+function validateFoundationRecords(value, type, label) {
+  if (!Array.isArray(value)) throw error('invalid_schema', `${label}の形式を確認できません。`);
+  for (const [index, item] of value.entries()) {
+    if (!isObject(item) || !isObject(item.definition)
+      || item.definition.type !== type
+      || !nonEmpty(item.definition.id)
+      || !nonEmpty(item.definition.revision)
+      || !nonEmpty(item.digest)) {
+      throw error('invalid_schema', `${label}の${index + 1}件目の形式が不正です。`);
+    }
+  }
+  return value;
+}
+
+function validatePhilosophyRecords(value) {
+  if (!Array.isArray(value)) throw error('invalid_schema', '哲学の形式を確認できません。');
+  for (const [index, item] of value.entries()) {
+    if (!isObject(item)
+      || item.kind !== 'philosophy'
+      || !nonEmpty(item.id)
+      || !nonEmpty(item.revision)
+      || !nonEmpty(item.digest)
+      || !isObject(item.payload)) {
+      throw error('invalid_schema', `哲学の${index + 1}件目の形式が不正です。`);
+    }
+  }
+  return value;
+}
+
+function validateUnscopedPhilosophyRecords(value) {
+  if (!Array.isArray(value)) throw error('invalid_schema', '適用範囲が未記録の哲学の形式を確認できません。');
+  for (const [index, item] of value.entries()) {
+    if (!isObject(item)
+      || item.kind !== 'philosophy'
+      || !nonEmpty(item.id)
+      || !Number.isSafeInteger(item.version) || item.version < 1
+      || item.applicability_state !== 'unrecorded'
+      || !isObject(item.payload)
+      || !nonEmpty(item.payload.statement)) {
+      throw error('invalid_schema', `適用範囲が未記録の哲学の${index + 1}件目の形式が不正です。`);
+    }
+  }
+  return value;
+}
+
+/** Validate the host contract without converting an unreadable response into an empty catalog. */
+export function normalizeFoundationCatalog(value, expectedScopeId) {
+  if (!isObject(value) || value.contractVersion !== FOUNDATION_OVERVIEW_CONTRACT_VERSION) {
+    throw error('invalid_schema', '目的と現状の応答形式を確認できません。');
+  }
+  const scopeId = nonEmpty(value.scopeId);
+  if (!scopeId) throw error('invalid_schema', '対象範囲が応答にありません。');
+  if (scopeId !== expectedScopeId) {
+    throw error('scope_mismatch', '選択した対象範囲と応答の対象範囲が一致しません。');
+  }
+  const readStatus = nonEmpty(firstValue(value, 'read_status', 'readStatus'));
+  const catalogStatus = nonEmpty(value.status);
+  const knownReadableStatuses = new Set(['complete', 'ready', 'resolved', 'empty']);
+  const unreadableStatus = (readStatus && !knownReadableStatuses.has(readStatus))
+    || (catalogStatus && !knownReadableStatuses.has(catalogStatus));
+  // Older hosts omit this field; then it stays unknown instead of becoming [].
+  const unscopedPhilosophies = value.philosophies_without_applicability === undefined
+    ? undefined : validateUnscopedPhilosophyRecords(value.philosophies_without_applicability);
+  const collections = [value.objectives, value.variables, value.models, value.philosophies, unscopedPhilosophies];
+  const hasRecords = collections.some((records) => Array.isArray(records) && records.length > 0);
+  const absenceConfirmed = value.absence_confirmed === true;
+  if (unreadableStatus || (!hasRecords && ('absence_confirmed' in value || readStatus || catalogStatus) && !absenceConfirmed)) {
+    throw error('unavailable', '目的・哲学・世界モデルの取得状態を確認できません。');
+  }
+  validateFoundationRecords(value.objectives, 'objective', '目的');
+  validateFoundationRecords(value.variables, 'variable', '変数');
+  validateFoundationRecords(value.models, 'model', '世界モデル');
+  validatePhilosophyRecords(value.philosophies);
+  return {
+    contractVersion: value.contractVersion,
+    scopeId,
+    objectives: value.objectives,
+    variables: value.variables,
+    models: value.models,
+    philosophies: value.philosophies,
+    ...(unscopedPhilosophies ? { philosophies_without_applicability: unscopedPhilosophies } : {}),
+    ...(readStatus ? { read_status: readStatus } : {}),
+    ...(catalogStatus ? { status: catalogStatus } : {}),
+    ...(typeof value.absence_confirmed === 'boolean' ? { absence_confirmed: value.absence_confirmed } : {}),
+    ...(value.source !== undefined ? { source: value.source } : {}),
+  };
+}
+
+function formatDate(value) {
+  if (typeof value !== 'string' || !value.trim()) return '未確認';
+  const time = Date.parse(value);
+  if (Number.isNaN(time)) return value;
+  return new Date(time).toISOString().slice(0, 10);
+}
+
+function formatPeriod(value) {
+  if (!isObject(value) || typeof value.from !== 'string' || typeof value.until !== 'string') return null;
+  return `${formatDate(value.from)} 〜 ${formatDate(value.until)}`;
+}
+
+function formatAny(value) {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value === 'string') return value.trim() || null;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) return value.map((item) => formatAny(item)).filter(Boolean).join('、') || null;
+  if (isObject(value)) {
+    const preferred = firstValue(value, 'text', 'description', 'statement', 'label', 'name', 'value');
+    if (preferred !== undefined && preferred !== value) return formatAny(preferred);
+    try { return JSON.stringify(value); } catch { return null; }
+  }
+  return null;
+}
+
+function formatStructuredValue(value) {
+  if (value === undefined || value === null || value === '') return null;
+  if (Array.isArray(value)) return value.map((item) => formatStructuredValue(item)).filter(Boolean).join('、') || null;
+  if (isObject(value)) {
+    const preferred = firstValue(value, 'text', 'description', 'statement', 'label', 'name', 'value');
+    if (preferred !== undefined && preferred !== value) return formatStructuredValue(preferred);
+    return Object.entries(value)
+      .map(([key, item]) => {
+        const formatted = formatStructuredValue(item);
+        return formatted ? `${key}: ${formatted}` : null;
+      })
+      .filter(Boolean)
+      .join('、') || null;
+  }
+  return formatAny(value);
+}
+
+const SCOPE_LABELS = Object.freeze({
+  project: 'プロジェクト',
+  organization: '組織',
+  company: '組織',
+});
+
+function formatValidity(from, until) {
+  if (!from && !until) return null;
+  if (!from) return `${formatDate(until)} まで`;
+  return `${formatDate(from)} から ${until ? `${formatDate(until)} まで` : '（終了日の記録なし）'}`;
+}
+
+/**
+ * A scope in words: `{ type, id }` names the project or organization, and a validity scope
+ * (`subjectIds`, `validFrom`, `validUntil`) becomes its period and the number of subjects.  The
+ * subject ids themselves belong to the record details.
+ */
+function formatScope(value) {
+  if (!isObject(value)) return formatStructuredValue(value);
+  const type = formatAny(value.type);
+  const id = formatAny(value.id);
+  if (type && id) return `${SCOPE_LABELS[type] ?? type}: ${id}`;
+  const subjects = firstValue(value, 'subjectIds', 'subject_ids');
+  const period = formatValidity(firstValue(value, 'validFrom', 'valid_from'), firstValue(value, 'validUntil', 'valid_until'));
+  const parts = [
+    Array.isArray(subjects) && subjects.length > 0 ? `対象 ${subjects.length}件` : null,
+    period ? `適用期間: ${period}` : null,
+  ].filter(Boolean);
+  if (parts.length > 0) return parts.join(' ／ ');
+  return formatAny(firstValue(value, 'text', 'description', 'statement', 'label', 'name'))
+    ?? '読める形の記録がありません（記録の詳細を参照）';
+}
+
+/** Where a definition came from, as kinds of source; the source and evidence ids stay in the details. */
+function formatProvenance(provenance) {
+  if (!Array.isArray(provenance) || provenance.length === 0) return null;
+  return provenance.map((item) => {
+    const kind = SOURCE_KIND_LABELS[item?.sourceKind] ?? '種類の記録なし';
+    const evidence = Array.isArray(item?.evidenceIds) ? item.evidenceIds.length : 0;
+    return evidence > 0 ? `${kind}（証拠${evidence}件）` : kind;
+  }).join('、');
+}
+
+/** Ids, revisions and digests of one record, for the "記録の詳細" disclosure only. */
+function recordDetailsElement(doc, rows, summary = '記録の詳細') {
+  const details = makeElement(doc, 'details', { className: 'bb-fov-original' });
+  details.append(makeElement(doc, 'summary', { text: summary }), workspaceDefinition(doc, rows));
+  return details;
+}
+
+function referenceLabels(refs) {
+  return Array.isArray(refs) && refs.length > 0 ? refs.map(referenceLabel).join('、') : null;
+}
+
+function recordDefinition(record) { return isObject(record?.definition) ? record.definition : {}; }
+
+function foundationKey(ref) {
+  if (!isObject(ref) || !nonEmpty(ref.id) || !nonEmpty(ref.type) || !nonEmpty(ref.revision)) return null;
+  return `${ref.type}:${ref.id}@${ref.revision}`;
+}
+
+function referenceLabel(ref) {
+  const id = nonEmpty(ref?.id) ?? '不明な変数';
+  const revision = nonEmpty(ref?.revision) ?? '?';
+  return `${id}@${revision}`;
+}
+
+function statusText(definition) {
+  const status = ADOPTION_LABELS[definition.adoptionState] ?? '状態未確認';
+  const epistemic = EPISTEMIC_LABELS[definition.epistemicState];
+  const validation = VALIDATION_LABELS[definition.validationState];
+  const uses = Array.isArray(definition.authorizedUses)
+    ? definition.authorizedUses.map((use) => USE_LABELS[use] ?? String(use)).join('、')
+    : '未確認';
+  return [
+    `登録状態: ${status}`,
+    epistemic ? `認識: ${epistemic}` : null,
+    validation ? `検証: ${validation}` : null,
+    `許可用途: ${uses || '未確認'}`,
+  ].filter(Boolean).join(' ／ ');
+}
+
+function statusElement(doc, definition, className = '') {
+  return makeElement(doc, 'p', { className: `bb-fov-status${className ? ` ${className}` : ''}`, text: statusText(definition) });
+}
+
+/**
+ * The one state a reader needs in front of a model: whether it is held as verified or as a
+ * hypothesis.  Adoption, validation and authorized uses stay in the record details.
+ */
+function certaintyText(definition) {
+  const label = EPISTEMIC_LABELS[definition.epistemicState] ?? VALIDATION_LABELS[definition.validationState];
+  return `確からしさ: ${label ?? '記録なし'}`;
+}
+
+function detailsFor(record) {
+  return isObject(record?.details) ? record.details : {};
+}
+
+function currentStateFor(record) {
+  const definition = recordDefinition(record);
+  const details = detailsFor(record);
+  const current = firstValue(details, 'current_state', 'currentState')
+    ?? firstValue(definition, 'current_state', 'currentState');
+  const asOf = firstValue(details, 'as_of', 'asOf', 'recorded_at', 'recordedAt')
+    ?? firstValue(record, 'as_of', 'asOf', 'recorded_at', 'recordedAt');
+  const savedAt = firstValue(details, 'saved_at', 'savedAt', 'persisted_at', 'persistedAt')
+    ?? firstValue(record, 'saved_at', 'savedAt', 'persisted_at', 'persistedAt');
+  if (isObject(current)) {
+    const text = formatAny(firstValue(current, 'text', 'description', 'statement', 'value', 'summary'));
+    const status = formatAny(firstValue(current, 'status'));
+    const evidenceScope = formatAny(firstValue(current, 'evidence_scope', 'evidenceScope'));
+    const missingValue = firstValue(current, 'missing');
+    const missing = Array.isArray(missingValue)
+      ? missingValue.map((item) => formatAny(item)).filter(Boolean)
+      : (formatAny(missingValue) ? [formatAny(missingValue)] : []);
+    return {
+      text,
+      status,
+      evidenceScope,
+      missing,
+      asOf: firstValue(current, 'as_of', 'asOf', 'recorded_at', 'recordedAt') ?? asOf,
+      savedAt: firstValue(current, 'saved_at', 'savedAt') ?? savedAt,
+      recorded: Boolean(text || status || evidenceScope || missing.length || asOf),
+    };
+  }
+  const text = formatAny(current);
+  return { text, status: null, evidenceScope: null, missing: [], asOf, savedAt, recorded: Boolean(text) };
+}
+
+function criteriaList(doc, definition, variableMap) {
+  const list = makeElement(doc, 'ul', { className: 'bb-fov-list' });
+  if (!Array.isArray(definition.criteria) || definition.criteria.length === 0) {
+    list.append(makeElement(doc, 'li', { className: 'is-unrecorded', text: '評価基準は未記録です。' }));
+    return list;
+  }
+  for (const criterion of definition.criteria) {
+    const ref = criterion?.variableRef;
+    const exact = variableMap.get(foundationKey(ref));
+    const exactDefinition = exact ? recordDefinition(exact) : null;
+    const name = (exactDefinition ? formatAny(exactDefinition.meaning) : null) ?? UNNAMED_VARIABLE;
+    const variableDetails = exactDefinition
+      ? [
+        ['定義', exactDefinition.definition],
+        ['評価規準', exactDefinition.rubric],
+        ['値域', exactDefinition.valueSpace],
+      ].map(([label, value]) => {
+        const text = formatStructuredValue(value);
+        return text ? `${label}: ${text}` : null;
+      }).filter(Boolean)
+      : [];
+    const operator = OPERATOR_LABELS[criterion?.operator] ?? '条件';
+    const target = formatAny(criterion?.target);
+    const status = exact ? '参照確認済み' : '参照未確認（基準変数の版が一致しません）';
+    list.append(makeElement(doc, 'li', {
+      className: exact ? '' : 'is-unrecorded',
+      text: `${name}${variableDetails.length > 0 ? `（${variableDetails.join(' ／ ')}）` : ''} ${operator}${target === null ? '' : ` ${target}`} — ${status}`,
+    }));
+  }
+  return list;
+}
+
+function criteriaElement(doc, definition, details, variableMap) {
+  const wrap = makeElement(doc, 'div', { className: 'bb-fov-criteria' });
+  const recordedValue = firstValue(details, 'criteria_text', 'criteriaText');
+  const recordedTexts = Array.isArray(recordedValue)
+    ? recordedValue.map((item) => formatAny(item)).filter(Boolean)
+    : [formatAny(recordedValue)].filter(Boolean);
+  if (recordedTexts.length === 1) {
+    wrap.append(makeElement(doc, 'p', { className: 'bb-fov-criteria-text', text: recordedTexts[0] }));
+  } else if (recordedTexts.length > 1) {
+    const recordedList = makeElement(doc, 'ul', { className: 'bb-fov-list bb-fov-criteria-text-list' });
+    for (const text of recordedTexts) recordedList.append(makeElement(doc, 'li', { text }));
+    wrap.append(recordedList);
+  }
+  if (Array.isArray(definition.criteria) && definition.criteria.length > 0) {
+    wrap.append(criteriaList(doc, definition, variableMap));
+  } else if (recordedTexts.length === 0) {
+    wrap.append(criteriaList(doc, definition, variableMap));
+  }
+  return wrap;
+}
+
+function missingObjectiveFields(record) {
+  const definition = recordDefinition(record);
+  const current = currentStateFor(record);
+  const gaps = [];
+  if (!nonEmpty(definition.desiredState)) gaps.push('目指す状態');
+  if (!Array.isArray(definition.criteria) || definition.criteria.length === 0) gaps.push('評価基準');
+  if (!formatPeriod(definition.evaluationPeriod)) gaps.push('評価期間');
+  if (!nonEmpty(definition.accountableId)) gaps.push('責任者');
+  if (!current.recorded) gaps.push('記録上の現状');
+  return gaps;
+}
+
+function recordedStateElement(doc, record) {
+  const current = currentStateFor(record);
+  const body = makeElement(doc, 'div', { className: 'bb-fov-current-state' });
+  body.append(makeElement(doc, 'strong', {
+    text: current.text ?? (current.status ? `状態: ${current.status}` : current.recorded ? '保存時点の記録' : '未記録'),
+  }));
+  const details = [];
+  if (current.status && current.text) details.push(['状態', current.status]);
+  if (current.evidenceScope) details.push(['証拠範囲', current.evidenceScope]);
+  if (current.asOf !== undefined && current.asOf !== null) details.push(['記録時点', formatDate(current.asOf)]);
+  if (current.missing.length > 0) {
+    const missing = makeElement(doc, 'ul', { className: 'bb-fov-list bb-fov-current-missing' });
+    for (const item of current.missing) missing.append(makeElement(doc, 'li', { text: item }));
+    details.push(['保存時点で未確認', missing]);
+  }
+  if (details.length > 0) body.append(workspaceDefinition(doc, details));
+  body.append(makeElement(doc, 'p', {
+    className: current.recorded ? 'bb-fov-recorded-notice' : 'bb-fov-recorded-notice is-unrecorded',
+    text: current.recorded
+      ? `保存時点の記録です。記録時点: ${formatDate(current.asOf)}。${current.savedAt ? `保存日時: ${formatDate(current.savedAt)}。` : ''}`
+      : '記録上の現状は未記録です。',
+  }));
+  return body;
+}
+
+function objectiveCard(doc, record, variableMap) {
+  const definition = recordDefinition(record);
+  const details = detailsFor(record);
+  const title = formatAny(firstValue(details, 'title')) ?? formatAny(definition.meaning) ?? UNNAMED_RECORD;
+  const gaps = missingObjectiveFields(record);
+  const current = currentStateFor(record);
+  const evaluationPeriod = formatAny(firstValue(details, 'evaluation_period_note', 'evaluationPeriodNote'))
+    ?? formatPeriod(definition.evaluationPeriod);
+  const evaluator = formatAny(firstValue(details, 'evaluator_note', 'evaluatorNote'));
+  const accountable = formatAny(definition.accountableId);
+  const beneficiary = formatAny(firstValue(details, 'beneficiary_description', 'beneficiaryDescription'))
+    ?? (Array.isArray(definition.beneficiaryIds) ? definition.beneficiaryIds.join('、') : null);
+  const card = makeElement(doc, 'article', { className: 'bb-fov-objective-card' });
+  card.append(makeElement(doc, 'h3', { text: title }), statusElement(doc, definition));
+  card.append(workspaceDefinition(doc, [
+    ['目指す状態', formatAny(definition.desiredState)],
+    ['評価基準', criteriaElement(doc, definition, details, variableMap)],
+    ['評価期間', evaluationPeriod],
+    ['評価者', evaluator],
+    ['責任者', accountable],
+    ['対象・受益者', beneficiary],
+    ['記録上の現状', recordedStateElement(doc, record)],
+  ]));
+  const gap = makeElement(doc, 'div', { className: 'bb-fov-gap' });
+  if (gaps.length > 0) {
+    gap.append(makeElement(doc, 'strong', { text: 'まだ確かめられていない点' }));
+    const list = makeElement(doc, 'ul', { className: 'bb-fov-list' });
+    for (const item of gaps) list.append(makeElement(doc, 'li', { text: `${item}: 未確定` }));
+    gap.append(list);
+  } else if (current.missing.length > 0) {
+    gap.append(makeElement(doc, 'p', { text: '保存時点で未確認の項目があります。' }));
+  } else {
+    gap.append(makeElement(doc, 'p', { text: '不足項目は記録上ありません。達成・採用・検証済みを意味しません。' }));
+  }
+  card.append(gap);
+  return card;
+}
+
+/**
+ * Whose what an objective waits for (story-objective-row-actions-v1), from its own record: the items its
+ * current state says were not confirmed when it was saved, or else the fields it has not recorded, and
+ * the accountable person who would settle them.  Nothing is waited for when the record names nothing.
+ */
+export function objectiveWaiting(record) {
+  const definition = recordDefinition(record);
+  const current = currentStateFor(record);
+  const accountable = nonEmpty(definition.accountableId);
+  const items = current.missing.length ? current.missing : missingObjectiveFields(record);
+  if (items.length === 0) return null;
+  const what = `${current.missing.length ? '未確認' : '未記録'}：${items.join('・')}`;
+  const who = accountable ? '責任者の確認待ち' : '責任者が未記録のため、確かめる人が決まっていません';
+  return { what, who, items, kind: current.missing.length ? 'unconfirmed' : 'unrecorded', accountableRecorded: Boolean(accountable) };
+}
+
+function waitingElement(doc, waiting) {
+  const cell = makeElement(doc, 'span', { className: 'bb-fov-waiting' });
+  if (!waiting) {
+    cell.append(makeElement(doc, 'span', { className: 'bb-fov-missing', text: '記録上はありません' }));
+    return cell;
+  }
+  cell.append(makeElement(doc, 'strong', { className: 'bb-fov-missing', text: waiting.what }), makeElement(doc, 'small', { text: waiting.who }));
+  return cell;
+}
+
+/**
+ * What the reader can do with this objective, from the host (`callbacks.objectiveAction`): a button that
+ * goes where it is corrected, or the reason it cannot be from here.  Without a host action the screen says
+ * it only reads; it never shows a control that does nothing.
+ */
+function objectiveActionElement(doc, record, recordContexts, callbacks, dialog) {
+  const definition = recordDefinition(record), details = detailsFor(record);
+  const part = makeElement(doc, 'section', { className: 'bb-fov-actions' });
+  part.append(makeElement(doc, 'h3', { text: 'この目的でできること' }));
+  const context = recordContexts?.get(record);
+  const action = typeof callbacks?.objectiveAction === 'function'
+    ? callbacks.objectiveAction({
+      objectiveId: definition.id ?? null,
+      revision: definition.revision ?? null,
+      title: formatAny(details.title) ?? formatAny(definition.meaning) ?? null,
+      scopeIds: context?.scopeIds ?? [],
+      record,
+    })
+    : null;
+  if (action && typeof action.onSelect === 'function') {
+    part.append(workspaceButton(doc, {
+      text: `${action.label ?? '目的を直す・現状を記録する'} ›`,
+      variant: 'primary',
+      onClick: () => { dialog()?.close(); action.onSelect(); },
+    }));
+    part.append(makeElement(doc, 'p', { className: 'bb-fov-action-note', text: action.description ?? '目指す状態・評価基準・現状を直し、新しい版として保存します。保存すると、この一覧の「待っていること」が変わります。' }));
+  } else {
+    part.append(makeElement(doc, 'p', {
+      className: 'bb-fov-action-note is-unavailable',
+      text: nonEmpty(action?.unavailable) ?? 'この画面は読むだけです。ここからは記録を変えられません。',
+    }));
+  }
+  return part;
+}
+
+function objectiveReading(doc, record, variableMap, recordContexts, callbacks = {}, dialog = () => null) {
+  const definition = recordDefinition(record), details = detailsFor(record);
+  const body = makeElement(doc, 'div', { className: 'bb-fov-reading' });
+  const section = (title, content) => {
+    const part = makeElement(doc, 'section');
+    part.append(makeElement(doc, 'h3', { text: title }), content); body.append(part);
+  };
+  const waiting = objectiveWaiting(record);
+  section('待っていること', waiting
+    ? workspaceDefinition(doc, [['何を', waiting.what], ['誰が', waiting.who]])
+    : makeElement(doc, 'p', { text: '記録上、待っていることはありません。達成・採用・検証済みを意味しません。' }));
+  body.append(objectiveActionElement(doc, record, recordContexts, callbacks, dialog));
+  section('達成条件', workspaceDefinition(doc, [
+    ['目指す状態', formatAny(definition.desiredState)],
+    ['評価基準', criteriaElement(doc, definition, details, variableMap)],
+    ['評価期間', formatAny(firstValue(details, 'evaluation_period_note', 'evaluationPeriodNote')) ?? formatPeriod(definition.evaluationPeriod)],
+  ]));
+  section('確認の根拠', recordedStateElement(doc, record));
+  const provenance = Array.isArray(definition.provenance) ? definition.provenance : [];
+  section('出典', workspaceDefinition(doc, [
+    ['記録元', recordContexts?.get(record)?.label ?? formatAny(record.source) ?? '未記録'],
+    ['根拠', formatProvenance(provenance) ?? '未記録'],
+  ]));
+  const criteriaRefs = Array.isArray(definition.criteria) ? definition.criteria.map((criterion) => criterion?.variableRef) : [];
+  const original = makeElement(doc, 'details', { className: 'bb-fov-original' });
+  original.append(makeElement(doc, 'summary', { text: '記録の詳細・参照・原文' }), objectiveCard(doc, record, variableMap),
+    workspaceDefinition(doc, [
+      ['目的ID', definition.id], ['版', definition.revision], ['digest', record.digest],
+      ['基準変数の参照', referenceLabels(criteriaRefs)],
+      ['根拠の記録', provenance.length ? formatStructuredValue(provenance) : null],
+    ]));
+  body.append(original); return body;
+}
+
+function topicTitle(doc, title, text) {
+  const head = workspaceSectionTitle(doc, { title });
+  head.append(workspaceHelp(doc, { label: title, text })); return head;
+}
+
+function renderObjectives(doc, catalog, viewState, callbacks, recordContexts) {
+  const section = makeElement(doc, 'section', { className: 'bb-fov-section', attrs: { 'aria-label': '目的' } });
+  section.append(topicTitle(doc, '目的', '目指す状態、評価の定義、記録上の現状を分けて確認します。'));
+  if (catalog.objectives.length === 0) {
+    section.append(workspaceNotice(doc, { label: '目的', text: 'この対象範囲には登録された目的がありません。' }));
+    return section;
+  }
+  const variableMap = new Map(catalog.variables.map(record => [foundationKey(recordDefinition(record)), record]));
+  const rows = catalog.objectives.map(record => {
+    const definition = recordDefinition(record), details = detailsFor(record), current = currentStateFor(record);
+    const key = recordContexts?.get(record)?.key ?? `${definition.id}@${definition.revision}`;
+    return {
+      key, selected: key === viewState.objectiveKey,
+      onSelect: () => {
+        viewState.objectiveKey = key;
+        const opener = doc.activeElement;
+        viewState.dialog?.close();
+        viewState.dialog = workspaceDialog(doc, {
+          title: formatAny(details.title) ?? formatAny(definition.meaning) ?? UNNAMED_RECORD, opener,
+          content: objectiveReading(doc, record, recordContexts?.get(record)?.variableMap ?? variableMap, recordContexts, callbacks, () => viewState.dialog),
+        });
+      },
+      cells: [
+        { primary: formatAny(details.title) ?? formatAny(definition.meaning) ?? UNNAMED_RECORD },
+        current.text ?? current.status ?? '未記録',
+        waitingElement(doc, objectiveWaiting(record)),
+        formatDate(current.asOf),
+      ],
+    };
+  });
+  section.append(workspaceLedger(doc, { className: 'bb-fov-objective-ledger', ariaLabel: '登録された目的', columns: ['目的', '現状', '待っていること', '確認日'], rows }));
+  section.append(makeElement(doc, 'p', { className: 'bb-fov-ledger-hint', text: typeof callbacks?.objectiveAction === 'function'
+    ? '行を押すと、目的の詳細と、この目的でできること（直す・現状を記録する）が開きます。'
+    : '行を押すと、目的の詳細が開きます。この画面は読むだけです。' }));
+  return section;
+}
+
+function philosophyApplicability(payload) {
+  const text = formatAny(firstValue(payload, 'applicability_text', 'applicabilityText'));
+  if (text) return text;
+  const legacy = firstValue(payload, 'judgmentApplicability', 'judgment_applicability');
+  if (!isObject(legacy)) return formatAny(legacy);
+  const description = formatAny(firstValue(legacy, 'text', 'description', 'statement', 'applicability_text', 'applicabilityText'));
+  if (description) return description;
+  const scope = formatScope(legacy.scope);
+  const validFrom = legacy.validFrom ?? legacy.valid_from;
+  const validUntil = legacy.validUntil ?? legacy.valid_until;
+  const period = validFrom
+    ? `${formatDate(validFrom)}から${validUntil ? ` ${formatDate(validUntil)}まで` : ''}`
+    : null;
+  return [scope, period ? `適用期間: ${period}` : null].filter(Boolean).join(' ／ ') || formatScope(legacy);
+}
+
+function philosophyCard(doc, record) {
+  const payload = record.payload;
+  const card = makeElement(doc, 'article', { className: 'bb-fov-philosophy-card' });
+  const title = formatAny(payload.title) ?? UNNAMED_RECORD;
+  card.append(makeElement(doc, 'h3', { text: title }));
+
+  if (formatAny(payload.statement)) card.append(makeElement(doc, 'p', { className: 'bb-fov-philosophy-statement', text: formatAny(payload.statement) }));
+  if (formatAny(payload.summary)) card.append(makeElement(doc, 'p', { text: formatAny(payload.summary) }));
+  const applicability = record.applicability?.scope
+    ?? record.currentScope
+    ?? firstValue(payload.judgmentApplicability, 'scope');
+  card.append(workspaceDefinition(doc, [
+    ['判断への適用', philosophyApplicability(payload) ?? '未記録'],
+    ['適用範囲', formatScope(applicability) ?? '未記録'],
+  ]));
+  return card;
+}
+
+function unscopedPhilosophyCard(doc, record, recordContexts) {
+  const payload = record.payload;
+  const card = makeElement(doc, 'article', { className: 'bb-fov-philosophy-card is-unscoped' });
+  card.append(makeElement(doc, 'h3', { text: formatAny(payload.title) ?? UNNAMED_RECORD }));
+  card.append(makeElement(doc, 'p', { className: 'bb-fov-philosophy-statement', text: payload.statement }));
+  if (formatAny(payload.summary) && payload.summary !== payload.statement) card.append(makeElement(doc, 'p', { text: payload.summary }));
+  // The section notice explains what an unrecorded applicability means.
+  card.append(workspaceDefinition(doc, [['適用範囲', '未記録']]));
+  const refs = makeElement(doc, 'details', { className: 'bb-fov-original' });
+  refs.append(makeElement(doc, 'summary', { text: '記録の詳細' }), workspaceDefinition(doc, [['出典', recordContexts?.get(record)?.label ?? '未記録'], ['状態', payload.status], ['Graphの版', record.version], ['記録ID', record.id]]));
+  card.append(refs);
+  return card;
+}
+
+function renderPhilosophies(doc, catalog, recordContexts) {
+  const section = makeElement(doc, 'section', { className: 'bb-fov-section', attrs: { 'aria-label': '哲学' } });
+  const unscoped = catalog.philosophies_without_applicability;
+
+  if (catalog.philosophies.length === 0 && !unscoped?.length) {
+    section.append(workspaceNotice(doc, {
+      label: '哲学',
+      text: unscoped
+        ? 'この対象範囲には登録された哲学がありません。'
+        // Without the unscoped list, only the verified list is known to be empty.
+        : '適用範囲が記録された哲学はありません。適用範囲が未記録の哲学があるかは確認できていません。',
+    }));
+    return section;
+  }
+  if (catalog.philosophies.length) {
+    const grid = makeElement(doc, 'div', { className: 'bb-fov-philosophy-grid' });
+    for (const record of catalog.philosophies) {
+      const card = philosophyCard(doc, record);
+      const refs = makeElement(doc, 'details', { className: 'bb-fov-original' });
+      refs.append(makeElement(doc, 'summary', { text: '記録の詳細' }), workspaceDefinition(doc, [['出典', recordContexts?.get(record)?.label ?? '未記録'], ['状態', record.payload.status], ['版', record.revision], ['記録ID', record.id], ['digest', record.digest]]));
+      card.append(refs); grid.append(card);
+    }
+    section.append(grid);
+  }
+  if (unscoped?.length) {
+    section.append(workspaceNotice(doc, {
+      label: '適用範囲が未記録',
+      text: `次の${unscoped.length}件は、判断への適用範囲が記録されていない哲学です。判断では参照されますが、どの範囲に当てはまるかは確かめられていません。`,
+    }));
+    const grid = makeElement(doc, 'div', { className: 'bb-fov-philosophy-grid' });
+    for (const record of unscoped) grid.append(unscopedPhilosophyCard(doc, record, recordContexts));
+    section.append(grid);
+  }
+  return section;
+}
+
+function searchTextForModel(record) {
+  const definition = recordDefinition(record);
+  return [
+    definition.id,
+    definition.revision,
+    definition.meaning,
+    definition.relationship,
+    definition.uncertainty,
+    definition.epistemicState,
+    definition.validationState,
+    ...(Array.isArray(definition.authorizedUses) ? definition.authorizedUses : []),
+    ...(Array.isArray(definition.inputVariableRefs) ? definition.inputVariableRefs.flatMap((ref) => [ref.id, ref.revision]) : []),
+    ...(Array.isArray(definition.outputVariableRefs) ? definition.outputVariableRefs.flatMap((ref) => [ref.id, ref.revision]) : []),
+  ].filter(Boolean).join(' ').toLocaleLowerCase();
+}
+
+function renderReferenceList(doc, refs, variableMap, label) {
+  const list = makeElement(doc, 'ul', { className: 'bb-fov-ref-list' });
+  if (!Array.isArray(refs) || refs.length === 0) {
+    list.append(makeElement(doc, 'li', { className: 'is-unrecorded', text: `${label}: 未接続の定義です。` }));
+    return list;
+  }
+  for (const ref of refs) {
+    const exact = variableMap.get(foundationKey(ref));
+    const name = (exact ? formatAny(recordDefinition(exact).meaning) : null) ?? UNNAMED_VARIABLE;
+    list.append(makeElement(doc, 'li', {
+      className: exact ? '' : 'is-unrecorded',
+      text: exact ? name : `${name} — 未接続（変数の版が一致しません）`,
+    }));
+  }
+  return list;
+}
+
+function modelCard(doc, record, variableMap) {
+  const definition = recordDefinition(record);
+  const card = makeElement(doc, 'article', { className: 'bb-fov-model-card' });
+  // The stored scope is ids and a registration time, not the reader's "where it applies"; the
+  // record's own words go in front, and the stored scope waits in the details.
+  const applicability = definition.applicability ?? definition.scope;
+  const registered = isObject(applicability) ? applicability : {};
+  const subjects = firstValue(registered, 'subjectIds', 'subject_ids');
+  const applicabilityText = formatAny(firstValue(detailsFor(record), 'applicability_text', 'applicabilityText'))
+    ?? (isObject(applicability) ? null : formatAny(applicability));
+  card.append(makeElement(doc, 'h3', { text: formatAny(definition.meaning) ?? UNNAMED_RECORD }));
+  card.append(makeElement(doc, 'p', { className: 'bb-fov-status', text: certaintyText(definition) }));
+  card.append(workspaceDefinition(doc, [
+    ['関係', formatAny(definition.relationship)],
+    ['適用範囲', applicabilityText ?? { text: '範囲の説明は記録されていません', className: 'is-unrecorded' }],
+    ['不確かさ', formatAny(definition.uncertainty)],
+    ['入力変数', renderReferenceList(doc, definition.inputVariableRefs, variableMap, '入力変数')],
+    ['出力変数', renderReferenceList(doc, definition.outputVariableRefs, variableMap, '出力変数')],
+  ]));
+  card.append(recordDetailsElement(doc, [
+    ['状態の内訳', statusText(definition)],
+    ['記録ID', definition.id],
+    ['版', definition.revision],
+    ['digest', record.digest],
+    ['登録上の対象', Array.isArray(subjects) && subjects.length > 0 ? subjects.join('、') : null],
+    ['登録上の開始日時', formatValidity(firstValue(registered, 'validFrom', 'valid_from'), firstValue(registered, 'validUntil', 'valid_until'))],
+    ['入力変数の参照', referenceLabels(definition.inputVariableRefs)],
+    ['出力変数の参照', referenceLabels(definition.outputVariableRefs)],
+  ]));
+  return card;
+}
+
+function renderModels(doc, catalog, viewState, callbacks, recordContexts) {
+  const section = makeElement(doc, 'section', { className: 'bb-fov-section', attrs: { 'aria-label': '世界モデル' } });
+
+  const searchWrap = makeElement(doc, 'div', { className: 'bb-fov-model-search' });
+  const label = makeElement(doc, 'label', { text: 'モデルを検索', attrs: { for: 'bb-fov-model-search' } });
+  const input = makeElement(doc, 'input', {
+    className: 'bb-fov-search-input',
+    value: viewState.query,
+    attrs: { id: 'bb-fov-model-search', name: 'model-search', type: 'search', autocomplete: 'off', placeholder: '名前、関係、状態、変数を検索' },
+  });
+  input.addEventListener('input', () => {
+    viewState.query = String(input.value ?? '');
+    viewState.page = 0;
+    renderResults();
+  });
+  searchWrap.append(label, input);
+  section.append(searchWrap);
+
+  const results = makeElement(doc, 'div', { className: 'bb-fov-model-results' });
+  section.append(results);
+  const renderResults = () => {
+    results.replaceChildren();
+    const query = viewState.query.trim().toLocaleLowerCase();
+    const filtered = query ? catalog.models.filter((record) => `${searchTextForModel(record)} ${recordContexts?.get(record)?.label ?? ""}`.toLocaleLowerCase().includes(query)) : catalog.models;
+    if (filtered.length === 0) {
+      results.append(workspaceNotice(doc, { label: '検索結果', text: query ? '条件に一致する世界モデルはありません。' : 'この対象範囲には登録された世界モデルがありません。' }));
+      return;
+    }
+    const pages = Math.max(1, Math.ceil(filtered.length / FOUNDATION_OVERVIEW_PAGE_SIZE));
+    viewState.page = Math.min(Math.max(viewState.page, 0), pages - 1);
+    const start = viewState.page * FOUNDATION_OVERVIEW_PAGE_SIZE;
+    const pageItems = filtered.slice(start, start + FOUNDATION_OVERVIEW_PAGE_SIZE);
+    results.append(workspaceNotice(doc, {
+      label: '表示範囲',
+      text: `${start + 1}〜${start + pageItems.length}件を表示しています。登録は採用・検証済みを意味しません。`,
+    }));
+    const variableMap = new Map(catalog.variables.map((record) => [foundationKey(recordDefinition(record)), record]));
+    const cards = makeElement(doc, 'div', { className: 'bb-fov-model-grid' });
+    for (const record of pageItems) {
+      const card = modelCard(doc, record, recordContexts?.get(record)?.variableMap ?? variableMap);
+      appendRecordSource(doc, card, record, recordContexts);
+      cards.append(card);
+    }
+    results.append(cards);
+    if (pages > 1) {
+      const pager = makeElement(doc, 'nav', { className: 'bb-fov-pager', attrs: { 'aria-label': '世界モデルのページ' } });
+      const previous = workspaceButton(doc, {
+        text: '前の50件',
+        variant: 'quiet',
+        disabled: viewState.page === 0,
+        onClick: () => { viewState.page -= 1; renderResults(); },
+      });
+      const next = workspaceButton(doc, {
+        text: '次の50件',
+        variant: 'quiet',
+        disabled: viewState.page >= pages - 1,
+        onClick: () => { viewState.page += 1; renderResults(); },
+      });
+      pager.append(previous, makeElement(doc, 'span', { text: `${viewState.page + 1} / ${pages}` }), next);
+      results.append(pager);
+    }
+  };
+  renderResults();
+  return section;
+}
+
+/** Keep one loading card across redraws so completion can leave visibly. */
+function renderLoadingState(doc, root, viewState, loading, onLoading) {
+  if (onLoading) { onLoading(loading); return; }
+  if (loading) {
+    viewState.cancelLoadingDismiss?.();
+    viewState.cancelLoadingDismiss = null;
+    viewState.loadingCard ??= workspaceLoadingCard(doc);
+  }
+  const card = viewState.loadingCard;
+  if (!card) return;
+  const stack = viewState.loadingStack ??= makeElement(doc, 'aside', { className: 'bb-ws-error-stack', attrs: { 'aria-label': '読み込み状況' } });
+  stack.append(card); root.append(stack);
+  if (!loading && !viewState.cancelLoadingDismiss) {
+    const cancel = workspaceDismissNotification(card, () => {
+      if (viewState.loadingCard !== card) return;
+      viewState.loadingCard = null; viewState.cancelLoadingDismiss = null; viewState.loadingStack = null; stack.remove();
+    });
+    if (viewState.loadingCard === card) viewState.cancelLoadingDismiss = cancel;
+  }
+}
+
+function renderFailure(doc, state, callbacks) {
+  const label = state.status === 'scope_mismatch' ? '対象範囲' : state.status === 'invalid' ? '応答形式' : '取得失敗';
+  const message = state.error?.message ?? '目的・哲学・世界モデルを確認できません。';
+  const notice = workspaceNotice(doc, { label, tone: 'danger', text: message, role: 'alert' });
+  notice.append(makeElement(doc, 'p', { text: '確認できない状態を登録なし・0件として表示していません。' }));
+  notice.append(workspaceButton(doc, { text: '再試行', variant: 'quiet', onClick: callbacks.load }));
+  return notice;
+}
+
+export function renderFoundationOverview(root, state, {
+  document: explicitDocument,
+  scopeId,
+  viewState = { query: '', page: 0 },
+  callbacks = {},
+  showHeader = true,
+  recordContexts,
+  partial = false,
+  onNotice,
+  onLoading,
+} = {}) {
+  if (!root) throw new TypeError('root is required');
+  const doc = getDocument(explicitDocument);
+  root.replaceChildren();
+  const surface = makeElement(doc, 'section', {
+    className: 'bb-fov',
+    attrs: { 'data-contract-version': FOUNDATION_OVERVIEW_CONTRACT_VERSION, 'aria-label': '目的と現状' },
+  });
+  if (showHeader) {
+    surface.append(workspacePageHeader(doc, {
+      crumbs: ['Brainbase', '目的と現状'],
+      title: '目的と現状',
+      lead: '選択したプロジェクトの目的、哲学、世界モデルを、記録された内容と未確認の点を分けて読みます。',
+      source: `正本: ${scopeId}`,
+    }));
+  }
+  const notify = notice => {
+    if (onNotice) onNotice(notice);
+    else surface.append(workspaceErrorCard(doc, notice));
+  };
+  if (state.status === 'loading') {
+    surface.append(workspaceLoadingStage(doc, { title: '目的と現状を準備しています' }));
+    root.append(surface);
+    // The stage says it in the page; close any old floating loading card.
+    renderLoadingState(doc, root, viewState, false, onLoading);
+    return surface;
+  }
+  if (state.status !== 'ready') {
+    notify({ title: '取得失敗', message: `${state.error?.message ?? '目的・哲学・世界モデルを確認できません。'} 登録なし・0件として表示していません。`, onRetry: callbacks.load });
+    root.append(surface); renderLoadingState(doc, root, viewState, false, onLoading); return surface;
+  }
+  const catalog = state.catalog;
+  surface.append(renderObjectives(doc, catalog, viewState, callbacks, recordContexts));
+  const fold = (title, help, content, initialOpen) => {
+    const key = title === '哲学' ? 'philosophyOpen' : 'modelsOpen';
+    return workspaceDisclosure(doc, { title, help, content, open: viewState[key] ?? initialOpen, onToggle: open => { viewState[key] = open; } });
+  };
+  surface.append(fold('哲学', '判断の前提となる考え方です。登録された本文と、判断への適用範囲を分けて表示します。', renderPhilosophies(doc, catalog, recordContexts), true));
+  surface.append(fold('世界モデル', '何をすると結果が変わるか、という仮説。検証済みか仮説かを先に示し、ほかの状態や記録の番号は各モデルの「記録の詳細」で確認できます。', renderModels(doc, catalog, viewState, callbacks, recordContexts), false));
+  root.append(surface);
+  renderLoadingState(doc, root, viewState, false, onLoading);
+  return surface;
+}
+
+function appendRecordSource(doc, card, record, contexts) {
+  const context = contexts?.get(record);
+  if (context) card.prepend(makeElement(doc, 'p', { className: 'bb-fov-source', text: context.label }));
+}
+
+/** Compose independently validated catalogs by topic, preserving each reference's source context. */
+export function renderFoundationCollectionOverview(root, sources, {
+  document: explicitDocument, viewState = { query: '', page: 0 }, callbacks = {}, scopeLabel = '全体', onNotice, onLoading,
+} = {}) {
+  const doc = getDocument(explicitDocument);
+  root.replaceChildren();
+  const catalog = { objectives: [], variables: [], models: [], philosophies: [], philosophies_without_applicability: [] };
+  const contexts = new WeakMap();
+  const seen = new Map();
+  let ready = 0;
+  let unscopedUnknown = false;
+  for (const source of sources) {
+    if (source.state.status !== 'ready') {
+      if (source.state.status === 'loading') {
+        // A single shared loading card is rendered after the available catalogs.
+      } else {
+        const notice = { title: source.label, message: `取得失敗: ${source.state.error?.message ?? 'この対象は未確認です。0件ではありません。'}`, onRetry: callbacks.load };
+        if (onNotice) onNotice(notice); else root.append(workspaceErrorCard(doc, notice));
+      }
+      continue;
+    }
+    const value = normalizeFoundationCatalog(source.state.catalog, source.scopeId);
+    ready++;
+    const variableMap = new Map(value.variables.map((record) => [foundationKey(recordDefinition(record)), record]));
+    if (!value.philosophies_without_applicability) unscopedUnknown = true;
+    for (const kind of ['objectives', 'models', 'philosophies', 'philosophies_without_applicability']) {
+      for (const original of value[kind] ?? []) {
+        const definition = original.definition ?? original;
+        const scope = original.scope ?? original.currentScope ?? definition.scope;
+        // Scope-less/project records remain tied to their authenticated catalog.
+        const shared = ['organization', 'organisation', 'company'].includes(scope?.type) && nonEmpty(scope?.id);
+        const key = JSON.stringify([kind, shared ? scope.type : 'project', shared ? scope.id : source.scopeId,
+          definition.id, definition.revision, original.digest]);
+        const existing = seen.get(key);
+        if (existing) {
+          const context = contexts.get(existing);
+          if (!context.sources.includes(source.label)) context.sources.push(source.label);
+          if (!context.scopeIds.includes(source.scopeId)) context.scopeIds.push(source.scopeId);
+          context.label = `${shared ? '組織共通 ／ ' : ''}${context.sources.join('・')}`;
+          continue;
+        }
+        const record = { ...original };
+        seen.set(key, record);
+        catalog[kind].push(record);
+        contexts.set(record, { key, variableMap, sources: [source.label], scopeIds: [source.scopeId], label: `${shared ? '組織共通 ／ ' : ''}${source.label}` });
+      }
+    }
+  }
+  // A host that did not report unscoped philosophies leaves the absence unknown.
+  if (unscopedUnknown && catalog.philosophies_without_applicability.length === 0) delete catalog.philosophies_without_applicability;
+  if (ready) {
+    const mount = makeElement(doc, 'div');
+    renderFoundationOverview(mount, { status: 'ready', catalog }, {
+      document: doc, scopeId: scopeLabel, showHeader: false, viewState, callbacks,
+      recordContexts: contexts, partial: ready !== sources.length, onNotice, onLoading: () => {},
+    });
+    root.append(mount);
+  }
+  const loading = sources.some(source => source.state.status === 'loading');
+  if (loading && ready === 0) {
+    // The stage says it in the page; close any old floating loading card.
+    renderLoadingState(doc, root, viewState, false, onLoading);
+    root.append(workspaceLoadingStage(doc, { title: '目的と現状を準備しています' }));
+  } else {
+    renderLoadingState(doc, root, viewState, loading, onLoading);
+  }
+  return root;
+}
+
+/** Mount the read-only overview and ignore responses from a destroyed generation. */
+export function createFoundationOverview({ root, port, scopeId, document: explicitDocument, autoLoad = true, showHeader = true } = {}) {
+  if (!root) throw new TypeError('root is required');
+  if (!port || typeof port.readCatalog !== 'function') throw new TypeError('port.readCatalog is required');
+  const doc = getDocument(explicitDocument);
+  const selectedScope = nonEmpty(scopeId);
+  if (!selectedScope) throw new TypeError('scopeId is required');
+  const viewState = { query: '', page: 0 };
+  const state = { status: 'loading', catalog: null, error: null };
+  let generation = 0;
+  let destroyed = false;
+  const controller = {
+    get state() { return state; },
+    render() {
+      if (destroyed) return controller;
+      renderFoundationOverview(root, state, {
+        document: doc,
+        scopeId: selectedScope,
+        viewState,
+        callbacks: { load: () => controller.load(), render: () => controller.render() },
+        showHeader,
+      });
+      return controller;
+    },
+    async load() {
+      if (destroyed) return state;
+      viewState.dialog?.close();
+      const requestGeneration = ++generation;
+      state.status = 'loading';
+      state.catalog = null;
+      state.error = null;
+      controller.render();
+      try {
+        const response = await port.readCatalog();
+        if (destroyed || requestGeneration !== generation) return state;
+        state.catalog = normalizeFoundationCatalog(response, selectedScope);
+        state.status = 'ready';
+      } catch (cause) {
+        if (destroyed || requestGeneration !== generation) return state;
+        const code = cause?.code === 'scope_mismatch' ? 'scope_mismatch'
+          : cause?.code === 'invalid_schema' ? 'invalid'
+            : cause?.code === 'authorization_denied' || cause?.code === 'forbidden' ? 'denied'
+              : cause?.code === 'unavailable' ? 'unavailable' : 'error';
+        state.status = code;
+        state.error = {
+          code,
+          message: cause instanceof Error && cause.message ? cause.message : '目的・哲学・世界モデルを確認できません。',
+        };
+      }
+      controller.render();
+      return state;
+    },
+    destroy() {
+      destroyed = true;
+      generation += 1;
+      viewState.dialog?.close();
+      viewState.cancelLoadingDismiss?.();
+      viewState.loadingCard = null;
+      root.replaceChildren();
+    },
+  };
+  controller.render();
+  if (autoLoad) void controller.load();
+  return controller;
+}
+
+export default createFoundationOverview;

@@ -102,6 +102,11 @@ export async function loadPersonalOs(dataDir: string): Promise<PersonalOs> {
   });
 }
 
+/** Only `personal-kg.jsonl`, validated line by line as `loadPersonalOs` does. */
+export async function readPersonalKg(dataDir: string): Promise<PersonalKgEntry[]> {
+  return readJsonl(join(dataDir, 'personal-kg.jsonl'), personalKgSchema, 'personal-kg.jsonl');
+}
+
 export async function mutatePersonalOs(
   dataDir: string,
   mutator: (current: PersonalOs) => PersonalOs | Promise<PersonalOs>

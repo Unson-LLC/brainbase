@@ -201,6 +201,27 @@ function jsonResponse(status, body) {
 }
 
 describe('value proof review UI contract', () => {
+  it('opens a judgment named by another screen, waiting for the home to load first', async () => {
+    const doc = new FakeDocument();
+    const root = doc.createElement('main');
+    const first = proof({ intent_id: 'intent-1', decision_attempt_id: 'attempt-1' });
+    const second = proof({ intent_id: 'intent-2', decision_attempt_id: 'attempt-2' });
+    const ui = createValueProofReviewUI({
+      root,
+      document: doc,
+      fetcher: async () => jsonResponse(200, home([first, second], delegationMap([mapRow('reason:routine_reversible_work', [first, second])]))),
+      autoLoad: false,
+    });
+    expect(ui.openDecision('attempt-2')).toBe(false);
+    await ui.load();
+    expect(ui.state.selectedKey).toBe('intent-2\u0000attempt-2');
+    expect(ui.state.railView).toBe('judgment');
+    expect(ui.openDecision('attempt-1')).toBe(true);
+    expect(ui.state.selectedKey).toBe('intent-1\u0000attempt-1');
+    expect(ui.openDecision('no-such-attempt')).toBe(false);
+    expect(ui.state.selectedKey).toBe('intent-1\u0000attempt-1');
+  });
+
   it('never turns an unavailable or malformed response into an empty list', () => {
     expect(normalizeValueProofReviewHome({ status: 'unavailable', root: '/x', reason: 'judgment_journal_not_found' }))
       .toMatchObject({ status: 'unavailable', reason: 'judgment_journal_not_found' });
@@ -561,6 +582,83 @@ describe('value proof review UI contract', () => {
     expect(detail).toContain('稼働中の設定へ反映してよいですか？');
   });
 
+  it('uses the row label for an older judgment after a kind is relabelled', async () => {
+    const older = proof({
+      intent_id: 'intent-old',
+      decision_attempt_id: 'attempt-old',
+      recorded_at: '2026-09-20T00:00:00.000Z',
+    });
+    older.decision = {
+      ...older.decision,
+      judgment_kind: { key: 'kind-renamed', label: '以前の分類名' },
+    };
+    const newer = proof({
+      intent_id: 'intent-new',
+      decision_attempt_id: 'attempt-new',
+      recorded_at: '2026-09-22T00:00:00.000Z',
+    });
+    newer.decision = {
+      ...newer.decision,
+      judgment_kind: { key: 'kind-renamed', label: '現在の分類名' },
+    };
+    const other = proof({
+      intent_id: 'intent-other',
+      decision_attempt_id: 'attempt-other',
+      recorded_at: '2026-09-21T00:00:00.000Z',
+    });
+    other.decision = {
+      ...other.decision,
+      judgment_kind: { key: 'other-kind', label: '別の分類名' },
+    };
+    const renamedRow = mapRow('kind:kind-renamed', [newer, older], { label: '現在の分類名' });
+    const otherRow = mapRow('kind:other-kind', [other], { label: '別の分類名' });
+    const payload = home([newer, older, other], delegationMap([renamedRow, otherRow]));
+    const doc = new FakeDocument();
+    const root = doc.createElement('main');
+    const rail = doc.createElement('aside');
+    const ui = createValueProofReviewUI({
+      root,
+      rail,
+      document: doc,
+      fetcher: async () => jsonResponse(200, payload),
+      autoLoad: false,
+    });
+    await ui.load();
+
+    const map = byClass(root, 'bb-vpr-map')[0];
+    expect(collectText(map)).toContain('現在の分類名');
+    expect(collectText(map)).toContain('別の分類名');
+    expect(collectText(rail)).toContain('現在の分類名');
+
+    // Every detail must agree with its selected row, including the old label
+    // and a different kind. The row counts must partition the fixture.
+    const rows = ledgerRows(byClass(map, 'bb-vpr-map-ledger')[0]);
+    expect(rows).toHaveLength(2);
+    const displayedCounts = rows.map((row) => {
+      const match = /^続行 (\d+)・戻した (\d+)$/.exec(collectText(row.children[2]));
+      expect(match).not.toBeNull();
+      return Number(match[1]) + Number(match[2]);
+    });
+    expect(displayedCounts).toEqual([2, 1]);
+    expect(displayedCounts.reduce((total, count) => total + count, 0)).toBe(3);
+    expect(displayedCounts.reduce((total, count) => total + count, 0)).toBe(ui.state.home.delegationMap.kindRecorded);
+    for (const [rowIndex, expectedLabel, expectedCount] of [
+      [0, '現在の分類名', 2],
+      [1, '別の分類名', 1],
+    ]) {
+      click(ledgerRows(byClass(root, 'bb-vpr-map-ledger')[0])[rowIndex]);
+      const items = byClass(rail, 'bb-vpr-item');
+      expect(items).toHaveLength(expectedCount);
+      for (let itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
+        click(byClass(rail, 'bb-vpr-item')[itemIndex]);
+        const detail = collectText(rail);
+        expect(detail).toContain(`判断の種類: ${expectedLabel}`);
+        expect(detail).not.toContain('判断の種類: 以前の分類名');
+        click(byClass(rail, 'bb-vpr-back')[0]);
+      }
+    }
+  });
+
   it('gives the rail the row the owner selects, then the judgment picked from it, and goes back to the row', async () => {
     const first = proof();
     const second = proof({ intent_id: 'intent-2', decision_attempt_id: 'attempt-2' });
@@ -614,6 +712,278 @@ describe('value proof review UI contract', () => {
     renderValueProofReview(empty, baseState({ status: 'unavailable', reason: 'judgment_journal_not_found' }), {}, { document: doc });
     expect(byClass(empty, 'bb-vpr-inline-detail')).toHaveLength(0);
     expect(byClass(empty, 'bb-ws-detail-empty')).toHaveLength(0);
+  });
+
+  it('separates an unanswered human decision from post-execution feedback and copy-only consultation', () => {
+    const waiting = proof({
+      intent_id: 'intent-w',
+      decision_attempt_id: 'attempt-w',
+      state: 'waiting_human',
+      interruption: {
+        resolution: 'human_required',
+        question_display_text: '本番へ反映しますか？',
+        question_digest: 'sha256:waiting-question',
+        reason_code: 'irreversible_external_action',
+        human_reason: '外部への反映は本人が決める必要があります',
+      },
+      human_decision: {
+        question: '本番へ反映しますか？',
+        why_human: '外部への反映は本人が決める必要があります',
+        options: [
+          { id: 'approve', label: '反映する', impact: '本番へ反映します' },
+          { id: 'hold', label: '保留する', impact: '反映せずに止めます' },
+        ],
+      },
+    });
+    const payload = home([], delegationMap([
+      mapRow('reason:irreversible_external_action', [waiting], {
+        state: 'returned',
+        state_basis: { reason: 'latest_judgment_returned', at: waiting.recorded_at },
+      }),
+    ]), [waiting]);
+    const { rail } = renderHome(payload, {
+      selectedKey: 'intent-w\u0000attempt-w',
+      selectedRowKey: 'reason:irreversible_external_action',
+      railView: 'judgment',
+    });
+
+    expect(collectText(byClass(rail, 'bb-vpr-human-decision')[0]))
+      .toContain('この画面では、人に戻した判断への回答や作業の再開はできません。');
+    expect(collectText(byClass(rail, 'bb-vpr-feedback-block')[0]))
+      .toContain('評価は、実行後の振り返りとして記録します。人に戻した判断への回答や承認ではありません。');
+    expect(collectText(rail)).toContain('相談文をコピーするだけで、この画面からCodexへは送信しません。');
+  });
+
+  describe('answering a judgment returned to the owner', () => {
+    const waitingProof = () => proof({
+      intent_id: 'intent-w',
+      decision_attempt_id: 'attempt-w',
+      state: 'waiting_human',
+      interruption: {
+        resolution: 'human_required',
+        question_display_text: '本番へ反映しますか？',
+        question_digest: 'sha256:waiting-question',
+        reason_code: 'irreversible_external_action',
+        human_reason: '外部への反映は本人が決める必要があります',
+      },
+      human_decision: {
+        question: '本番へ反映しますか？',
+        why_human: '外部への反映は本人が決める必要があります',
+        options: [
+          { id: 'approve', label: '反映する', impact: '本番へ反映します' },
+          { id: 'hold', label: '保留する', impact: '反映せずに止めます' },
+        ],
+      },
+    });
+    const recorded = {
+      schema_version: 'brainbase-judgment-value-proof-answer-v1',
+      answer_id: 'sha256:answer',
+      intent_id: 'intent-w',
+      decision_attempt_id: 'attempt-w',
+      question_sha256: 'sha256:q',
+      kind: 'select',
+      selected_option_id: 'approve',
+      selected_option_label: '反映する',
+      owner_confirmation: 'local_web_confirmed',
+      resume: 'not_started',
+      recorded_at: '2026-10-04T07:00:00.000Z',
+    };
+    const answerHome = (answer = null) => {
+      const waiting = waitingProof();
+      const payload = home([], delegationMap([
+        mapRow('reason:irreversible_external_action', [waiting], {
+          state: 'returned',
+          state_basis: { reason: 'latest_judgment_returned', at: waiting.recorded_at },
+        }),
+      ]), [waiting]);
+      payload.sections.needs_human[0].answer = answer;
+      payload.capabilities = { answer: 'record_only' };
+      return payload;
+    };
+    const buttons = (node, label) => findAll(node, (element) => element.tagName === 'BUTTON' && element.textContent === label);
+
+    it('offers each option and 「どれも選ばない」, says what recording does, and keeps evaluation separate', () => {
+      const { rail } = renderHome(answerHome(), {
+        selectedKey: 'intent-w\u0000attempt-w', selectedRowKey: 'reason:irreversible_external_action', railView: 'judgment',
+      });
+      const block = byClass(rail, 'bb-vpr-human-decision')[0];
+      expect(buttons(block, '「反映する」で回答する')).toHaveLength(1);
+      expect(buttons(block, '「保留する」で回答する')).toHaveLength(1);
+      expect(buttons(block, 'どれも選ばない')).toHaveLength(1);
+      expect(collectText(block)).toContain('この画面で、選択肢を選んで回答を記録できます。記録しても、止まった作業は自動では再開しません。');
+      expect(collectText(block)).not.toContain('この画面では、人に戻した判断への回答や作業の再開はできません。');
+      expect(collectText(byClass(rail, 'bb-vpr-feedback-block')[0]))
+        .toContain('評価は、実行後の振り返りとして記録します。人に戻した判断への回答や承認ではありません。');
+    });
+
+    it('asks for confirmation, then posts the confirmed answer with the token and shows it after reading it back', async () => {
+      const doc = new FakeDocument();
+      const root = doc.createElement('main');
+      const rail = doc.createElement('aside');
+      const requests = [];
+      let current = answerHome();
+      const fetcher = async (path, init) => {
+        requests.push({ path, init });
+        if (path.endsWith('/home')) return jsonResponse(200, current);
+        current = answerHome(recorded);
+        return jsonResponse(201, { created: true, record: recorded });
+      };
+      const ui = createValueProofReviewUI({ root, rail, document: doc, fetcher, token: 'token-123', autoLoad: false });
+      await ui.load();
+      ui.callbacks.onSelect('intent-w\u0000attempt-w');
+      expect(buttons(root, 'あなたの判断が必要 1件')).toHaveLength(1);
+
+      click(buttons(rail, '「反映する」で回答する')[0]);
+      const confirm = collectText(byClass(rail, 'bb-vpr-human-decision')[0]);
+      expect(confirm).toContain('「反映する」で回答を記録します。');
+      expect(confirm).toContain('記録した回答は、この画面では変更・取り消しできません。');
+      expect(requests.filter((entry) => entry.init?.method === 'POST')).toHaveLength(0);
+
+      await buttons(rail, '回答を記録する')[0].listeners.get('click')();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const post = requests.find((entry) => entry.init?.method === 'POST');
+      expect(post.path).toBe('/api/value-proofs/answers');
+      expect(post.init.headers['X-Brainbase-Review-Token']).toBe('token-123');
+      expect(JSON.parse(post.init.body)).toEqual({
+        intent_id: 'intent-w', decision_attempt_id: 'attempt-w', kind: 'select', selected_option_id: 'approve', confirmed: true,
+      });
+      expect(ui.state.answerSave).toMatchObject({ state: 'saved', message: '回答を記録しました（読み戻し済み）。' });
+      const after = collectText(byClass(rail, 'bb-vpr-human-decision')[0]);
+      expect(after).toContain('「反映する」と回答しました');
+      expect(after).toContain('止まった作業は自動では再開しません。続きを進めるときは、AIにこの回答を伝えて頼み直してください。');
+      expect(buttons(rail, '「保留する」で回答する')).toHaveLength(0);
+      expect(buttons(root, 'あなたの判断が必要 0件')).toHaveLength(1);
+    });
+
+    it('sends nothing when the owner cancels the confirmation', async () => {
+      const doc = new FakeDocument();
+      const root = doc.createElement('main');
+      const rail = doc.createElement('aside');
+      const requests = [];
+      const fetcher = async (path, init) => {
+        requests.push({ path, init });
+        return jsonResponse(200, answerHome());
+      };
+      const ui = createValueProofReviewUI({ root, rail, document: doc, fetcher, token: 't', autoLoad: false });
+      await ui.load();
+      ui.callbacks.onSelect('intent-w\u0000attempt-w');
+      click(buttons(rail, 'どれも選ばない')[0]);
+      expect(collectText(rail)).toContain('「どれも選ばない」で回答を記録します。');
+      click(buttons(rail, 'やめる')[0]);
+      expect(ui.state.answerDraft).toBeNull();
+      expect(buttons(rail, '「反映する」で回答する')).toHaveLength(1);
+      expect(requests.filter((entry) => entry.init?.method === 'POST')).toHaveLength(0);
+    });
+
+    it('shows a different answer recorded meanwhile instead of claiming the new one, and reports a failed send as not recorded', async () => {
+      const doc = new FakeDocument();
+      const root = doc.createElement('main');
+      const rail = doc.createElement('aside');
+      let current = answerHome();
+      let status = 409;
+      const fetcher = async (path) => {
+        if (path.endsWith('/home')) return jsonResponse(200, current);
+        if (status === 409) {
+          current = answerHome({ ...recorded, selected_option_id: 'hold', selected_option_label: '保留する' });
+          return jsonResponse(409, { error: { code: 'answer_conflict', message: 'A different answer is already recorded for this judgment' } });
+        }
+        return jsonResponse(403, { error: { code: 'review_token_required', message: 'A valid review token is required' } });
+      };
+      const ui = createValueProofReviewUI({ root, rail, document: doc, fetcher, token: 't', autoLoad: false });
+      await ui.load();
+      ui.callbacks.onSelect('intent-w\u0000attempt-w');
+      click(buttons(rail, '「反映する」で回答する')[0]);
+      await ui.callbacks.onAnswerConfirm(ui.state.home.sections.needs_human[0]);
+      expect(ui.state.answerSave.message).toContain('この問いには、すでに別の回答が記録されています。');
+      expect(collectText(rail)).toContain('「保留する」と回答しました');
+
+      current = answerHome();
+      status = 403;
+      await ui.load();
+      ui.callbacks.onSelect('intent-w\u0000attempt-w');
+      click(buttons(rail, '「反映する」で回答する')[0]);
+      await ui.callbacks.onAnswerConfirm(ui.state.home.sections.needs_human[0]);
+      expect(ui.state.answerSave).toMatchObject({ state: 'error' });
+      expect(ui.state.answerSave.message).toContain('A valid review token is required');
+      expect(ui.state.answerSave.message).toContain('回答はまだ記録されていません。');
+    });
+
+    it('does not say "not recorded" when the host accepted the answer but the read-back failed', async () => {
+      const doc = new FakeDocument();
+      const root = doc.createElement('main');
+      const rail = doc.createElement('aside');
+      let homeFails = false;
+      const fetcher = async (path) => {
+        if (path.endsWith('/home')) {
+          return homeFails
+            ? jsonResponse(500, { error: { code: 'internal_error', message: 'journal read failed' } })
+            : jsonResponse(200, answerHome());
+        }
+        homeFails = true;
+        return jsonResponse(201, { created: true, record: recorded });
+      };
+      const ui = createValueProofReviewUI({ root, rail, document: doc, fetcher, token: 't', autoLoad: false });
+      await ui.load();
+      ui.callbacks.onSelect('intent-w\u0000attempt-w');
+      click(buttons(rail, '「反映する」で回答する')[0]);
+      await ui.callbacks.onAnswerConfirm(ui.state.home.sections.needs_human[0]);
+      expect(ui.state.answerSave.state).toBe('error');
+      expect(ui.state.answerSave.message).toContain('回答は送信しましたが、記録を確かめられませんでした');
+      expect(ui.state.answerSave.message).not.toContain('回答はまだ記録されていません');
+    });
+
+    it('shows a judgment whose conversation moved on as such, offers no answer, and leaves it out of the count', () => {
+      const payload = answerHome();
+      payload.sections.needs_human[0].conversation_moved_on_at = '2026-10-04T07:32:00.000Z';
+      const { root, rail } = renderHome(payload, {
+        selectedKey: 'intent-w\u0000attempt-w', selectedRowKey: 'reason:irreversible_external_action', railView: 'judgment',
+      });
+      const block = byClass(rail, 'bb-vpr-human-decision')[0];
+      expect(collectText(block)).toContain('この問いのあと、同じ会話で次のやり取りがありました');
+      expect(collectText(block)).toContain('この画面では回答を受け付けません。続きが必要なら、元の会話で頼んでください。');
+      expect(collectText(block)).not.toContain('この問いに回答する');
+      expect(findAll(block, (element) => element.tagName === 'BUTTON')).toHaveLength(0);
+      expect(collectText(rail)).toContain('会話で先に進んだ');
+      expect(collectText(rail)).not.toContain('回答済み');
+      expect(buttons(root, 'あなたの判断が必要 0件')).toHaveLength(1);
+      expect(collectText(byClass(root, 'bb-ws-summary')[0])).toContain('会話で先に進んだものを除く');
+    });
+
+    it('shows the moved-on note also on a host that does not offer recording answers', () => {
+      const payload = answerHome();
+      delete payload.capabilities;
+      payload.sections.needs_human[0].conversation_moved_on_at = '2026-10-04T07:32:00.000Z';
+      const { rail } = renderHome(payload, {
+        selectedKey: 'intent-w\u0000attempt-w', selectedRowKey: 'reason:irreversible_external_action', railView: 'judgment',
+      });
+      const block = byClass(rail, 'bb-vpr-human-decision')[0];
+      expect(collectText(block)).toContain('この問いのあと、同じ会話で次のやり取りがありました');
+      expect(collectText(block)).not.toContain('この画面では、人に戻した判断への回答や作業の再開はできません。');
+    });
+
+    it('keeps the 回答できません note on a host that does not offer recording answers', () => {
+      const payload = answerHome();
+      delete payload.capabilities;
+      const { rail } = renderHome(payload, {
+        selectedKey: 'intent-w\u0000attempt-w', selectedRowKey: 'reason:irreversible_external_action', railView: 'judgment',
+      });
+      const block = byClass(rail, 'bb-vpr-human-decision')[0];
+      expect(collectText(block)).toContain('この画面では、人に戻した判断への回答や作業の再開はできません。');
+      expect(findAll(block, (element) => element.tagName === 'BUTTON')).toHaveLength(0);
+    });
+
+    it('marks an answered judgment in its list entry and keeps it out of the needs-owner filter', async () => {
+      const doc = new FakeDocument();
+      const root = doc.createElement('main');
+      const rail = doc.createElement('aside');
+      const ui = createValueProofReviewUI({ root, rail, document: doc, fetcher: async () => jsonResponse(200, answerHome(recorded)), autoLoad: false });
+      await ui.load();
+      expect(collectText(rail)).toContain('回答済み');
+      const toggle = buttons(root, 'あなたの判断が必要 0件')[0];
+      expect(toggle.attributes.disabled).toBe('');
+      const metrics = collectText(byClass(root, 'bb-ws-summary')[0]);
+      expect(metrics).toContain('回答済みを除く');
+    });
   });
 
   it('says that no kind and no evaluation are recorded yet instead of inventing them', () => {

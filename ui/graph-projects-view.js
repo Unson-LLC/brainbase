@@ -5,7 +5,8 @@
  * Built on the organization edition's screen pattern (workspace kit): the
  * workspace has the page head, the source notice, summary metrics and the
  * project ledger; the right rail has the selected project — its outline, each
- * 関係者 and the corrections.  The first project is selected on load.
+ * 関係者 and the corrections.  The first project is selected on load when the
+ * host has not provided a selection.
  *
  * Reads `GET {base}/projects` and `GET {base}/projects/:id` and corrects
  * through `POST {base}/corrections` (see `graph-view-shared.js`).  「関係者」
@@ -34,6 +35,7 @@ import {
   graphPageContext,
   graphStateNotice,
   hostReadOnlyNote,
+  hostSourceNotice,
   isEdgeView,
   isEntityView,
   isRecord,
@@ -54,6 +56,7 @@ import {
   graphHostEmptyNotice,
 } from './graph-view-shared.js';
 import { graphOwnShareSource, ownProjectDetail, ownShareSection, ownShareStateNotice } from './graph-own-share.js';
+import { renderProjectIcon } from './project-icon.js';
 import {
   createProjectKnowledgeWorkspace,
   normalizeProjectContext,
@@ -85,6 +88,82 @@ export const GRAPH_PROJECT_LEDGER_COLUMNS = Object.freeze(['プロジェクト',
 
 const INVALID = Object.freeze({ state: 'invalid', reason: '応答の形式が不正です' });
 
+const PARTICIPANT_STATUS_VALUES = new Set(['available', 'empty', 'partial', 'unavailable', 'unknown', 'stale', 'failed']);
+const PARTICIPANT_FRESHNESS_VALUES = new Set(['fresh', 'stale', 'unknown']);
+
+/**
+ * Detail adapters may expose either wire-style snake_case or JS-style camelCase.
+ * `ready` is the existing host spelling for an available read.  Conflicting
+ * aliases and unknown values are invalid instead of silently becoming empty.
+ */
+function normalizeParticipantStatus(payload) {
+  const raw = [payload?.participants_status, payload?.participantsStatus].filter((value) => value !== undefined);
+  if (raw.length === 0) return { value: null, explicit: false };
+  const values = raw.map((value) => value === 'ready' ? 'available' : value);
+  if (values.some((value) => typeof value !== 'string' || !PARTICIPANT_STATUS_VALUES.has(value)) || new Set(values).size !== 1) {
+    return { invalid: true };
+  }
+  return { value: values[0], explicit: true };
+}
+
+function normalizeParticipantFreshness(payload) {
+  const raw = [payload?.participants_freshness, payload?.participantsFreshness].filter((value) => value !== undefined);
+  if (raw.length === 0) return { value: null, explicit: false };
+  if (raw.some((value) => typeof value !== 'string' || !PARTICIPANT_FRESHNESS_VALUES.has(value)) || new Set(raw).size !== 1) {
+    return { invalid: true };
+  }
+  return { value: raw[0], explicit: true };
+}
+
+function normalizeParticipantAbsence(payload) {
+  const raw = [payload?.participants_absence_confirmed, payload?.participantsAbsenceConfirmed]
+    .filter((value) => value !== undefined);
+  if (raw.length === 0) return { confirmed: false, explicit: false };
+  if (raw.some((value) => typeof value !== 'boolean') || new Set(raw).size !== 1) return { invalid: true };
+  return { confirmed: raw[0] === true, explicit: true };
+}
+
+function confirmsParticipantAbsence(payload) {
+  // `absenceConfirmed` describes a project-list miss, not participant absence;
+  // `participants_status=empty` is only a label. The native server owns the
+  // same-Graph strict-validation gate before setting this dedicated flag.
+  return payload.participantAbsenceConfirmed === true;
+}
+
+function participantReason(payload) {
+  const explicit = textOrNull(payload.participants_unavailable_reason)
+    ?? textOrNull(payload.participantsUnavailableReason);
+  if (explicit) return explicit;
+  if (Array.isArray(payload.warnings)) {
+    const warning = payload.warnings
+      .map((item) => textOrNull(item) ?? textOrNull(item?.reason) ?? textOrNull(item?.message))
+      .find(Boolean);
+    if (warning) return warning;
+  }
+  if (payload.participantStatus === 'partial') return '一部の関係者だけを読み取っています。';
+  return '関係者の有無を確認できません。登録なしとは判断できません。';
+}
+
+function participantCountConflict(payload) {
+  const project = payload.project;
+  const declared = [project.participantCount, project.accountableCount]
+    .some((value) => Number.isInteger(value) && value > 0);
+  const named = Array.isArray(project.people) && project.people.length > 0;
+  return payload.participants.length === 0 && (declared || named);
+}
+
+function participantCountSummary(payload) {
+  const { participantCount, accountableCount } = payload.project;
+  const known = [];
+  if (Number.isInteger(participantCount) && participantCount > 0) known.push(`関係者${participantCount}人`);
+  if (Number.isInteger(accountableCount) && accountableCount > 0) known.push(`責任者${accountableCount}人`);
+  return known.length > 0 ? `確認済みの件数: ${known.join('、')}。` : '';
+}
+
+function projectCorrectionSubject(name, fields) {
+  return `プロジェクト「${name}」の${fields.map((field) => GRAPH_CORRECTION_FIELDS[field].label).join('・')}`;
+}
+
 function isProjectPerson(value) {
   return isRecord(value) && typeof value.id === 'string' && typeof value.name === 'string' && typeof value.accountable === 'boolean';
 }
@@ -115,7 +194,24 @@ export function normalizeProjectDetail(result) {
   if (!isEntityView(project) || project.type !== 'project') return INVALID;
   if (!Array.isArray(payload.participants) || !payload.participants.every(isEdgeView)) return INVALID;
   if (payload.relations !== undefined && (!Array.isArray(payload.relations) || !payload.relations.every(isEdgeView))) return INVALID;
-  return { state: 'ok', payload };
+  const participantStatus = normalizeParticipantStatus(payload);
+  if (participantStatus.invalid) return INVALID;
+  const participantFreshness = normalizeParticipantFreshness(payload);
+  if (participantFreshness.invalid) return INVALID;
+  const participantAbsence = normalizeParticipantAbsence({ ...payload, project });
+  if (participantAbsence.invalid) return INVALID;
+  return {
+    state: 'ok',
+    payload: {
+      ...payload,
+      participantStatus: participantStatus.value,
+      participantStatusExplicit: participantStatus.explicit,
+      participantFreshness: participantFreshness.value,
+      participantFreshnessExplicit: participantFreshness.explicit,
+      participantAbsenceConfirmed: participantAbsence.confirmed,
+      participantAbsenceExplicit: participantAbsence.explicit,
+    },
+  };
 }
 
 /**
@@ -188,7 +284,8 @@ function normalizeProjectSummary(value) {
  *   プロジェクトを直す, `fields` limits its form, `edges: false` withholds 役割を直す and 関わりを終える /
  *   終了日を直す, and `createEdges: false` withholds 関係者を加える.  A withheld control is not drawn and the
  *   client refuses such a correction before sending it.  Without it every correction is allowed.
- * @param {string} [options.readOnlyNote] With `canCorrect: false`, or where `correctionScope` withholds a
+ * @param {string | ((record: { id: string, type: string | null, metadata: object } | null) => string | Element | null)} [options.readOnlyNote]
+ *   With `canCorrect: false`, or where `correctionScope` withholds a
  *   control of the selected project, a note shown in the rail where the correction buttons would be.
  *   Without it the rail says nothing about corrections.
  * @param {{ label?: string, text: string | Element }} [options.emptyNotice] Replaces the 未登録 notice
@@ -206,8 +303,9 @@ function normalizeProjectSummary(value) {
  *   history).  Called synchronously on every rail render while a project is selected, with the read
  *   project detail, or null while it loads or when it could not be read.  A throw or a value that is
  *   not a node is shown as a small danger notice instead of breaking the rail.
- * @param {string} [options.selectedId] The project to select first.  When absent or not in the
- *   list, the first project is selected, as by default.
+ * @param {string} [options.selectedId] The project to select first. When it
+ *   is absent, the first project is selected. When it is not in the list, the
+ *   requested id stays selected and the rail shows not found.
  * @param {(id: string) => void} [options.onSelect] Called when the view changes the selection itself
  *   (a ledger row, or the automatic first project).  Not called for `select(id)`.
  * @param {{ basePath: string, fetcher?: Function, label?: string }} [options.ownShare]
@@ -293,6 +391,9 @@ export function createGraphProjectsView({
   let contextRequest = 0;
   let detailRequest = 0;
   let hostListRequest = 0;
+  // An explicitly selected project may be read in parallel with the host
+  // list, but the list remains authoritative for whether its detail is shown.
+  let initialSelectionGate = null;
   let viewDestroyed = false;
 
   const correction = createGraphCorrection({
@@ -300,7 +401,19 @@ export function createGraphProjectsView({
     now,
     scope: correctionScope,
     rerender: () => controller.render(),
-    onSaved: async () => {
+    onSaved: async (payload, form) => {
+      // The save response is the authoritative read-back.  A project name
+      // may have changed, so refresh the sentence above the saved form before
+      // the list/detail reloads redraw the rail.  Otherwise the old name
+      // remains visible while the read-back values already show the new one.
+      if (form?.kind === 'update_entity'
+        && form.recordType === 'project'
+        && payload?.record?.id === form.targetId
+        && typeof payload.record.name === 'string'
+        && Array.isArray(form.fields)) {
+        form.subject = projectCorrectionSubject(payload.record.name, form.fields);
+        controller.render();
+      }
       await Promise.all([
         state.detail ? controller.loadDetail(state.detail.id, { keep: true }) : null,
         controller.load({ keep: true }),
@@ -410,7 +523,7 @@ export function createGraphProjectsView({
   }
 
   /** Reads supplementary sections independently of the Graph project detail. */
-  async function loadProjectContextFor(id, { keep = false } = {}) {
+  async function loadProjectContextFor(id, { keep = false, deferUntilHostList = null } = {}) {
     if (viewDestroyed) return state.context;
     if (typeof loadProjectContext !== 'function') {
       if (state.context?.projectId !== id) state.context = null;
@@ -420,9 +533,16 @@ export function createGraphProjectsView({
     const request = ++contextRequest;
     state.context = normalizeProjectContext(id, { state: 'loading' });
     controller.render();
-    const applyContext = (snapshot) => {
+    const applyContext = (snapshot, { flushDeferred = false } = {}) => {
       const normalized = normalizeProjectContext(id, snapshot);
       if (viewDestroyed || request !== contextRequest || state.selectedId !== id) return false;
+      if (deferUntilHostList && !deferUntilHostList.confirmed && !flushDeferred) {
+        if (!deferUntilHostList.cancelled && initialSelectionGate === deferUntilHostList) {
+          deferUntilHostList.pendingContext = normalized;
+          deferUntilHostList.flushContext = () => applyContext(normalized, { flushDeferred: true });
+        }
+        return false;
+      }
       state.context = normalized;
       // Context progress must not rebuild the workspace: rebuilding destroys
       // Sigma's viewport and resets the user's active tab/selection. Detail
@@ -506,7 +626,10 @@ export function createGraphProjectsView({
     const legacyChrome = [pageHeader];
     const children = [pageHeader];
     const dir = state.list.state === 'ok' ? textOrNull(state.list.payload.source?.dataDir) : null;
-    const sourceBlock = workspaceHostNotice(doc, sourceNotice) ?? workspaceNotice(doc, {
+    // The record a host's 出典 notice may point at: the selected project once its detail is read.
+    const sourceDetail = state.detail?.id === state.selectedId && state.detail.state === 'ok' ? state.detail.payload.project : null;
+    const sourceSubject = sourceDetail ? { id: sourceDetail.id, type: 'project', metadata: sourceDetail.metadata ?? {} } : null;
+    const sourceBlock = workspaceHostNotice(doc, hostSourceNotice(sourceNotice, sourceSubject)) ?? workspaceNotice(doc, {
       label: '出典',
       text: `このMacのGraph${dir ? `（${dir}）` : ''}から読み、ここで直した内容もそこへ保存します。関係者は、プロジェクトに参加している人や責任を持つ人の記録で、ログインや共有の設定ではありません。`,
     });
@@ -573,11 +696,16 @@ export function createGraphProjectsView({
         mountGraph: projectGraphMount,
         readEntity: (id) => graphClient.read(`/entities/${encodeURIComponent(id)}`),
         onTabChange: setKnowledgeTabChrome,
+        onRetryProject: (projectId) => controller.loadDetail(projectId),
       });
       children.push(knowledgeWorkspace.element);
     } else if (state.selectedId) {
-      children.push(renderProjectKnowledgeLoading(state.selectedId, state.detail ?? { state: 'loading' }, {
-        onRetry: () => controller.loadDetail(state.selectedId),
+      const projectId = state.selectedId;
+      children.push(renderProjectKnowledgeLoading(projectId, state.detail ?? { state: 'loading' }, {
+        onRetry: () => {
+          if (state.selectedId !== projectId) return state.detail;
+          return controller.loadDetail(projectId);
+        },
       }));
     }
 
@@ -612,7 +740,7 @@ export function createGraphProjectsView({
           void reading;
         },
         cells: [
-          { primary: project.name, secondary: project.id },
+          { primary: project.name, secondary: project.id, leading: renderProjectIcon(doc, project.icon, project.name, { size: 'sm' }) },
           textCell(project.goal, '目的未記入'),
           accountableCell(project),
           textCell(project.status, '未記入'),
@@ -661,15 +789,51 @@ export function createGraphProjectsView({
     return item;
   }
 
-  function renderParticipants(payload) {
+  function renderParticipants(payload, { onRetry } = {}) {
     const { project } = payload;
     const content = [makeElement(doc, 'p', { className: 'bb-graph-block-lead', text: '参加している人と、責任を持つ人です。終わった関わりも、終了日つきで残ります。' })];
-    if (payload.participants.length === 0) {
+    const hasParticipants = payload.participants.length > 0;
+    const state = payload.participantStatus;
+    const unavailable = ['partial', 'unavailable', 'unknown'].includes(state);
+    const contradictory = participantCountConflict(payload)
+      || (state === 'empty' && hasParticipants)
+      || (confirmsParticipantAbsence(payload) && hasParticipants);
+    // Retrieval uncertainty has precedence over the empty/contradictory
+    // branch so the host's reason is never discarded.  A contradiction may
+    // still be shown below and known rows are always retained.
+    if (unavailable) {
+      content.push(workspaceNotice(doc, {
+        label: state === 'partial' ? '一部取得' : '未確認',
+        tone: 'warning',
+        role: 'status',
+        text: participantReason(payload),
+      }));
+    }
+    if (contradictory) {
+      content.push(workspaceNotice(doc, {
+        label: '関係者を確認できません',
+        tone: 'warning',
+        role: 'status',
+        text: `${participantCountSummary(payload)}取得した関係者と件数が一致しません。登録なしとは判断せず、読み直してください。`,
+      }));
+    }
+    if (!hasParticipants && !unavailable && !contradictory && confirmsParticipantAbsence(payload)) {
       content.push(makeElement(doc, 'p', { className: 'bb-graph-empty', text: 'このプロジェクトには、まだ関係者の登録がありません。' }));
-    } else {
+    } else if (!hasParticipants && !unavailable && !contradictory) {
+      content.push(workspaceNotice(doc, {
+        label: '関係者を確認できません',
+        tone: 'warning',
+        role: 'status',
+        text: participantReason(payload),
+      }));
+    }
+    if (hasParticipants) {
       const list = makeElement(doc, 'ul', { className: 'bb-graph-compact-list' });
       for (const edge of payload.participants) list.append(participantItem(edge, project, payload.asOf));
       content.push(list);
+    }
+    if (onRetry && (contradictory || unavailable || (!hasParticipants && !confirmsParticipantAbsence(payload)))) {
+      content.push(workspaceActions(doc, [workspaceButton(doc, { text: '再試行', variant: 'quiet', onClick: onRetry })]));
     }
     return workspaceRailBlock(doc, { title: '関係者', content });
   }
@@ -714,16 +878,22 @@ export function createGraphProjectsView({
     const detail = state.detail;
     const loaded = detail?.id === state.selectedId && detail.state === 'ok' ? detail.payload : null;
     const project = loaded?.project ?? listItem(state.selectedId) ?? { id: state.selectedId, name: state.selectedId };
-    const children = [workspaceRailHead(doc, { kicker: 'プロジェクト', title: project.name, sub: project.id })];
+    // The record a host's read-only note may point at.
+    const noteSubject = { id: project.id, type: 'project', metadata: loaded?.project?.metadata ?? {} };
+    const children = [workspaceRailHead(doc, { kicker: 'プロジェクト', title: project.name, sub: project.id, leading: renderProjectIcon(doc, project.icon, project.name) })];
     if (!loaded) {
+      const projectId = state.selectedId;
       const readState = detail?.id === state.selectedId
         ? detail
         : state.list.state === 'ok' ? { state: 'loading' } : state.list;
       children.push(graphStateNotice(doc, readState, {
-        onRetry: () => controller.loadDetail(state.selectedId),
+        onRetry: () => {
+          if (state.selectedId !== projectId) return state.detail;
+          return controller.loadDetail(projectId);
+        },
         loadingText: 'このプロジェクトの関係者を読み込んでいます。',
       }));
-      children.push(...railExtensions(state.selectedId, null));
+      children.push(...railExtensions(projectId, null));
       return children;
     }
     const principles = Array.isArray(project.decisionPrinciples) ? project.decisionPrinciples.filter((item) => typeof item === 'string' && item.trim()) : [];
@@ -746,10 +916,16 @@ export function createGraphProjectsView({
         recordDetails(doc, [['プロジェクトID', project.id], ['digest', project.digest], ['読み取った時点', loaded.asOf]]),
       ],
     }));
-    children.push(renderParticipants(loaded));
+    const projectId = state.selectedId;
+    children.push(renderParticipants(loaded, {
+      onRetry: () => {
+        if (state.selectedId !== projectId) return state.detail;
+        return controller.loadDetail(projectId);
+      },
+    }));
     if (writable) {
       const canAdd = scope.createEdges;
-      const projectFields = scope.entity('project') ? scope.fields(['name', 'goal', 'status']) : [];
+      const projectFields = scope.entity('project') ? scope.fields(['name', 'goal', 'status', 'icon']) : [];
       const actions = [
         canAdd ? workspaceButton(doc, {
           text: '関係者を加える',
@@ -767,7 +943,7 @@ export function createGraphProjectsView({
           onClick: () => openCorrection('project', () => correction.openEntity(project, {
             fields: projectFields,
             title: 'プロジェクトを直す',
-            subject: `プロジェクト「${project.name}」の${projectFields.map((field) => GRAPH_CORRECTION_FIELDS[field].label).join('・')}`,
+            subject: projectCorrectionSubject(project.name, projectFields),
           })),
         }) : null,
       ].filter(Boolean);
@@ -776,14 +952,45 @@ export function createGraphProjectsView({
       if (!loaded.participants.some((edge) => edge.id === state.panelAt)) children.push(correction.render(doc));
       // The host's reason for a control it withholds, where that control would be.
       const withheld = !canAdd || projectFields.length === 0 || (!scope.edges && loaded.participants.length > 0);
-      if (withheld) children.push(hostReadOnlyNote(doc, readOnlyNote));
+      if (withheld) children.push(hostReadOnlyNote(doc, readOnlyNote, noteSubject));
     } else {
-      children.push(hostReadOnlyNote(doc, readOnlyNote));
+      children.push(hostReadOnlyNote(doc, readOnlyNote, noteSubject));
     }
     children.push(...railExtensions(state.selectedId, loaded));
     children.push(renderOtherRelations(loaded));
     children.push(renderCorrectionHistory(doc, loaded.history));
     return children;
+  }
+
+  function cancelInitialSelectionGate(gate, { reset = true } = {}) {
+    if (!gate || gate.cancelled || gate.confirmed) return;
+    gate.cancelled = true;
+    gate.pendingContext = null;
+    gate.pendingDetail = null;
+    gate.flushContext = null;
+    gate.flushDetail = null;
+    if (initialSelectionGate === gate) initialSelectionGate = null;
+    // A caller may have selected another project while this gate was pending.
+    // Do not invalidate that newer project's reads in that case.
+    if (!reset || state.selectedId !== gate.id) return;
+    detailRequest += 1;
+    contextRequest += 1;
+    if (state.detail?.id === gate.id && state.detail.state === 'loading') state.detail = null;
+    if (state.context?.projectId === gate.id && state.context.state === 'loading') state.context = null;
+  }
+
+  function confirmInitialSelectionGate(gate) {
+    if (!gate || gate.cancelled) return;
+    gate.confirmed = true;
+    if (initialSelectionGate === gate) initialSelectionGate = null;
+    // Responses which finished before the list are safe to expose now.  A
+    // response still in flight will apply through its normal completion path.
+    gate.flushDetail?.();
+    gate.flushContext?.();
+    gate.pendingDetail = null;
+    gate.pendingContext = null;
+    gate.flushDetail = null;
+    gate.flushContext = null;
   }
 
   /** Reads the host's project list (see `load`). */
@@ -794,15 +1001,46 @@ export function createGraphProjectsView({
       state.list = { state: 'loading' };
       controller.render();
     }
+    let selectionGate = null;
+    let selectionDetailReading = null;
+    const selectedBeforeList = state.selectedId;
+    if (selectedBeforeList) {
+      if (initialSelectionGate?.id === selectedBeforeList && !initialSelectionGate.cancelled && !initialSelectionGate.confirmed) {
+        selectionGate = initialSelectionGate;
+        selectionDetailReading = selectionGate.detailReading;
+      } else if (state.detail === null) {
+        selectionGate = {
+          id: selectedBeforeList,
+          confirmed: false,
+          cancelled: false,
+          pendingContext: null,
+          pendingDetail: null,
+          flushContext: null,
+          flushDetail: null,
+          detailReading: null,
+        };
+        initialSelectionGate = selectionGate;
+        selectionDetailReading = controller.loadDetail(selectedBeforeList, {
+          keep,
+          deferUntilHostList: selectionGate,
+        });
+        selectionGate.detailReading = selectionDetailReading;
+      }
+    }
     const result = await client.read('/projects');
     if (viewDestroyed || request !== hostListRequest) return state.list;
     state.list = normalizeProjectList(result);
     if (state.list.state !== 'ok') {
+      cancelInitialSelectionGate(selectionGate);
       controller.render();
       return state.list;
     }
     const { projects } = state.list.payload;
-    if (!state.selectedId || !projects.some((project) => project.id === state.selectedId)) {
+    if (selectionGate && (selectionGate.cancelled || state.selectedId !== selectionGate.id)) {
+      cancelInitialSelectionGate(selectionGate, { reset: false });
+      selectionGate = null;
+    }
+    if (!state.selectedId) {
       if (correction.form) correction.close();
       state.panelAt = null;
       state.detail = null;
@@ -817,7 +1055,28 @@ export function createGraphProjectsView({
         if (viewDestroyed || request !== hostListRequest) return state.list;
         return state.list;
       }
-    } else if (state.detail?.id !== state.selectedId) {
+    } else if (!projects.some((project) => project.id === state.selectedId)) {
+      // An explicit host selection, or a project selected by the user, must
+      // never be replaced with the first row when the refreshed list no
+      // longer contains it.  Keeping the id makes the missing target visible
+      // and lets the host decide whether its identity or access changed.
+      cancelInitialSelectionGate(selectionGate);
+      if (correction.form) correction.close();
+      detailRequest += 1;
+      state.panelAt = null;
+      state.detail = {
+        id: state.selectedId,
+        state: 'not_found',
+        reason: 'このプロジェクトは一覧から見つかりません。一覧を読み直してください。',
+      };
+      state.context = null;
+      contextRequest += 1;
+    } else if (selectionGate && selectionGate.id === state.selectedId) {
+      confirmInitialSelectionGate(selectionGate);
+      if (selectionDetailReading) await selectionDetailReading;
+      if (viewDestroyed || request !== hostListRequest) return state.list;
+      return state.list;
+    } else if (state.detail?.id !== state.selectedId || state.detail?.state === 'not_found') {
       // The project the host asked for is listed; read it for the rail.
       if (viewDestroyed || request !== hostListRequest) return state.list;
       await controller.loadDetail(state.selectedId);
@@ -851,6 +1110,7 @@ export function createGraphProjectsView({
       hostListRequest += 1;
       detailRequest += 1;
       contextRequest += 1;
+      initialSelectionGate = null;
       knowledgeWorkspace?.destroy();
       knowledgeWorkspace = null;
       correction.close();
@@ -900,7 +1160,7 @@ export function createGraphProjectsView({
       return state.own.detail;
     },
     /** `keep` shows the current detail until the new one has been read. */
-    async loadDetail(id, { keep = false } = {}) {
+    async loadDetail(id, { keep = false, deferUntilHostList = null } = {}) {
       if (viewDestroyed) return state.detail;
       const request = ++detailRequest;
       const previous = state.detail;
@@ -908,13 +1168,26 @@ export function createGraphProjectsView({
         state.detail = { id, state: 'loading' };
         controller.render();
       }
-      const contextReading = loadProjectContextFor(id, { keep });
+      const contextReading = loadProjectContextFor(id, { keep, deferUntilHostList });
       const result = await client.read(`/projects/${encodeURIComponent(id)}`);
       if (viewDestroyed || request !== detailRequest || state.selectedId !== id) return state.detail;
-      state.detail = result.state === 'error' && result.status === 404
+      const detail = result.state === 'error' && result.status === 404
         ? { id, state: 'not_found', reason: 'このプロジェクトは見つかりません。一覧を読み直してください。' }
         : { id, ...normalizeProjectDetail(result) };
-      controller.render();
+      const applyDetail = () => {
+        if (viewDestroyed || request !== detailRequest || state.selectedId !== id) return false;
+        state.detail = detail;
+        controller.render();
+        return true;
+      };
+      if (deferUntilHostList && !deferUntilHostList.confirmed) {
+        if (!deferUntilHostList.cancelled && initialSelectionGate === deferUntilHostList) {
+          deferUntilHostList.pendingDetail = detail;
+          deferUntilHostList.flushDetail = applyDetail;
+        }
+        return state.detail;
+      }
+      applyDetail();
       // The context is intentionally independent.  Its completion may trigger
       // one more render, but never changes the Graph detail result.
       void contextReading;
@@ -922,6 +1195,10 @@ export function createGraphProjectsView({
     },
     /** Selects a row: the rail shows that project, and an open correction is closed. */
     async selectProject(id) {
+      // A host selection supersedes a prefetched initial detail.  Cancel the
+      // gate before changing the id so A -> B -> A cannot make a later list
+      // response wait for the first A read.
+      cancelInitialSelectionGate(initialSelectionGate, { reset: false });
       if (correction.form) correction.close();
       state.panelAt = null;
       state.selectedId = id;

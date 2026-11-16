@@ -47,6 +47,8 @@
 /* Notices inside the rail sit closer than the workspace's. */
 .bb-graph-rail .bb-ws-notice {
   margin: 16px 0;
+  /* A host's read-only note may list steps on separate lines. */
+  white-space: pre-line;
 }
 
 .bb-graph-notice-body {
@@ -97,6 +99,56 @@
   align-items: baseline;
   min-width: 0;
 }
+
+/* Project marks are shared by the ledger, rail and correction readback. The
+   unregistered initial is painted from an attribute so it never pollutes the
+   ledger's accessible project name or correction history with data URLs. */
+.bb-project-icon {
+  display: inline-grid;
+  flex: 0 0 36px;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  overflow: hidden;
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-sm);
+  color: var(--bb-color-accent-strong);
+  background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
+  font-size: 15px;
+  font-weight: var(--bb-font-weight-medium);
+  line-height: 1;
+}
+
+.bb-project-icon.is-sm {
+  flex-basis: 26px;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.bb-project-icon::before { content: attr(data-initial); }
+.bb-project-icon.is-registered::before { content: ''; }
+.bb-project-icon img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+.bb-graph-icon-value,
+.bb-graph-icon-picker {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--bb-space-2);
+}
+
+.bb-graph-icon-picker { margin-top: var(--bb-space-2); }
+.bb-graph-icon-picker-state { color: var(--bb-color-muted); font-size: 12px; }
+.bb-graph-field-error { display: block; color: var(--bb-color-danger); font-size: 12px; }
+.bb-graph-correction .bb-project-icon { margin-right: var(--bb-space-1); }
+
+.bb-ws-ledger-object > .bb-project-icon {
+  grid-row: 1 / span 2;
+}
+.bb-ws-rail-head > .bb-project-icon { margin-bottom: var(--bb-space-3); }
 
 /* Compact items: each 関係者 or relation in the rail. */
 .bb-graph-compact-list {
@@ -197,7 +249,7 @@
   color: var(--bb-color-muted);
   background: var(--bb-color-canvas);
   font-size: 10px;
-  font-weight: 720;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1.5;
   white-space: nowrap;
 }
@@ -205,7 +257,8 @@
 .bb-graph-badge.is-success { color: var(--bb-color-accent-strong); background: var(--bb-color-success-soft); }
 .bb-graph-badge.is-warning { color: var(--bb-color-warning); background: var(--bb-color-warning-soft); }
 .bb-graph-badge.is-danger { color: var(--bb-color-danger); background: var(--bb-color-danger-soft); }
-.bb-graph-badge.is-accent { color: var(--bb-color-accent-strong); background: var(--bb-color-accent-soft); }
+.bb-graph-badge.is-accent { color: var(--bb-color-accent-strong); background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface); }
 
 /* Inline messages inside the correction form. */
 .bb-graph-notice,
@@ -217,11 +270,13 @@
   overflow-wrap: anywhere;
 }
 
-.bb-graph-notice.is-muted { border-left-color: var(--bb-color-border-strong); color: var(--bb-color-muted); background: var(--bb-color-surface); }
+.bb-graph-notice.is-muted { border-left-color: var(--bb-color-border-strong); color: var(--bb-color-muted); background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface); }
 .bb-graph-notice.is-warning { border-left-color: var(--bb-color-warning); color: var(--bb-color-warning); background: var(--bb-color-warning-soft); }
 .bb-graph-notice.is-danger { border-left-color: var(--bb-color-danger); color: var(--bb-color-danger); background: var(--bb-color-danger-soft); }
 .bb-graph-notice.is-success,
-.bb-graph-notice.is-accent { border-left-color: var(--bb-color-accent); color: var(--bb-color-accent-strong); background: var(--bb-color-accent-soft); }
+.bb-graph-notice.is-accent { border-left-color: var(--bb-color-accent); color: var(--bb-color-accent-strong); background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface); }
 
 /* A name that opens a record. */
 .bb-graph-link {
@@ -230,7 +285,7 @@
   color: var(--bb-color-accent-strong);
   background: none;
   font: inherit;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
   text-align: left;
   cursor: pointer;
   overflow-wrap: anywhere;
@@ -244,7 +299,7 @@
   display: block;
   margin-bottom: 18px;
   font-size: 12px;
-  font-weight: 650;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-graph .bb-ws-ledger-row.is-selectable:focus-visible,
@@ -267,6 +322,7 @@
 /* The selected row keeps its soft green while the pointer is on it. */
 .bb-graph .bb-ws-ledger-row.is-selected:hover {
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-graph-facts {
@@ -311,6 +367,38 @@
 
 .bb-ws-rail-block > .bb-graph-audit {
   margin-top: 14px;
+}
+
+/* 根拠と履歴: one fold per record, after its relations (ledger D14). */
+.bb-graph-rail > .bb-graph-evidence {
+  border-bottom: 1px solid var(--bb-color-border);
+  padding-block: 18px;
+  font-size: 13px;
+}
+
+.bb-graph-evidence > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--bb-space-2);
+  color: var(--bb-color-ink);
+  font-weight: var(--bb-font-weight-medium);
+  cursor: pointer;
+}
+
+.bb-graph-evidence-part {
+  margin-top: var(--bb-space-3);
+}
+
+.bb-graph-evidence-part > h4 {
+  margin: 0 0 var(--bb-space-1);
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  font-weight: var(--bb-font-weight-medium);
+}
+
+.bb-graph-evidence-part > p {
+  margin: 0 0 var(--bb-space-1);
+  overflow-wrap: anywhere;
 }
 
 .bb-graph-rail > .bb-graph-history {
@@ -405,7 +493,7 @@
 .bb-graph-field label {
   color: var(--bb-color-muted);
   font-size: 12px;
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-graph-field.is-reason label {

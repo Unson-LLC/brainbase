@@ -180,6 +180,71 @@ describe('project knowledge workspace lifecycle', () => {
     workspace.destroy();
   });
 
+  it('uses an optional host overview projection before the existing context directory', () => {
+    const workspace = createProjectKnowledgeWorkspace({
+      document: new FakeDocument(),
+      detail: detail({
+        overview: {
+          about: { definition: '正本の定義', owner: '責任者', finalApprover: '最終決裁', goal: '確認する' },
+          checks: [{ id: 'check-1', title: '正本を確認', recordId: 'record-1' }],
+          directMaterials: { state: 'ok', total: 1, items: [{ id: 'doc-1', title: '直接資料', bodyState: 'retrieved' }] },
+          relatedMaterials: { state: 'ok', total: 0, items: [] },
+        },
+      }),
+      context: { projectId: 'project-atlas', state: 'ok', sections: [{ id: 'tasks', title: '仕事', state: 'ok', items: [] }] },
+    });
+    const overview = findAll(workspace.element, (node) => String(node.className).split(' ').includes('bb-pkw-overview'))[0];
+    const sections = findAll(overview, (node) => node.tagName === 'SECTION').map((node) => node.attributes['aria-label']);
+    expect(sections.slice(0, 5)).toEqual([
+      'このプロジェクトについて',
+      '次に確認すること',
+      'Atlas導入に直接紐づく資料',
+      '関連資料',
+      '項目別の一覧',
+    ]);
+    expect(findAll(overview, (node) => node.tagName === 'SECTION' && node.attributes['aria-label'] === '目的と現在地')).toHaveLength(0);
+    workspace.destroy();
+  });
+
+  it('loads an overview-only material through Graph detail without inventing an edge', async () => {
+    const mounts = [];
+    const readEntity = vi.fn(async (id) => ({
+      state: 'ok',
+      payload: {
+        entity: fullEntity({ id, type: 'evidence_document', name: '戦略資料', summary: '戦略資料の詳細' }),
+        incoming: [],
+        outgoing: [],
+        asOf: '2026-10-01T00:00:00.000Z',
+      },
+    }));
+    const workspace = createProjectKnowledgeWorkspace({
+      document: new FakeDocument(),
+      detail: detail({
+        participants: [],
+        relations: [],
+        overview: {
+          directMaterials: { state: 'ok', total: 1, items: [{ id: 'doc-strategy', title: '戦略資料', bodyState: 'retrieved' }] },
+          relatedMaterials: { state: 'ok', total: 0, items: [] },
+        },
+      }),
+      mountGraph: (_container, options) => {
+        mounts.push(options);
+        return { destroy: vi.fn(), select: vi.fn() };
+      },
+      readEntity,
+    });
+
+    buttonsNamed(workspace.element, '戦略資料')[0].dispatch('click');
+    await tick();
+    await tick();
+    await tick();
+
+    expect(readEntity).toHaveBeenCalledWith('doc-strategy');
+    expect(collectText(section(workspace.element, '選択した記録'))).toContain('戦略資料の詳細');
+    expect(mounts.at(-1)?.edges).toEqual([]);
+    workspace.destroy();
+  });
+
   it('does not mount Sigma while the overview is visible and destroys a late async mount', async () => {
     const mounts = [];
     let resolveMount;
@@ -504,6 +569,59 @@ describe('project knowledge workspace lifecycle', () => {
     expect(text).not.toContain('取消済みの仕事');
     expect(collectText(workspace.element)).toContain('4件表示');
     expect(collectText(workspace.element)).toContain('総数は未確認');
+    workspace.destroy();
+  });
+
+  it('uses canonical people from the same project detail when participant edges are absent', () => {
+    const workspace = createProjectKnowledgeWorkspace({
+      document: new FakeDocument(),
+      detail: detail({
+        project: {
+          ...project,
+          participantCount: 2,
+          accountableCount: 1,
+          people: [
+            { id: 'person-a', name: '佐藤 花子', accountable: true },
+            { id: 'person-b', name: '鈴木 次郎', accountable: false },
+          ],
+        },
+        participants: [],
+      }),
+    });
+
+    const people = section(workspace.element, '関係者');
+    const text = collectText(people);
+    expect(text).toContain('2人を表示');
+    expect(text).toContain('確認済みの件数: 関係者2人、責任者1人');
+    expect(text).toContain('佐藤 花子');
+    expect(text).toContain('鈴木 次郎');
+    expect(text).toContain('責任者');
+    expect(text).not.toContain('現在の関係者の詳細を未確認');
+    workspace.destroy();
+  });
+
+  it('keeps an explicit unavailable participant status even when canonical people are present', () => {
+    const workspace = createProjectKnowledgeWorkspace({
+      document: new FakeDocument(),
+      detail: detail({
+        project: {
+          ...project,
+          participantCount: 2,
+          accountableCount: 1,
+          people: [{ id: 'person-a', name: '佐藤 花子', accountable: true }],
+        },
+        participants: [],
+        participantStatus: 'unavailable',
+        participantUnavailableReason: 'Graphの関係者読み取りが失敗しました。',
+      }),
+    });
+
+    const people = section(workspace.element, '関係者');
+    const text = collectText(people);
+    expect(text).toContain('未確認');
+    expect(text).toContain('Graphの関係者読み取りが失敗しました');
+    expect(text).not.toContain('佐藤 花子');
+    expect(text).not.toContain('1人を表示');
     workspace.destroy();
   });
 

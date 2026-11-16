@@ -12,6 +12,7 @@ describe('canonical relation registry', () => {
       'member_of',
       'owned_by',
       'participates_in',
+      'related_to',
       'supersedes'
     ];
 
@@ -19,6 +20,7 @@ describe('canonical relation registry', () => {
     expect(getCanonicalRelation('accountable_for')).toMatchObject({ from: 'person', to: 'project' });
     expect(getCanonicalRelation('governs')).toMatchObject({ from: 'decision', to: 'project' });
     expect(getCanonicalRelation('owned_by')).toMatchObject({ from: 'project', to: 'org' });
+    expect(getCanonicalRelation('related_to')).toMatchObject({ from: 'org', to: 'project', scopeTraversal: 'project_direct', traversalDirection: 'forward' });
   });
 
   it('publishes stable meanings and project-scope traversal semantics', () => {

@@ -37,6 +37,7 @@ import {
   relationLabel,
   textOrNull,
   typeLabel,
+  validityLabel,
   validityText,
   GRAPH_RELATION_LABELS,
 } from './graph-view-shared.js';
@@ -76,11 +77,25 @@ export function graphOwnShareSource(option, { fetcher } = {}) {
   });
 }
 
-/** What the owner sent: the snapshot ID, where it is kept and when it was sent. */
+/** What the owner sent, in words: when it was sent.  The snapshot ID and digest are in ownShareHandoverRows. */
 export function ownShareHandoverText(handover) {
   if (!isRecord(handover) || !textOrNull(handover.graphId)) return null;
-  const where = textOrNull(handover.projectCode);
-  return `束 ${handover.graphId}（${where ? `置き場所 ${where}、` : ''}${formatDateTime(handover.createdAt)} に送信）`;
+  return `${formatDateTime(handover.createdAt)} に手元のOSSから送った束`;
+}
+
+/** The snapshot ID, where it is kept and its digest, for the record details only. */
+export function ownShareHandoverRows(handover) {
+  if (!isRecord(handover) || !textOrNull(handover.graphId)) return null;
+  return [
+    ['束ID', handover.graphId],
+    ['置き場所', textOrNull(handover.projectCode)],
+    ['digest', textOrNull(handover.digest) ?? '未確認'],
+  ];
+}
+
+function handoverDetails(doc, handover) {
+  const rows = ownShareHandoverRows(handover);
+  return rows ? recordDetails(doc, rows) : null;
 }
 
 /**
@@ -112,6 +127,8 @@ export function ownShareSection(doc, { label, lead = OWN_LEAD, handover, childre
   const sent = ownShareHandoverText(handover);
   if (sent) facts.append(makeElement(doc, 'span', { text: sent }));
   section.append(facts);
+  const sentDetails = handoverDetails(doc, handover);
+  if (sentDetails) section.append(sentDetails);
   for (const child of children) if (child) section.append(child);
   return section;
 }
@@ -216,7 +233,8 @@ export function ownEntityDetail(doc, detail, { onClose, onRetry, onOpen } = {}) 
       ...(entity.type === 'project' ? [['目的', textOrNull(entity.goal)], ['状態', textOrNull(entity.status)]] : []),
     ]),
   }));
-  wrap.append(decisionRecordBlock(doc, entity, loaded.decisionRecord));
+  const decisionBlock = decisionRecordBlock(doc, entity, loaded.decisionRecord);
+  if (decisionBlock) wrap.append(decisionBlock);
   for (const [key, title, empty] of [['outgoing', '出る関係', 'この記録から出る関係はありません。'], ['incoming', '入る関係', 'この記録へ入る関係はありません。']]) {
     const edges = Array.isArray(loaded[key]) ? loaded[key] : [];
     wrap.append(workspaceRailBlock(doc, {
@@ -225,6 +243,172 @@ export function ownEntityDetail(doc, detail, { onClose, onRetry, onOpen } = {}) 
     }));
   }
   return wrap;
+}
+
+// ---------------------------------------------------------------------------
+// 引き継いだ自分の分 (on its own)
+
+export const GRAPH_OWN_SHARE_LEDGER_COLUMNS = Object.freeze(['名前', '種類', '要約', '有効期間']);
+export const GRAPH_OWN_SHARE_SEARCH_LIMIT = 50;
+/**
+ * The default lead of the standalone section: what the snapshot is, who sees
+ * it, and that it becomes an organization record only once it is promoted.
+ */
+export const GRAPH_OWN_SHARE_VIEW_LEAD = '手元のOSSから送った最新の束です（brainbase graph:upgrade）。組織の記録ではなく、あなたにだけ表示しています。読み取りのみで、ここでは直せません。組織の記録にするには、取り込む記録を選んで組織の事実へ昇格します。';
+
+function isOwnEntity(value) {
+  return isRecord(value) && typeof value.id === 'string' && typeof value.name === 'string' && Array.isArray(value.aliases);
+}
+
+/**
+ * Mounts 「引き継いだ自分の分」 on its own: the owner's latest snapshot, searched
+ * by name or alias on `{basePath}/search`, with a record opened below the list
+ * from `{basePath}/entities/:id` (and a decision's judgment record).  Read-only.
+ * A host places it where the owner takes records in (候補の確認, ledger D14),
+ * next to the entry that promotes them to organization facts, never among the
+ * organization's own records.
+ *
+ * @param {object} options
+ * @param {Element} options.root Where the section is drawn.
+ * @param {Document} [options.document]
+ * @param {Function} [options.fetcher] `fetch`-compatible function.
+ * @param {string} [options.basePath='/api/graph/own'] The host's owner-private routes.
+ * @param {string} [options.label] The section label (default 引き継いだ自分の分（組織には未反映）).
+ * @param {string} [options.lead] Replaces the section lead.
+ * @param {() => Date} [options.now] The owner's clock.
+ * @param {boolean} [options.autoLoad=true] Runs the empty search on mount.
+ * @returns The controller: `state`, `render()`, `search(query?)`, `openEntity(id)`, `destroy()`.
+ */
+export function createOwnShareView({
+  root,
+  document: explicitDocument,
+  fetcher,
+  basePath = '/api/graph/own',
+  label,
+  lead = GRAPH_OWN_SHARE_VIEW_LEAD,
+  now = () => new Date(),
+  autoLoad = true,
+} = {}) {
+  if (!root) throw new TypeError('root is required');
+  const doc = explicitDocument ?? globalThis.document;
+  const source = graphOwnShareSource({ basePath, label }, { fetcher });
+  const state = { query: '', applied: '', search: { state: 'loading' }, detail: null };
+  let destroyed = false;
+  let generation = 0;
+
+  function searchForm() {
+    const form = makeElement(doc, 'form', { className: 'bb-graph-form bb-graph-own-search', attrs: { role: 'search', novalidate: true } });
+    form.addEventListener('submit', (event) => {
+      event?.preventDefault?.();
+      return controller.search();
+    });
+    const wrap = makeElement(doc, 'div', { className: 'bb-graph-field' });
+    const input = makeElement(doc, 'input', { attrs: { id: 'bb-graph-own-q', name: 'q', type: 'search', maxlength: 200, placeholder: '例: 田中' } });
+    input.value = state.query;
+    const update = (event) => { state.query = event?.target?.value ?? input.value; };
+    input.addEventListener('input', update);
+    input.addEventListener('change', update);
+    wrap.append(makeElement(doc, 'label', { text: '名前・別名', attrs: { for: 'bb-graph-own-q' } }), input);
+    form.append(wrap, makeElement(doc, 'button', { className: 'bb-ws-button', text: '束の中を探す', attrs: { type: 'submit' } }));
+    return form;
+  }
+
+  function body() {
+    const notice = ownShareStateNotice(doc, state.search, { onRetry: () => controller.search(), loadingText: '引き継いだ自分の分を探しています。' });
+    if (notice) return { children: [notice], handover: null };
+    const { payload } = state.search;
+    const asOf = payload.query?.asOf ?? now().toISOString();
+    const children = [searchForm()];
+    if (payload.graphEmpty === true) {
+      children.push(makeElement(doc, 'p', { className: 'bb-graph-empty', text: '束に記録がありません。' }));
+      return { children, handover: payload.handover };
+    }
+    children.push(makeElement(doc, 'p', {
+      className: 'bb-graph-own-caption',
+      text: `束の中の記録 ${Number.isInteger(payload.total) ? `${payload.total}件` : `${payload.results.length}件を表示`}${payload.truncated ? `（うち${payload.results.length}件を表示）` : ''}`,
+    }));
+    children.push(workspaceLedger(doc, {
+      className: 'bb-graph-entity-ledger bb-graph-own-ledger',
+      ariaLabel: `${source.label}の一覧`,
+      columns: GRAPH_OWN_SHARE_LEDGER_COLUMNS,
+      empty: '条件に合う記録は、この束にはありません。',
+      rows: payload.results.map((entity) => ({
+        key: entity.id,
+        selected: entity.id === state.detail?.id,
+        className: entity.active === false ? 'is-ended' : '',
+        onSelect: (id) => { void controller.openEntity(id); },
+        cells: [
+          { primary: entity.name, secondary: entity.id },
+          typeLabel(entity.type),
+          textOrNull(entity.summary) ?? { text: '要約なし', className: 'is-unresolved' },
+          validityLabel(entity, asOf),
+        ],
+      })),
+    }));
+    if (state.detail) {
+      children.push(ownEntityDetail(doc, state.detail, {
+        onClose: () => controller.openEntity(null),
+        onRetry: () => controller.openEntity(state.detail.id),
+        onOpen: (id) => controller.openEntity(id),
+      }));
+    }
+    return { children, handover: payload.handover };
+  }
+
+  const controller = {
+    get state() { return state; },
+    render() {
+      if (destroyed) return controller;
+      const { children, handover } = body();
+      root.replaceChildren(ownShareSection(doc, { label: source.label, lead, handover, children, className: 'bb-graph-own-view' }));
+      return controller;
+    },
+    /** Searches the snapshot (the whole snapshot for an empty query); an open record stays while it is listed. */
+    async search(query = state.query) {
+      if (destroyed) return state.search;
+      const requestGeneration = ++generation;
+      state.query = String(query ?? '');
+      state.applied = state.query.trim();
+      state.search = { state: 'loading' };
+      controller.render();
+      const result = await source.client.read('/search', { q: state.applied, limit: GRAPH_OWN_SHARE_SEARCH_LIMIT });
+      if (destroyed || requestGeneration !== generation) return state.search;
+      // An empty answer is an answer here: the host confirms the whole snapshot was searched.
+      state.search = result.state === 'ok' && !(Array.isArray(result.payload?.results) && result.payload.results.every(isOwnEntity)) ? INVALID : result;
+      const openId = state.detail?.id;
+      if (openId && !(state.search.state === 'ok' && state.search.payload.results.some((entity) => entity.id === openId))) state.detail = null;
+      controller.render();
+      return state.search;
+    },
+    /** Opens (or with null closes) a record of the snapshot below the list. */
+    async openEntity(id) {
+      if (destroyed) return null;
+      const target = textOrNull(id);
+      if (!target) {
+        state.detail = null;
+        controller.render();
+        return null;
+      }
+      const listed = state.search.state === 'ok' ? state.search.payload.results.find((entity) => entity.id === target) : null;
+      const pending = listed ?? (state.detail?.state === 'ok' ? [...state.detail.payload.outgoing, ...state.detail.payload.incoming]
+        .map((edge) => edge.counterpart).find((counterpart) => counterpart.id === target) : null) ?? null;
+      state.detail = { id: target, state: 'loading', pending: pending ? { id: target, name: pending.name, type: pending.type } : null };
+      controller.render();
+      const result = await source.client.read(`/entities/${encodeURIComponent(target)}`);
+      if (destroyed || state.detail?.id !== target) return state.detail;
+      const base = { id: target, pending: state.detail.pending };
+      if (result.state === 'error' && result.status === 404) state.detail = { ...base, state: 'not_found', reason: 'この記録は束の中に見つかりません。' };
+      else if (result.state !== 'ok') state.detail = { ...base, ...result };
+      else if (!isOwnEntity(result.payload?.entity) || !Array.isArray(result.payload.outgoing) || !Array.isArray(result.payload.incoming)) state.detail = { ...base, ...INVALID };
+      else state.detail = { ...base, state: 'ok', payload: result.payload };
+      controller.render();
+      return state.detail;
+    },
+    destroy() { destroyed = true; generation++; root.replaceChildren(); },
+  };
+  controller.render();
+  if (autoLoad) void controller.search('');
+  return controller;
 }
 
 // ---------------------------------------------------------------------------
@@ -248,7 +432,7 @@ function personText(person) {
 }
 
 function criterionText(criterion) {
-  const variable = textOrNull(criterion.variable?.meaning) ?? criterion.variable?.id ?? '変数';
+  const variable = textOrNull(criterion.variable?.meaning) ?? '名前の記録がない変数';
   if (criterion.target === null || criterion.target === undefined) return `${variable}（目標値なし）`;
   const value = `${String(criterion.target)}${textOrNull(criterion.variable?.unit) ? ` ${criterion.variable.unit}` : ''}`;
   if (criterion.operator === 'at_least') return `${variable}: ${value}以上`;
@@ -280,16 +464,20 @@ export function createOwnObjectivesView({
   basePath = '/api/graph/own',
   label = GRAPH_OWN_OBJECTIVES_LABEL,
   autoLoad = true,
+  compact = false,
+  onState,
+  onNotice,
 } = {}) {
   if (!root) throw new TypeError('root is required');
   const doc = explicitDocument ?? globalThis.document;
   const source = graphOwnShareSource({ basePath, label }, { fetcher });
   const state = { list: { state: 'loading' }, selectedId: null };
+  let destroyed = false, generation = 0;
 
   function detail(objective) {
     const wrap = makeElement(doc, 'div', { className: 'bb-graph-own-detail', attrs: { 'aria-label': '選んだ目的（引き継いだ自分の分）' } });
     wrap.append(
-      workspaceRailHead(doc, { kicker: '目的（引き継いだ自分の分）', title: objective.meaning, sub: objective.id }),
+      workspaceRailHead(doc, { kicker: '目的（引き継いだ自分の分）', title: objective.meaning }),
       closeButton(doc, () => controller.select(null)),
     );
     const criteria = makeElement(doc, 'ul', { className: 'bb-graph-plain-list' });
@@ -306,7 +494,11 @@ export function createOwnObjectivesView({
           ['状態', ownLabel(ADOPTION_LABELS, objective.adoptionState) ?? textOrNull(objective.adoptionState)],
           ['公開範囲（手元での設定）', ownLabel(VISIBILITY_LABELS, objective.visibility) ?? textOrNull(objective.visibility)],
         ]),
-        recordDetails(doc, [['目的ID', objective.id], ['版', objective.revision]]),
+        recordDetails(doc, [
+          ['目的ID', objective.id],
+          ['版', objective.revision],
+          ['基準変数のID', objective.criteria.map((criterion) => textOrNull(criterion.variable?.id)).filter(Boolean).join('、') || null],
+        ]),
       ],
     }));
     return wrap;
@@ -314,7 +506,17 @@ export function createOwnObjectivesView({
 
   function body() {
     const notice = ownShareStateNotice(doc, state.list, { onRetry: () => controller.load(), loadingText: '引き継いだ自分の目的を読み込んでいます。' });
-    if (notice) return [notice];
+    if (notice) {
+      if (compact && state.list.state !== 'loading' && state.list.state !== 'not_handed_over') {
+        onNotice?.({ title: label, message: `${state.list.reason ?? '引き継いだ自分の目的を取得できません。'} 0件ではありません。`, onRetry: () => controller.load() });
+        return [makeElement(doc, 'p', { className: 'bb-ws-inline-error', text: '取得できません' })];
+      }
+      if (compact && state.list.state === 'not_handed_over') {
+        const guide = makeElement(doc, 'details'); guide.append(makeElement(doc, 'summary', { text: '引き継ぎの案内' }), notice);
+        return [makeElement(doc, 'p', { text: 'まだ引き継いだ目的はありません。' }), guide];
+      }
+      return [notice];
+    }
     const { payload } = state.list;
     if (payload.objectives.length === 0) {
       return [makeElement(doc, 'p', { className: 'bb-graph-empty', text: payload.foundation === 'none' ? 'この束には、目的の定義がありません。' : 'この束には、目的がありません。' })];
@@ -328,7 +530,7 @@ export function createOwnObjectivesView({
         selected: objective.id === state.selectedId,
         onSelect: (id) => controller.select(id),
         cells: [
-          { primary: objective.meaning, secondary: objective.id },
+          { primary: objective.meaning },
           ownLabel(ADOPTION_LABELS, objective.adoptionState) ?? String(objective.adoptionState ?? ''),
           periodText(objective.evaluationPeriod),
           personText(objective.accountable) ?? { text: '未登録', className: 'is-unresolved' },
@@ -344,18 +546,31 @@ export function createOwnObjectivesView({
   const controller = {
     get state() { return state; },
     render() {
+      if (destroyed) return controller;
       const handover = state.list.state === 'ok' ? state.list.payload.handover : null;
-      root.replaceChildren(ownShareSection(doc, { label: source.label, lead: OBJECTIVES_LEAD, handover, children: body(), className: 'bb-graph-own-objectives' }));
+      if (compact) {
+        const facts = makeElement(doc, 'p', { className: 'bb-graph-own-facts', text: '読み取りのみ' });
+        const refs = makeElement(doc, 'details');
+        refs.append(makeElement(doc, 'summary', { text: '出典' }), makeElement(doc, 'p', { text: ownShareHandoverText(handover) ?? (state.list.state === 'not_handed_over' ? 'まだ引き継いでいません。' : '出典は確認できません。') }), handoverDetails(doc, handover));
+        root.replaceChildren(facts, ...body(), refs);
+      }
+      else root.replaceChildren(ownShareSection(doc, { label: source.label, lead: OBJECTIVES_LEAD, handover, children: body(), className: 'bb-graph-own-objectives' }));
+      onState?.(state.list);
       return controller;
     },
     async load() {
+      if (destroyed) return state.list;
+      const requestGeneration = ++generation;
       state.list = { state: 'loading' };
       controller.render();
-      state.list = normalizeOwnObjectives(await source.client.read('/objectives'));
+      const result = await source.client.read('/objectives');
+      if (destroyed || requestGeneration !== generation) return state.list;
+      state.list = normalizeOwnObjectives(result);
       if (state.list.state !== 'ok' || !state.list.payload.objectives.some((objective) => objective.id === state.selectedId)) state.selectedId = null;
       controller.render();
       return state.list;
     },
+    destroy() { destroyed = true; generation++; root.replaceChildren(); },
     select(id) {
       state.selectedId = textOrNull(id);
       return controller.render();

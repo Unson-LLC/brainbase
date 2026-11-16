@@ -29,7 +29,7 @@ import {
   workspaceSectionTitle,
 } from './workspace-kit.js';
 
-export const VALUE_PROOF_REVIEW_UI_CONTRACT_VERSION = 'value-proof-review-ui.v2';
+export const VALUE_PROOF_REVIEW_UI_CONTRACT_VERSION = 'value-proof-review-ui.v3';
 
 const SECTION_ORDER = Object.freeze(['needs_human', 'blocked', 'continued']);
 const SECTION_LABELS = Object.freeze({
@@ -80,6 +80,16 @@ const FEEDBACK_LAYER_LABELS = Object.freeze({
   philosophy: '大切にすること',
   other: 'その他',
 });
+/** Shown when the host does not offer recording answers (no `capabilities.answer` in the home). */
+const HUMAN_DECISION_BOUNDARY_NOTE = 'この画面では、人に戻した判断への回答や作業の再開はできません。';
+const ANSWER_HINT = 'この画面で、選択肢を選んで回答を記録できます。記録しても、止まった作業は自動では再開しません。';
+const ANSWER_FINAL_NOTE = '記録した回答は、この画面では変更・取り消しできません。';
+const ANSWER_RESUME_NOTE = '止まった作業は自動では再開しません。続きを進めるときは、AIにこの回答を伝えて頼み直してください。';
+const ANSWER_REJECT_LABEL = 'どれも選ばない';
+const ANSWER_KINDS = Object.freeze(['select', 'reject']);
+const MOVED_ON_LABEL = '会話で先に進んだ';
+const FEEDBACK_PURPOSE_NOTE = '評価は、実行後の振り返りとして記録します。人に戻した判断への回答や承認ではありません。';
+const CONSULT_COPY_NOTE = '相談文をコピーするだけで、この画面からCodexへは送信しません。';
 /** Layers the owner can pick for a correction. `delegation` comes from 「次回は聞く」. */
 export const VALUE_PROOF_CORRECTION_LAYERS = Object.freeze(['method', 'objective', 'world_model', 'philosophy', 'other']);
 export const VALUE_PROOF_FEEDBACK_OPTIONS = Object.freeze([
@@ -138,6 +148,40 @@ function isProof(value) {
     && isRecord(value.feedback);
 }
 
+/** The recorded answer, or null. A malformed answer is treated as absent, never as answered. */
+function normalizeAnswer(answer) {
+  if (!isRecord(answer) || !ANSWER_KINDS.includes(answer.kind) || !text(answer.recorded_at)) return null;
+  if (answer.kind === 'select' && !text(answer.selected_option_id)) return null;
+  return {
+    kind: answer.kind,
+    optionId: answer.kind === 'select' ? text(answer.selected_option_id) : null,
+    optionLabel: answer.kind === 'select' ? text(answer.selected_option_label) : null,
+    recordedAt: text(answer.recorded_at),
+  };
+}
+
+/** When the conversation moved on after the question, or null. */
+function normalizeMovedOnAt(value) {
+  const at = text(value);
+  return at && !Number.isNaN(Date.parse(at)) ? at : null;
+}
+
+/** A judgment returned to the owner that still has no recorded answer and whose conversation is still at the question. */
+function awaitsOwner(item) {
+  return item.section === 'needs_human' && !item.answer && !item.conversationMovedOnAt;
+}
+
+/** The section label, or how the owner's side of a returned judgment ended. */
+function itemStateLabel(item) {
+  if (item.answer) return '回答済み';
+  return item.conversationMovedOnAt ? MOVED_ON_LABEL : SECTION_LABELS[item.section];
+}
+
+/** Shown instead of the answer controls: the owner answered in that conversation or it moved on. */
+function movedOnNote(at) {
+  return `この問いのあと、同じ会話で次のやり取りがありました（${formatDate(at)}）。会話の中で答えたか、話が先に進んだと考えられるので、この画面では回答を受け付けません。続きが必要なら、元の会話で頼んでください。`;
+}
+
 /** Normalize the host response. Anything unexpected becomes `invalid`, never an empty success. */
 export function normalizeValueProofReviewHome(payload) {
   if (!isRecord(payload)) return { status: 'invalid', reason: '応答の形式が不正です' };
@@ -157,6 +201,8 @@ export function normalizeValueProofReviewHome(payload) {
       section,
       proof: item.proof,
       feedbackHistory: Array.isArray(item.feedback_history) ? item.feedback_history.filter(isRecord) : [],
+      answer: normalizeAnswer(item.answer),
+      conversationMovedOnAt: normalizeMovedOnAt(item.conversation_moved_on_at),
     }));
   }
   const itemsByKey = new Map(SECTION_ORDER.flatMap((section) => sections[section].map((item) => [itemKey(item.proof), item])));
@@ -175,6 +221,8 @@ export function normalizeValueProofReviewHome(payload) {
     itemsByKey,
     delegationMap,
     rejected: Array.isArray(payload.rejected) ? payload.rejected.filter(isRecord) : [],
+    // Only a host that records answers says so; elsewhere the screen keeps the 回答できません note.
+    answersRecordable: isRecord(payload.capabilities) && payload.capabilities.answer === 'record_only',
   };
 }
 
@@ -251,7 +299,7 @@ function isUnrated(proof) {
 function itemVisible(state, item) {
   if (!item) return false;
   if (state.unratedOnly && !isUnrated(item.proof)) return false;
-  if (state.needsHumanOnly && item.section !== 'needs_human') return false;
+  if (state.needsHumanOnly && !awaitsOwner(item)) return false;
   return true;
 }
 
@@ -266,6 +314,15 @@ function visibleRows(state) {
 
 function rowOfItem(state, key) {
   return state.home?.delegationMap?.rows.find((row) => row.itemKeys.includes(key)) ?? null;
+}
+
+function findItemByDecision(state, decisionAttemptId) {
+  if (state.home?.status !== 'available' || !decisionAttemptId) return null;
+  for (const section of [...SECTION_ORDER, 'other']) {
+    const found = state.home.sections[section].find((item) => item.proof.decision_attempt_id === decisionAttemptId);
+    if (found) return found;
+  }
+  return null;
 }
 
 function findItem(state, key) {
@@ -370,7 +427,7 @@ function toggleButton(doc, { label, pressed, disabled = false, onClick }) {
 }
 
 function renderFilters(doc, home, state, callbacks) {
-  const needsHuman = home.sections.needs_human.length;
+  const needsHuman = home.sections.needs_human.filter(awaitsOwner).length;
   const actions = workspaceActions(doc, [
     toggleButton(doc, {
       label: state.needsHumanOnly ? `あなたの判断が必要 ${needsHuman}件（絞り込み中・解除）` : `あなたの判断が必要 ${needsHuman}件`,
@@ -391,9 +448,17 @@ function renderFilters(doc, home, state, callbacks) {
 
 function renderMetrics(doc, home) {
   const map = home.delegationMap;
+  const excluded = [
+    home.answersRecordable && '回答済み',
+    home.sections.needs_human.some((item) => item.conversationMovedOnAt) && '会話で先に進んだもの',
+  ].filter(Boolean);
   return workspaceMetrics(doc, [
     { label: '保存済み', value: home.coverage.saved, note: '判断journalの記録' },
-    { label: 'あなたの判断が必要', value: home.sections.needs_human.length, note: 'あなたに戻した判断' },
+    {
+      label: 'あなたの判断が必要',
+      value: home.sections.needs_human.filter(awaitsOwner).length,
+      note: excluded.length > 0 ? `あなたに戻した判断（${excluded.join('と、')}を除く）` : 'あなたに戻した判断',
+    },
     { label: '聞かずに進めた', value: home.sections.continued.length, note: '聞かずに続行した判断' },
     { label: '評価済み', value: map.rated, note: `判断 ${map.judged}件のうち` },
   ], { ariaLabel: '判断の集計' });
@@ -668,7 +733,7 @@ function renderItemButton(doc, state, item, callbacks) {
     makeElement(doc, 'span', {
       className: 'bb-vpr-item-meta',
       text: [
-        SECTION_LABELS[item.section],
+        itemStateLabel(item),
         formatDate(item.proof.recorded_at),
         OUTCOME_LABELS[item.proof.outcome.status] ?? '成果不明',
         FEEDBACK_LABELS[item.proof.feedback.status] ?? '評価不明',
@@ -772,6 +837,65 @@ function renderFeedbackForm(doc, item, state, callbacks) {
   return form;
 }
 
+function answerChoiceText(kind, optionLabel, optionId) {
+  return kind === 'reject' ? ANSWER_REJECT_LABEL : optionLabel ?? optionId ?? '選択肢';
+}
+
+/** The answer area of a judgment returned to the owner: the recorded answer, or the choices and the confirmation. */
+function renderAnswer(doc, item, state, callbacks) {
+  const key = itemKey(item.proof);
+  const save = state.answerSave?.key === key ? state.answerSave : null;
+  const box = makeElement(doc, 'div', {
+    className: `bb-vpr-answer${item.answer ? ' is-answered' : ''}`,
+    attrs: { role: 'group', 'aria-label': item.answer ? '記録した回答' : 'この問いに回答する' },
+  });
+  if (item.answer) {
+    box.append(
+      makeElement(doc, 'h4', { text: '回答済み' }),
+      makeElement(doc, 'p', {
+        text: `「${answerChoiceText(item.answer.kind, item.answer.optionLabel, item.answer.optionId)}」と回答しました（${formatDate(item.answer.recordedAt)}）。`,
+      }),
+      makeElement(doc, 'p', { className: 'bb-vpr-hint', text: `${ANSWER_RESUME_NOTE}${ANSWER_FINAL_NOTE}` }),
+    );
+    if (save?.state === 'saved') box.append(notice(doc, 'is-success', save.message));
+    if (save?.state === 'error') box.append(notice(doc, 'is-danger', save.message, 'alert'));
+    return box;
+  }
+  box.append(makeElement(doc, 'h4', { text: 'この問いに回答する' }), makeElement(doc, 'p', { className: 'bb-vpr-hint', text: ANSWER_HINT }));
+  const draft = state.answerDraft?.key === key ? state.answerDraft : null;
+  if (draft) {
+    box.append(makeElement(doc, 'p', {
+      className: 'bb-vpr-answer-confirm',
+      text: `「${answerChoiceText(draft.kind, draft.optionLabel, draft.optionId)}」で回答を記録します。${ANSWER_FINAL_NOTE}止まった作業は自動では再開しません。`,
+    }));
+    const saving = save?.state === 'saving';
+    box.append(workspaceActions(doc, [
+      workspaceButton(doc, {
+        text: saving ? '記録中…' : '回答を記録する',
+        variant: 'primary',
+        disabled: saving,
+        onClick: () => callbacks.onAnswerConfirm?.(item),
+      }),
+      workspaceButton(doc, { text: 'やめる', variant: 'quiet', disabled: saving, onClick: () => callbacks.onAnswerCancel?.() }),
+    ]));
+  } else {
+    const options = Array.isArray(item.proof.human_decision?.options) ? item.proof.human_decision.options : [];
+    box.append(workspaceActions(doc, [
+      ...options.map((option) => workspaceButton(doc, {
+        text: `「${text(option.label) ?? option.id}」で回答する`,
+        onClick: () => callbacks.onAnswerDraft?.({ key, kind: 'select', optionId: option.id, optionLabel: text(option.label) }),
+      })),
+      workspaceButton(doc, {
+        text: ANSWER_REJECT_LABEL,
+        variant: 'quiet',
+        onClick: () => callbacks.onAnswerDraft?.({ key, kind: 'reject', optionId: null, optionLabel: null }),
+      }),
+    ]));
+  }
+  if (save?.state === 'error') box.append(notice(doc, 'is-danger', save.message, 'alert'));
+  return box;
+}
+
 function consultText(proof) {
   return [
     'Brainbaseのこの判断について相談したい。',
@@ -792,15 +916,20 @@ function renderJudgmentDetail(doc, state, item, callbacks) {
   const { proof } = item;
   const detail = [];
   const row = rowOfItem(state, itemKey(proof));
+  const proofKind = kindLabel(proof);
+  // Keep a judgment-kind detail aligned with the row that groups it.
+  const displayedKind = row?.source === 'judgment_kind'
+    ? rowName(row)
+    : proofKind ? proofKind : row ? rowName(row) : null;
   if (row) {
     const back = workspaceButton(doc, { text: `← ${rowName(row)}`, variant: 'quiet', onClick: () => callbacks.onShowRow?.() });
     back.className = `${back.className} bb-vpr-back`;
     detail.push(back);
   }
   const head = workspaceRailHead(doc, {
-    kicker: SECTION_LABELS[item.section],
+    kicker: itemStateLabel(item),
     title: itemTitle(proof),
-    sub: kindLabel(proof) ? `判断の種類: ${kindLabel(proof)}` : row ? rowName(row) : null,
+    sub: displayedKind ? `判断の種類: ${displayedKind}` : null,
   });
   const heading = Array.from(head.children ?? []).find((child) => child.tagName === 'H2');
   heading?.setAttribute('tabindex', '-1');
@@ -851,10 +980,16 @@ function renderJudgmentDetail(doc, state, item, callbacks) {
       for (const option of options) list.append(makeElement(doc, 'li', { text: `${text(option.label) ?? option.id}: ${text(option.impact) ?? '影響の記録なし'}` }));
       content.push(makeElement(doc, 'h4', { text: '選択肢と影響' }), list);
     }
+    if (item.conversationMovedOnAt && !item.answer) content.push(notice(doc, 'is-muted', movedOnNote(item.conversationMovedOnAt)));
+    else if (state.home?.answersRecordable && item.section === 'needs_human') content.push(renderAnswer(doc, item, state, callbacks));
+    else content.push(makeElement(doc, 'p', { className: 'bb-vpr-hint', text: HUMAN_DECISION_BOUNDARY_NOTE }));
     detail.push(workspaceRailBlock(doc, { title: 'あなたに戻した理由', className: 'bb-vpr-human-decision', content }));
   }
 
-  const feedback = [renderFeedbackForm(doc, item, state, callbacks)];
+  const feedback = [
+    makeElement(doc, 'p', { className: 'bb-vpr-hint', text: FEEDBACK_PURPOSE_NOTE }),
+    renderFeedbackForm(doc, item, state, callbacks),
+  ];
   if (item.feedbackHistory.length > 1) {
     const history = makeElement(doc, 'details', { className: 'bb-vpr-history' });
     history.append(makeElement(doc, 'summary', { text: `評価の履歴 ${item.feedbackHistory.length}件` }));
@@ -867,7 +1002,10 @@ function renderJudgmentDetail(doc, state, item, callbacks) {
   }
   detail.push(workspaceRailBlock(doc, { title: '評価', className: 'bb-vpr-feedback-block', content: feedback }));
 
-  const consult = [workspaceButton(doc, { text: 'Codexで相談する（依頼文をコピー）', onClick: () => callbacks.onConsult?.(consultText(proof)) })];
+  const consult = [
+    makeElement(doc, 'p', { className: 'bb-vpr-hint', text: CONSULT_COPY_NOTE }),
+    workspaceButton(doc, { text: 'Codexで相談する（依頼文をコピー）', onClick: () => callbacks.onConsult?.(consultText(proof)) }),
+  ];
   if (state.consultMessage) consult.push(notice(doc, 'is-muted', state.consultMessage));
   detail.push(workspaceRailBlock(doc, { title: 'Codexで相談', content: consult }));
 
@@ -1052,6 +1190,9 @@ export function createValueProofReviewUI({
     needsHumanOnly: false,
     draft: { status: '', summary: '', targetLayer: '' },
     save: { state: 'idle', message: '' },
+    /** The answer the owner picked and is about to confirm: `{ key, kind, optionId, optionLabel }`. */
+    answerDraft: null,
+    answerSave: { state: 'idle', message: '', key: null },
     focusCard: false,
     consultMessage: '',
     sourceReads: new Map(),
@@ -1083,7 +1224,16 @@ export function createValueProofReviewUI({
   const resetJudgmentInput = () => {
     state.draft = { status: '', summary: '', targetLayer: '' };
     state.save = { state: 'idle', message: '' };
+    state.answerDraft = null;
+    state.answerSave = { state: 'idle', message: '', key: null };
     state.consultMessage = '';
+  };
+
+  /** Keep the detail on this judgment, even when a filter now hides it from the lists. */
+  const showJudgment = (key) => {
+    state.selectedKey = key;
+    state.selectedRowKey = rowOfItem(state, key)?.key ?? state.selectedRowKey;
+    state.railView = 'judgment';
   };
 
   const applyFilter = () => {
@@ -1167,14 +1317,76 @@ export function createValueProofReviewUI({
         const key = itemKey(item.proof);
         const saved = findItem(state, key);
         if (saved?.proof.feedback.status !== option.value) throw new Error('保存後の読み戻しで評価を確認できません');
-        // Keep the read-back on the judgment just rated, even when a filter now hides it from the lists.
-        state.selectedKey = key;
-        state.selectedRowKey = rowOfItem(state, key)?.key ?? state.selectedRowKey;
-        state.railView = 'judgment';
+        showJudgment(key);
         state.draft = { status: '', summary: '', targetLayer: '' };
         state.save = { state: 'saved', message: `「${option.label}」を保存しました（読み戻し済み）。` };
       } catch (error) {
         state.save = { state: 'error', message: `保存できませんでした: ${error instanceof Error ? error.message : 'request_failed'}。入力は残しています。` };
+      }
+      controller.render();
+    },
+    onAnswerDraft(draft) {
+      state.answerDraft = draft;
+      state.answerSave = { state: 'idle', message: '', key: null };
+      controller.render();
+    },
+    onAnswerCancel() {
+      state.answerDraft = null;
+      controller.render();
+    },
+    async onAnswerConfirm(item) {
+      const key = itemKey(item.proof);
+      const draft = state.answerDraft;
+      if (!draft || draft.key !== key) return;
+      if (!request) {
+        state.answerSave = { state: 'error', key, message: '記録先のAPIが未設定です。回答はまだ記録されていません。' };
+        controller.render();
+        return;
+      }
+      state.answerSave = { state: 'saving', key, message: '' };
+      controller.render();
+      let accepted = false;
+      try {
+        const response = await request(joinPath(basePath, '/answers'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Brainbase-Review-Token': token ?? '' },
+          body: JSON.stringify({
+            intent_id: item.proof.intent_id,
+            decision_attempt_id: item.proof.decision_attempt_id,
+            kind: draft.kind,
+            selected_option_id: draft.kind === 'select' ? draft.optionId : null,
+            confirmed: true,
+          }),
+        });
+        if (response.status === 409) {
+          // Another answer was recorded first; show that one instead of the one just picked.
+          await controller.load();
+          showJudgment(key);
+          state.answerDraft = null;
+          state.answerSave = { state: 'error', key, message: 'この問いには、すでに別の回答が記録されています。記録済みの回答を表示しています。' };
+          controller.render();
+          return;
+        }
+        if (!response.ok) throw new Error(await readErrorMessage(response));
+        accepted = true;
+        await controller.load();
+        const answer = findItem(state, key)?.answer;
+        if (!answer || answer.kind !== draft.kind || (draft.kind === 'select' && answer.optionId !== draft.optionId)) {
+          throw new Error('読み戻しで回答を確認できません');
+        }
+        showJudgment(key);
+        state.answerDraft = null;
+        state.answerSave = { state: 'saved', key, message: '回答を記録しました（読み戻し済み）。' };
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : 'request_failed';
+        state.answerSave = {
+          state: 'error',
+          key,
+          // Once the host accepted the answer, a failed read-back does not mean that nothing was recorded.
+          message: accepted
+            ? `回答は送信しましたが、記録を確かめられませんでした: ${reason}。画面を読み込み直して、記録された回答を確かめてください。`
+            : `記録できませんでした: ${reason}。回答はまだ記録されていません。`,
+        };
       }
       controller.render();
     },
@@ -1193,8 +1405,25 @@ export function createValueProofReviewUI({
     },
   };
 
+  /** Selects a judgment by decision_attempt_id; false when the loaded home does not have it. */
+  const selectDecision = (decisionAttemptId) => {
+    const item = findItemByDecision(state, decisionAttemptId);
+    if (!item) return false;
+    callbacks.onSelect(itemKey(item.proof));
+    return true;
+  };
+
   const controller = {
     get state() { return state; },
+    /**
+     * Opens one judgment, as a link from another screen does. Before the home
+     * has loaded, the request waits for the load; an unknown id selects nothing.
+     */
+    openDecision(decisionAttemptId) {
+      if (state.phase === 'ready') return selectDecision(decisionAttemptId);
+      state.pendingDecisionId = decisionAttemptId;
+      return false;
+    },
     render() {
       renderValueProofReview(root, state, callbacks, { document: doc, unavailableNotice, rail, page });
       return controller;
@@ -1219,6 +1448,11 @@ export function createValueProofReviewUI({
         state.error = error instanceof Error ? error.message : 'request_failed';
       }
       controller.render();
+      if (state.phase === 'ready' && state.pendingDecisionId) {
+        const pending = state.pendingDecisionId;
+        state.pendingDecisionId = null;
+        selectDecision(pending);
+      }
       return state.home;
     },
     callbacks,

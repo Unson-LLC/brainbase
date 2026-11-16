@@ -21,6 +21,15 @@
  */
 
 import { workspaceButton, workspaceNotice } from './workspace-kit.js';
+import {
+  PROJECT_ICON_MAX_BYTES,
+  PROJECT_ICON_MIME_TYPES,
+  projectIconMimeLabel,
+  projectIconSummary,
+  readProjectIconFile,
+  renderProjectIcon,
+  validateProjectIconDataUrl,
+} from './project-icon.js';
 
 export const GRAPH_VIEW_SHARED_CONTRACT_VERSION = 'brainbase.graph-view-shared.v2';
 
@@ -29,6 +38,45 @@ export const GRAPH_ENTITY_TYPE_LABELS = Object.freeze({
   org: '組織',
   project: 'プロジェクト',
   decision: '判断',
+  // The kinds an organization's Graph defines on top of the local four, so the
+  // screens never show an internal type id (ledger D14).
+  app: 'アプリ',
+  product: 'プロダクト',
+  brand: 'ブランド',
+  customer: '顧客',
+  partner: '協業先',
+  contact: '名刺の連絡先',
+  raci: '責任分担表',
+  raci_assignment: '責任の割り当て',
+  role_assignment: '役割',
+  glossary_term: '用語',
+  document: '文書',
+  frame: '考え方の枠組み',
+  story: 'ストーリー',
+  infrastructure_environment: '稼働環境',
+  speaking: '登壇',
+  media_appearance: 'メディア出演',
+  publication: '出版物',
+  press_mention: '報道',
+  initiative: '施策',
+  ai_query: 'AIへの問い合わせ',
+  ai_decision: 'AIを使った判断',
+  philosophy: '哲学',
+  capital: '資本',
+  contract: '契約',
+  database: 'データベース',
+  database_cluster: 'データベースのクラスタ',
+  diagnosis: '診断',
+  finance: '財務',
+  finance_account: '財務の口座',
+  org_alias: '組織の別名',
+  organization: '組織（旧い形式）',
+  person_alias: '人物の別名',
+  push_case: '推進案件',
+  objective: '目的',
+  variable: '変数',
+  model: '世界モデル',
+  constraint: '制約',
 });
 
 export const GRAPH_ENTITY_TYPE_MEANINGS = Object.freeze({
@@ -42,13 +90,72 @@ export const GRAPH_ENTITY_TYPE_MEANINGS = Object.freeze({
  * `outgoing` follows the counterpart name when this record is the start of the
  * relation; `incoming` follows it when this record is the end.
  */
+const relation = (label, meaning, outgoing, incoming) => Object.freeze({ label, meaning, outgoing, incoming });
+
+/*
+ * Every relation of the local Graph and of an organization's Graph has a plain
+ * Japanese name (ledger D14); a relation id is shown only in the details.
+ * Relations that mean the same to a reader share one name (所有 for owns and
+ * owned_by, 所属 for member_of and belongs_to), and a list of relation kinds
+ * shows them as one row (`groupRelationKinds`).
+ */
 export const GRAPH_RELATION_LABELS = Object.freeze({
-  member_of: Object.freeze({ label: '所属', meaning: '人物が組織に所属している', outgoing: 'に所属', incoming: 'が所属' }),
-  participates_in: Object.freeze({ label: '参加', meaning: '人物がプロジェクトに参加している', outgoing: 'に参加', incoming: 'が参加' }),
-  accountable_for: Object.freeze({ label: '責任', meaning: '人物がプロジェクトの成果や判断に責任を持つ', outgoing: 'に責任を持つ', incoming: 'が責任を持つ' }),
-  owned_by: Object.freeze({ label: '所有', meaning: 'プロジェクトを組織が所有している', outgoing: 'が所有', incoming: 'を所有' }),
-  governs: Object.freeze({ label: '方針', meaning: '判断や原則がプロジェクトの進め方を決める', outgoing: 'の進め方を決める', incoming: 'が進め方を決める' }),
-  supersedes: Object.freeze({ label: '置き換え', meaning: '判断が以前の判断を置き換える', outgoing: 'を置き換える', incoming: 'に置き換えられた' }),
+  member_of: relation('所属', '人物が組織やプロジェクトに所属している', 'に所属', 'が所属'),
+  belongs_to: relation('所属', '記録が組織・プロダクト・ブランド・プロジェクトに含まれる', 'に所属', 'が所属'),
+  belongs_to_project: relation('所属', '記録がプロジェクトに含まれる', 'に所属', 'が所属'),
+  participates_in: relation('参加', '人物がプロジェクトに参加している', 'に参加', 'が参加'),
+  accountable_for: relation('責任', '人物や組織が成果や判断に最終的な責任を持つ', 'に責任を持つ', 'が責任を持つ'),
+  owned_by: relation('所有', 'プロジェクトなどを組織や人が所有している', 'が所有', 'を所有'),
+  owns: relation('所有', '組織がアプリ・プロダクト・ブランド・プロジェクトを所有している', 'を所有', 'が所有'),
+  owns_app: relation('所有', 'プロジェクトがアプリを持っている（旧い形式）', 'を所有', 'が所有'),
+  related_to: relation('関わる', '会社が顧客・協業先などとしてプロジェクトに関わっている', 'に関わる', 'が関わる'),
+  governs: relation('進め方を決める', '判断や原則が、対象の進め方を決める', 'の進め方を決める', 'が進め方を決める'),
+  governed_by: relation('従う原則', '推進案件が従う原則', 'に従う', 'が従う'),
+  supersedes: relation('置き換え', '判断が以前の判断を置き換える', 'を置き換える', 'に置き換えられた'),
+  superseded_by: relation('同一人物に統合', '古い人物の記録を、正しい人物の記録へまとめた', 'へ統合', 'を統合'),
+  derived_from: relation('由来', '記録が別の記録をもとにしている', 'に由来', 'が由来とする'),
+  depends_on: relation('依存', '稼働や成果が別の記録に依存している', 'に依存', 'が依存'),
+  assigned_to: relation('責任の割り当て', '責任分担で、人や組織に責任を割り当てている', 'に割り当て', 'で割り当て'),
+  requested_by: relation('問い合わせた人', 'AIへの問い合わせをした人', 'が問い合わせた', 'を問い合わせた'),
+  made_by: relation('判断した人', '判断をした人', 'が判断した', 'を判断した'),
+  references: relation('根拠として参照', '判断や問い合わせが、根拠として別の記録を参照している', 'を参照', 'が参照'),
+  evidenced_by: relation('根拠の文書', '判断の根拠になった文書', 'を根拠にする', 'が根拠にする'),
+  informs: relation('判断材料', '文書がプロジェクトの判断材料になる', 'の判断材料', 'が判断材料'),
+  mentions: relation('言及', '判断が協業先やプロダクトに言及している', 'に言及', 'が言及'),
+  alias_of: relation('別名', '人や組織の別の呼び名', 'の別名', 'が別名'),
+  applies_to: relation('適用先', '文書が適用される組織', 'に適用', 'が適用'),
+  describes: relation('説明', '文書が組織を説明している', 'を説明', 'が説明'),
+  brand_of: relation('ブランドの対象', 'ブランドが表す組織やプロジェクト', 'のブランド', 'がブランド'),
+  sub_brand_of: relation('上位ブランド', 'ブランドの上位にあるブランド', 'の下位ブランド', 'が下位ブランド'),
+  operates: relation('運営', '組織が運営している', 'を運営', 'が運営'),
+  operated_by: relation('運営', '組織が運営している', 'が運営', 'を運営'),
+  covers_engagement: relation('責任分担の対象', '責任分担表が対象とする組織や案件', 'の責任分担', 'が責任分担を示す'),
+  describes_org: relation('責任分担の対象', '責任分担表が対象とする組織や案件', 'の責任分担', 'が責任分担を示す'),
+  has_raci: relation('責任分担表', '組織やプロジェクトが持つ責任分担表', 'を持つ', 'が持つ'),
+  has_project: relation('含む', 'プロジェクトが子プロジェクト・案件・施策を含む', 'を含む', 'に含まれる'),
+  has_engagement: relation('含む', 'プロジェクトが子プロジェクト・案件・施策を含む', 'を含む', 'に含まれる'),
+  has_initiative: relation('含む', 'プロジェクトが子プロジェクト・案件・施策を含む', 'を含む', 'に含まれる'),
+  relates_to_project: relation('関連', 'プロジェクトどうしが関連している', 'と関連', 'と関連'),
+  serves_customer: relation('価値を届ける顧客', 'プロジェクトが価値を届ける顧客', 'に価値を届ける', 'が価値を届ける'),
+  org_unit_of: relation('上位の顧客', '部署が属する顧客の会社', 'の部署', 'が部署'),
+  supports_project: relation('支援', '協業先がプロジェクトを運営する組織を支援している', 'を支援', 'が支援'),
+  key_contact_for: relation('主な窓口', 'ブランドや推進案件の主な窓口', 'の主な窓口', 'が主な窓口'),
+  primary_contact_for: relation('主な窓口', 'ブランドや推進案件の主な窓口', 'の主な窓口', 'が主な窓口'),
+  has_push_case: relation('推進案件', '顧客について進めている推進案件', 'を推進案件に持つ', 'の推進案件'),
+  has_diagnosis: relation('診断', '推進案件についての診断', 'を持つ', 'が持つ'),
+  role_at: relation('役割', '人物の役割と、その役割の所属先', 'での役割', 'がある'),
+  holds_role: relation('役割', '人物の役割と、その役割の所属先', 'を持つ', 'が持つ'),
+  uses_app: relation('利用', 'プロジェクトやアプリが、アプリやデータベースを使う', 'を使う', 'が使う'),
+  uses_database: relation('利用', 'プロジェクトやアプリが、アプリやデータベースを使う', 'を使う', 'が使う'),
+  has_environment: relation('稼働環境', 'プロジェクトが稼働環境として持つアプリ', 'を稼働環境に持つ', 'の稼働環境'),
+  hosted_on: relation('置き場所', 'データベースが置かれているクラスタ', 'に置かれている', 'が置かれている'),
+  uses_secret_store: relation('秘密情報の保管先', 'アプリが使う（または使うべき）秘密情報の保管先', 'を保管先に使う', 'が保管先に使う'),
+  should_use_secret_store: relation('秘密情報の保管先', 'アプリが使う（または使うべき）秘密情報の保管先', 'を保管先に使うべき', 'が保管先に使うべき'),
+  created: relation('生み出した', '人物がプロダクトを生み出した', 'を生み出した', 'が生み出した'),
+  authored: relation('著作', '人物が出版物を著した', 'を著した', 'が著した'),
+  spoke_at: relation('登壇', '人物が登壇した', 'で登壇', 'が登壇'),
+  appeared_in: relation('出演', '人物がメディアに出演した', 'に出演', 'が出演'),
+  mentioned_in: relation('掲載', '人物が報道に掲載された', 'に掲載', 'が掲載'),
 });
 
 /** Relations a correction may add (the host refuses any other). */
@@ -76,8 +183,10 @@ const FIELD_LABELS = Object.freeze({
   validTo: '終了日',
   goal: '目的',
   status: '状態',
+  icon: 'アイコン',
   'metadata.goal': '目的',
   'metadata.status': '状態',
+  'metadata.icon': 'アイコン',
   role: '役割',
   context: '文脈',
   fromId: '起点',
@@ -90,6 +199,7 @@ const CORRECTION_KIND_LABELS = Object.freeze({
   update_entity: '記録を直した',
   update_edge: '関係を直した',
   create_edge: '関係を加えた',
+  create_entity: '記録を加えた',
 });
 
 /** Inputs of the correction form. `date` inputs hold a local day (YYYY-MM-DD). */
@@ -99,6 +209,7 @@ export const GRAPH_CORRECTION_FIELDS = Object.freeze({
   summary: Object.freeze({ label: '要約', control: 'textarea', max: 2000 }),
   goal: Object.freeze({ label: '目的', control: 'textarea', max: 2000 }),
   status: Object.freeze({ label: '状態', control: 'text', max: 200, help: '自由記述です。例: 進行中、保留、完了' }),
+  icon: Object.freeze({ label: 'アイコン', control: 'project-icon', help: 'PNG、JPEG、WebP。256KiB以下。' }),
   validFrom: Object.freeze({ label: '開始日', control: 'date' }),
   validTo: Object.freeze({ label: '終了日', control: 'date', help: 'この日の0時から、終わったものとして扱います。空にすると終了日を消します。' }),
   role: Object.freeze({ label: '役割', control: 'text', max: 200, help: '自由記述です。例: 最終判断、進行管理' }),
@@ -115,6 +226,9 @@ export const GRAPH_CORRECTION_ERROR_MESSAGES = Object.freeze({
   correction_relation_change_not_allowed: '関係の種類は変えられません。今の関係を終えてから、新しい関係を加えてください。',
   correction_endpoint_change_not_allowed: '関係の相手は変えられません。今の関係を終えてから、新しい関係を加えてください。',
   correction_endpoint_type_invalid: 'この組み合わせの関係は加えられません。',
+  correction_entity_type_not_allowed: 'ここで作れるのは人と会社だけです。',
+  correction_name_required: '名前を書いてください。',
+  entity_already_exists: '同じ名前の記録がすでにあります。今の記録を開いて確かめてください。',
   correction_field_not_allowed: 'この項目は、ここでは直せません。',
   correction_changes_required: '変更がありません。直したい項目を書き換えてください。',
   correction_scope_not_allowed: 'この画面では、この記録や関係は直せません。',
@@ -196,9 +310,9 @@ export function facts(doc, rows, className = 'bb-graph-facts') {
 }
 
 /** Ids and digests stay in this disclosure, never in the visible copy. */
-export function recordDetails(doc, rows) {
+export function recordDetails(doc, rows, { title = '記録の詳細' } = {}) {
   const details = makeElement(doc, 'details', { className: 'bb-graph-audit' });
-  details.append(makeElement(doc, 'summary', { text: '記録の詳細' }), facts(doc, rows, 'bb-graph-facts is-mono'));
+  details.append(makeElement(doc, 'summary', { text: title }), facts(doc, rows, 'bb-graph-facts is-mono'));
   return details;
 }
 
@@ -290,9 +404,33 @@ export function ownLabel(table, key) {
   return typeof key === 'string' && Object.hasOwn(table, key) ? table[key] : undefined;
 }
 
-/** A relation's plain label; an unknown relation shows its raw id. */
-export function relationLabel(relation) {
-  return ownLabel(GRAPH_RELATION_LABELS, relation)?.label ?? relation;
+/**
+ * A relation's plain label.  An unknown relation shows the meaning its host
+ * gave (when there is one) rather than its raw id.
+ */
+export function relationLabel(relation, meaning) {
+  return ownLabel(GRAPH_RELATION_LABELS, relation)?.label ?? textOrNull(meaning) ?? relation;
+}
+
+/**
+ * The relation kinds of an ontology answer as rows a reader can tell apart:
+ * kinds with the same plain name are one row (所有 for owns, owned_by and
+ * owns_app), and each row keeps every kind with its start and end kinds.  Rows
+ * keep the order in which their first kind appears.
+ */
+export function groupRelationKinds(relations) {
+  const rows = new Map();
+  for (const item of Array.isArray(relations) ? relations : []) {
+    if (!isRecord(item) || typeof item.id !== 'string') continue;
+    const known = ownLabel(GRAPH_RELATION_LABELS, item.id);
+    const label = relationLabel(item.id, item.meaning);
+    const row = rows.get(label) ?? { label, meanings: [], kinds: [] };
+    const meaning = known?.meaning ?? textOrNull(item.meaning);
+    if (meaning && !row.meanings.includes(meaning)) row.meanings.push(meaning);
+    row.kinds.push(item);
+    rows.set(label, row);
+  }
+  return [...rows.values()];
 }
 
 /** A type's plain label; an unknown type (from another host's Graph) shows its raw id. */
@@ -430,6 +568,7 @@ export function readOnlyGraphClient(client) {
  *   `GRAPH_CORRECTION_FIELDS` such as `name` or `goal` (default: every field).
  * - `edges: false`: relations cannot be corrected or ended.
  * - `createEdges: false`: relations cannot be added.
+ * - `createEntities: false`: people and companies cannot be created.
  */
 export function graphCorrectionScope(scope) {
   const given = isRecord(scope) ? scope : {};
@@ -439,6 +578,7 @@ export function graphCorrectionScope(scope) {
   return Object.freeze({
     edges: given.edges !== false,
     createEdges: given.createEdges !== false,
+    createEntities: given.createEntities !== false,
     /** Whether a record of this kind may be corrected. */
     entity: (type) => types === null || types.has(type),
     /** The given record fields that may be corrected, in their order. */
@@ -448,20 +588,37 @@ export function graphCorrectionScope(scope) {
 
 /** The record fields the correction form offers for an entity of this kind. */
 export function graphEntityCorrectionFields(type) {
-  return ['name', 'aliases', 'summary', 'validFrom', 'validTo', ...(type === 'project' ? ['goal', 'status'] : [])];
+  return ['name', 'aliases', 'summary', 'validFrom', 'validTo', ...(type === 'project' ? ['goal', 'status', 'icon'] : [])];
 }
 
 /** Whether a built correction request stays inside the scope (`recordType` is the corrected entity's kind). */
 function withinCorrectionScope(scope, body, recordType) {
   if (body.kind === 'create_edge') return scope.createEdges;
+  if (body.kind === 'create_entity') return scope.createEntities && scope.entity(body.entity?.type);
   if (body.kind === 'update_edge') return scope.edges;
   const changed = Object.keys(body.changes ?? {});
   return scope.entity(recordType) && scope.fields(changed).length === changed.length;
 }
 
-/** A host's note that corrections are not available here, or null when it passed none. */
-export function hostReadOnlyNote(doc, readOnlyNote) {
-  const text = textOrNull(readOnlyNote);
+/**
+ * A host's 出典 notice with its text resolved for the selected record: the host may pass `text` as a
+ * function of that record (`{ id, type, metadata }`, or null before one is read), for a notice that points
+ * at it.  Returns the notice for `workspaceHostNotice`, or the value it was given.
+ */
+export function hostSourceNotice(sourceNotice, subject) {
+  if (!sourceNotice || typeof sourceNotice.text !== 'function') return sourceNotice;
+  return { ...sourceNotice, text: sourceNotice.text(subject ?? null) };
+}
+
+/**
+ * A host's note that corrections are not available here, or null when it passed none.  The host may
+ * pass a function of the selected record (`{ id, type, metadata }`) returning a string or an element,
+ * for a note that points at that record (for example a link to where it is corrected).
+ */
+export function hostReadOnlyNote(doc, readOnlyNote, subject) {
+  const value = typeof readOnlyNote === 'function' ? readOnlyNote(subject ?? null) : readOnlyNote;
+  if (value && typeof value === 'object' && typeof value.tagName === 'string') return workspaceNotice(doc, { text: value, tone: 'info' });
+  const text = textOrNull(value);
   return text ? workspaceNotice(doc, { text, tone: 'info' }) : null;
 }
 
@@ -548,7 +705,12 @@ export function graphStateNotice(doc, readState, { onRetry, loadingText = '読�
   return workspaceNotice(doc, {
     label: '読み取り失敗',
     tone: 'danger',
-    text: noticeBody(doc, makeElement(doc, 'p', { text: `読み取れませんでした（${readState.reason ?? '理由不明'}）。0件ではありません。` }), retryButton(doc, onRetry)),
+    text: noticeBody(
+      doc,
+      makeElement(doc, 'p', { className: 'bb-graph-error-primary', text: '記録を取得できませんでした。' }),
+      makeElement(doc, 'small', { className: 'bb-graph-error-detail', text: `読み取れませんでした。詳細: ${readState.reason ?? '理由不明'}。0件ではありません。` }),
+      retryButton(doc, onRetry),
+    ),
   });
 }
 
@@ -577,6 +739,59 @@ export function renderGraphIssues(doc, issues) {
     tone: 'warning',
     text: noticeBody(doc, makeElement(doc, 'p', { text: `出典や訂正の履歴のうち、読めない記録が${issues.length}件あります。読めた記録だけを表示しています。` }), list),
   });
+}
+
+/**
+ * 根拠と履歴 of one record, folded: where the record came from (the host's 出典
+ * notice, which may carry its authorization), the source or correction records
+ * that could not be read, and the corrections made.  None of these is a notice
+ * for the whole screen (ledger D14); records that could not be read are counted
+ * on the fold itself so they are not hidden.
+ *
+ * @param {Document} doc
+ * @param {{ source?: string | Element | null, issues?: unknown[], history?: unknown[] }} parts
+ */
+export function renderEvidenceAndHistory(doc, { source = null, issues = [], history = [] } = {}) {
+  const unreadable = (Array.isArray(issues) ? issues : []).filter(isRecord);
+  const corrections = (Array.isArray(history) ? history : []).filter(isRecord);
+  const details = makeElement(doc, 'details', { className: 'bb-graph-evidence' });
+  const summary = makeElement(doc, 'summary', { text: '根拠と履歴' });
+  if (unreadable.length > 0) summary.append(badge(doc, `読めない記録 ${unreadable.length}件`, 'warning'));
+  details.append(summary);
+  const section = (title, ...children) => {
+    const block = makeElement(doc, 'section', { className: 'bb-graph-evidence-part' });
+    block.append(makeElement(doc, 'h4', { text: title }), ...children.filter(Boolean));
+    details.append(block);
+  };
+  if (source) {
+    const body = typeof source === 'object' && typeof source.tagName === 'string' ? source : makeElement(doc, 'p', { text: String(source) });
+    section('出どころ', body);
+  }
+  if (unreadable.length > 0) {
+    const list = makeElement(doc, 'ul', { className: 'bb-graph-issue-list' });
+    for (const issue of unreadable) {
+      const where = `${String(issue.file ?? '不明')}${Number.isInteger(issue.line) ? `（${issue.line}行目）` : ''}`;
+      list.append(makeElement(doc, 'li', { text: `${where}: ${String(issue.reason ?? '理由不明')}` }));
+    }
+    section(
+      '読めない記録',
+      makeElement(doc, 'p', { text: `この記録の出典や訂正の履歴のうち、壊れていて読めない記録が${unreadable.length}件あります。表示している内容は読めた記録だけから作っているため、最後の訂正や出典が抜けているかもしれません。` }),
+      list,
+    );
+  }
+  if (corrections.length > 0) {
+    const list = makeElement(doc, 'ol', { className: 'bb-graph-history-list' });
+    for (const record of corrections) {
+      const fields = Array.isArray(record.changedFields) ? record.changedFields.map((field) => FIELD_LABELS[field] ?? field).join('・') : '';
+      list.append(makeElement(doc, 'li', {
+        text: `${formatDateTime(record.at)} ${CORRECTION_KIND_LABELS[record.kind] ?? '直した'}${fields ? `（${fields}）` : ''}。理由: ${String(record.reason ?? '')}`,
+      }));
+    }
+    section(`訂正の履歴（${corrections.length}件）`, list);
+  } else if (Array.isArray(history)) {
+    section('訂正の履歴', makeElement(doc, 'p', { className: 'bb-graph-empty', text: 'この記録は、まだ訂正されていません。' }));
+  }
+  return details;
 }
 
 // ---------------------------------------------------------------------------
@@ -621,6 +836,11 @@ export function createGraphLayout(doc, { root, rail, label, className, contractV
       surface.append(...workspaceChildren.filter(Boolean));
       const detail = makeElement(doc, 'div', { className: `bb-graph-rail ${className}-rail` });
       detail.append(...railChildren.filter(Boolean));
+      // A view with nothing for the rail (its detail is inside the workspace) draws no inline rail.
+      if (!rail && !railChildren.some(Boolean)) {
+        root.replaceChildren(surface);
+        return;
+      }
       if (rail) {
         root.replaceChildren(surface);
         rail.replaceChildren(detail);
@@ -702,6 +922,9 @@ export function graphRecordValues(record) {
     validTo: formatDay(record?.validTo) ?? '',
     goal: pick(typeof record?.goal === 'string' ? record.goal : metadata.goal),
     status: pick(typeof record?.status === 'string' && record?.type === 'project' ? record.status : metadata.status),
+    // Keep the raw value in form state for exact comparison; renderers below
+    // always replace it with a short summary and never put the data URL in text.
+    icon: typeof metadata.icon === 'string' ? metadata.icon : '',
     role: pick(record?.role),
     context: pick(record?.context),
   };
@@ -709,16 +932,32 @@ export function graphRecordValues(record) {
 
 function displayValue(field, value) {
   if (field === 'validFrom' || field === 'validTo') return value ? value : 'なし';
+  if (field === 'icon') {
+    const summary = projectIconSummary(value);
+    return summary ? `${projectIconMimeLabel(summary.mimeType)}（${Math.ceil(summary.bytes / 1024)}KiB）` : '未登録';
+  }
   return value ? value : '未記入';
 }
 
-function valueRows(record, fields) {
+function valueRows(doc, record, fields) {
   const values = graphRecordValues(record);
-  return fields.map((field) => [GRAPH_CORRECTION_FIELDS[field]?.label ?? FIELD_LABELS[field] ?? field, displayValue(field, values[field])]);
+  return fields.map((field) => [
+    GRAPH_CORRECTION_FIELDS[field]?.label ?? FIELD_LABELS[field] ?? field,
+    field === 'icon' ? renderIconValue(doc, values[field], record?.name) : displayValue(field, values[field]),
+  ]);
 }
 
 function renderValues(doc, record, fields, leadingRows = []) {
-  return facts(doc, [...leadingRows, ...valueRows(record, fields)], 'bb-graph-facts');
+  return facts(doc, [...leadingRows, ...valueRows(doc, record, fields)], 'bb-graph-facts');
+}
+
+function renderIconValue(doc, value, name) {
+  const summary = projectIconSummary(value);
+  const wrap = makeElement(doc, 'span', { className: 'bb-graph-icon-value' });
+  wrap.append(renderProjectIcon(doc, value, name, { size: 'sm' }), makeElement(doc, 'span', {
+    text: summary ? `${projectIconMimeLabel(summary.mimeType)}（${Math.ceil(summary.bytes / 1024)}KiB）` : '未登録',
+  }));
+  return wrap;
 }
 
 function splitAliases(value) {
@@ -773,8 +1012,40 @@ export function buildCorrectionRequest(form) {
     return { ok: true, body: { kind: 'create_edge', reason, edge } };
   }
 
+  if (form.kind === 'create_entity') {
+    const type = String(form.draft.type ?? '');
+    if (!form.entityTypes.includes(type)) return { ok: false, message: '作る記録の種類を選んでください。' };
+    const name = String(form.draft.name ?? '').trim();
+    if (!name) return { ok: false, message: GRAPH_CORRECTION_ERROR_MESSAGES.correction_name_required };
+    const entity = { type, name };
+    if (form.projects.length > 0) {
+      const projectCode = String(form.draft.projectCode ?? '');
+      if (!form.projects.some((project) => project.code === projectCode)) return { ok: false, message: '人を加えるプロジェクトを選んでください。' };
+      entity.projectCode = projectCode;
+    }
+    const aliases = splitAliases(form.draft.aliases ?? '').filter((alias) => alias !== name);
+    const summary = String(form.draft.summary ?? '').trim();
+    if (aliases.length > 0) entity.aliases = aliases;
+    if (summary) entity.summary = summary;
+    if (form.draft.validFrom) {
+      const validFrom = dayToRfc3339(form.draft.validFrom);
+      if (!validFrom) return { ok: false, message: '開始日の形式が正しくありません。' };
+      entity.validFrom = validFrom;
+    }
+    return { ok: true, body: { kind: 'create_entity', reason, entity } };
+  }
+
   const changes = {};
   for (const field of form.fields) {
+    if (field === 'icon') {
+      const before = form.original[field] ?? '';
+      const after = form.draft[field] ?? '';
+      if (after === before) continue;
+      const parsed = validateProjectIconDataUrl(after === '' ? null : after);
+      if (!parsed.ok) return { ok: false, message: parsed.message };
+      changes.icon = parsed.value;
+      continue;
+    }
     const before = String(form.original[field] ?? '');
     const after = String(form.draft[field] ?? '');
     if (after.trim() === before.trim()) continue;
@@ -804,9 +1075,19 @@ export function buildCorrectionRequest(form) {
 
 function readBackFields(form, payload) {
   if (form.kind === 'create_edge') return ['role', 'context', 'validFrom', 'validTo'];
+  if (form.kind === 'create_entity') return ['name', 'aliases', 'summary', 'validFrom'];
   const changed = Array.isArray(payload?.correction?.changedFields) ? payload.correction.changedFields : [];
   const fields = changed.map((field) => field.replace(/^metadata\./u, '')).filter((field) => GRAPH_CORRECTION_FIELDS[field]);
   return fields.length > 0 ? fields : form.fields;
+}
+
+/** What a new record is, as rows shown before its values. */
+function createdEntityRows(form, record) {
+  const project = form.projects.find((candidate) => candidate.code === form.draft.projectCode);
+  return [
+    ['種類', form.typeNames[record?.type] ?? typeLabel(record?.type)],
+    ...(project ? [['関わるプロジェクト', project.name ?? project.code]] : []),
+  ];
 }
 
 /** What a new relation connects, as rows shown before its values. */
@@ -830,6 +1111,29 @@ function fieldControl(doc, form, field, callbacks) {
   const id = `${form.formId}-${field}`;
   const wrap = makeElement(doc, 'div', { className: 'bb-graph-field' });
   wrap.append(makeElement(doc, 'label', { text: definition.label, attrs: { for: id } }));
+  if (definition.control === 'project-icon') {
+    const input = makeElement(doc, 'input', { attrs: {
+      id,
+      name: field,
+      type: 'file',
+      accept: 'image/png,image/jpeg,image/webp',
+    } });
+    input.addEventListener('change', (event) => callbacks.onIconFile(event?.target?.files?.[0] ?? null));
+    const preview = makeElement(doc, 'div', { className: 'bb-graph-icon-picker' });
+    preview.append(renderProjectIcon(doc, form.draft[field], form.recordName ?? form.subject ?? 'プロジェクト', { size: 'md' }));
+    const summary = projectIconSummary(form.draft[field]);
+    preview.append(makeElement(doc, 'span', {
+      className: 'bb-graph-icon-picker-state',
+      text: summary ? `${projectIconMimeLabel(summary.mimeType)}（${Math.ceil(summary.bytes / 1024)}KiB）` : '未登録',
+    }));
+    if (form.draft[field]) {
+      preview.append(button(doc, 'アイコンを外す', () => callbacks.onInput(field, null), { className: 'bb-ws-button is-quiet' }));
+    }
+    wrap.append(input, preview);
+    if (form.fieldErrors?.[field]) wrap.append(makeElement(doc, 'small', { className: 'bb-graph-field-error', text: form.fieldErrors[field], attrs: { role: 'alert' } }));
+    if (definition.help) wrap.append(makeElement(doc, 'small', { className: 'bb-graph-help', text: definition.help }));
+    return wrap;
+  }
   const control = definition.control === 'textarea'
     ? makeElement(doc, 'textarea', { attrs: { id, name: field, rows: 3, maxlength: definition.max } })
     : makeElement(doc, 'input', { attrs: { id, name: field, type: definition.control === 'date' ? 'date' : 'text', maxlength: definition.max } });
@@ -936,6 +1240,48 @@ function renderCreateFields(doc, form, callbacks) {
   return group;
 }
 
+function renderCreateEntityFields(doc, form, callbacks) {
+  const group = makeElement(doc, 'div', { className: 'bb-graph-fields' });
+  if (form.entityTypes.length > 1) {
+    group.append(selectControl(doc, {
+      id: `${form.formId}-type`,
+      name: 'type',
+      label: '種類',
+      value: form.draft.type,
+      options: form.entityTypes.map((type) => ({ value: type, label: form.typeNames[type] ?? typeLabel(type) })),
+      onChange: (value) => callbacks.onInput('type', value),
+    }));
+  }
+  if (form.projects.length > 0) {
+    group.append(selectControl(doc, {
+      id: `${form.formId}-project`,
+      name: 'projectCode',
+      label: '関わるプロジェクト',
+      value: String(form.draft.projectCode ?? ''),
+      options: [
+        { value: '', label: 'プロジェクトを選んでください' },
+        ...form.projects.map((project) => ({ value: project.code, label: project.name ?? project.code })),
+      ],
+      onChange: (value) => callbacks.onInput('projectCode', value),
+    }));
+    group.append(notice(doc, 'muted', '人はこのプロジェクトの関係者として記録されます。会社への所属は、作った後に加えてください。'));
+  }
+  for (const field of form.fields) group.append(fieldControl(doc, form, field, callbacks));
+  return group;
+}
+
+/** The projects a host offers for a new person, as `{ code, name }`, without duplicates. */
+function creationProjects(projects) {
+  const seen = new Set();
+  return (Array.isArray(projects) ? projects : []).flatMap((project) => {
+    const code = typeof project?.code === 'string' ? project.code.trim() : '';
+    if (!code || seen.has(code)) return [];
+    seen.add(code);
+    const name = typeof project.name === 'string' && project.name.trim() ? project.name.trim() : null;
+    return [{ code, name }];
+  });
+}
+
 /**
  * The correction panel.  `form` is the state held by `createGraphCorrection`;
  * callbacks are the controller's handlers.
@@ -956,7 +1302,9 @@ export function renderCorrectionPanel(doc, form, callbacks) {
     const readBack = makeElement(doc, 'div', { className: 'bb-graph-readback', attrs: { 'aria-label': '読み直した内容' } });
     readBack.append(
       makeElement(doc, 'strong', { text: '読み直した内容' }),
-      renderValues(doc, payload.record, readBackFields(form, payload), form.kind === 'create_edge' ? createdRows(form, payload.record) : []),
+      renderValues(doc, payload.record, readBackFields(form, payload), form.kind === 'create_edge'
+        ? createdRows(form, payload.record)
+        : form.kind === 'create_entity' ? createdEntityRows(form, payload.record) : []),
     );
     panel.append(readBack, notice(doc, 'accent', mcpNote(payload)));
     panel.append(recordDetails(doc, [['記録ID', payload.record?.id], ['保存した内容のdigest', payload.digest], ['訂正ID', payload.correction?.id]]));
@@ -966,12 +1314,17 @@ export function renderCorrectionPanel(doc, form, callbacks) {
 
   if (form.phase === 'conflict') {
     const exists = form.conflictCode === 'edge_already_exists';
-    panel.append(notice(doc, 'warning', exists
-      ? 'この関わりはすでに登録されているため、加えませんでした。今の内容を下に示します。終わった関わりをもう一度始めるときは、その関わりの終了日を消してください。入力は残しています。'
-      : 'ほかの保存で内容が変わっていたため、保存しませんでした。今の内容を下に示します。入力は残しています。今の内容を確かめてから、もう一度保存してください。', 'alert'));
+    const entityExists = form.conflictCode === 'entity_already_exists';
+    panel.append(notice(doc, 'warning', entityExists
+      ? '同じ名前の記録がすでにあるため、作りませんでした。今の記録を下に示します。同じ人や会社なら、今の記録を使ってください（終わっている記録は、終了日を消すと戻せます）。入力は残しています。'
+      : exists
+        ? 'この関わりはすでに登録されているため、加えませんでした。今の内容を下に示します。終わった関わりをもう一度始めるときは、その関わりの終了日を消してください。入力は残しています。'
+        : 'ほかの保存で内容が変わっていたため、保存しませんでした。今の内容を下に示します。入力は残しています。今の内容を確かめてから、もう一度保存してください。', 'alert'));
     const current = makeElement(doc, 'div', { className: 'bb-graph-current', attrs: { 'aria-label': '今の内容' } });
-    const fields = exists ? ['role', 'context', 'validFrom', 'validTo'] : form.fields;
-    current.append(makeElement(doc, 'strong', { text: '今の内容' }), renderValues(doc, form.current.record, fields));
+    const fields = exists ? ['role', 'context', 'validFrom', 'validTo'] : entityExists ? ['name', 'aliases', 'summary', 'validFrom', 'validTo'] : form.fields;
+    current.append(makeElement(doc, 'strong', { text: '今の内容' }), renderValues(doc, form.current.record, fields, entityExists
+      ? [['種類', form.typeNames[form.current.record?.type] ?? typeLabel(form.current.record?.type)]]
+      : []));
     current.append(recordDetails(doc, [['記録ID', form.current.record?.id], ['今の内容のdigest', form.current.digest]]));
     panel.append(current);
   } else if (form.message) {
@@ -986,6 +1339,8 @@ export function renderCorrectionPanel(doc, form, callbacks) {
   });
   if (form.kind === 'create_edge') {
     formElement.append(renderCreateFields(doc, form, callbacks));
+  } else if (form.kind === 'create_entity') {
+    formElement.append(renderCreateEntityFields(doc, form, callbacks));
   } else {
     const group = makeElement(doc, 'div', { className: 'bb-graph-fields' });
     for (const field of form.fields) group.append(fieldControl(doc, form, field, callbacks));
@@ -994,9 +1349,21 @@ export function renderCorrectionPanel(doc, form, callbacks) {
   formElement.append(reasonControl(doc, form, callbacks));
   const actions = makeElement(doc, 'div', { className: 'bb-graph-actions' });
   const saving = form.phase === 'saving';
-  const submitLabel = saving ? '保存しています' : form.phase === 'conflict' && form.conflictCode === 'digest_conflict' ? '今の内容に対して保存する' : '保存する';
+  const iconReadPending = form.iconReadPending === true;
+  const iconHasError = Boolean(form.fieldErrors?.icon);
+  const submitLabel = saving
+    ? '保存しています'
+    : iconReadPending
+      ? 'アイコンを読み込んでいます'
+      : form.phase === 'conflict' && form.conflictCode === 'digest_conflict'
+        ? '今の内容に対して保存する'
+        : '保存する';
   actions.append(
-    makeElement(doc, 'button', { className: 'bb-ws-button is-primary', text: submitLabel, attrs: { type: 'submit', disabled: saving } }),
+    makeElement(doc, 'button', {
+      className: 'bb-ws-button is-primary',
+      text: submitLabel,
+      attrs: { type: 'submit', disabled: saving || iconReadPending || iconHasError },
+    }),
     button(doc, '取り消す', callbacks.onClose, { attrs: { disabled: saving } }),
   );
   formElement.append(actions);
@@ -1018,18 +1385,24 @@ export function createGraphCorrection({ client, rerender, onSaved, onConflict, n
   let form = null;
   let focusPending = false;
   let sequence = 0;
+  // A file read can finish after a newer selection, removal, cancellation or
+  // form switch.  Invalidate the older read before touching the draft.
+  let iconReadGeneration = 0;
   // Label/input ids stay unique when two screens are on one page.
   const idPrefix = `bb-graph-form-${Math.random().toString(36).slice(2, 8)}`;
   const redraw = () => rerender?.();
 
   function baseForm(kind, extra) {
     sequence += 1;
+    iconReadGeneration += 1;
     focusPending = true;
     return {
       kind,
       formId: `${idPrefix}-${sequence}`,
       phase: 'editing',
       message: null,
+      fieldErrors: {},
+      iconReadPending: false,
       reason: '',
       current: null,
       conflictCode: null,
@@ -1063,7 +1436,60 @@ export function createGraphCorrection({ client, rerender, onSaved, onConflict, n
 
   const callbacks = {
     onInput(field, value) {
-      if (form) form.draft[field] = value;
+      if (form) {
+        if (field === 'icon') {
+          iconReadGeneration += 1;
+          form.iconReadPending = false;
+          form.fieldErrors.icon = null;
+          form.message = null;
+        }
+        form.draft[field] = value;
+        if (field === 'icon') redraw();
+      }
+    },
+    async onIconFile(file) {
+      const generation = ++iconReadGeneration;
+      const target = form;
+      if (!target || target.kind === 'create_edge') return;
+      // Selecting the file input and then cancelling is a no-op; keep the
+      // current draft and any already selected icon intact.
+      if (!file) {
+        target.iconReadPending = false;
+        target.fieldErrors.icon = null;
+        target.message = null;
+        redraw();
+        return;
+      }
+      target.iconReadPending = false;
+      target.message = null;
+      if (typeof file.size === 'number' && file.size > PROJECT_ICON_MAX_BYTES) {
+        target.fieldErrors.icon = `アイコンは${Math.floor(PROJECT_ICON_MAX_BYTES / 1024)}KiB以下にしてください。`;
+        redraw();
+        return;
+      }
+      if (typeof file.type !== 'string' || !PROJECT_ICON_MIME_TYPES.includes(file.type)) {
+        target.fieldErrors.icon = 'アイコンはPNG、JPEG、WebPの画像を選んでください。';
+        redraw();
+        return;
+      }
+      target.iconReadPending = true;
+      target.fieldErrors.icon = null;
+      target.message = null;
+      redraw();
+      try {
+        const value = await readProjectIconFile(file);
+        const parsed = validateProjectIconDataUrl(value);
+        if (!parsed.ok) throw new Error(parsed.message);
+        if (form !== target || iconReadGeneration !== generation) return;
+        target.draft.icon = parsed.value;
+        target.iconReadPending = false;
+        target.message = null;
+      } catch (error) {
+        if (form !== target || iconReadGeneration !== generation) return;
+        target.iconReadPending = false;
+        target.fieldErrors.icon = error instanceof Error ? error.message : 'アイコンを読み取れません。';
+      }
+      if (form === target && iconReadGeneration === generation) redraw();
     },
     onReason(value) {
       if (form) form.reason = value;
@@ -1099,6 +1525,7 @@ export function createGraphCorrection({ client, rerender, onSaved, onConflict, n
         title,
         subject: subject ?? `${typeLabel(record.type)}「${record.name}」`,
         recordType: record.type,
+        recordName: record.name,
         targetId: record.id,
         expectedDigest: record.digest,
         fields: shown,
@@ -1147,13 +1574,51 @@ export function createGraphCorrection({ client, rerender, onSaved, onConflict, n
       void searchCandidates('');
       return form;
     },
+    /**
+     * Create a person or a company.  `types` lists the kinds offered (only
+     * `person` and `org` are created; others are dropped), `typeNames` their
+     * labels.  Null outside the scope.
+     */
+    openCreateEntity({ types = ['person', 'org'], type, typeNames = {}, title = '記録を加える', subject, projects = [] } = {}) {
+      const entityTypes = allowed.createEntities
+        ? types.filter((candidate) => (candidate === 'person' || candidate === 'org') && allowed.entity(candidate))
+        : [];
+      if (entityTypes.length === 0) return null;
+      const fields = ['name', 'aliases', 'summary', 'validFrom'];
+      form = baseForm('create_entity', {
+        title,
+        subject: subject ?? null,
+        entityTypes,
+        typeNames,
+        fields,
+        projects: entityTypes.length === 1 && entityTypes[0] === 'person' ? creationProjects(projects) : [],
+        original: Object.fromEntries(fields.map((field) => [field, ''])),
+        draft: { type: entityTypes.includes(type) ? type : entityTypes[0], name: '', aliases: '', summary: '', validFrom: '', projectCode: '' },
+      });
+      redraw();
+      return form;
+    },
     close() {
+      iconReadGeneration += 1;
       form = null;
       redraw();
     },
     async submit() {
       const target = form;
       if (!target || target.phase === 'saving') return target;
+      if (target.fieldErrors?.icon) {
+        target.message = { tone: 'danger', text: target.fieldErrors.icon };
+        redraw();
+        return target;
+      }
+      if (target.iconReadPending === true) {
+        target.message = {
+          tone: 'warning',
+          text: 'アイコンを読み込んでいます。読み込みが終わってから保存してください。',
+        };
+        redraw();
+        return target;
+      }
       const built = buildCorrectionRequest(target);
       if (!built.ok) {
         target.message = { tone: 'danger', text: built.message };
@@ -1188,7 +1653,7 @@ export function createGraphCorrection({ client, rerender, onSaved, onConflict, n
         // The owner now sees the current record; the next save is based on it
         // and still sends only the fields the owner changed.  Untouched fields
         // show the current values so the form never suggests reverting them.
-        if (target.kind !== 'create_edge' && typeof result.current.digest === 'string') {
+        if (target.kind !== 'create_edge' && target.kind !== 'create_entity' && typeof result.current.digest === 'string') {
           target.expectedDigest = result.current.digest;
           const currentValues = graphRecordValues(result.current.record);
           for (const field of target.fields) {

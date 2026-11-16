@@ -7,7 +7,7 @@ import { readBoundedBody } from './local-web-security.js';
  * read are forwarded; the Host, Origin and token were already checked on the
  * Node request, which stays the security boundary.
  */
-const FORWARDED_HEADERS = ['accept', 'content-type', 'if-match'] as const;
+const FORWARDED_HEADERS = ['accept', 'content-type', 'if-match', 'idempotency-key'] as const;
 
 export async function nodeRequestToFetch(
   request: IncomingMessage,

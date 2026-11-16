@@ -20,7 +20,41 @@ import {
   type FoundationStoreContext
 } from './foundation-store.js';
 import { createGraphWebHttpHandler } from './graph-web-http.js';
-import { defaultJudgmentJournalRoot } from './judgment-value-proof-review.js';
+import { createJudgmentHistoryHttpHandler, JUDGMENT_HISTORY_HTTP_PREFIX } from './judgment-history-http.js';
+import {
+  createJudgmentHistoryReader,
+  createLocalJudgmentHistoryFeedbackWriter,
+  createLocalJudgmentHistorySource
+} from './judgment-history.js';
+import type { JudgmentHistoryEntrypoint } from './judgment-history.js';
+import { defaultJudgmentJournalRoot, JudgmentValueProofJournalCache } from './judgment-value-proof-review.js';
+import { createMeetingMinutesHttpHandler } from './meeting-minutes-http.js';
+import {
+  createPersonalMemoryHttpHandler,
+  createPersonalMemoryJudgmentIndex,
+  readLocalPersonalMemories
+} from './personal-memory.js';
+import { createMeetingMinutesLineageHttpHandler } from './meeting-minutes-lineage-http.js';
+import {
+  createMeetingMinutesLineageCorrectionHook,
+  type MeetingMinutesLineageCorrectionHook,
+} from './meeting-minutes-lineage-lifecycle.js';
+import type {
+  MinutesLineageAccess,
+  MinutesLineageActor,
+  MinutesLineageStore,
+} from './meeting-minutes-lineage.js';
+import { createMeetingMinutesStore, type MeetingMinutesDetail, type MeetingMinutesStore, type MinutesVersionRecord } from './meeting-minutes.js';
+import type { NativeMeetingMinutesVersionRecord } from './meeting-minutes-lineage-adapters.js';
+import {
+  createFilesystemMeetingMinutesAdapter,
+  type FilesystemMeetingMinutesAdapterOptions,
+} from './meeting-minutes-storage.js';
+import {
+  MeetingMinutesStorageController,
+  type MeetingMinutesExternalSourceRegistry,
+} from './meeting-minutes-storage-controller.js';
+import { createMeetingMinutesStorageHttpHandler } from './meeting-minutes-storage-http.js';
 import { nodeRequestToFetch, writeFetchResponse } from './local-web-fetch-bridge.js';
 import {
   assertSameOrigin,
@@ -70,6 +104,8 @@ export const LOCAL_WEB_DEFAULT_OWNER_ID = 'self';
 export const LOCAL_WEB_STATUS_PATH = '/api/local/status';
 export const LOCAL_WEB_WORLD_MODEL_PREFIX = '/api/world-model';
 export const LOCAL_WEB_GRAPH_PREFIX = '/api/graph';
+export const LOCAL_WEB_MEETING_MINUTES_PREFIX = '/api/meeting-minutes';
+export const LOCAL_WEB_JUDGMENT_HISTORY_PREFIX = JUDGMENT_HISTORY_HTTP_PREFIX;
 /**
  * An Objective is a few KB of text and criteria.  64 KiB leaves room for long
  * Japanese text (about 20k characters) while keeping a loopback request that
@@ -79,7 +115,7 @@ export const LOCAL_WEB_FOUNDATION_BODY_LIMIT_BYTES = 64 * 1024;
 export const LOCAL_WEB_PROVENANCE_SOURCE_ID = 'brainbase-local-web';
 
 const CANONICAL_FILES = ['graph.json', 'relationships.json', 'personal-kg.jsonl', 'decisions.jsonl'] as const;
-const BASE_UI_FILES = ['brainbase-tokens.css', 'local-web-shell.js', 'local-web-shell.css', 'workspace-kit.js', 'workspace-kit.css'] as const;
+const BASE_UI_FILES = ['brainbase-tokens.css', 'local-web-shell.js', 'local-web-shell.css', 'workspace-kit.js', 'workspace-kit.css', 'native-scrollbars.js', 'native-scrollbars.css', 'area-nav.js', 'area-nav.css'] as const;
 const CONTENT_TYPES: Readonly<Record<string, string>> = Object.freeze({
   '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8'
@@ -98,8 +134,32 @@ export interface LocalGraphState {
 export interface LocalWebModuleContext {
   readonly dataDir: string;
   readonly journalRoot: string;
+  /** Explicit source label for this host's configured owner journal. */
+  readonly judgmentHistoryEntrypoint?: JudgmentHistoryEntrypoint;
   readonly token: string;
   readonly now: () => Date;
+  /** The host's one listing cache for the judgment journal, shared by every screen that reads it. */
+  readonly journalCache: JudgmentValueProofJournalCache;
+  /** The one host-owned native meeting-minutes service shared by modules/extensions. */
+  readonly meetingMinutesStore: MeetingMinutesStore;
+  /** Explicitly configured storage runtime. Native minutes remain the default. */
+  readonly meetingMinutesStorage?: LocalWebMeetingMinutesStorageRuntime;
+  /** Explicitly configured lineage runtime. No lineage provider is guessed. */
+  readonly meetingMinutesLineage?: LocalWebMeetingMinutesLineageRuntime;
+}
+
+export interface LocalWebMeetingMinutesStorageRuntime {
+  readonly defaultExternal?: Readonly<{ provider: string; locator: string }>;
+  readonly controller: MeetingMinutesStorageController;
+}
+
+export interface LocalWebMeetingMinutesLineageRuntime {
+  readonly store: MinutesLineageStore;
+  /** Host-owned actor. Browser actor fields are never used as authority. */
+  readonly actor: MinutesLineageActor;
+  readonly correctionHook: MeetingMinutesLineageCorrectionHook;
+  readonly correctionReason: string;
+  readonly candidateDefaults?: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -123,6 +183,8 @@ export interface LocalWebExtension {
   readonly uiFiles: readonly string[];
   /** ES module exporting a `screen` compatible with createLocalWebShell. */
   readonly screenEntry: string;
+  /** `first` lists the screen before the public screens and opens it when no screen is named. Defaults to `last`. */
+  readonly navPosition?: 'first' | 'last';
   createModule(context: LocalWebModuleContext): LocalWebModule;
 }
 
@@ -131,11 +193,51 @@ export interface LocalWebHostOptions {
   readonly dataDir?: string;
   /** Judgment journal root. Defaults to the journal inside the data directory. */
   readonly journalRoot?: string;
+  /** Source label for the owner journal; defaults to the Codex local host. */
+  readonly judgmentHistoryEntrypoint?: JudgmentHistoryEntrypoint;
   readonly token?: string;
   /** Directory containing the packaged `ui/` files. */
   readonly uiDir?: string;
   readonly now?: () => Date;
+  /** Optional composition seam for organization adapters and lineage. */
+  readonly meetingMinutesStore?: MeetingMinutesStore;
+  /**
+   * Enables the storage controller only when a host supplies an explicit
+   * filesystem root and authorization policy. Browser input never supplies
+   * either value.
+   */
+  readonly meetingMinutesStorage?: LocalWebMeetingMinutesStorageOptions;
+  /** Enables lineage only with an organization supplied, real provider store. */
+  readonly meetingMinutesLineage?: LocalWebMeetingMinutesLineageOptions;
   readonly extensions?: readonly LocalWebExtension[];
+}
+
+export interface LocalWebMeetingMinutesStorageOptions {
+  readonly filesystem: Pick<FilesystemMeetingMinutesAdapterOptions, 'root' | 'authorize' | 'provider' | 'max_bytes'>;
+  readonly externalRegistry?: MeetingMinutesExternalSourceRegistry;
+  /** Optional host-selected external source used by the shared UI placement selector. */
+  readonly defaultExternal?: Readonly<{ provider: string; locator: string }>;
+}
+
+export interface LocalWebMeetingMinutesLineageOptions {
+  /** The actual provider-backed ledger shared by the host. */
+  readonly store: MinutesLineageStore;
+  /** Optional host-selected actor; defaults to the local single-owner actor. */
+  readonly actor?: MinutesLineageActor;
+  /** Optional hook seam for organizations; default writes to the supplied store. */
+  readonly correctionHook?: MeetingMinutesLineageCorrectionHook;
+  readonly correctionReason?: string;
+  /** Non-authoritative UI defaults for the candidate form. */
+  readonly candidateDefaults?: Readonly<Record<string, unknown>>;
+}
+
+/** One organization term that names a field value, e.g. project.kind = product → プロダクト. */
+export interface GraphVocabularyTerm {
+  readonly id: string;
+  readonly field: string;
+  readonly value: string;
+  readonly label: string;
+  readonly definition: string | null;
 }
 
 export interface LocalWebHost {
@@ -245,12 +347,41 @@ export function createLocalStatusModule(context: LocalWebModuleContext): LocalWe
           format: graph.format,
           ...(graph.message ? { message: graph.message } : {}),
           commands: graphCommands(graph, context.dataDir)
-        },
-        // This host reads only the local data directory (C1 is not connected here).
-        organization_graph: { status: 'not_connected' }
+        }
       });
       return true;
     }
+  };
+}
+
+/** Common normal judgment history projection over the configured owner journal. */
+export function createJudgmentHistoryModule(context: LocalWebModuleContext): LocalWebModule {
+  const source = createLocalJudgmentHistorySource({
+    root: context.journalRoot,
+    entrypoint: context.judgmentHistoryEntrypoint ?? 'codex'
+  });
+  const reader = createJudgmentHistoryReader({
+    source,
+    now: context.now
+  });
+  const writeFeedback = createLocalJudgmentHistoryFeedbackWriter({
+    root: context.journalRoot,
+    reader,
+    now: context.now
+  });
+  return {
+    id: 'judgment-history',
+    uiFiles: [],
+    handle: createJudgmentHistoryHttpHandler({
+      reader,
+      basePath: LOCAL_WEB_JUDGMENT_HISTORY_PREFIX,
+      writeFeedback,
+      assertWriteAllowed(request) {
+        if (isTrustedLocalWrite(request, context.token)) return;
+        throw rejectUntrustedWrite(request, context.token)
+          ?? new LocalWebHttpError(403, 'web_token_required', 'A valid launch token is required');
+      }
+    })
   };
 }
 
@@ -259,12 +390,169 @@ export function createValueProofModule(context: LocalWebModuleContext): LocalWeb
     journalRoot: context.journalRoot,
     dataDir: context.dataDir,
     token: context.token,
-    now: context.now
+    now: context.now,
+    journalCache: context.journalCache
   });
   return {
     id: 'value-proofs',
-    uiFiles: ['value-proof-review.js', 'value-proof-review.css'],
+    // The history screen is the local shell's current entry point.  Keep the
+    // legacy assets listed as well: the old public UI export remains a
+    // supported compatibility route for downstream consumers.
+    uiFiles: ['judgment-history.js', 'judgment-history.css', 'value-proof-review.js', 'value-proof-review.css'],
     handle: handler
+  };
+}
+
+/** Native meeting minutes use the host's authenticated local single-owner principal. */
+export function createMeetingMinutesModule(context: LocalWebModuleContext): LocalWebModule {
+  const lineage = context.meetingMinutesLineage;
+  const afterSave = lineage
+    ? async ({ before, after, context: saveContext }: {
+      readonly before: MeetingMinutesDetail;
+      readonly after: MeetingMinutesDetail;
+      readonly context: { readonly principal_id: string };
+    }) => {
+      const pair = savedLineageVersionPair(before, after);
+      if (!pair) return undefined;
+      return lineage.correctionHook.onVersionSaved({
+        previousVersion: pair.previousVersion,
+        replacementVersion: pair.replacementVersion,
+        access: { principal: saveContext.principal_id } satisfies MinutesLineageAccess,
+        actor: lineage.actor,
+        reason: lineage.correctionReason,
+      });
+    }
+    : undefined;
+  const handler = context.meetingMinutesStorage
+    ? createMeetingMinutesStorageHttpHandler({
+      store: context.meetingMinutesStore,
+      controller: context.meetingMinutesStorage.controller,
+      basePath: LOCAL_WEB_MEETING_MINUTES_PREFIX,
+      resolveContext: () => ({ principal_id: LOCAL_WEB_DEFAULT_OWNER_ID }),
+      ...(afterSave ? { afterSave } : {}),
+    })
+    : createMeetingMinutesHttpHandler({
+      store: context.meetingMinutesStore,
+      basePath: LOCAL_WEB_MEETING_MINUTES_PREFIX,
+      resolveContext: () => ({ principal_id: LOCAL_WEB_DEFAULT_OWNER_ID }),
+      ...(afterSave ? { afterSave } : {}),
+    });
+  const lineageHandler = lineage
+    ? createMeetingMinutesLineageHttpHandler({
+      store: lineage.store,
+      basePath: '/api/meeting-minutes-lineage',
+      resolveAccess: () => ({ principal: LOCAL_WEB_DEFAULT_OWNER_ID }),
+      resolveActor: () => lineage.actor,
+      assertWriteAllowed: (request) => {
+        const rejected = rejectUntrustedWrite(request, context.token);
+        if (rejected) throw rejected;
+      },
+    })
+    : undefined;
+  return {
+    id: 'meeting-minutes',
+    uiFiles: [
+      'meeting-minutes.js',
+      'meeting-minutes.css',
+      'meeting-minutes-storage.js',
+      'meeting-minutes-storage.css',
+      'meeting-minutes-lineage.js',
+      'meeting-minutes-lineage.css',
+      'meeting-minutes-lineage-http.js',
+    ],
+    async handle(request, response) {
+      if (await handler(request, response)) return true;
+      return lineageHandler ? lineageHandler(request, response) : false;
+    }
+  };
+}
+
+function savedLineageVersionPair(before: MeetingMinutesDetail, after: MeetingMinutesDetail): {
+  readonly previousVersion: NativeMeetingMinutesVersionRecord;
+  readonly replacementVersion: NativeMeetingMinutesVersionRecord;
+} | undefined {
+  for (const beforeDocument of before.minutes) {
+    const afterDocument = after.minutes.find((candidate) => candidate.minutes_id === beforeDocument.minutes_id);
+    if (!afterDocument || afterDocument.current_version_id === beforeDocument.current_version_id) continue;
+    const previous = before.versions.find((candidate) => candidate.version_id === beforeDocument.current_version_id);
+    const replacement = after.versions.find((candidate) => candidate.version_id === afterDocument.current_version_id);
+    if (!previous || !replacement) continue;
+    return {
+      previousVersion: nativeLineageVersion(previous),
+      replacementVersion: nativeLineageVersion(replacement),
+    };
+  }
+  return undefined;
+}
+
+function nativeLineageVersion(version: MinutesVersionRecord): NativeMeetingMinutesVersionRecord {
+  return {
+    version_id: version.version_id,
+    minutes_id: version.minutes_id,
+    meeting_id: version.meeting_id,
+    ...(version.predecessor_version_id ? { predecessor_version_id: version.predecessor_version_id } : {}),
+    ...(version.body_digest ? { body_digest: version.body_digest } : {}),
+    ...(version.source_ref ? { source_ref: version.source_ref } : {}),
+  };
+}
+
+function createLocalWebMeetingMinutesStorageRuntime(
+  options: LocalWebMeetingMinutesStorageOptions,
+  core: MeetingMinutesStore,
+): LocalWebMeetingMinutesStorageRuntime {
+  if (!options.filesystem || typeof options.filesystem !== 'object') {
+    throw new TypeError('meetingMinutesStorage.filesystem is required');
+  }
+  const provider = typeof options.filesystem.provider === 'string' && options.filesystem.provider.trim()
+    ? options.filesystem.provider.trim()
+    : 'filesystem';
+  const adapter = createFilesystemMeetingMinutesAdapter({ ...options.filesystem, provider });
+  const defaultExternal = options.defaultExternal;
+  if (defaultExternal !== undefined) {
+    if (typeof defaultExternal.provider !== 'string' || !defaultExternal.provider.trim()
+      || typeof defaultExternal.locator !== 'string' || !defaultExternal.locator.trim()) {
+      throw new TypeError('meetingMinutesStorage.defaultExternal provider and locator are required');
+    }
+    if (defaultExternal.provider.trim() !== provider) {
+      throw new TypeError('meetingMinutesStorage.defaultExternal provider must match the configured filesystem provider');
+    }
+  }
+  return {
+    controller: new MeetingMinutesStorageController({
+      core,
+      external_adapters: [{ provider, adapter }],
+      external_registry: options.externalRegistry,
+    }),
+    ...(defaultExternal
+      ? { defaultExternal: Object.freeze({ provider: defaultExternal.provider.trim(), locator: defaultExternal.locator.trim() }) }
+      : {}),
+  };
+}
+
+function createLocalWebMeetingMinutesLineageRuntime(
+  options: LocalWebMeetingMinutesLineageOptions,
+): LocalWebMeetingMinutesLineageRuntime {
+  if (!options.store || typeof options.store.readByMinutesVersion !== 'function'
+    || typeof options.store.createCandidate !== 'function'
+    || typeof options.store.markCorrection !== 'function') {
+    throw new TypeError('meetingMinutesLineage.store must be a complete lineage store');
+  }
+  const actor = options.actor ?? { type: 'person', id: LOCAL_WEB_DEFAULT_OWNER_ID } satisfies MinutesLineageActor;
+  if (!actor || !['person', 'agent', 'service', 'system'].includes(actor.type)
+    || typeof actor.id !== 'string' || actor.id.trim() === '') {
+    throw new TypeError('meetingMinutesLineage.actor must be a trusted actor');
+  }
+  const correctionReason = options.correctionReason?.trim() || '議事録版を修正しました';
+  const correctionHook = options.correctionHook ?? createMeetingMinutesLineageCorrectionHook({ store: options.store });
+  if (!correctionHook || typeof correctionHook.onVersionSaved !== 'function') {
+    throw new TypeError('meetingMinutesLineage.correctionHook must implement onVersionSaved');
+  }
+  return {
+    store: options.store,
+    actor: { type: actor.type, id: actor.id.trim() },
+    correctionHook,
+    correctionReason,
+    ...(options.candidateDefaults ? { candidateDefaults: options.candidateDefaults } : {}),
   };
 }
 
@@ -511,7 +799,7 @@ export function createObjectiveFoundationModule(context: LocalWebModuleContext):
 
   return {
     id: 'foundation-objectives',
-    uiFiles: ['objective-editor.js', 'objective-editor.css', 'objective-editor-http-port.js'],
+    uiFiles: ['objective-editor.js', 'objective-editor.css', 'objective-editor-http-port.js', 'objective-readback-contract.js'],
     async handle(request, response) {
       const path = requestUrl(request).pathname;
       if (path !== FOUNDATION_HTTP_PREFIX && !path.startsWith(`${FOUNDATION_HTTP_PREFIX}/`)) return false;
@@ -797,20 +1085,58 @@ export function createGraphWebModule(context: LocalWebModuleContext): LocalWebMo
   return {
     id: 'graph',
     uiFiles: [
+      'project-icon.js',
       'graph-view-shared.js',
       'graph-view-shared.css',
       'graph-projects-view.js',
       'graph-own-share.js',
       'graph-projects-view.css',
       'project-workspace.js',
+      'project-overview.js',
       'project-workspace.css',
       'project-graph.js',
       'project-graph-entry.js',
       'project-graph-vendor.js',
       'graph-registry-view.js',
-      'graph-registry-view.css'
+      'graph-registry-view.css',
+      'graph-ontology-view.js',
+      'graph-ontology-view.css',
+      'people-and-companies-view.js',
+      'people-and-companies-view.css'
     ],
     handle: handler
+  };
+}
+
+/**
+ * 「あなたの記憶」: the owner's `personal-kg.jsonl`, read only.  The memory
+ * bodies are private, so these reads require the launch token and the same
+ * origin like every write on this host.
+ */
+export function createPersonalMemoryModule(context: LocalWebModuleContext): LocalWebModule {
+  const readMemories = () => readLocalPersonalMemories(context.dataDir);
+  const index = createPersonalMemoryJudgmentIndex({
+    source: createLocalJudgmentHistorySource({
+      root: context.journalRoot,
+      entrypoint: context.judgmentHistoryEntrypoint ?? 'codex'
+    }),
+    memoryIds: async () => {
+      const list = await readMemories();
+      return list.status === 'ok' ? list.items.map((item) => item.id) : null;
+    }
+  });
+  return {
+    id: 'personal-memory',
+    uiFiles: ['personal-memory.js', 'personal-memory-http-port.js', 'personal-memory.css'],
+    handle: createPersonalMemoryHttpHandler({
+      readMemories,
+      index,
+      authorize(request) {
+        if (isTrustedLocalWrite(request, context.token)) return;
+        throw rejectUntrustedWrite(request, context.token)
+          ?? new LocalWebHttpError(403, 'web_token_required', 'A valid launch token is required');
+      }
+    })
   };
 }
 
@@ -818,10 +1144,13 @@ export function createGraphWebModule(context: LocalWebModuleContext): LocalWebMo
 export function defaultLocalWebModules(context: LocalWebModuleContext): LocalWebModule[] {
   return [
     createLocalStatusModule(context),
+    createJudgmentHistoryModule(context),
     createValueProofModule(context),
+    createMeetingMinutesModule(context),
     createObjectiveFoundationModule(context),
     createWorldModelReadModule(context),
-    createGraphWebModule(context)
+    createGraphWebModule(context),
+    createPersonalMemoryModule(context)
   ];
 }
 
@@ -847,10 +1176,16 @@ ${stylesheets.map((path) => `<link rel="stylesheet" href="${escapeAttribute(path
 `;
 }
 
-function bootstrapJs(extensions: readonly LocalWebExtension[]): string {
+function bootstrapJs(
+  extensions: readonly LocalWebExtension[],
+  meetingMinutesStorage?: Readonly<{ defaultExternal?: Readonly<{ provider: string; locator: string }> }>,
+  meetingMinutesLineage?: Readonly<{ candidateDefaults?: Readonly<Record<string, unknown>> }>,
+): string {
   const imports = extensions.map((extension, index) =>
     `import { screen as extensionScreen${index} } from '/ui/extensions/${extension.id}/${extension.screenEntry}';`
   ).join('\n');
+  const leading = extensions.flatMap((extension, index) => (extension.navPosition === 'first' ? [`extensionScreen${index}`] : [])).join(', ');
+  const trailing = extensions.flatMap((extension, index) => (extension.navPosition === 'first' ? [] : [`extensionScreen${index}`])).join(', ');
   const screens = extensions.map((_, index) => `extensionScreen${index}`).join(', ');
   const ids = JSON.stringify(extensions.map((extension) => extension.id));
   return `import { createLocalWebShell, LOCAL_WEB_SCREENS } from '/ui/local-web-shell.js';
@@ -864,11 +1199,28 @@ const meta = (name) => document.querySelector(\`meta[name="\${name}"]\`)?.getAtt
 // Keep the query portion intact; the shell parses the Graph entity query and
 // only treats the entity id as a target of the Graph screen.
 const screenFromHash = () => location.hash.replace(/^#/, '') || undefined;
-const shell = createLocalWebShell({
+// A screen that opened its own address (a record of 情報と関係) goes back with the
+// browser's history, so 「一覧に戻る」 and the back button land on the same list.
+// Each entry remembers how many records deep it is, which stays right when the
+// owner also uses the browser's back and forward.
+const depth = () => (Number.isInteger(history.state?.bbDepth) ? history.state.bbDepth : 0);
+let shell = null;
+const navigate = (target, { back = false } = {}) => {
+  if (back && depth() > 0) {
+    history.go(-depth());
+    return;
+  }
+  history.pushState({ bbDepth: back ? 0 : depth() + 1 }, '', \`#\${target}\`);
+  shell?.show(target);
+};
+shell = createLocalWebShell({
   root: document.getElementById('brainbase-local-web'),
   token: meta('brainbase-web-token'),
   initialScreen: screenFromHash(),
-  screens: [...LOCAL_WEB_SCREENS, ...extensionScreens]
+  onNavigate: navigate,
+  meetingMinutesStorage: ${JSON.stringify(meetingMinutesStorage ?? null)},
+  meetingMinutesLineage: ${JSON.stringify(meetingMinutesLineage ?? null)},
+  screens: ${leading ? `[${leading}, ...LOCAL_WEB_SCREENS${trailing ? `, ${trailing}` : ''}]` : '[...LOCAL_WEB_SCREENS, ...extensionScreens]'}
 });
 addEventListener('hashchange', () => shell.show(screenFromHash()));
 `;
@@ -885,7 +1237,25 @@ export function createLocalWebHost(options: LocalWebHostOptions = {}): LocalWebH
   const dataDir = resolveDataDir(options.dataDir);
   const journalRoot = options.journalRoot ?? defaultJudgmentJournalRoot(dataDir);
   const uiDir = options.uiDir ?? fileURLToPath(new URL('../ui/', import.meta.url));
-  const context: LocalWebModuleContext = { dataDir, journalRoot, token, now: options.now ?? (() => new Date()) };
+  const now = options.now ?? (() => new Date());
+  const meetingMinutesStore = options.meetingMinutesStore ?? createMeetingMinutesStore({ data_dir: dataDir, now });
+  const meetingMinutesStorage = options.meetingMinutesStorage
+    ? createLocalWebMeetingMinutesStorageRuntime(options.meetingMinutesStorage, meetingMinutesStore)
+    : undefined;
+  const meetingMinutesLineage = options.meetingMinutesLineage
+    ? createLocalWebMeetingMinutesLineageRuntime(options.meetingMinutesLineage)
+    : undefined;
+  const context: LocalWebModuleContext = {
+    dataDir,
+    journalRoot,
+    judgmentHistoryEntrypoint: options.judgmentHistoryEntrypoint ?? 'codex',
+    token,
+    now,
+    journalCache: new JudgmentValueProofJournalCache(),
+    meetingMinutesStore,
+    ...(meetingMinutesStorage ? { meetingMinutesStorage } : {}),
+    ...(meetingMinutesLineage ? { meetingMinutesLineage } : {})
+  };
   const modules = defaultLocalWebModules(context);
   const extensions = [...options.extensions ?? []];
   const extensionModules: { prefix: string; module: LocalWebModule }[] = [];
@@ -957,7 +1327,11 @@ export function createLocalWebHost(options: LocalWebHostOptions = {}): LocalWebH
     }
     if (path === '/app.js') {
       response.setHeader('Content-Type', 'text/javascript; charset=utf-8');
-      response.end(bootstrapJs(extensions));
+      response.end(bootstrapJs(extensions, meetingMinutesStorage
+        ? { defaultExternal: meetingMinutesStorage.defaultExternal }
+        : undefined, meetingMinutesLineage
+          ? { candidateDefaults: meetingMinutesLineage.candidateDefaults }
+          : undefined));
       return;
     }
     const asset = uiFiles.get(path);

@@ -854,9 +854,16 @@ async function runRelation(input: CommonInput, action: KnowledgeLookupAction, de
 function runFinish(input: CommonInput, action: KnowledgeLookupAction & { finish: KnowledgeLookupFinishProposal }): KnowledgeLookupToolResult {
   // A finish proposal is advisory.  The host verifies cited fields against
   // actual read attempts before accepting it; this branch performs no I/O.
+  // Missing fields are the required fields the unverified proposal cites no
+  // evidence for among its own reference_ids, as the host counts evidence.
+  const referenced = new Set(action.finish.reference_ids);
+  const cited = new Set(action.finish.field_evidence
+    .filter((entry) => referenced.has(entry.reference_id))
+    .map((entry) => entry.field));
   return success(input, action, [], {
     outcome: 'incomplete',
     coverage: 'unknown',
+    missing_fields: action.required_fields.filter((field) => !cited.has(field)),
     proposed_finish: action.finish,
   });
 }
@@ -913,7 +920,7 @@ export const knowledgeLookupTools: Tool[] = [{
         type: 'array',
         minItems: 1,
         maxItems: MAX_FIELDS,
-        description: 'Public field paths only; use roots such as content, body, statement, markdown, summary, name, or environments.production.endpoint.',
+        description: 'Public field paths only; for Graph text use content. Use body only when the source projection explicitly exposes a body field. Other roots include statement, markdown, summary, name, or environments.production.endpoint.',
         items: { type: 'string', minLength: 1, maxLength: MAX_FIELD_LENGTH },
       },
       known_entity_id: { type: 'string', minLength: 1, maxLength: 1_000 },

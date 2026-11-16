@@ -24,7 +24,7 @@ import {
   decodePersonalKnowledgeContextHeader,
   PERSONAL_KNOWLEDGE_CONTRACT_VERSION,
   validatePersonalKnowledgeContext,
-  type PersonalKnowledgeClient,
+  PersonalKnowledgeClient,
   type PersonalKnowledgeContext,
   type PersonalKnowledgeEventInput,
   type PersonalKnowledgeStore
@@ -42,7 +42,7 @@ const argsSchema = z.object({
   as_of: z.string().datetime({ offset: true }).optional(),
   seedIds: z.array(z.string().min(1)).min(1).max(10).optional(),
   steps: z.array(z.object({
-    relation: z.enum(['member_of', 'participates_in', 'accountable_for', 'owned_by', 'governs', 'supersedes']),
+    relation: z.enum(['member_of', 'participates_in', 'accountable_for', 'owned_by', 'related_to', 'governs', 'supersedes']),
     direction: z.enum(['incoming', 'outgoing']),
     targetType: z.enum(['person', 'org', 'project', 'decision']).optional()
   }).strict()).min(1).max(3).optional(),
@@ -61,14 +61,15 @@ const personalKnowledgeEventSchema = z.object({
   source: z.unknown().optional(),
   source_pointer: z.unknown().optional(),
   parent_episode_id: z.string().min(1).nullable().optional(),
-  permission_snapshot: z.record(z.unknown()).optional(),
+  permission_snapshot: z.record(z.string(), z.unknown()).optional(),
   sensitivity: z.string().min(1).optional(),
   kind: z.string().min(1).optional(),
   type: z.string().min(1).optional(),
   tags: z.array(z.string().min(1)).optional(),
-  metadata: z.record(z.unknown()).optional()
+  metadata: z.record(z.string(), z.unknown()).optional()
 }).strict();
 
+const personalKnowledgeRejectSchema = z.object({ event_id: z.string().trim().min(1) }).strict();
 const personalKnowledgeContextSchema = z.object({}).strict();
 const personalKnowledgeRegisterSchema = z.object({ event: personalKnowledgeEventSchema }).strict();
 const personalKnowledgeSearchSchema = z.object({
@@ -114,14 +115,14 @@ const sourceInventorySchema = z.object({
 
 const candidateSchema = z.object({
   kind: z.string(),
-  payload: z.record(z.unknown()),
+  payload: z.record(z.string(), z.unknown()),
   observationClass: z.enum(['observed', 'inferred']),
   evidenceId: z.string()
 }).strict();
 
 const reviewActionSchema = z.discriminatedUnion('decision', [
   z.object({ candidateId: z.string(), decision: z.literal('approve'), reason: z.string() }).strict(),
-  z.object({ candidateId: z.string(), decision: z.literal('edit'), reason: z.string(), payload: z.record(z.unknown()) }).strict(),
+  z.object({ candidateId: z.string(), decision: z.literal('edit'), reason: z.string(), payload: z.record(z.string(), z.unknown()) }).strict(),
   z.object({ candidateId: z.string(), decision: z.literal('reject'), reason: z.string() }).strict(),
   z.object({ candidateId: z.string(), decision: z.literal('merge'), reason: z.string(), mergeIntoCandidateId: z.string() }).strict()
 ]);
@@ -140,7 +141,7 @@ const connectedSchemas = {
       sourceId: z.string(),
       evidencePointer: z.string(),
       contentHash: z.string(),
-      permissionSnapshot: z.record(z.unknown()),
+      permissionSnapshot: z.record(z.string(), z.unknown()),
       collectionStatus: z.literal('collected')
     }).strict(),
     candidates: z.array(candidateSchema)
@@ -210,7 +211,7 @@ export const toolDefinitions = [
         seedIds: { type: 'array', minItems: 1, maxItems: 10, items: { type: 'string' }, description: 'Canonical IDs chosen by the calling model; no embeddings needed.' },
         steps: { type: 'array', minItems: 1, maxItems: 3, items: {
           type: 'object', additionalProperties: false, required: ['relation', 'direction'], properties: {
-            relation: { enum: ['member_of', 'participates_in', 'accountable_for', 'owned_by', 'governs', 'supersedes'] },
+            relation: { enum: ['member_of', 'participates_in', 'accountable_for', 'owned_by', 'related_to', 'governs', 'supersedes'] },
             direction: { enum: ['incoming', 'outgoing'] },
             targetType: { enum: ['person', 'org', 'project', 'decision'] }
           }
@@ -274,6 +275,17 @@ export const toolDefinitions = [
           }
         }
       }
+    }
+  },
+  {
+    name: 'personal_knowledge_reject',
+    description: 'Retract an event through the authenticated Personal Knowledge API. Requires API storage; identity comes from trusted configuration. This is not physical deletion.',
+    annotations: { readOnlyHint: false, destructiveHint: true },
+    inputSchema: {
+      type: 'object',
+      required: ['event_id'],
+      additionalProperties: false,
+      properties: { event_id: { type: 'string', minLength: 1 } }
     }
   },
   {
@@ -457,6 +469,7 @@ export const toolDefinitions = [
 const managedPersonalKnowledgeToolNames = new Set([
   'personal_knowledge_context',
   'personal_knowledge_register',
+  'personal_knowledge_reject',
   'personal_knowledge_search'
 ]);
 
@@ -548,6 +561,14 @@ function configuredPersonalKnowledgeRuntime(): PersonalKnowledgeRuntime {
 }
 
 async function callPersonalKnowledgeTool(name: string, rawArgs: unknown): Promise<unknown> {
+  if (name === 'personal_knowledge_reject') {
+    const args = personalKnowledgeRejectSchema.parse(rawArgs ?? {});
+    const runtime = configuredPersonalKnowledgeRuntime();
+    if (!(runtime instanceof PersonalKnowledgeClient)) {
+      throw new Error('Personal Knowledge rejection requires authenticated API storage; local retraction is not supported.');
+    }
+    return runtime.reject(args.event_id);
+  }
   const runtime = configuredPersonalKnowledgeRuntime();
   if (name === 'personal_knowledge_context') {
     personalKnowledgeContextSchema.parse(rawArgs ?? {});
@@ -567,7 +588,7 @@ async function callPersonalKnowledgeTool(name: string, rawArgs: unknown): Promis
 export async function callBrainbaseTool(name: string, rawArgs: unknown = {}, options: { foundation?: FoundationPublicConnection } = {}): Promise<unknown> {
   const mode = configuredPersonalKnowledgeMode();
   if (mode === 'managed_cloud' && !isPersonalKnowledgeTool(name)) {
-    throw new Error('managed_cloud Personal Knowledge MCP only permits personal_knowledge_context, personal_knowledge_register, and personal_knowledge_search.');
+    throw new Error('managed_cloud Personal Knowledge MCP only permits personal_knowledge_context, personal_knowledge_register, personal_knowledge_reject, and personal_knowledge_search.');
   }
   if (name.startsWith('foundation_')) return callFoundationPublicTool(name, rawArgs, options.foundation);
   if (isPersonalKnowledgeTool(name)) {

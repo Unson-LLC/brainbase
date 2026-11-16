@@ -60,6 +60,58 @@
   justify-self: start;
 }
 
+/* Keep the host-level unavailable notice compact until its reason is requested. */
+.bb-wm-unavailable-status {
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-wm-unavailable-details {
+  min-width: 0;
+}
+
+.bb-wm-unavailable-summary {
+  width: fit-content;
+  max-width: 100%;
+  color: var(--bb-color-accent-strong);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: var(--bb-font-weight-medium);
+}
+
+.bb-wm-unavailable-summary:focus-visible {
+  outline: 2px solid var(--bb-color-accent);
+  outline-offset: 2px;
+}
+
+.bb-wm-unavailable-reason-list {
+  display: grid;
+  gap: var(--bb-space-2);
+  margin: var(--bb-space-2) 0 0;
+  padding: var(--bb-space-2) 0 0;
+  border-top: 1px solid var(--bb-color-border);
+  list-style: none;
+}
+
+.bb-wm-unavailable-reason {
+  display: grid;
+  grid-template-columns: minmax(120px, .8fr) minmax(0, 2fr);
+  gap: var(--bb-space-2);
+  min-width: 0;
+  font-size: 12px;
+}
+
+.bb-wm-unavailable-reason-label {
+  color: var(--bb-color-ink);
+  font-weight: var(--bb-font-weight-medium);
+}
+
+.bb-wm-unavailable-reason-copy {
+  min-width: 0;
+  color: var(--bb-color-muted);
+  overflow-wrap: anywhere;
+}
+
 /* First-user registration stays in the empty-state notice, beside the fact it affects. */
 .bb-wm-registration-form {
   display: grid;
@@ -78,7 +130,7 @@
 .bb-wm-registration-field > label {
   color: var(--bb-color-ink);
   font-size: 12px;
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-wm-registration-input {
@@ -116,7 +168,7 @@
 /* The local shell resets `.bb-shell button { font: inherit }`, which outranks the kit's button type. */
 .bb-wm .bb-ws-button {
   font-size: 12px;
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 /* Rows wrap: a reference view keeps its details readable instead of cutting them. */
@@ -147,36 +199,36 @@
 
 .bb-wm-cell small.is-warning {
   color: var(--bb-color-warning);
-  font-weight: 650;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-wm-cell small.is-accent {
   color: var(--bb-color-accent-strong);
-  font-weight: 650;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-wm-cell.is-value .bb-wm-main,
 .bb-wm-view-ledger .bb-ws-ledger-row > span:first-child .bb-wm-main {
-  font-weight: 690;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-wm-cell.is-verified .bb-wm-main,
 .bb-wm-cell.is-supported .bb-wm-main,
 .bb-wm-cell.is-approved .bb-wm-main {
   color: var(--bb-color-accent-strong);
-  font-weight: 690;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-wm-cell.is-hypothesis .bb-wm-main,
 .bb-wm-cell.is-unverified .bb-wm-main,
 .bb-wm-cell.is-pending .bb-wm-main {
   color: var(--bb-color-warning);
-  font-weight: 690;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-wm-cell.is-refuted .bb-wm-main {
   color: var(--bb-color-danger);
-  font-weight: 690;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-wm-cell.is-unresolved .bb-wm-main {
@@ -191,6 +243,7 @@
 
 .bb-wm .bb-ws-ledger-row.is-superseded {
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-wm .bb-ws-ledger-row.is-superseded .bb-wm-cell.is-value .bb-wm-main {
@@ -214,6 +267,11 @@
 @media (max-width: 760px) {
   .bb-wm-registration-form {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bb-wm-unavailable-reason {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
   }
 
   .bb-wm-registration-status {

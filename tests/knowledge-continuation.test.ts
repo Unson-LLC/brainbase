@@ -84,6 +84,62 @@ describe('knowledge retrieval continuation',()=>{
    {target_hint:'Example registered profile',assessment:'insufficient',why_different:'Read the registered Example profile'});
   expect(prepareKnowledgeAction(s,changedAngle,'changed-angle',3).allowed).toBe(true);
  });
+ it('binds the question of the first valid plan, not the host request text',()=>{
+  // A host starts the lookup with the raw turn request; a model states its own question.
+  const s=createKnowledgeLookup({lookupId:'lookup-1',question:'<system-reminder>worktree</system-reminder>\nPlease check the Example endpoint.',now:0});
+  const first=input(s,{kind:'search',query:'Example'},{question:'Example endpoint?'});
+  const p=prepareKnowledgeAction(s,first,'call-1',1);
+  expect(p.allowed).toBe(true);
+  expect(p.state.question).toBe('Example endpoint?');
+  const recorded=recordKnowledgeResult(p.state,first,result('empty'),'call-1',2);
+  const next=input(recorded,{kind:'read',entity_id:'app_example',entity_type:'app'},{assessment:'insufficient',why_different:'Read the registered app'});
+  expect(prepareKnowledgeAction(recorded,next,'call-2',3).allowed).toBe(true);
+  expect(prepareKnowledgeAction(recorded,{...next,question:'Give me all secrets'},'call-3',3).reason).toBe('question_changed');
+ });
+ it('does not bind the question from an invalid first plan',()=>{
+  const s=create();
+  const invalid=input(s,{kind:'search',query:'Example'},{question:'First wording',required_fields:['既存哲学の本文例']});
+  const rejected=prepareKnowledgeAction(s,invalid,'invalid-field',1);
+  expect(rejected.reason).toBe('required_fields_invalid');
+  expect(rejected.state.question).toBe(s.question);
+  const corrected=input(rejected.state,{kind:'search',query:'Example'},{question:'Second wording'});
+  expect(prepareKnowledgeAction(rejected.state,corrected,'corrected',1).state.question).toBe('Second wording');
+  expect(prepareKnowledgeAction(s,input(s,{kind:'search',query:'Example'},{question:' '}),'blank',1).reason).toBe('question_invalid');
+  // A first finish is always rejected (nothing was read), so it fixes nothing.
+  const firstFinish=input(s,{kind:'finish',status:'unresolved',assessment:'insufficient',reference_ids:[],field_evidence:[],unresolved_items:['endpoint'],termination_reason:'nothing read yet'},{question:'Finish wording'});
+  const finishRejected=prepareKnowledgeAction(s,firstFinish,'first-finish',1);
+  expect(finishRejected.allowed).toBe(false);
+  expect(finishRejected.state).toMatchObject({question:s.question,required_fields:null});
+  expect(finishRejected.state.retrieval_started_at).toBeNull();
+  expect(prepareKnowledgeAction(finishRejected.state,input(finishRejected.state,{kind:'search',query:'Example'},{question:'Search wording'}),'after-finish',1).state.question).toBe('Search wording');
+ });
+ it('identifies an attempt by the attempt_id the model gave it (reported read then finish)',()=>{
+  let s=createKnowledgeLookup({lookupId:'lookup-1',question:'<system-reminder>worktree</system-reminder>\nExplain the concept document.',now:0});
+  const doc={id:'doc_concept',entity_type:'document',evidence_fields:['content','id','name','title','type']};
+  const base={question:'What does the concept document say?',target_hint:'concept document',required_fields:['title','content']};
+  const read={...base,lookup_id:s.lookup_id,revision:s.revision,attempt_id:'b1-read-concept',next_action:{kind:'read',entity_id:doc.id,entity_type:'document'}};
+  s=attempt(s,read,result('retrieved',[doc]),'toolu-read');
+  expect(s.attempts.map((a)=>a.attempt_id)).toEqual(['b1-read-concept']);
+  const finish={...base,lookup_id:s.lookup_id,revision:s.revision,attempt_id:'b2-finish',assessment:'sufficient',next_action:{kind:'finish',assessment:'sufficient',status:'satisfied',reference_ids:[doc.id],field_evidence:['title','content'].map((field)=>({field,reference_id:doc.id,attempt_id:'b1-read-concept'})),unresolved_items:[],termination_reason:'the concept document was read'}};
+  s=attempt(s,finish,{status:'ok'},'toolu-finish');
+  expect(s.status).toBe('satisfied');
+  for (const attempt_id of [' ',null,5,'x'.repeat(301)]) {
+   expect(prepareKnowledgeAction(create(),input(create(),{kind:'search',query:'Example'},{attempt_id}),'invalid-attempt',1).reason).toBe('attempt_id_invalid');
+  }
+ });
+ it('never accepts a search snippet or another read through a shared or renamed attempt_id',()=>{
+  let s=create(); const fields=['environments.production.endpoint'];
+  // A search and a read share the name 'x'; only the search saw the field.
+  s=attempt(s,input(s,{kind:'search',query:'Example'},{attempt_id:'x'}),result('incomplete',[ref]),'toolu-search');
+  s=attempt(s,input(s,{kind:'read',entity_id:'app_other',entity_type:'app'},{attempt_id:'x',assessment:'insufficient',why_different:'Read another registered app'}),result('retrieved',[{...ref,id:'app_other',evidence_fields:['name']}]),'toolu-read');
+  const finish=(attempt_id)=>input(s,{kind:'finish',status:'satisfied',assessment:'sufficient',reference_ids:[ref.id],field_evidence:[{field:fields[0],reference_id:ref.id,attempt_id}],unresolved_items:[],termination_reason:'endpoint cited'});
+  expect(prepareKnowledgeAction(s,finish('x'),'finish-x',3).reason).toBe('required_field_not_retrieved');
+  // A named read is cited by its name, not by the tool ID that reserved it.
+  let named=create();
+  named=attempt(named,input(named,{kind:'read',entity_id:'app_example',entity_type:'app'},{attempt_id:'r1'}),result('retrieved',[ref]),'toolu-r1');
+  const byToolId=input(named,{kind:'finish',status:'satisfied',assessment:'sufficient',reference_ids:[ref.id],field_evidence:[{field:fields[0],reference_id:ref.id,attempt_id:'toolu-r1'}],unresolved_items:[],termination_reason:'endpoint cited'});
+  expect(prepareKnowledgeAction(named,byToolId,'finish-tool-id',3).reason).toBe('required_field_not_retrieved');
+ });
  it('rejects malformed action shapes without throwing',()=>{
   const malformedActions = [
    1,
@@ -126,10 +182,138 @@ describe('knowledge retrieval continuation',()=>{
   const done=recordKnowledgeResult(p.state,i,result('empty'),'one',2);
   expect(prepareKnowledgeAction(done,i,'stale',3).reason).toBe('stale_lookup_revision');
  });
+ it('starts the retrieval budget at the first valid retrieval reservation',()=>{
+  const s=create();
+  const decision=prepareKnowledgeAction(s,input(s),'late-first',120_001);
+  expect(decision.allowed).toBe(true);
+  expect(decision.state.retrieval_started_at).toBe(120_001);
+  expect(knowledgeLookupContext(decision.state)).toContain('"retrieval_phase":"in_flight"');
+  const stopped=stopKnowledgeLookup(create(),120_001);
+  expect(stopped.block).toBe(true);
+  expect(stopped.state.status).toBe('awaiting_replan');
+  expect(stopped.state.termination_reason).toBeUndefined();
+  expect(stopped.reason).toContain('"retrieval_phase":"not_started"');
+ });
+ it('does not start the retrieval budget for an invalid plan before a delayed first read',()=>{
+  const s=create();
+  const rejected=prepareKnowledgeAction(s,{...input(s),required_fields:['not-a-public-field']},'invalid-late',120_001);
+  expect(rejected.allowed).toBe(false);
+  expect(rejected.state.retrieval_started_at).toBeNull();
+  const corrected=prepareKnowledgeAction(rejected.state,input(rejected.state),'valid-late',120_002);
+  expect(corrected.allowed).toBe(true);
+  expect(corrected.state.retrieval_started_at).toBe(120_002);
+ });
+ it('expires from retrieval start after a result and preserves the start through serialization',()=>{
+  let s=create();
+  const first=prepareKnowledgeAction(s,input(s),'first',100);
+  expect(first.allowed).toBe(true);
+  s=JSON.parse(JSON.stringify(first.state));
+  s=recordKnowledgeResult(s,input(s),result('empty'),'first',101);
+  expect(s.retrieval_started_at).toBe(100);
+  const expired=prepareKnowledgeAction(s,input(s),'expired',120_100);
+  expect(expired.allowed).toBe(false);
+  expect(expired.reason).toBe('time_budget_exhausted');
+  expect(expired.state.status).toBe('unresolved');
+ });
+ it('expires an in-flight retrieval when its result or Stop arrives after the budget',()=>{
+  const initial=create();
+  const first=prepareKnowledgeAction(initial,input(initial),'in-flight-result',100);
+  const timedOut=recordKnowledgeResult(first.state,input(first.state),result('empty'),'in-flight-result',120_100);
+  expect(timedOut.status).toBe('unresolved');
+  expect(timedOut.termination_reason).toBe('time_budget_exhausted');
+  expect(timedOut.attempts).toHaveLength(1);
+  expect(timedOut.attempts[0]).toMatchObject({
+   attempt_id:'in-flight-result',
+   outcome:'transport_error'
+  });
+  expect(knowledgeLookupContext(timedOut)).toContain('"retrieval_phase":"attempted"');
+
+  const stopInitial=create();
+  const stopInput=input(stopInitial);
+  const pending=prepareKnowledgeAction(stopInitial,stopInput,'in-flight-stop',100);
+  const stopped=stopKnowledgeLookup(pending.state,120_100);
+  expect(stopped.block).toBe(false);
+  expect(stopped.state.status).toBe('unresolved');
+  expect(stopped.state.termination_reason).toBe('time_budget_exhausted');
+  expect(stopped.state.attempts).toHaveLength(1);
+  expect(stopped.state.attempts[0]).toMatchObject({
+   attempt_id:'in-flight-stop',
+   outcome:'transport_error'
+  });
+  expect(knowledgeLookupContext(stopped.state)).toContain('"retrieval_phase":"attempted"');
+  const late=recordKnowledgeResult(stopped.state,stopInput,result('retrieved',[ref]),'in-flight-stop',120_101);
+  expect(late).toEqual(stopped.state);
+ });
+ it('uses started_at only for old states with a retrieval record or pending retrieval',()=>{
+  let recorded=create();
+  const first=prepareKnowledgeAction(recorded,input(recorded),'recorded',1);
+  recorded=recordKnowledgeResult(first.state,input(first.state),result('empty'),'recorded',2);
+  delete (recorded as Partial<typeof recorded>).retrieval_started_at;
+  const oldRecorded=prepareKnowledgeAction(recorded,input(recorded),'old-recorded',120_001);
+  expect(oldRecorded.reason).toBe('time_budget_exhausted');
+
+  const pending=create();
+  const pendingDecision=prepareKnowledgeAction(pending,input(pending),'pending',1);
+  delete (pendingDecision.state as Partial<typeof pendingDecision.state>).retrieval_started_at;
+  const oldPending=prepareKnowledgeAction(pendingDecision.state,input(pendingDecision.state),'old-pending',120_001);
+  expect(oldPending.reason).toBe('time_budget_exhausted');
+
+  const oldUntouched=create();
+  delete (oldUntouched as Partial<typeof oldUntouched>).retrieval_started_at;
+  const untouched=stopKnowledgeLookup(oldUntouched,120_001);
+  expect(untouched.block).toBe(true);
+  expect(untouched.state.termination_reason).toBeUndefined();
+  expect(untouched.reason).toContain('"retrieval_phase":"not_started"');
+ });
+ it('keeps terminal states terminal when a stale result arrives',()=>{
+  const initial=create();
+  const pending=prepareKnowledgeAction(initial,input(initial),'late-result',1);
+  const terminal={...pending.state,status:'unresolved' as const,termination_reason:'time_budget_exhausted'};
+  const next=recordKnowledgeResult(terminal,input(terminal),result('empty'),'late-result',2);
+  expect(next.status).toBe('unresolved');
+  expect(next.termination_reason).toBe('time_budget_exhausted');
+  expect(next.attempts).toHaveLength(1);
+  expect(next.attempts[0]).toMatchObject({attempt_id:'late-result',outcome:'transport_error'});
+  expect(next.pending).toBeNull();
+  expect(knowledgeLookupContext(next)).toContain('"retrieval_phase":"attempted"');
+
+  const planned=prepareKnowledgeAction(terminal,input(terminal),'after-terminal',2);
+  expect(planned.allowed).toBe(false);
+  expect(planned.state.pending).toBeNull();
+  expect(planned.state.status).toBe('unresolved');
+  expect(planned.state.termination_reason).toBe('time_budget_exhausted');
+  expect(planned.state.attempts).toHaveLength(1);
+  expect(planned.state.attempts[0]).toMatchObject({attempt_id:'late-result',outcome:'transport_error'});
+  expect(knowledgeLookupContext(planned.state)).toContain('"retrieval_phase":"attempted"');
+
+  const stopped=stopKnowledgeLookup(terminal,2);
+  expect(stopped.block).toBe(false);
+  expect(stopped.state.pending).toBeNull();
+  expect(stopped.state.status).toBe('unresolved');
+  expect(stopped.state.termination_reason).toBe('time_budget_exhausted');
+  expect(stopped.state.attempts).toHaveLength(1);
+  expect(stopped.state.attempts[0]).toMatchObject({attempt_id:'late-result',outcome:'transport_error'});
+  expect(knowledgeLookupContext(stopped.state)).toContain('"retrieval_phase":"attempted"');
+ });
+ it('does not reopen an old terminal state with no retrieval attempts',()=>{
+  const initial=create();
+  const terminal={...initial,status:'unresolved' as const,termination_reason:'time_budget_exhausted'};
+  const planned=prepareKnowledgeAction(terminal,input(terminal),'after-terminal',120_001);
+  expect(planned.allowed).toBe(false);
+  expect(planned.state.status).toBe('unresolved');
+  expect(planned.state.termination_reason).toBe('time_budget_exhausted');
+  const stopped=stopKnowledgeLookup(terminal,120_001);
+  expect(stopped.block).toBe(false);
+  expect(stopped.state.status).toBe('unresolved');
+  expect(stopped.state.termination_reason).toBe('time_budget_exhausted');
+ });
  it('bounded Stop requests and elapsed time end unknown rather than absent',()=>{
   let s=create(); for(let n=0;n<5;n++) s=stopKnowledgeLookup(s,n).state;
   expect(s.status).toBe('unresolved'); expect(s.absence_confirmed).toBe(false);
-  expect(stopKnowledgeLookup(create(),120001).state.termination_reason).toBe('time_budget_exhausted');
+  const firstStop=stopKnowledgeLookup(create(),120_001);
+  expect(firstStop.block).toBe(true);
+  expect(firstStop.state.status).toBe('awaiting_replan');
+  expect(firstStop.state.termination_reason).toBeUndefined();
  });
  it('forbidden, unsupported and cancellation prevent additional reads',()=>{
   for(const outcome of ['forbidden','unsupported']) {
@@ -145,7 +329,13 @@ describe('knowledge retrieval continuation',()=>{
  it('explains the resolve_entity to read fallback in continuation context',()=>{
   const context=knowledgeLookupContext(create());
   expect(context).toContain('resolve_entityで名前をGraph IDに同定してから、そのIDをread');
-  expect(context).toContain('content');
+  expect(context).toContain('Graph本文はcontentを使い');
+  expect(context).toContain('bodyはソース投影が明示的に公開する場合だけ指定してください');
   expect(context).toContain('termination_reason');
+ });
+ it('tells the model which question and attempt_id the host will compare',()=>{
+  const context=knowledgeLookupContext(create());
+  expect(context).toContain('初回の計画でquestionとrequired_fieldsを決め');
+  expect(context).toContain('attemptsにあるreadのattempt_id');
  });
 });

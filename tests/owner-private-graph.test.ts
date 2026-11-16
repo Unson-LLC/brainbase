@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { canonicalEdgeId, validateCanonicalGraph } from '../src/canonical-graph.js';
 import { GraphWebError, openOwnerPrivateGraph } from '../src/graph-web.js';
 import { bindPortableGraphOwner, portableGraphDigest } from '../src/portable-graph.js';
 import { FIXTURE_NOW } from './graph-web-fixture.js';
@@ -36,9 +37,11 @@ describe('bindPortableGraphOwner (handover contract §5.1)', () => {
     const ownerRecord = bound.graph.entities.find((entity) => entity.id === OWNER_PERSON_ID);
     expect(ownerRecord).toMatchObject({ type: 'person', name: OWNER_NAME, aliases: ['Owner'] });
     expect(bound.graph.entities.some((entity) => entity.id === 'self')).toBe(false);
-    const selfEdge = bound.graph.edges.find((item) => item.id === SELF_ATLAS.id);
-    // The relation keeps the ID it has in the stored bundle; its endpoint is the owner.
+    const selfEdge = bound.graph.edges.find((item) => item.fromId === OWNER_PERSON_ID && item.relation === SELF_ATLAS.relation && item.toId === SELF_ATLAS.toId);
+    // The stored bundle is unchanged; the bound projection derives an ID for its replaced endpoint.
     expect(selfEdge).toMatchObject({ fromId: OWNER_PERSON_ID, toId: 'project-atlas' });
+    expect(selfEdge?.id).toBe(canonicalEdgeId({ fromId: OWNER_PERSON_ID, relation: SELF_ATLAS.relation, toId: 'project-atlas' }));
+    expect(() => validateCanonicalGraph(bound.graph)).not.toThrow();
     const objective = bound.graph.foundation!.records.find((record) => record.definition.type === 'objective')!.definition as any;
     expect(objective.acl).toMatchObject({ ownerId: OWNER_PERSON_ID, readerIds: [OWNER_PERSON_ID], writerIds: [OWNER_PERSON_ID] });
     expect(objective.beneficiaryIds).toEqual([OWNER_PERSON_ID, 'person-tanaka']);

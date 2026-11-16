@@ -156,3 +156,57 @@ describe('managed personal knowledge client', () => {
     expect(normalizePersonalKnowledgeApiUrl('https://128.0.0.1:3100', 'managed_cloud')).toBe('https://128.0.0.1:3100');
   });
 });
+
+
+describe('Personal Knowledge rejection', () => {
+  function clientFor(receipt: unknown, token = 'owner-token', actualContext = context) {
+    const requests: Array<{ url: string; init?: RequestInit }> = [];
+    const client = createPersonalKnowledgeClient({
+      mode: 'managed_cloud', apiUrl: 'https://knowledge.example.test', expectedContext: context, token,
+      fetch: async (input, init) => {
+        requests.push({ url: String(input), init });
+        return new Response(JSON.stringify(String(input).endsWith('/context') ? { context: actualContext } : receipt));
+      }
+    });
+    return { client, requests };
+  }
+  const receipt = { event_id: 'event-1', action: 'reject', semantic_state: 'retracted' };
+
+  it('trims reject event IDs and verifies the authenticated retracted receipt', async () => {
+    const { client, requests } = clientFor(receipt);
+    await expect(client.reject(' event-1 ')).resolves.toEqual(receipt);
+    expect(requests.map(request => request.url)).toEqual([
+      'https://knowledge.example.test/api/personal-knowledge/context',
+      'https://knowledge.example.test/api/personal-knowledge/feedback'
+    ]);
+    const init = requests[1].init!;
+    expect(JSON.parse(String(init.body))).toEqual({ event_id: 'event-1', action: 'reject' });
+    expect(init.redirect).toBe('error');
+    const headers = new Headers(init.headers);
+    expect(headers.get('authorization')).toBe('Bearer owner-token');
+    expect(headers.get(PERSONAL_KNOWLEDGE_CONTEXT_VERSION_HEADER)).toBe('1');
+    expect(headers.get(PERSONAL_KNOWLEDGE_CONTEXT_HEADER)).toBe(encodePersonalKnowledgeContextHeader(context));
+  });
+
+  it.each([null, {}, { ...receipt, event_id: 'other' }, { ...receipt, action: 'accept' },
+    { ...receipt, semantic_state: 'active' }, { ...receipt, error: 'failed' },
+    { event_id: 'event-1', semantic_state: 'retracted' }
+  ])('refuses malformed or mismatched reject receipts: %j', async (invalid) => {
+    await expect(clientFor(invalid).client.reject('event-1')).rejects.toThrow(/reject response schema/);
+  });
+
+  it('refuses missing tokens and mismatched contexts before feedback', async () => {
+    for (const fixture of [clientFor(receipt, ' '), clientFor(receipt, 'token', { ...context, owner_person_id: 'other' })]) {
+      await expect(fixture.client.reject('event-1')).rejects.toThrow();
+      expect(fixture.requests.some(request => request.url.endsWith('/feedback'))).toBe(false);
+    }
+  });
+
+  it('refuses object overrides and empty event IDs before network access', async () => {
+    const { client, requests } = clientFor(receipt);
+    for (const input of ['', ' ', { event_id: 'event-1', owner: 'other' }, { event_id: 'event-1', action: 'accept' }]) {
+      await expect(client.reject(input as string)).rejects.toThrow(/non-empty event_id/);
+    }
+    expect(requests).toHaveLength(0);
+  });
+});

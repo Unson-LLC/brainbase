@@ -92,7 +92,7 @@ export const schemaTemplates: Record<string, unknown> = {
             id: { type: 'string', minLength: 1 },
             fromId: { type: 'string', minLength: 1 },
             relation: {
-              enum: ['member_of', 'participates_in', 'accountable_for', 'owned_by', 'governs', 'supersedes']
+              enum: ['member_of', 'participates_in', 'accountable_for', 'owned_by', 'related_to', 'governs', 'supersedes']
             },
             toId: { type: 'string', minLength: 1 },
             role: { type: 'string' },

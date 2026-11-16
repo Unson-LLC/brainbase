@@ -20,7 +20,7 @@
 .bb-pkw-kicker {
   color: var(--bb-color-eyebrow);
   font-size: 11px;
-  font-weight: 760;
+  font-weight: var(--bb-font-weight-medium);
   letter-spacing: .08em;
   text-transform: uppercase;
 }
@@ -42,7 +42,7 @@
 
 .bb-pkw-header h2 {
   font-size: clamp(32px, 3.5vw, 44px);
-  font-weight: 760;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1.1;
   letter-spacing: -.055em;
   word-break: keep-all;
@@ -67,32 +67,6 @@
   gap: var(--bb-space-1);
 }
 
-.bb-pkw-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--bb-space-1);
-  border-bottom: 1px solid var(--bb-color-border-strong);
-}
-
-.bb-pkw-tab {
-  border: 0;
-  border-bottom: 2px solid transparent;
-  padding: 10px 14px;
-  color: var(--bb-color-muted);
-  background: transparent;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 720;
-  cursor: pointer;
-}
-
-.bb-pkw-tab:hover,
-.bb-pkw-tab.is-active {
-  border-bottom-color: var(--bb-color-accent);
-  color: var(--bb-color-accent-strong);
-}
-
-.bb-pkw-tab:focus-visible,
 .bb-pkw-graph-item:focus-visible,
 .bb-pkw-record-link:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--bb-color-focus) 45%, var(--bb-color-panel));
@@ -132,7 +106,7 @@
 .bb-pkw-section h4,
 .bb-pkw-selection h4 {
   font-size: 12px;
-  font-weight: 760;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-pkw .bb-ws-definition {
@@ -199,7 +173,7 @@
   color: var(--bb-color-accent-strong);
   background: transparent;
   font: inherit;
-  font-weight: 720;
+  font-weight: var(--bb-font-weight-medium);
   text-align: left;
   text-decoration: none;
   cursor: pointer;
@@ -275,7 +249,7 @@
   color: var(--bb-color-ink);
   font: inherit;
   font-size: 14px;
-  font-weight: 690;
+  font-weight: var(--bb-font-weight-medium);
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -296,7 +270,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
 
 .bb-pkw-context-task-due.bb-pkw-context-task-overdue {
   color: var(--bb-color-danger);
-  font-weight: 740;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-pkw-context-task-stage {
@@ -548,6 +522,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
 .bb-pkw-graph-item.is-selected {
   border-color: var(--bb-color-accent);
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-pkw-graph-item strong {
@@ -573,6 +548,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
   border-radius: var(--bb-radius-sm);
   padding: var(--bb-space-3);
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-pkw-evidence-head strong {
@@ -652,6 +628,9 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
 .bb-pkw-dense-overview {
   display: grid;
   gap: 0;
+  /* The overview sits beside a rail and, in hosts, a detail panel, so its
+     width does not follow the viewport. Its metrics follow this width. */
+  container: bb-pkw-overview / inline-size;
 }
 
 .bb-pkw-dense-intro {
@@ -661,7 +640,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
 .bb-pkw-dense-eyebrow {
   color: var(--bb-color-eyebrow);
   font-size: 11px;
-  font-weight: 760;
+  font-weight: var(--bb-font-weight-medium);
   letter-spacing: .08em;
 }
 
@@ -704,7 +683,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
 .bb-pkw-dense-metric-label {
   color: var(--bb-color-muted);
   font-size: 11px;
-  font-weight: 720;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-pkw-dense-metric-value {
@@ -713,9 +692,39 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
   overflow-wrap: anywhere;
   color: var(--bb-color-ink);
   font-size: 30px;
-  font-weight: 760;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1.1;
   letter-spacing: -.03em;
+}
+
+/* Four 30px values need about 150px each. Below that the overview shows two
+   per row, whatever the viewport, so a value is never broken inside a word. */
+@container bb-pkw-overview (max-width: 600px) {
+  .bb-pkw-dense-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bb-pkw-dense-metric,
+  .bb-pkw-dense-metric:first-child {
+    padding: 14px 12px;
+  }
+
+  .bb-pkw-dense-metric:nth-child(odd) {
+    padding-left: 0;
+  }
+
+  .bb-pkw-dense-metric:nth-child(even) {
+    border-right: 0;
+    padding-right: 0;
+  }
+
+  .bb-pkw-dense-metric:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--bb-color-border);
+  }
+
+  .bb-pkw-dense-metric:last-child {
+    border-bottom: 0;
+  }
 }
 
 .bb-pkw-dense-grid {
@@ -761,7 +770,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
   background: transparent;
   font: inherit;
   font-size: 12px;
-  font-weight: 720;
+  font-weight: var(--bb-font-weight-medium);
   cursor: pointer;
 }
 
@@ -817,7 +826,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
   color: var(--bb-color-accent-strong);
   background: transparent;
   font: inherit;
-  font-weight: 720;
+  font-weight: var(--bb-font-weight-medium);
   text-align: left;
   text-decoration: none;
   cursor: pointer;
@@ -854,7 +863,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
   padding: 0 0 var(--bb-space-2);
   color: var(--bb-color-muted);
   font-size: 11px;
-  font-weight: 720;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-pkw-dense-table .bb-pkw-dense-item {
@@ -920,7 +929,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
   overflow-wrap: anywhere;
   color: var(--bb-color-ink);
   font-size: clamp(28px, 3vw, 36px);
-  font-weight: 760;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1.1;
   letter-spacing: -.05em;
   word-break: keep-all;
@@ -961,7 +970,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
 
 .bb-pkw-directory-count {
   font-size: 16px;
-  font-weight: 720;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-pkw-directory-card .bb-pkw-dense-action {
@@ -1049,7 +1058,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
 .bb-pkw-work-row-header {
   color: var(--bb-color-muted);
   font-size: 11px;
-  font-weight: 720;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-pkw-work-row > span,
@@ -1090,32 +1099,6 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
     font-size: 34px;
   }
 
-  .bb-pkw-dense-metrics {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .bb-pkw-dense-metric,
-  .bb-pkw-dense-metric:first-child {
-    padding: 14px 12px;
-  }
-
-  .bb-pkw-dense-metric:nth-child(odd) {
-    padding-left: 0;
-  }
-
-  .bb-pkw-dense-metric:nth-child(even) {
-    border-right: 0;
-    padding-right: 0;
-  }
-
-  .bb-pkw-dense-metric:nth-child(-n + 2) {
-    border-bottom: 1px solid var(--bb-color-border);
-  }
-
-  .bb-pkw-dense-metric:last-child {
-    border-bottom: 0;
-  }
-
   .bb-pkw-dense-grid,
   .bb-pkw-detail-columns {
     grid-template-columns: minmax(0, 1fr);
@@ -1123,5 +1106,244 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
 
   .bb-pkw-dense-card-wide {
     grid-column: auto;
+  }
+}
+
+/* Match the organization surface's quiet ledger treatment while keeping the
+   project workspace controls, states, and graph visualization intact. */
+.bb-pkw-graph-list {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  border-top: 1px solid var(--bb-color-border-strong);
+}
+
+.bb-pkw-graph-item {
+  min-height: 54px;
+  border: 0;
+  border-bottom: 1px solid var(--bb-color-border);
+  border-radius: 0;
+  padding-inline: var(--bb-space-3);
+  background: transparent;
+}
+
+.bb-pkw-graph-item:hover {
+  background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
+}
+
+.bb-pkw-graph-item.is-selected {
+  background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
+  box-shadow: inset 3px 0 var(--bb-color-accent);
+}
+
+.bb-pkw-evidence-list {
+  gap: 0;
+  border-top: 1px solid var(--bb-color-border-strong);
+}
+
+.bb-pkw-evidence-item {
+  border: 0;
+  border-bottom: 1px solid var(--bb-color-border);
+  border-radius: 0;
+  padding: var(--bb-space-4) 0;
+  background: transparent;
+}
+
+.bb-pkw-directory-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+.bb-pkw-directory-card {
+  border: 0;
+  border-top: 1px solid var(--bb-color-border);
+  border-radius: 0;
+  padding: var(--bb-space-4) 0;
+  background: transparent;
+}
+
+.bb-pkw-directory-card:last-child {
+  border-bottom: 1px solid var(--bb-color-border);
+}
+
+.bb-pkw-unknown {
+  border-left: 3px solid var(--bb-color-warning);
+  border-radius: 0;
+  padding: 14px 16px;
+}
+
+/* Optional host projection: context first, then the evidence ledgers. */
+.bb-pkw-overview-projection {
+  display: grid;
+  gap: var(--bb-space-5);
+  min-width: 0;
+}
+
+.bb-pkw-overview-section {
+  display: grid;
+  gap: var(--bb-space-3);
+  min-width: 0;
+  border-top: 1px solid var(--bb-color-border-strong);
+  padding-top: var(--bb-space-4);
+}
+
+.bb-pkw-overview-section h3 {
+  margin: 0;
+  color: var(--bb-color-ink);
+  font-size: 16px;
+  font-weight: var(--bb-font-weight-medium);
+  letter-spacing: -.02em;
+}
+
+.bb-pkw-overview-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--bb-space-3);
+  margin: 0;
+}
+
+.bb-pkw-overview-fact {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.bb-pkw-overview-fact dt,
+.bb-pkw-overview-fact dd {
+  margin: 0;
+}
+
+.bb-pkw-overview-fact dt {
+  color: var(--bb-color-muted);
+  font-size: 11px;
+  font-weight: var(--bb-font-weight-medium);
+}
+
+.bb-pkw-overview-fact dd {
+  overflow-wrap: anywhere;
+  color: var(--bb-color-ink);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.bb-pkw-overview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px var(--bb-space-4);
+  margin: 0;
+  color: var(--bb-color-muted);
+  font-size: 11px;
+}
+
+.bb-pkw-overview-check-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0 0 0 20px;
+}
+
+.bb-pkw-overview-check {
+  min-width: 0;
+  border-bottom: 1px solid var(--bb-color-border);
+  padding: var(--bb-space-3) 0;
+}
+
+.bb-pkw-overview-check:first-child { padding-top: 0; }
+.bb-pkw-overview-check:last-child { border-bottom: 0; padding-bottom: 0; }
+
+.bb-pkw-overview-check p {
+  margin: 4px 0 0;
+}
+
+.bb-pkw-overview-link {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  border: 0;
+  padding: 0;
+  color: var(--bb-color-accent-strong);
+  background: transparent;
+  font: inherit;
+  font-weight: var(--bb-font-weight-medium);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.bb-pkw-overview-link:hover {
+  color: var(--bb-color-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.bb-pkw-overview-link:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--bb-color-focus) 45%, var(--bb-color-panel));
+  outline-offset: 2px;
+}
+
+.bb-pkw-overview-section-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bb-space-2);
+  align-items: baseline;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.bb-pkw-overview-material-state {
+  margin: 0;
+  color: var(--bb-color-muted);
+  font-size: 11px;
+}
+
+.bb-pkw-overview-material-table {
+  min-width: 0;
+  overflow-x: auto;
+  border-top: 1px solid var(--bb-color-border-strong);
+}
+
+.bb-pkw-overview-material-row {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) minmax(110px, 1fr) minmax(130px, 1.15fr) minmax(120px, 1fr) minmax(135px, 1fr) minmax(135px, 1fr);
+  gap: var(--bb-space-2);
+  align-items: center;
+  min-width: 900px;
+  border-bottom: 1px solid var(--bb-color-border);
+  padding: var(--bb-space-3) 0;
+  color: var(--bb-color-muted);
+  font-size: 11px;
+}
+
+.bb-pkw-overview-material-header {
+  border-bottom-color: var(--bb-color-border-strong);
+  padding-block: var(--bb-space-2);
+  font-weight: var(--bb-font-weight-medium);
+}
+
+.bb-pkw-overview-material-row > span,
+.bb-pkw-overview-material-row > time {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.bb-pkw-overview-material-row > span:first-child {
+  color: var(--bb-color-ink);
+}
+
+.bb-pkw-overview-material-row:last-child { border-bottom: 0; }
+
+.bb-pkw-overview-material-empty {
+  margin: 0;
+  padding: var(--bb-space-3) 0;
+}
+
+@media (max-width: 760px) {
+  .bb-pkw-overview-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bb-pkw-overview-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

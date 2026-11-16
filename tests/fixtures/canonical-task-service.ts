@@ -3,6 +3,7 @@ import {
   type CanonicalTaskOperationRepository,
   type CanonicalTaskAuditEntry,
   type CanonicalTaskContext,
+  type CanonicalTaskMutationReadiness,
   type CanonicalTaskPage,
   type CanonicalTaskRecord,
   type CanonicalTaskRepository,
@@ -11,7 +12,10 @@ import {
 function clone<T>(value: T): T {
   return structuredClone(value);
 }
-export function createCanonicalTaskServiceFixture(options: { operationRepository?: CanonicalTaskOperationRepository } = {}) {
+export function createCanonicalTaskServiceFixture(options: {
+  operationRepository?: CanonicalTaskOperationRepository;
+  readiness?: CanonicalTaskMutationReadiness | null;
+} = {}) {
   const tasks = new Map<string, CanonicalTaskRecord>();
   const auditEntries: CanonicalTaskAuditEntry[] = [];
   const auditCalls: CanonicalTaskAuditEntry[] = [];
@@ -23,8 +27,12 @@ export function createCanonicalTaskServiceFixture(options: { operationRepository
       const items = [...tasks.values()].filter((task) => {
         const statuses = Array.isArray(filters.statuses) ? filters.statuses : [];
         const priorities = Array.isArray(filters.priorities) ? filters.priorities : [];
+        // Mirrors the production stores: any key that is present (even null) filters.
         return (statuses.length === 0 || statuses.includes(task.status))
-          && (priorities.length === 0 || priorities.includes(task.priority));
+          && (priorities.length === 0 || priorities.includes(task.priority))
+          && (!('assigneePersonId' in filters) || task.assignee_person_id === filters.assigneePersonId)
+          && (!('dueAfter' in filters) || (task.due_at != null && String(task.due_at) >= String(filters.dueAfter)))
+          && (!('dueBefore' in filters) || (task.due_at != null && String(task.due_at) <= String(filters.dueBefore)));
       });
       return { items: clone(items), totalCount: items.length, readStatus: 'read' };
     },
@@ -77,6 +85,7 @@ export function createCanonicalTaskServiceFixture(options: { operationRepository
     repository,
     auditRepository,
     ...(options.operationRepository ? { operationRepository: options.operationRepository } : {}),
+    ...(options.readiness ? { readiness: options.readiness } : {}),
     policy: {
       authorize({ action }) {
         actions.push(action);
