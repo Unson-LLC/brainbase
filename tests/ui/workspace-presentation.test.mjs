@@ -92,6 +92,17 @@ describe('shared drawer lifecycle', () => {
     const drawer = workspaceDialog(doc, { presentation: 'drawer' }); drawer.dispatch('click', { clientX: 0, clientY: 0 });
     expect(drawer.classList.contains('is-closing')).toBe(true); vi.runAllTimers(); expect(drawer.open).toBe(false);
   });
+  it('leaves backdrop dismissal to native closedby where the browser supports it', () => {
+    vi.useFakeTimers(); const doc = new Document(); doc.defaultView.HTMLDialogElement = { prototype: { closedBy: '' } };
+    const drawer = workspaceDialog(doc, { presentation: 'drawer' }); expect(drawer.getAttribute('closedby')).toBe('any');
+    drawer.dispatch('click', { clientX: 0, clientY: 0 }); expect(drawer.classList.contains('is-closing')).toBe(false); expect(drawer.open).toBe(true);
+    drawer.dispatch('cancel'); expect(drawer.classList.contains('is-closing')).toBe(true); vi.runAllTimers(); expect(drawer.open).toBe(false);
+    const inspector = workspaceDetailDrawer(doc); expect(inspector.dialog.getAttribute('closedby')).toBe('any'); expect(inspector.dialog.count('click')).toBe(0);
+  });
+  it('keeps the pointer fallback and still marks closedby where the browser lacks it', () => {
+    const doc = new Document(); const inspector = workspaceDetailDrawer(doc);
+    expect(inspector.dialog.getAttribute('closedby')).toBe('any'); expect(inspector.dialog.count('click')).toBe(1);
+  });
 });
 
 describe('shared anchored filters', () => {

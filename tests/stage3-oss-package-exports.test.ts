@@ -165,7 +165,8 @@ void evidence; void index;
         } finally {
             await rm(isolatedRoot, { recursive: true, force: true });
         }
-    }, 30_000);
+    // npm pack and a strict tsc run take over 30s on the shared CI machine under load.
+    }, 60_000);
 
     it('publishes the entity index cache as an independent subpath', async () => {
         const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));

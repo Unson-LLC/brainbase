@@ -47,7 +47,7 @@ describe('npm publish workflow', () => {
     expect(publishJob).toMatch(/npm install --global npm@11\.21\.1/u);
     expect(workflow.match(/id-token: write/gu)).toHaveLength(1);
     expect(publishJob).not.toMatch(/npm run release:publish/u);
-    expect(validationJob).toMatch(/runs-on: \$\{\{ fromJSON\(vars\.CI_RUNNER_BACKUP == 'on' && '"ubuntu-latest"' \|\| '\["self-hosted","Linux","X64","wsl-linux","nucbox-evo-x2"\]'\) \}\}/u);
+    expect(validationJob).toMatch(/runs-on: \$\{\{ fromJSON\(vars\.CI_RUNNER_BACKUP == 'on' && '"ubuntu-latest"' \|\| '\["self-hosted","Linux","X64","unson-ci-linux"\]'\) \}\}/u);
     // npm rejects provenance from self-hosted runners, so only the publish job runs GitHub-hosted.
     expect(publishJob).toMatch(/runs-on: ubuntu-latest/u);
     expect(validationJob).toContain("vars.CI_RUNNER_BACKUP == 'on'");

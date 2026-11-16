@@ -109,10 +109,10 @@
 
 .bb-jh-controls {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  margin: 0 0 6px;
+  gap: var(--bb-space-2);
+  margin: 0 0 var(--bb-space-2);
 }
 
 .bb-jh-toolbar-status {
@@ -135,9 +135,9 @@
 }
 
 .bb-jh-summary {
-  margin: 4px 0 6px;
-  color: #3b4148;
-  font-size: 12.5px;
+  margin: var(--bb-space-1) 0 var(--bb-space-2);
+  color: var(--bb-color-muted);
+  font-size: var(--bb-font-size-xs, 12px);
 }
 
 .bb-jh-summary strong {
@@ -589,11 +589,16 @@
 .bb-jh > .bb-ws-page { margin-bottom: var(--bb-space-6, 32px); }
 .bb-jh-controls { margin-bottom: var(--bb-space-4, 16px); }
 .bb-jh-checked { font-size: 11px; font-variant-numeric: tabular-nums; }
-.bb-jh-filter-fields { display: grid; gap: 16px; }
-.bb-jh-filter-fields .bb-jh-periods { flex-wrap: wrap; gap: 6px; }
-.bb-jh-filter-fields .bb-jh-normal-filters { display: grid; flex: none; gap: 16px; }
-.bb-jh-filter-fields .bb-jh-filter { display: grid; gap: 6px; }
-.bb-jh-filter-fields select { width: 100%; }
+.bb-jh-filter-fields { display: flex; flex-wrap: wrap; align-items: center; gap: var(--bb-space-2); min-width: 0; }
+.bb-jh-filter-fields .bb-jh-periods { flex-wrap: wrap; gap: var(--bb-space-1); }
+.bb-jh-filter-fields .bb-jh-normal-filters { flex: none; flex-direction: row; min-width: 0; }
+.bb-jh-filter-fields .bb-jh-filter { display: grid; gap: var(--bb-space-1); max-width: 100%; white-space: normal; }
+.bb-jh-filter-fields .bb-ws-combobox-trigger { max-width: 100%; }
+@media (max-width: 760px) {
+  .bb-jh-filter-fields { flex: 1 1 100%; }
+  .bb-jh-filter-fields .bb-jh-normal-filters { flex: 1 1 100%; }
+  .bb-jh-filter-fields .bb-jh-filter { flex: 1 1 0; }
+}
 .bb-jh-refresh { display: grid; place-items: center; flex: none; width: 32px; height: 32px; padding: 6px; }
 .bb-jh-refresh-mark { display: block; width: 16px; height: 16px; }
 .bb-jh-notifications { display: grid; gap: 8px; }
@@ -770,4 +775,17 @@
   --bb-color-muted: var(--bb-color-muted-on-surface);
   color: var(--bb-color-accent-strong);
   font-weight: var(--bb-font-weight-medium);
+}
+
+/* Explicit small warning/error treatments; details retain all coverage metadata. */
+.bb-jh-banner.is-warning {
+  padding: 6px 10px;
+  border-left: 3px solid var(--bb-color-notice-warning);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--bb-color-notice-warning) 18%, transparent), transparent), var(--bb-color-notice-background);
+}
+.bb-jh-notifications .bb-jh-banner.is-warning {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--bb-color-notice-warning) 18%, transparent), transparent), var(--bb-color-notice-background);
+}
+.bb-jh-notifications .bb-jh-banner.is-danger {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--bb-color-notice-danger) 18%, transparent), transparent), var(--bb-color-notice-background);
 }
