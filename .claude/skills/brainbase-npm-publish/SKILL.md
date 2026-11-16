@@ -36,7 +36,7 @@ description: Brainbase OSSの@unson/brainbase-mcpをnpmへ公開、検証、監�
 
 ```bash
 npm run build
-npm run test:integration:release-evidence
+BRAINBASE_RELEASE_EVIDENCE_BASE=<base-sha> npm run test:integration:release-evidence
 npx vitest run tests/npm-release.test.ts tests/npm-release-workflow.test.ts
 npm pack --dry-run
 git diff --check
@@ -47,8 +47,26 @@ git diff --check
 マージ前の検証依頼では、上の Brainbase checks を対象 PR の exact head で実行する。
 source 変更を含む、または同じ SHA の全体テスト証拠がない場合は `npm test` も実行する。
 公開前証拠の integration test は未公開の候補を対象にできる。
+
+#### registry 未公開確認の適用範囲
+
+`test:integration:release-evidence` は必ず `BRAINBASE_RELEASE_EVIDENCE_BASE=<対象 PR の base SHA>` を付けて実行する。
+適用可否はテストが `release:plan` と同じ版比較（base と head の `package.json` version）で決め、registry の状態では決めない。
+
+| PR | release:plan | registry 未公開確認 | 記録 |
+|---|---|---|---|
+| 公開しない PR（develop 向けの通常 PR など、版を上げない） | `release_required=false` | 対象外。HEAD 結合テストは skip される | `N/A（release_required=false、公開しない PR）`。PASS に数えない |
+| 公開する PR（release 枝・main 向けで版を上げる、または版を上げる任意の PR） | `release_required=true` | 必須。E404 で未公開を証明できなければ FAIL | 成功時のみ PASS |
+| base 不明・env なし | 判定しない | 必須（fail closed） | 成功時のみ PASS |
+
+- base が develop でも版を上げている PR は `release_required=true` となり、未公開確認を省かない。
+- N/A は「実施して通った」ではない。audit・tarball など他の検査結果と分けて記録し、出力の
+  `[release-evidence] registry absence for current HEAD: N/A (not PASS)` 行を証拠に添える。
+- 公開済み版での E404 失敗を env なしの実行結果として PASS 扱いしない。base SHA を付けて再実行する。
+- 未公開確認そのもの（`scripts/npm-prepublication-evidence.mjs`）は緩めない。適用範囲だけを上の表で決める。
 検証 skill のパスと commit、対象 head、各チェックの結果と証拠を記録する。
 RUNNER_VERIFY の PASS はこの段階のチェックがすべて成功した場合だけ記録する。
+上の表で N/A になった registry 未公開確認は、成功扱いにも失敗扱いにもせず N/A として残す。
 失敗、実行不能、head 不一致は PASS にしない。merge-line の必須条件は変更しない。
 
 `release:validate` の main 到達性、`release:verify` の registry 照合、registry 版の

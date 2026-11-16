@@ -3,6 +3,24 @@ import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
+import {
+  RELEASE_EVIDENCE_BASE_ENV,
+  resolveRegistryAbsenceScope
+} from '../scripts/npm-prepublication-scope.mjs';
+
+// Scope of the "target npm version is absent from the registry" check for the current HEAD.
+// Without BRAINBASE_RELEASE_EVIDENCE_BASE this fails closed (required). With a base ref, it
+// follows release:plan: a non-publishing change (release_required=false) records the check as
+// N/A (skipped, not PASS); a publishing change (release_required=true) still must prove E404.
+const currentHeadScope = resolveRegistryAbsenceScope({
+  root: process.cwd(),
+  baseRef: process.env[RELEASE_EVIDENCE_BASE_ENV]
+});
+if (currentHeadScope.registry_absence === 'not_applicable') {
+  process.stdout.write(
+    `[release-evidence] registry absence for current HEAD: N/A (not PASS) - ${currentHeadScope.reason}\n`
+  );
+}
 
 const temporaryRoots: string[] = [];
 
@@ -42,6 +60,16 @@ async function createCommittedFixture(version: string): Promise<string> {
   return fixtureRoot;
 }
 
+async function commitFixtureVersion(fixtureRoot: string, version: string): Promise<void> {
+  for (const file of ['package.json', 'package-lock.json']) {
+    const manifest = JSON.parse(await readFile(path.join(fixtureRoot, file), 'utf8'));
+    manifest.version = version;
+    if (manifest.packages?.['']) manifest.packages[''].version = version;
+    await writeFile(path.join(fixtureRoot, file), `${JSON.stringify(manifest, null, 2)}\n`);
+  }
+  execFileSync('git', ['commit', '--quiet', '-am', `bump ${version}`], { cwd: fixtureRoot });
+}
+
 function runFixture(fixtureRoot: string) {
   return spawnSync(process.execPath, ['scripts/npm-prepublication-evidence.mjs'], {
     cwd: fixtureRoot,
@@ -53,8 +81,10 @@ function runFixture(fixtureRoot: string) {
   });
 }
 
+const itWhenRegistryAbsenceApplies = it.skipIf(currentHeadScope.registry_absence === 'not_applicable');
+
 describe('npm prepublication evidence', () => {
-  it('binds production audit, tarball hashes, and registry absence to the clean current HEAD', () => {
+  itWhenRegistryAbsenceApplies('binds production audit, tarball hashes, and registry absence to the clean current HEAD', () => {
     const root = process.cwd();
     const output = execFileSync(process.execPath, ['scripts/npm-prepublication-evidence.mjs'], {
       cwd: root,
@@ -85,6 +115,50 @@ describe('npm prepublication evidence', () => {
     expect(evidence.tarball.npm_integrity).toBe(evidence.tarball.sha512);
     expect(evidence.tarball.npm_shasum).toMatch(/^[a-f0-9]{40}$/u);
   }, 120_000);
+
+  it('requires registry absence when no release evidence base is given (fail closed)', () => {
+    expect(resolveRegistryAbsenceScope({ root: process.cwd(), baseRef: undefined }).registry_absence).toBe('required');
+    expect(resolveRegistryAbsenceScope({ root: process.cwd(), baseRef: '  ' }).registry_absence).toBe('required');
+  });
+
+  it('marks registry absence N/A only when release:plan says release_required=false', async () => {
+    const fixtureRoot = await createCommittedFixture('0.4.0');
+    const scope = resolveRegistryAbsenceScope({ root: fixtureRoot, baseRef: 'HEAD' });
+
+    expect(scope).toMatchObject({
+      registry_absence: 'not_applicable',
+      before_version: '0.4.0',
+      after_version: '0.4.0'
+    });
+    expect(scope.reason).toContain('release_required=false');
+  });
+
+  it('still requires and enforces registry absence for a publishing version bump', async () => {
+    const fixtureRoot = await createCommittedFixture('0.3.0');
+    const base = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: fixtureRoot, encoding: 'utf8' }).trim();
+    await commitFixtureVersion(fixtureRoot, '0.4.0');
+
+    const scope = resolveRegistryAbsenceScope({ root: fixtureRoot, baseRef: base });
+    expect(scope).toMatchObject({
+      registry_absence: 'required',
+      before_version: '0.3.0',
+      after_version: '0.4.0'
+    });
+    expect(scope.reason).toContain('release_required=true');
+
+    // 0.4.0 is already on npm, so a publishing bump to it must keep failing the absence proof.
+    const result = runFixture(fixtureRoot);
+    expect(result.status).not.toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toContain('Target npm version is not proven absent');
+  }, 120_000);
+
+  it('fails loudly when the release evidence base ref cannot be read', async () => {
+    const fixtureRoot = await createCommittedFixture('0.4.0');
+
+    expect(() => resolveRegistryAbsenceScope({ root: fixtureRoot, baseRef: 'no-such-ref' })).toThrow(
+      'Release evidence base ref cannot be read: no-such-ref'
+    );
+  });
 
   it('rejects a version already present in the registry', async () => {
     const fixtureRoot = await createCommittedFixture('0.4.0');
