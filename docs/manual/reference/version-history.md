@@ -2,6 +2,11 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
+## 0.50.19 candidate — npm公開前
+
+- 0.50.18に、hosted MCP で Claude Code の判断hookを受け取るHTTPの受け口を公開subpath `remote-judgment-hook-http` として加える（#990）patch更新候補。認証はホストが先に確かめ、共有bearerや会社権限の認証では remote の Claude Code 宣言を受け付けない。
+- 受け付けた Stop のあと判断のjournalを組織APIへ送る公開subpath `judgment-journal-turn-publisher` を加える。既存の公開API、MCPツールの動きは変更しない。npm公開と利用ホストへの配備は別途確認する。
+
 ## 0.50.16 candidate — npm公開前
 
 - 議事録の横一覧・条件小窓・右詳細を共通部品で組み立てる明示選択を追加。現行版の最小確認状態を一覧summaryへ投影する。
