@@ -157,7 +157,10 @@ describe('Cloudflare Pages production deploy target', () => {
     expect(workflow).toContain('npm run docs:verify-public');
     expect(workflow).not.toContain('--branch=main');
     expect(workflow).not.toContain('--branch main');
-    expect(workflow).toContain("runs-on: ${{ fromJSON(vars.CI_RUNNER_BACKUP == 'on' && '\"ubuntu-latest\"' || '[\"self-hosted\",\"Linux\",\"X64\",\"unson-ci-linux\"]') }}");
+    const packageWorkflow = await readFile(new URL('../.github/workflows/test.yml', import.meta.url), 'utf8');
+    const packageRunner = packageWorkflow.match(/^    runs-on: .+$/mu)?.[0];
+    expect(packageRunner).toBeDefined();
+    expect(workflow).toContain(packageRunner!);
     expect(workflow).not.toMatch(/windows-latest|macos-latest/u);
   });
 });
