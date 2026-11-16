@@ -405,11 +405,9 @@ export async function validateRelease(
   consumerSmoke = runConsumerSmoke
 ) {
   execute('npm', ['run', 'build'], root);
-  // Cap validation's Vitest concurrency at 2 workers because the shared
-  // self-hosted runner (EVO-X2) saturates when several jobs run at once,
-  // starving tests until unrelated 5s timeouts fire. Only concurrency
-  // changes; test target, timeout, skip, and pass/fail rules stay identical.
-  execute('npm', ['test', '--', '--maxWorkers=2'], root);
+  // Shared self-hosted runners execute several jobs at once. Keep disk-heavy
+  // validation serial and allow bounded scheduling headroom for tests/cleanup.
+  execute('npm', ['test', '--', '--maxWorkers=1', '--testTimeout=30000', '--hookTimeout=30000'], root);
   execute('npm', ['audit', '--omit=dev'], root);
   const artifactDirectory = path.resolve(path.dirname(proofFile));
   const artifact = await createArtifact(root, artifactDirectory, expectedVersion, expectedSha, execute);

@@ -107,6 +107,21 @@ export function workspaceTopbar(doc, { title = '', query } = {}) {
   return header;
 }
 
+/**
+ * Backdrop click closes a modal. Browsers with `closedby` do it natively and fire `cancel`,
+ * which the caller already handles; the pointer check is the fallback where it is missing (Safari).
+ */
+function workspaceLightDismiss(doc, dialog, close) {
+  dialog.setAttribute('closedby', 'any');
+  const NativeDialog = doc.defaultView?.HTMLDialogElement;
+  if (NativeDialog && 'closedBy' in NativeDialog.prototype) return;
+  dialog.addEventListener('click', event => {
+    if (event.target !== dialog) return;
+    const rect = dialog.getBoundingClientRect();
+    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) close();
+  });
+}
+
 /** A reusable right inspector whose content can refresh without replacing the modal. */
 export function workspaceDetailDrawer(doc, { title = '詳細', opener, onClose } = {}) {
   const dialog = workspaceApplyDrawer(el(doc, 'dialog', { className: 'bb-ws-dialog bb-ws-detail-drawer' }));
@@ -135,11 +150,7 @@ export function workspaceDetailDrawer(doc, { title = '詳細', opener, onClose }
   const button = workspaceButton(doc, { text: '閉じる', onClick: () => close() });
   head.append(label, button); dialog.append(head, body); doc.body.append(dialog);
   dialog.addEventListener('cancel', event => { event.preventDefault(); close(); });
-  dialog.addEventListener('click', event => {
-    if (event.target !== dialog) return;
-    const rect = dialog.getBoundingClientRect();
-    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) close();
-  });
+  workspaceLightDismiss(doc, dialog, () => close());
   return {
     dialog,
     setContent(...content) { if (!disposed) body.replaceChildren(...content); },
@@ -158,21 +169,22 @@ export function workspaceDetailDrawer(doc, { title = '詳細', opener, onClose }
 
 /** A notice with a short label, like 接続範囲 on the organization screens. */
 export function workspaceNotice(doc, { label, text, tone = 'info', role } = {}) {
-  const notice = el(doc, 'div', { className: `bb-ws-notice is-${tone}`, attrs: { role: role ?? (tone === 'info' ? undefined : 'alert') } });
-  if (label) notice.append(el(doc, 'strong', { text: label }));
+  const notice = el(doc, 'div', { className: `bb-ws-notice is-${tone}`, attrs: { role: role ?? (tone === 'danger' ? 'alert' : tone === 'warning' ? 'status' : undefined) } });
+  const severity = tone === 'warning' ? '注意' : tone === 'danger' ? 'エラー' : '';
+  if (label || severity) notice.append(el(doc, 'strong', { text: [severity, label].filter(Boolean).join('：') }));
   appendContent(notice, doc, text);
   return notice;
 }
 
 /**
  * The notice a host passes to a part in place of (or in addition to) the
- * part's own: `{ label, text }`, where `text` is a string or an element.  Null
+ * part's own: `{ label, text, tone? }`, where `text` is a string or an element.  Null
  * when the host passed none.
  */
 export function workspaceHostNotice(doc, notice) {
   if (!notice || typeof notice !== 'object' || Array.isArray(notice)) return null;
   const label = typeof notice.label === 'string' && notice.label.trim() ? notice.label.trim() : undefined;
-  return workspaceNotice(doc, { label, text: notice.text });
+  return workspaceNotice(doc, { label, text: notice.text, tone: ['warning', 'danger'].includes(notice.tone) ? notice.tone : 'info' });
 }
 
 /** A host's extra page-head buttons, `[{ text, variant, onClick, disabled }]`, as `workspaceActions` items. */
@@ -432,11 +444,7 @@ export function workspaceDialog(doc, { title, content, opener, presentation = 'c
   const body = el(doc, 'div', { className: 'bb-ws-dialog-body' }); appendContent(body, doc, content);
   dialog.append(head, body); doc.body.append(dialog);
   dialog.addEventListener('cancel', event => { event.preventDefault(); dialog.close(); });
-  dialog.addEventListener('click', event => {
-    if (event.target !== dialog) return;
-    const rect = dialog.getBoundingClientRect();
-    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close();
-  });
+  workspaceLightDismiss(doc, dialog, () => dialog.close());
   dialog.addEventListener('close', cleanup, { once: true });
   try { dialog.showModal(); close.focus(); } catch (error) { cleanup(); throw error; }
   return dialog;
@@ -590,10 +598,11 @@ export function workspaceDismissNotification(card, onDismiss) {
 
 /** Persistent notification, closed unless `open`. The caller owns its lifecycle. */
 export function workspaceErrorCard(doc, { title, message, tone = 'danger', onRetry, open = false } = {}) {
-  const card = workspaceNotificationCard(doc, { tone, className: 'bb-ws-error-card', role: 'listitem' });
+  const card = workspaceNotificationCard(doc, { tone, className: 'bb-ws-error-card', role: tone === 'warning' ? 'status' : 'alert' });
   const details = el(doc, 'details'); details.open = open;
-  const summary = el(doc, 'summary', { attrs: { 'aria-label': `${title}の通知` } });
-  summary.append(el(doc, 'span', { className: 'bb-ws-error-symbol', text: '!', attrs: { 'aria-hidden': 'true' } }), el(doc, 'span', { text: title }));
+  const severity = tone === 'warning' ? '注意' : 'エラー';
+  const summary = el(doc, 'summary', { attrs: { 'aria-label': `${severity}：${title}の通知` } });
+  summary.append(el(doc, 'span', { className: 'bb-ws-error-symbol', text: tone === 'warning' ? '△' : '×', attrs: { 'aria-hidden': 'true' } }), el(doc, 'span', { text: title }));
   details.append(summary, el(doc, 'p', { text: message })); card.append(details);
   if (onRetry) card.append(workspaceButton(doc, { text: '再試行', attrs: { 'aria-label': `${title}を再試行` }, onClick: onRetry }));
   return card;
