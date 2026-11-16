@@ -54,7 +54,7 @@
 .bb-go-type-ledger .bb-ws-ledger-row:not(.bb-ws-ledger-head) > :first-child,
 .bb-go-relation-ledger .bb-ws-ledger-row:not(.bb-ws-ledger-head) > :first-child {
   color: var(--bb-color-ink);
-  font-weight: 690;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-go-kinds {

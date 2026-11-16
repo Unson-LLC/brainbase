@@ -62,7 +62,7 @@ body {
   padding: 0 10px 22px;
   color: var(--bb-color-rail-strong);
   font-size: 19px;
-  font-weight: 780;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1;
   letter-spacing: -.035em;
 }
@@ -83,7 +83,7 @@ body {
   padding: 0 10px;
   color: var(--bb-color-rail-muted);
   font-size: 13px;
-  font-weight: 620;
+  font-weight: var(--bb-font-weight-medium);
   text-decoration: none;
 }
 
@@ -94,6 +94,7 @@ body {
 
 .bb-shell-nav-link[aria-current="page"] {
   background: var(--bb-color-rail-active);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   color: var(--bb-color-accent);
   box-shadow: none;
 }
@@ -127,7 +128,7 @@ body {
 .bb-shell-fact-label {
   color: var(--bb-color-rail-muted);
   font-size: 10px;
-  font-weight: 620;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-shell-fact-value {
@@ -169,6 +170,7 @@ body {
   border-left: 1px solid var(--bb-color-border);
   padding: 28px 22px 36px;
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-shell-rail[hidden],
@@ -232,6 +234,7 @@ body {
   border-left: 3px solid var(--bb-color-warning);
   padding: var(--bb-space-5);
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-shell-gate h2,
@@ -276,7 +279,7 @@ body {
   background: var(--bb-color-panel);
   color: var(--bb-color-ink);
   font-size: 13px;
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
   cursor: pointer;
 }
 
@@ -337,7 +340,7 @@ body {
     left: 0;
     width: min(300px, 88vw);
     transform: translateX(-100%);
-    transition: transform .2s ease;
+    transition: transform .2s var(--bb-ease-drawer, cubic-bezier(0.32, 0.72, 0, 1));
   }
 
   .bb-shell-sidebar.is-open {
@@ -373,7 +376,7 @@ body {
     padding: 6px 12px;
     background: var(--bb-color-panel);
     color: var(--bb-color-ink);
-    font-weight: 680;
+    font-weight: var(--bb-font-weight-medium);
     cursor: pointer;
   }
 

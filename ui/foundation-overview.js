@@ -7,7 +7,10 @@
  * definitions, and hypotheses visually separate.
  */
 
-import {
+// A new lazy screen must not reuse the pre-loading-stage kit cached by an open tab.
+// The capability query gives this compatible kit its own browser module identity.
+import * as workspaceKit from './workspace-kit.js?capability=loading-stage-v1';
+const {
   workspaceButton,
   workspaceDefinition,
   workspaceLedger,
@@ -15,7 +18,7 @@ import {
   workspacePageHeader,
   workspaceSectionTitle,
   workspaceHelp, workspaceDialog, workspaceDisclosure, workspaceErrorCard, workspaceLoadingCard, workspaceLoadingStage, workspaceDismissNotification,
-} from './workspace-kit.js';
+} = workspaceKit;
 
 export const FOUNDATION_OVERVIEW_CONTRACT_VERSION = 'foundation-overview.v1';
 export const FOUNDATION_OVERVIEW_PAGE_SIZE = 50;

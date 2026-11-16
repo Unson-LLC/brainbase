@@ -600,6 +600,119 @@ describe('per-connection sync (AC-04, AC-05, AC-06, AC-08)', () => {
   });
 });
 
+describe('per-connection sync saves provider summaries (RQ-073)', () => {
+  it('reads the Plaud note and saves it as the meeting summary beside the transcript', async () => {
+    const account: PlaudAccount = { files: [{ id: 'f', start_at: '2026-10-09T01:00:00Z', segments: words(2) }], calls: [] };
+    const handler = plaudHandler(account);
+    const runtime = fakeRuntime(() => (name, args) => (name === 'get_note'
+      ? textResult([{ data_content: '## 要約\n決まったこと' }])
+      : handler(name, args)));
+    const conn = connection();
+    const stateStore = new MemoryMeetingSourceSyncStateStore();
+    const { deliveries, deliver } = collector();
+
+    const result = await syncMeetingSourceConnection({ connection: conn, runtime, stateStore, deliver, now: clock() });
+    expect(result.delivered).toEqual([{ meetingId: 'f', version: 1 }]);
+    // The summary is saved beside, not merged into, the transcript text.
+    expect(deliveries[0].transcript.text).not.toContain('決まったこと');
+    expect(deliveries[0].summary).toEqual({ state: 'ready', text: '## 要約\n決まったこと', jobId: null, retrievedAt: NOW.toISOString() });
+    expect(result.state.pendingSummaries).toEqual([]);
+  });
+
+  it('saves a still-generating Tactiq summary as unfinished and re-reads it on a later sync', async () => {
+    let summaryReady = false;
+    const meeting = { id: 'm-1', title: 'M', createdAt: '2026-10-09T01:00:00Z', attendees: [] };
+    const runtime = fakeRuntime(() => (name, args) => {
+      if (name === 'search_meetings') return textResult({ results: [meeting] });
+      if (name === 'get_meeting') {
+        return textResult(summaryReady
+          ? { id: 'm-1', detailedSummary: { status: 'ready', content: { markdown: 'done summary' } } }
+          : { id: 'm-1', detailedSummary: { status: 'generating', jobId: 'job-9' } });
+      }
+      return textResult({ meetingId: args.meetingId, page: 1, totalPages: 1, hasMore: false, entries: [{ speaker: 'A', text: 'hi', startSeconds: 0, endSeconds: 1 }] });
+    });
+    const conn = connection({ provider: 'tactiq' });
+    const stateStore = new MemoryMeetingSourceSyncStateStore();
+    const { deliveries, deliver } = collector();
+
+    const first = await syncMeetingSourceConnection({ connection: conn, runtime, stateStore, deliver, now: clock() });
+    expect(first.delivered).toEqual([{ meetingId: 'm-1', version: 1 }]);
+    expect(deliveries[0].summary).toMatchObject({ state: 'generating', text: null, jobId: 'job-9' });
+    expect(first.state.pendingSummaries).toMatchObject([{ meeting: { externalId: 'm-1' }, jobId: 'job-9', attempts: 0 }]);
+
+    // The ready summary exists now, but the retry window has not elapsed yet.
+    summaryReady = true;
+    const early = await syncMeetingSourceConnection({ connection: conn, runtime, stateStore, deliver, now: clock(new Date('2026-10-09T12:05:00Z')) });
+    expect(early.delivered).toEqual([]);
+    expect(early.state.pendingSummaries).toHaveLength(1);
+
+    // After the retry window the summary is re-read and the record re-delivered.
+    const later = await syncMeetingSourceConnection({ connection: conn, runtime, stateStore, deliver, now: clock(new Date('2026-10-09T12:30:00Z')) });
+    expect(later.delivered).toEqual([{ meetingId: 'm-1', version: 2 }]);
+    expect(later.state.pendingSummaries).toEqual([]);
+    expect(deliveries.at(-1)).toMatchObject({ version: 2, summary: { state: 'ready', text: 'done summary', jobId: null } });
+  });
+
+  it('still delivers the transcript when the provider summary cannot be read', async () => {
+    const account: PlaudAccount = { files: [{ id: 'f', start_at: '2026-10-09T01:00:00Z', segments: words(1) }], calls: [] };
+    const handler = plaudHandler(account);
+    let summaryReady = false;
+    const runtime = fakeRuntime(() => (name, args) => (name === 'get_note'
+      ? summaryReady ? textResult([{ data_content: 'recovered summary' }]) : errorResult('summary backend error')
+      : handler(name, args)));
+    const conn = connection();
+    const stateStore = new MemoryMeetingSourceSyncStateStore();
+    const { deliveries, deliver } = collector();
+
+    const result = await syncMeetingSourceConnection({ connection: conn, runtime, stateStore, deliver, now: clock() });
+    expect(result).toMatchObject({ status: 'ok', delivered: [{ meetingId: 'f', version: 1 }] });
+    expect(deliveries[0].summary).toBeNull();
+    expect(result.state.pendingSummaries).toMatchObject([{ meeting: { externalId: 'f' }, attempts: 0, jobId: null }]);
+    const retryAt = result.state.pendingSummaries![0].retryAt!;
+    expect(Date.parse(retryAt)).toBeGreaterThan(NOW.getTime());
+
+    summaryReady = true;
+    const later = await syncMeetingSourceConnection({ connection: conn, runtime, stateStore, deliver, now: clock(new Date(Date.parse(retryAt) + 1)) });
+    expect(later.delivered).toEqual([{ meetingId: 'f', version: 2 }]);
+    expect(later.state.pendingSummaries).toEqual([]);
+    expect(deliveries.at(-1)).toMatchObject({ version: 2, summary: { state: 'ready', text: 'recovered summary' } });
+  });
+
+  it.each(['generating', 'unreadable'])('records exhausted %s summaries separately and allows transcript re-checks', async (summaryState) => {
+    let transcriptReads = 0;
+    const runtime = fakeRuntime(() => (name, args) => {
+      if (name === 'search_meetings') return textResult({ results: [{ id: 'm-1', createdAt: '2026-10-09T01:00:00Z' }] });
+      if (name === 'get_meeting') return summaryState === 'unreadable'
+        ? errorResult('summary backend error')
+        : textResult({ id: 'm-1', detailedSummary: { status: 'generating', jobId: 'job-9' } });
+      transcriptReads++;
+      return textResult({ meetingId: args.meetingId, page: 1, totalPages: 1, hasMore: false, entries: [{ speaker: 'A', text: 'hi', startSeconds: 0, endSeconds: 1 }] });
+    });
+    const conn = connection({ provider: 'tactiq' });
+    const stateStore = new MemoryMeetingSourceSyncStateStore();
+    const { deliveries, deliver } = collector();
+    const input = { connection: conn, runtime, stateStore, deliver, maxAttempts: 2 };
+    let result = await syncMeetingSourceConnection({ ...input, now: clock() });
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const next = new Date(Date.parse(result.state.pendingSummaries![0].retryAt!) + 1);
+      result = await syncMeetingSourceConnection({ ...input, now: clock(next) });
+      if (attempt === 1) expect(result.state.pendingSummaries).toMatchObject([{ attempts: 1 }]);
+    }
+    expect(result.state.pendingSummaries).toEqual([]);
+    expect(result.state.unobtainableSummaries).toEqual([{
+      meetingId: 'm-1', reason: 'summary_retry_exhausted',
+      message: 'Provider summary could not be resolved and delivered within maxAttempts.',
+      decidedAt: result.state.lastAttemptAt,
+    }]);
+    expect(result.state.unobtainable).toEqual([]);
+    expect(deliveries).toHaveLength(1);
+    expect(transcriptReads).toBe(1);
+    await syncMeetingSourceConnection({ ...input, recheckDelivered: true, now: clock(new Date('2026-10-09T14:00:00Z')) });
+    expect(transcriptReads).toBe(2);
+  });
+
+});
+
 describe('two connections of the same provider stay separate (AC-07)', () => {
   it('keeps credentials, positions, pending meetings, failures, and deliveries apart, and one disconnect does not stop the other', async () => {
     const credentials = new MemoryMeetingSourceCredentialStore();

@@ -1069,7 +1069,7 @@ describe('judgment history UI', () => {
     view.dispose();
   });
 
-  it('counts a result as looked at from the record or an answer, and says how to add one', async () => {
+  it('counts a result as looked at from the record or an answer, without the small how-to-add supplement', async () => {
     const root = new FakeElement('div');
     const unchecked = { status: 'unknown', result_summary: null, outcome_status: 'unknown' };
     const answered = normalRecord({
@@ -1093,7 +1093,9 @@ describe('judgment history UI', () => {
     await view.load();
     const summary = collectText(findAll(root, (node) => node.className === 'bb-jh-summary')[0]);
     expect(summary).toContain('結果を確かめた判断 1件');
-    expect(summary).toContain('判断を開いて「良かったか」を記録すると数えられます');
+    // RQ-015: the small supplementary note is no longer shown in the normal view.
+    expect(summary).not.toContain('判断を開いて「良かったか」を記録すると数えられます');
+    expect(summary).not.toContain('結果は自動では記録されません');
     expect(summary).not.toContain('結果を確認済み');
     const rows = findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row');
     expect(rows.map(collectText).filter((value) => value.includes('あなたの確認待ち'))).toHaveLength(1);
@@ -1481,7 +1483,31 @@ describe('judgment history shared drawer and filter lifecycle', () => {
     } finally { view.dispose(); vi.useRealTimers(); }
   });
 
-  it('keeps advanced search open and the selected filter focused after reload, without stealing external search focus', async () => {
+  it('reports retrieved, matching and total counts without treating partial coverage as a confirmed zero', async () => {
+    for (const partial of [false, true]) {
+      const doc = new DialogDocument(); const root = doc.createElement('main'); doc.body.append(root);
+      const view = createJudgmentHistoryUI({
+        root, document: doc, autoLoad: false, now: OWNER_NOW,
+        fetcher: async () => ({ ok: true, json: async () => normalHome([normalRecord()], {
+          status: partial ? 'partial' : 'available',
+          coverage: { complete: !partial, total: partial ? null : 24 },
+          pagination: { next_cursor: 'next', limit: 1 },
+        }) }),
+      });
+      await view.load();
+      const summary = () => collectText(findAll(root, node => node.className === 'bb-jh-summary')[0]);
+      expect(summary()).toContain('取得済み 1件 · 条件一致 1件 · 表示 1–1件');
+      expect(summary()).toContain(partial ? '総数 未確認' : '総数 24件');
+      const search = findAll(root, node => node.tagName === 'INPUT')[0];
+      search.value = 'no matching judgment'; search.listeners.get('input')({ target: search });
+      expect(summary()).toContain('取得済み 1件 · 条件一致 0件（取得済みの範囲） · 表示 0件');
+      expect(summary()).toContain(partial ? '総数 未確認' : '総数 24件（検索前）');
+      expect(collectText(root)).toContain('0件とは確認できません');
+      view.dispose();
+    }
+  });
+
+  it('keeps filters inline and the selected filter focused after reload, without stealing search focus', async () => {
     const doc = new DialogDocument(); const root = doc.createElement('main'); doc.body.append(root);
     const requests = [];
     const view = createJudgmentHistoryUI({
@@ -1489,11 +1515,12 @@ describe('judgment history shared drawer and filter lifecycle', () => {
       fetcher: async path => { requests.push(path); return { ok: true, json: async () => normalHome([normalRecord()]) }; },
     });
     await view.load();
-    findAll(root, node => node.tagName === 'BUTTON' && node.textContent === '詳細検索')[0].listeners.get('click')();
+    expect(findAll(root, node => node.tagName === 'BUTTON' && node.textContent === '詳細検索')).toHaveLength(0);
+    expect(findAll(root, node => node.attributes['aria-label'] === '判断の履歴の絞り込み')).toHaveLength(1);
     chooseFilter(root, 'project', 'project-atlas');
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(requests.at(-1)).toContain('project=project-atlas');
-    expect(findAll(root, node => node.attributes.role === 'region')[0].hidden).toBe(false);
+    expect(findAll(root, node => node.attributes['data-filter'] === 'project')).toHaveLength(1);
     expect(doc.activeElement.attributes['data-filter']).toBe('project');
     expect(doc.activeElement.attributes['aria-label']).toBe('プロジェクト: Atlas');
     const search = findAll(root, node => node.tagName === 'INPUT')[0]; search.focus();
@@ -1648,6 +1675,68 @@ describe('judgment basis (story-judgment-history-frame-basis-v1)', () => {
     const { view, rail } = await openRecord(frameReferences, { resolveReferenceLabels });
     const text = collectText(rail);
     expect(text).toContain('名前を確かめられません守る制約として使った・守れた');
+    view.dispose();
+  });
+});
+
+describe('RQ-015 / UR-015: the small supplementary notes are dropped from the normal view', () => {
+  it('keeps the reference kind counts but drops the "no recorded name" supplement', async () => {
+    const root = new FakeElement('div');
+    const rail = new FakeElement('aside');
+    const doc = new FakeDocument();
+    root.ownerDocument = doc;
+    rail.ownerDocument = doc;
+    // A basis reference with only an id → it renders as a bare kind count, which used
+    // to carry a small explanatory note. The count stays; the note is gone.
+    const entry = proof({
+      decision: { summary: '週次報告を既存の項目で進める', basis: [{ entity_id: 'objective-weekly', layer: 'method' }], inheritance: { sources: [] } },
+    });
+    const view = createJudgmentHistoryUI({
+      root,
+      rail,
+      document: doc,
+      autoLoad: false,
+      fetcher: async () => ({ ok: true, status: 200, json: async () => home([item(entry)]) }),
+      now: OWNER_NOW,
+    });
+    await view.load();
+    findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0].listeners.get('click')();
+    const detailText = collectText(rail);
+    expect(findAll(rail, (node) => node.className === 'bb-jh-reference-kinds')).toHaveLength(1);
+    expect(detailText).not.toContain('この記録には参照の名前が残っていません');
+    expect(detailText).not.toContain('記録の詳細」のIDで確かめられます');
+    view.dispose();
+  });
+
+  it('keeps the handoff heading and copy control but drops its explanatory supplement', async () => {
+    const root = new FakeElement('div');
+    const rail = new FakeElement('aside');
+    const doc = new FakeDocument();
+    root.ownerDocument = doc;
+    rail.ownerDocument = doc;
+    const record = normalRecord({
+      record_id: 'normal-reference-note-1',
+      feedback_events: [{ record_id: 'normal-reference-note-1', event_id: 'event-reference-1', kind: 'result', content: { summary: '結果を確認した' } }],
+    });
+    const view = createJudgmentHistoryUI({
+      root,
+      rail,
+      document: doc,
+      autoLoad: false,
+      fetcher: async (path) => {
+        if (path.includes('/records/')) return { ok: true, status: 200, json: async () => ({ status: 'available', record }) };
+        return { ok: true, status: 200, json: async () => normalHome([record]) };
+      },
+      now: OWNER_NOW,
+    });
+    await view.load();
+    findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0].listeners.get('click')();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const details = findAll(rail, (node) => node.className === 'bb-jh-record-details')[0];
+    expect(collectText(details)).toContain('次の判断に引き継ぐ');
+    expect(findAll(details, (node) => node.attributes['data-action'] === 'copy-judgment-reference').length).toBeGreaterThan(0);
+    expect(collectText(details)).not.toContain('AIへ渡す参照です');
+    expect(collectText(details)).not.toContain('コピーしてAIとの会話に貼ります');
     view.dispose();
   });
 });

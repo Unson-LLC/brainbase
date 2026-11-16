@@ -1,16 +1,17 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   countInboxWaiting,
   createLocalInboxDispositions,
   createInboxUI,
   INBOX_TODAY_SECTIONS,
+  inboxDueLabel,
   inboxLaterChoices,
   inboxRouteTarget,
   parseInboxRoute,
   sortInboxItems,
   withLocalInboxDispositions,
 } from '../../ui/inbox.js';
-import { collectText, FakeDocument, findAll, waitFor } from './graph-ui-harness.mjs';
+import { collectText, FakeDocument, FakeElement, findAll, waitFor } from './graph-ui-harness.mjs';
 
 const NOW = new Date('2026-10-18T03:00:00.000Z');
 
@@ -69,6 +70,7 @@ async function mount(options = {}) {
     route: options.route,
     layout: options.layout,
     undoWindowMs: options.undoWindowMs,
+    doneShownMs: options.doneShownMs,
     timers: options.timers,
     onRouteChange: (route) => { routes.push(route); view.applyRoute(route); },
     onNavigate: (href) => navigations.push(href),
@@ -83,7 +85,7 @@ const text = (root) => collectText(root);
 const sections = (root) => findAll(root, (node) => node.tagName === 'SECTION' && node.attributes?.['data-group']);
 const todaySections = (root) => findAll(root, (node) => node.tagName === 'SECTION' && node.attributes?.['data-section']);
 const rowsOf = (node) => findAll(node, (child) => child.attributes?.['data-inbox-item']);
-const buttonIn = (node, label) => findAll(node, (child) => child.tagName === 'BUTTON' && collectText(child) === label)[0];
+const buttonIn = (node, label) => findAll(node, (child) => child.tagName === 'BUTTON' && (child.attributes?.['aria-label'] === label || child.textContent === label || collectText(child) === label))[0];
 const linkIn = (node) => findAll(node, (child) => child.tagName === 'A')[0];
 
 function fakeTimers() {
@@ -213,6 +215,7 @@ describe('対応待ち', () => {
   it('タブを2つ出し、することごとの区画を決まった順に並べ、行の無い区画を出さない', async () => {
     const { root } = await mount();
     const tabs = findAll(root, (node) => node.attributes?.role === 'tab').map(collectText);
+    expect(findAll(root, node => node.attributes?.role === 'tablist')[0].className.split(' ')).not.toContain('bb-ws-tabs--prominent');
     expect(tabs[0]).toMatch(/^対応待ち/u);
     expect(tabs[1]).toBe('お知らせ');
     expect(sections(root).map((node) => node.attributes['data-group'])).toEqual(['triage', 'task']);
@@ -267,6 +270,8 @@ describe('対応待ち', () => {
     const { root } = await mount({ port: fakePort({ readInbox }) });
     expect(text(root)).toContain('受信箱を読めませんでした');
     expect(text(root)).toContain('0件ではありません');
+    // 一覧の代わりに置く失敗なので、理由を開かずに読める。
+    expect(findAll(root, (node) => node.tagName === 'DETAILS').map((node) => node.open)).toEqual([true]);
     readInbox.mockResolvedValueOnce(okResult());
     buttonIn(root, '再試行').dispatch('click');
     await waitFor(() => text(root).includes('見積もりを確認する'));
@@ -305,6 +310,48 @@ describe('今日決めること（layout: today）', () => {
     });
     expect(text(root)).toContain('今日決めることはありません');
     expect(text(root)).not.toContain('今日決めること 0件');
+  });
+
+  it('決めることの取得元が読めないときは0件に見せず、読めなかったことを件数に出す', async () => {
+    const { root } = await mount({
+      layout: 'today',
+      port: fakePort({
+        readInbox: vi.fn(async () => todayResult({
+          sources: [
+            { ...TODAY_SOURCES[0], status: 'unavailable', reason: 'upstream_unavailable' },
+            { ...TODAY_SOURCES[1], status: 'unavailable', reason: 'request_failed' },
+            TODAY_SOURCES[2],
+            TODAY_SOURCES[3],
+          ],
+          items: todayItems().filter((entry) => !['answer', 'approve'].includes(entry.group)),
+        })),
+      }),
+    });
+    const count = findAll(root, (node) => node.className === 'bb-inbox-today-count is-unreadable')[0];
+    expect(count).toBeDefined();
+    expect(collectText(count)).toContain('今日決めることを読めませんでした');
+    expect(collectText(count)).toContain('0件ではありません');
+    expect(count.attributes.role).toBe('status');
+    expect(text(root)).not.toContain('今日決めることはありません');
+  });
+
+  it('取得元が未接続なだけなら今日決めることはありませんのまま出す', async () => {
+    const { root } = await mount({
+      layout: 'today',
+      port: fakePort({
+        readInbox: vi.fn(async () => todayResult({
+          sources: [
+            { ...TODAY_SOURCES[0], status: 'not_connected' },
+            { ...TODAY_SOURCES[1], status: 'not_connected' },
+            TODAY_SOURCES[2],
+            TODAY_SOURCES[3],
+          ],
+          items: todayItems().filter((entry) => !['answer', 'approve'].includes(entry.group)),
+        })),
+      }),
+    });
+    expect(text(root)).toContain('今日決めることはありません');
+    expect(text(root)).not.toContain('今日決めることを読めませんでした');
   });
 
   it('段の中は sortInboxItems のまま並べ、待ち日数と3日超の is-long を出す', async () => {
@@ -725,6 +772,9 @@ describe('元に戻す（undoWindowMs）', () => {
     expect(port.runAction).toHaveBeenCalledWith('approval', 'approve');
     expect(text(root)).not.toContain('「承認」を実行します。');
     expect(timers.size()).toBe(0);
+    // The only timer is the one that holds the result before the rows are read again.
+    await waitFor(() => timers.size() === 1);
+    timers.run([...timers.scheduled.keys()][0]);
     await waitFor(() => port.readInbox.mock.calls.length === 2);
   });
 });
@@ -779,4 +829,356 @@ describe('お知らせ', () => {
     expect(text(root)).toContain('お知らせはまだ集めていません');
     expect(text(root)).not.toContain('待っているものはありません');
   });
+});
+
+describe('行の操作の手触り', () => {
+  const APPROVE_SOURCES = [{ kind: 'agent_registration', label: 'AIの登録申請', group: 'approve', status: 'ok' }];
+
+  function registration(overrides = {}) {
+    return item('reg-1', {
+      kind: 'agent_registration',
+      group: 'approve',
+      title: 'Codex（研究用）の登録申請',
+      detail: '申請の理由: 調査を任せたい',
+      facts: [
+        { label: '依頼', value: '田中さん' },
+        { label: '対象', value: 'brainbase' },
+        { label: '空', value: '  ' },
+      ],
+      actions: [
+        { id: 'approve', label: '承認する', tone: 'primary', doneLabel: '承認しました' },
+        { id: 'reject', label: '断る', tone: 'danger', confirm: 'この申請を断ります。取り消せません。', doneLabel: '断りました' },
+      ],
+      ...overrides,
+    });
+  }
+
+  function registrationPort(overrides = {}) {
+    return fakePort({
+      readInbox: vi.fn(async () => okResult({ sources: APPROVE_SOURCES, items: [registration()], uncollected: [] })),
+      runAction: vi.fn(async () => ({ status: 'ok' })),
+      ...overrides,
+    });
+  }
+
+  const announcerOf = (root) => findAll(root, (node) => String(node.className).includes('bb-inbox-announcer'))[0];
+
+  it('送っている間は行のボタンを止め、もう一度押しても1回しか送らない', async () => {
+    let release;
+    const runAction = vi.fn(() => new Promise((resolve) => { release = resolve; }));
+    const timers = fakeTimers();
+    const { root } = await mount({ port: registrationPort({ runAction }), timers });
+    buttonIn(rowsOf(root)[0], '承認する').dispatch('click');
+    const row = rowsOf(root)[0];
+    expect(row.attributes['aria-busy']).toBe('true');
+    expect(text(row)).toContain('送っています');
+    for (const label of ['承認する', '断る', 'あとで', '片付けた']) {
+      expect(buttonIn(row, label).attributes.disabled).toBe('');
+    }
+    // A press on a disabled button can still reach the handler in old browsers; it sends nothing.
+    buttonIn(row, '承認する').dispatch('click');
+    expect(runAction).toHaveBeenCalledTimes(1);
+    release({ status: 'ok' });
+    await waitFor(() => text(root).includes('✓ 承認しました'));
+  });
+
+  it('成功してから結果を出し、表示中は件数に数えず、時間が過ぎてから読み直す', async () => {
+    const timers = fakeTimers();
+    const port = registrationPort();
+    const { root, counts } = await mount({ port, timers, doneShownMs: 900 });
+    expect(counts.at(-1).count).toBe(1);
+    buttonIn(rowsOf(root)[0], '承認する').dispatch('click');
+    await waitFor(() => text(root).includes('✓ 承認しました'));
+    const row = rowsOf(root)[0];
+    expect(buttonIn(row, '断る')).toBeUndefined();
+    expect(counts.at(-1).count).toBe(0);
+    expect(port.readInbox).toHaveBeenCalledTimes(1);
+    const [id] = [...timers.scheduled.keys()];
+    expect(timers.scheduled.get(id).ms).toBe(900);
+    port.readInbox.mockResolvedValueOnce(okResult({ sources: APPROVE_SOURCES, items: [], uncollected: [] }));
+    timers.run(id);
+    await waitFor(() => port.readInbox.mock.calls.length === 2);
+    await waitFor(() => rowsOf(root).length === 0);
+  });
+
+  it('失敗したら結果を出さず、行とボタンを戻して理由を出す', async () => {
+    const timers = fakeTimers();
+    const port = registrationPort({ runAction: vi.fn(async () => ({ status: 'unavailable', reason: 'forbidden' })) });
+    const { root } = await mount({ port, timers });
+    buttonIn(rowsOf(root)[0], '承認する').dispatch('click');
+    await waitFor(() => text(root).includes('「承認する」を実行できませんでした'));
+    const row = rowsOf(root)[0];
+    expect(text(root)).not.toContain('✓');
+    expect(row.attributes['aria-busy']).toBeUndefined();
+    expect(buttonIn(row, '承認する').attributes.disabled).toBeUndefined();
+    expect(timers.size()).toBe(0);
+  });
+
+  it('最初の件数は読み上げず、成功のときは結果と件数をまとめて読む', async () => {
+    const timers = fakeTimers();
+    const { root } = await mount({ port: registrationPort(), timers });
+    expect(announcerOf(root).attributes.role).toBe('status');
+    expect(announcerOf(root).attributes['aria-live']).toBe('polite');
+    expect(announcerOf(root).textContent).toBe('');
+    buttonIn(rowsOf(root)[0], '承認する').dispatch('click');
+    await waitFor(() => announcerOf(root).textContent === '承認しました。対応待ち 0件');
+  });
+
+  it('件数が変わったら対応待ちの件数を読む', async () => {
+    const { root } = await mount({ port: fakePort() });
+    buttonIn(rowsOf(root).find((node) => node.attributes['data-inbox-item'] === 'task-a'), '片付けた').dispatch('click');
+    await waitFor(() => announcerOf(root).textContent === '対応待ち 16件');
+  });
+
+  it('名前つきの項目を題名の下に並べ、空の項目は出さない', async () => {
+    const { root } = await mount({ port: registrationPort() });
+    const list = findAll(rowsOf(root)[0], (node) => node.tagName === 'DL')[0];
+    expect(findAll(list, (node) => node.tagName === 'DT').map(collectText)).toEqual(['依頼', '対象']);
+    expect(findAll(list, (node) => node.tagName === 'DD').map(collectText)).toEqual(['田中さん', 'brainbase']);
+    expect(text(rowsOf(root)[0])).toContain('申請の理由: 調査を任せたい');
+  });
+
+  describe('取り消せない操作の確認', () => {
+    const focused = [];
+    beforeEach(() => {
+      focused.length = 0;
+      FakeElement.prototype.focus = function focus() { focused.push(this); };
+    });
+    afterEach(() => { delete FakeElement.prototype.focus; });
+
+    it('1回目では送らず、行の中に確かめる帯を出して送るボタンへフォーカスを移す', async () => {
+      const port = registrationPort();
+      const { root } = await mount({ port });
+      buttonIn(rowsOf(root)[0], '断る').dispatch('click');
+      expect(port.runAction).not.toHaveBeenCalled();
+      const row = rowsOf(root)[0];
+      expect(text(row)).toContain('この申請を断ります。取り消せません。');
+      expect(buttonIn(row, '承認する')).toBeUndefined();
+      expect(focused.at(-1)).toBe(buttonIn(row, '断る'));
+      buttonIn(row, '断る').dispatch('click');
+      expect(port.runAction).toHaveBeenCalledWith('reg-1', 'reject');
+      await waitFor(() => text(root).includes('✓ 断りました'));
+    });
+
+    it('やめるで送らずに戻し、元のボタンへフォーカスを返す', async () => {
+      const port = registrationPort();
+      const { root } = await mount({ port });
+      buttonIn(rowsOf(root)[0], '断る').dispatch('click');
+      buttonIn(rowsOf(root)[0], 'やめる').dispatch('click');
+      const row = rowsOf(root)[0];
+      expect(text(row)).not.toContain('取り消せません');
+      expect(buttonIn(row, '承認する')).toBeDefined();
+      expect(focused.at(-1)).toBe(buttonIn(row, '断る'));
+      expect(port.runAction).not.toHaveBeenCalled();
+    });
+
+    it('確かめてから元に戻すの帯へ進む（undoWindowMs）', async () => {
+      const timers = fakeTimers();
+      const port = registrationPort();
+      const { root } = await mount({ port, undoWindowMs: 5000, timers });
+      buttonIn(rowsOf(root)[0], '断る').dispatch('click');
+      expect(timers.size()).toBe(0);
+      buttonIn(rowsOf(root)[0], '断る').dispatch('click');
+      expect(text(root)).toContain('「断る」を実行します。');
+      expect(port.runAction).not.toHaveBeenCalled();
+    });
+
+    it('読み直しで行の版が変わったら帯を閉じる', async () => {
+      const port = registrationPort();
+      const { root, view } = await mount({ port });
+      buttonIn(rowsOf(root)[0], '断る').dispatch('click');
+      port.readInbox.mockResolvedValueOnce(okResult({ sources: APPROVE_SOURCES, items: [registration({ revision: 'r2' })], uncollected: [] }));
+      await view.load();
+      expect(text(rowsOf(root)[0])).not.toContain('取り消せません');
+      expect(buttonIn(rowsOf(root)[0], '承認する')).toBeDefined();
+    });
+  });
+
+  describe('期限', () => {
+    it('過ぎた・24時間以内・それより先で言葉を変える', () => {
+      expect(inboxDueLabel('2026-10-18T02:00:00.000Z', NOW)).toEqual({ state: 'expired', text: '期限切れ' });
+      expect(inboxDueLabel('2026-10-18T08:00:00.000Z', NOW)).toEqual({ state: 'soon', text: '期限まであと5時間' });
+      expect(inboxDueLabel('2026-10-18T03:20:00.000Z', NOW)).toEqual({ state: 'soon', text: '期限まであと20分' });
+      expect(inboxDueLabel('2026-10-20T00:00:00.000Z', NOW).state).toBe('later');
+      expect(inboxDueLabel('2026-10-20T00:00:00.000Z', NOW).text).toMatch(/^期限 10\/20 /u);
+      expect(inboxDueLabel(null, NOW)).toBeNull();
+    });
+
+    it('期限切れでも行を隠さず、操作も送らない', async () => {
+      const port = registrationPort({
+        readInbox: vi.fn(async () => okResult({ sources: APPROVE_SOURCES, items: [registration({ dueAt: '2026-10-17T00:00:00.000Z' })], uncollected: [] })),
+      });
+      const { root, counts } = await mount({ port });
+      const due = findAll(rowsOf(root)[0], (node) => String(node.className).startsWith('bb-inbox-due'))[0];
+      expect(due.className).toBe('bb-inbox-due is-expired');
+      expect(collectText(due)).toBe('期限切れ');
+      expect(counts.at(-1).count).toBe(1);
+      expect(port.runAction).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe('opt-in compact inbox cards', () => {
+  it('maps four tabs to existing routes without fabricating notices', async () => {
+    const { root, routes } = await mount({ layout: 'cards' });
+    const tabs = () => findAll(root, n => n.attributes?.role === 'tab');
+    expect(tabs().map(n => n.textContent)).toEqual(['対応待ち', 'お知らせ', '保留', '対応済']);
+    expect(findAll(root, n => n.attributes?.role === 'tablist')[0].className.split(' ')).toContain('bb-ws-tabs--prominent');
+    tabs()[2].dispatch('click'); expect(routes.at(-1)).toEqual({ tab: 'waiting', view: 'later' });
+    tabs()[3].dispatch('click'); expect(routes.at(-1)).toEqual({ tab: 'waiting', view: 'cleared' });
+    tabs()[1].dispatch('click'); expect(text(root)).toContain('お知らせはまだ集めていません');
+  });
+  it('opens details without acting, preserves the source link, and closes with Escape', async () => {
+    const port = fakePort({ runAction: vi.fn() }); const { root, navigations } = await mount({ layout: 'cards', port });
+    const row = () => rowsOf(root).find(n => n.attributes['data-inbox-item'] === 'task-a');
+    buttonIn(row(), '確認').dispatch('click'); expect(port.runAction).not.toHaveBeenCalled(); expect(navigations).toEqual([]);
+    findAll(row(), n => n.className === 'bb-inbox-card-detail')[0].dispatch('keydown', { key: 'Escape' });
+    expect(findAll(row(), n => n.className === 'bb-inbox-card-detail')[0].attributes).toHaveProperty('hidden');
+    expect(port.setDisposition).not.toHaveBeenCalled();
+    buttonIn(row(), '確認').dispatch('click');
+    const source = linkIn(row()); expect(source.attributes.href).toBe('#tasks?task=task-a'); source.dispatch('click');
+    expect(navigations).toEqual(['#tasks?task=task-a']);
+    expect(port.setDisposition).toHaveBeenCalledWith('task-a', { state: 'cleared', revision: 'r1' });
+  });
+  it('keeps irreversible confirmation and failures without a false success', async () => {
+    const request = item('request', { kind: 'agent_request', group: 'approve', actions: [{ id: 'deny', label: '断る', tone: 'danger', confirm: '取り消せません。' }] });
+    const port = fakePort({ readInbox: vi.fn(async () => okResult({ items: [request], sources: [{ kind: 'agent_request', group: 'approve', label: '申請', status: 'ok' }] })), runAction: vi.fn(async () => ({ status: 'unavailable', reason: 'forbidden' })) });
+    const { root } = await mount({ layout: 'cards', port });
+    buttonIn(root, '却下').dispatch('click'); expect(text(root)).toContain('取り消せません'); expect(port.runAction).not.toHaveBeenCalled();
+    const band = findAll(root, n => n.className === 'bb-inbox-confirm')[0]; buttonIn(band, '却下').dispatch('click');
+    await waitFor(() => text(root).includes('forbidden')); expect(port.runAction).toHaveBeenCalledTimes(1); expect(rowsOf(root)).toHaveLength(1);
+  });
+  it('keeps unreadable kinds visible and qualifies an incomplete count', async () => {
+    const { root } = await mount({ layout: 'cards', port: fakePort({ readInbox: vi.fn(async () => okResult({ items: [], sources: [{ kind: 'assigned_task', group: 'task', label: 'タスク', status: 'unavailable', reason: 'forbidden' }] })) }) });
+    expect(text(root)).toContain('0件ではありません'); expect(text(root)).not.toContain('待っているものはありません');
+    expect(findAll(root, n => n.attributes?.role === 'tab')[0].children[0].textContent).toBe('0+');
+  });
+  it('changes only the inbox disposition on 対応済 and resumes it', async () => {
+    const port = fakePort({ runAction: vi.fn() }); const { root } = await mount({ layout: 'cards', port });
+    const row = () => rowsOf(root).find(n => n.attributes['data-inbox-item'] === 'task-a');
+    buttonIn(row(), '対応済').dispatch('click'); expect(port.runAction).not.toHaveBeenCalled();
+    expect(port.setDisposition).toHaveBeenCalledWith('task-a', { state: 'cleared', revision: 'r1' });
+    findAll(root, n => n.attributes?.role === 'tab')[3].dispatch('click'); expect(row()).toBeTruthy(); buttonIn(row(), '再開').dispatch('click');
+    expect(port.setDisposition).toHaveBeenLastCalledWith('task-a', { state: 'open' });
+  });
+});
+
+describe('card filters follow kinds instead of work groups', () => {
+  it('includes waiting tasks and suggested meetings in their respective filters', async () => {
+    const entries = [item('waiting', { kind: 'waiting_task', group: 'answer' }), item('bulk', { kind: 'meeting_triage', group: 'triage' }), item('memory', { kind: 'memory_candidates', group: 'triage' })];
+    const port = fakePort({ readInbox: vi.fn(async () => okResult({ items: entries, sources: entries.map(row => ({ kind: row.kind, group: row.group, status: 'ok' })) })) });
+    const { root } = await mount({ layout: 'cards', port });
+    buttonIn(root, 'タスク').dispatch('click'); expect(rowsOf(root).map(row => row.attributes['data-inbox-item'])).toEqual(['waiting']);
+    buttonIn(root, '会議振り分け').dispatch('click'); expect(rowsOf(root).map(row => row.attributes['data-inbox-item'])).toEqual(['bulk']);
+    buttonIn(root, '記憶・取り込み').dispatch('click'); expect(rowsOf(root).map(row => row.attributes['data-inbox-item'])).toEqual(['memory']);
+  });
+  it('does not qualify a known notice count because another inbox source failed', async () => {
+    const port = fakePort({ readInbox: vi.fn(async () => okResult({ items: [], sources: [{ kind: 'assigned_task', group: 'task', label: 'タスク', status: 'unavailable' }] })), readNotices: vi.fn(async () => ({ status: 'ok', items: [] })) });
+    const { root } = await mount({ layout: 'cards', port });
+    findAll(root, n => n.attributes?.role === 'tab')[1].dispatch('click');
+    await waitFor(() => collectText(findAll(root, n => n.attributes?.role === 'tab')[1]) === 'お知らせ0');
+    expect(collectText(findAll(root, n => n.attributes?.role === 'tab')[1])).not.toContain('+');
+  });
+});
+
+describe('cards preserve exceptional source states and focus', () => {
+  it('renders a readable future group instead of silently dropping its card or count', async () => {
+    const future = item('future', { kind: 'future_kind', group: 'future_group', units: 2 });
+    const { root, counts } = await mount({ layout: 'cards', port: fakePort({ readInbox: vi.fn(async () => okResult({ items: [future], sources: [{ kind: 'future_kind', group: 'future_group', status: 'ok' }] })) }) });
+    expect(rowsOf(root)).toHaveLength(1); expect(text(root)).toContain('その他');
+    expect(collectText(findAll(root, n => n.attributes?.role === 'tab')[0])).toBe('対応待ち2');
+    expect(counts.at(-1).count).toBe(2);
+  });
+  it('does not state an empty held/cleared queue as fact when sources cannot be read', async () => {
+    const { root } = await mount({ layout: 'cards', port: fakePort({ readInbox: vi.fn(async () => okResult({ items: [], sources: [{ kind: 'assigned_task', group: 'task', label: 'タスク', status: 'error' }] })) }) });
+    for (const index of [2, 3]) {
+      findAll(root, n => n.attributes?.role === 'tab')[index].dispatch('click');
+      expect(text(root)).toContain('0件ではありません');
+      expect(collectText(findAll(root, n => n.attributes?.role === 'tab')[index])).toContain('0+');
+    }
+  });
+  it('returns focus to the clicked filter and the exact detail disclosure control', async () => {
+    const document = new FakeDocument();
+    document.createElement = tag => { const node = new FakeElement(tag); node.focus = () => { document.activeElement = node; }; return node; };
+    const root = document.createElement('div');
+    const view = createInboxUI({ root, document, layout: 'cards', port: fakePort(), now: () => NOW });
+    await view.load();
+    buttonIn(root, 'タスク').dispatch('click'); expect(document.activeElement.attributes['aria-label']).toMatch(/^タスク、/);
+    const row = () => rowsOf(root).find(n => n.attributes['data-inbox-item'] === 'task-a');
+    buttonIn(row(), '確認').dispatch('click');
+    findAll(row(), n => n.className === 'bb-inbox-card-detail')[0].dispatch('keydown', { key: 'Escape' });
+    expect(document.activeElement.textContent).toBe('確認');
+  });
+});
+
+
+describe('cards retain keyboard position and unknown counts', () => {
+  it('keeps focus on toggled details, hold controls and selected tabs', async () => {
+    const document = new FakeDocument();
+    document.createElement = tag => { const node = new FakeElement(tag); node.focus = () => { document.activeElement = node; }; return node; };
+    const root = document.createElement('div');
+    let view;
+    view = createInboxUI({ root, document, layout: 'cards', port: fakePort(), now: () => NOW, onRouteChange: route => view.applyRoute(route) });
+    await view.load();
+    const row = () => rowsOf(root).find(n => n.attributes['data-inbox-item'] === 'task-a');
+    buttonIn(row(), '確認').dispatch('click'); buttonIn(row(), '確認').dispatch('click');
+    expect(document.activeElement).toBe(buttonIn(row(), '確認'));
+    buttonIn(row(), '保留').dispatch('click'); buttonIn(row(), '保留').dispatch('click');
+    expect(document.activeElement).toBe(buttonIn(row(), '保留'));
+    findAll(root, n => n.attributes?.role === 'tab')[2].dispatch('click');
+    expect(document.activeElement).toBe(findAll(root, n => n.attributes?.role === 'tab')[2]);
+  });
+  it('preserves the legacy unknown count when every source is unavailable', async () => {
+    const result = okResult({ items: [], sources: SOURCES.map(source => ({ ...source, status: 'unavailable' })) });
+    const expected = countInboxWaiting(result, NOW);
+    const { counts } = await mount({ layout: 'cards', port: fakePort({ readInbox: vi.fn(async () => result) }) });
+    expect(counts.at(-1)).toEqual(expected);
+    expect(counts.at(-1).unreadable).toEqual(SOURCES.map(source => source.label));
+  });
+});
+
+
+it('cards preserve a wholly unreadable inbox count as unknown', async () => {
+  const result = { status: 'unavailable', reason: 'forbidden' };
+  const { root, counts } = await mount({ layout: 'cards', port: fakePort({ readInbox: vi.fn(async () => result) }) });
+  for (const label of ['承認', '会議振り分け', '記憶・取り込み', 'タスク']) {
+    expect(collectText(buttonIn(root, label))).not.toMatch(/\(0\)/);
+    expect(buttonIn(root, label).attributes['aria-label']).toBe(label);
+  }
+  expect(counts.at(-1)).toEqual(countInboxWaiting(result, NOW));
+  expect(counts.at(-1).count).toBeNull();
+});
+
+
+describe('adopted card presentation', () => {
+  it('keeps category and contextual facts together without changing the title or actions', async () => {
+    const entry = item('request-card', { kind: 'agent_connection_requests', group: 'approve', facts: [{ label: '対象', value: 'sample-project' }] });
+    const { root } = await mount({ layout: 'cards', port: fakePort({ readInbox: vi.fn(async () => okResult({ items: [entry], sources: [{ kind: entry.kind, group: entry.group, status: 'ok' }] })) }) });
+    const row = rowsOf(root)[0];
+    expect(row.attributes['data-group']).toBe('approve');
+    expect(findAll(row, n => n.className === 'bb-inbox-card-badge')[0].textContent).toBe('利用申請');
+    const metadata = findAll(row, n => n.className === 'bb-inbox-card-metadata')[0];
+    expect(text(metadata)).toContain('sample-project');
+    expect(buttonIn(row, '確認')).toBeDefined();
+  });
+  it('qualifies a filter count when that kind cannot be read', async () => {
+    const { root } = await mount({ layout: 'cards', port: fakePort({ readInbox: vi.fn(async () => okResult({ items: [], sources: [{ kind: 'meeting_triage', group: 'answer', label: '会議', status: 'unavailable' }] })) }) });
+    expect(collectText(buttonIn(root, '会議振り分け'))).toContain('(0+)');
+    expect(buttonIn(root, '会議振り分け').attributes['aria-label']).toBe('会議振り分け、0件以上、一部取得できません');
+    expect(collectText(buttonIn(root, 'タスク'))).not.toContain('+');
+  });
+});
+
+it('cards do not promise publication without an available publication action', async () => {
+  const { root } = await mount({ layout: 'cards' });
+  const row = rowsOf(root).find(node => node.attributes['data-inbox-item'] === 'triage');
+  expect(text(row)).toContain('会議の振り分け');
+  expect(text(row)).not.toContain('会議の一括公開');
+});
+
+it('cards retain the kind in the urgent badge as well as the deadline warning', async () => {
+  const entry = item('urgent-request', { kind: 'agent_connection_requests', group: 'approve', dueAt: new Date(NOW.getTime() - 1000).toISOString() });
+  const { root } = await mount({ layout: 'cards', port: fakePort({ readInbox: vi.fn(async () => okResult({ items: [entry], sources: [{ kind: entry.kind, group: entry.group, status: 'ok' }] })) }) });
+  const badge = findAll(rowsOf(root)[0], node => node.className === 'bb-inbox-card-badge is-urgent')[0];
+  expect(badge.textContent).toBe('利用申請・期限切れ');
 });

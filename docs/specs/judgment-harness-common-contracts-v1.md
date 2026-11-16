@@ -10,6 +10,7 @@
 | --- | --- | --- |
 | `judgment-execution-outcome` | 実行状態、段階、失敗、再開位置、証拠参照の検証 | transcript、process、Task、SQLite、外部readback |
 | `judgment-node-evidence` | ノード結果の正規化、成功業務イベントとの順序付き結合 | tool実行、transcript保存、Hostの権限判定 |
+| `judgment-frame-evidence` | 一覧・本文・記録の証拠の正規化、1依頼の完結判定、同じ会話で読んだ一覧のdigestの収集（[Story](../stories/story-judgment-frame-evidence-common.md)） | 記録の置き場の決定、tool実行、差し戻すかどうかの判断 |
 | `judgment-event-adapter` | 完了回答の監査行除去、秘密隔離、非権威knowledge event投影 | 組織ID、Task保存、outbox配送、グラフ昇格 |
 | `judgment-event-outbox` | `varDir`/`root`注入、原子enqueue、event-id冪等性、sender lock、post/readback再送、receipt/dead-letter | Task・continuation、tenant/組織ID、認証、HTTP relay、canonical readback URL |
 | `judgment-host` | 既存Hostの公開入口 | 新しい別Hostの複製 |

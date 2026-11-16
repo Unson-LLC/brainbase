@@ -7,12 +7,33 @@
 
 import { workspaceNotificationCard } from '../../workspace-kit.js';
 
-const SKY_MODES = Object.freeze([
+// Shared so the standard presentation can reuse the same sky artwork and labels
+// (RQ-152). The icons are fixed code, never host data.
+export const SKY_MODES = Object.freeze([
   { value: 'auto', label: '自動（現在時刻）', icon: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5v5l3 1.8"/>' },
   { value: 'day', label: '昼', icon: '<circle cx="12" cy="12" r="5" fill="currentColor" fill-opacity=".12"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/><path d="M10 12h.01M14 12h.01m-4 2.5q2 1.6 4 0"/>' },
   { value: 'dusk', label: '夕方', icon: '<path d="M5.5 13a6.5 6.5 0 0 1 13 0" fill="currentColor" fill-opacity=".12"/><path d="M12 2v2M3.5 5.5 5 7m15.5-1.5L19 7M2 13h20M3 17q3-2 6 0t6 0 6 0M6 21q3-2 6 0t6 0"/>' },
   { value: 'night', label: '夜', icon: '<path d="M19.5 15.5A8.5 8.5 0 0 1 8.5 4.5a8.5 8.5 0 1 0 11 11Z" fill="currentColor" fill-opacity=".12"/><path d="m18 3 .7 2.3L21 6l-2.3.7L18 9l-.7-2.3L15 6l2.3-.7ZM22 11h.01"/>' },
 ]);
+
+/** The sky mode after `mode`, cycling in the listed order. */
+export function nextSkyMode(mode) {
+  const index = SKY_MODES.findIndex((entry) => entry.value === mode);
+  return SKY_MODES[(Math.max(0, index) + 1) % SKY_MODES.length];
+}
+
+/** "空：{現在}。次は{次}" — the single sky-control label, used in both presentations. */
+export function skyModeLabel(mode) {
+  const match = SKY_MODES.find((entry) => entry.value === mode) ?? SKY_MODES[0];
+  return `空：${match.label}。次は${nextSkyMode(match.value).label}`;
+}
+
+/** The fixed-artwork SVG for a sky mode, as inner HTML for an aria-hidden icon span. */
+export function skyModeIconSvg(mode) {
+  const match = SKY_MODES.find((entry) => entry.value === mode) ?? SKY_MODES[0];
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${match.icon}</svg>`;
+}
+
 const CLOSE_DELAY = 220;
 let instanceId = 0;
 
@@ -221,9 +242,8 @@ export function createWorldCanvasUI({
     if (!match) return;
     skyMode = mode;
     // Artwork is fixed code, never host data. Native button activation covers Enter/Space.
-    skyIcon.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${match.icon}</svg>`;
-    const next = SKY_MODES[(SKY_MODES.indexOf(match) + 1) % SKY_MODES.length];
-    const label = `空：${match.label}。次は${next.label}`;
+    skyIcon.innerHTML = skyModeIconSvg(mode);
+    const label = skyModeLabel(mode);
     sky.setAttribute('aria-label', label);
     sky.setAttribute('title', label);
   }
@@ -411,7 +431,7 @@ export function createWorldCanvasUI({
   });
   listen(city, 'change', () => { if (businesses.has(city.value)) onCity?.(city.value); });
   listen(sky, 'click', () => {
-    const next = SKY_MODES[(SKY_MODES.findIndex(entry => entry.value === skyMode) + 1) % SKY_MODES.length];
+    const next = nextSkyMode(skyMode);
     setSky(next.value);
     onSky?.(next.value);
   });

@@ -1,0 +1,12 @@
+{
+  "schema_version": "0.1.0",
+  "record_id": "applicability-2026-10-30T12-28-22-850Z-9478d578",
+  "story_id": "story-rq-113-entity-full-index-oss",
+  "applicable": true,
+  "reason": "Scope in .vibepro/stories/story-rq-113-entity-full-index-oss/decision.md: move the source-agnostic full entity indexer (EntitySource interface, indexer, types, ontology) from brainbase-unson into OSS as ./entity-indexer, reusing RQ-024 createEntityIndexCache for reuse/refresh; GraphAPISource, host-auth and tenant config stay in brainbase-unson (A案, 2026-10-30). Rejected: moving GraphAPISource to OSS, a second cache, merging with entity-resolution, a version bump in this PR, deciding retrieval/evidence here (left as options a/b/c for Director).",
+  "recorded_by": "agent:claude-opus",
+  "recorded_at": "2026-10-30T12:28:22.850Z",
+  "artifact": ".vibepro/reviews/story-rq-113-entity-full-index-oss/development-judgment/applicability/history/applicability-2026-10-30T12-28-22-850Z-9478d578.json",
+  "advisory": true,
+  "blocking": false
+}

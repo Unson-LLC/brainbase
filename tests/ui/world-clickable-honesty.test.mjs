@@ -229,15 +229,20 @@ describe('the world of an organization web, whose judgments are not connected', 
     app.selectCity('alpha');
     await waitFor(() => { frame(); return app.root.querySelectorAll('.bb-world-label.is-street').length === 2; });
     const signs = [...app.root.querySelectorAll('.bb-world-label.is-street')];
-    expect(signs.map((node) => node.textContent)).toEqual(['世界の画面を直す（1件）', '組織版の配備（3件）']);
+    expect(signs.map((node) => node.querySelector('.bb-world-street-name').textContent)).toEqual(['世界の画面を直す（1件）', '組織版の配備（3件）']);
+    // The sign also says how much of its work is moving now (story-world-pulse-by-level-v1).
+    expect(signs[0].textContent).toContain('進行中 1');
     expect(signs.every((node) => node.classList.contains('is-enterable'))).toBe(true);
+    // A sign is the way into its gathering of work: the third scale (story-world-pulse-by-level-v1).
     signs[1].click();
-    expect(app.drawerOpen()).toBe(true);
-    const pick = app.root.querySelector('.bb-world-pick');
-    expect(collectText(pick)).toContain('通り「組織版の配備」の仕事 3件');
-    expect([...pick.querySelectorAll('.bb-world-rail-pick')].map((node) => node.textContent)).toEqual(['組織版の配備 1', '組織版の配備 2', '組織版の配備 3']);
+    const pulse = () => app.root.querySelector('.bb-world-pulse');
+    expect(pulse().querySelector('.bb-world-pulse-crumb.is-current').textContent).toBe('組織版の配備');
+    expect(collectText(pulse())).toContain('Alpha・3件のうち0件を終えた');
+    for (const title of ['組織版の配備 1', '組織版の配備 2', '組織版の配備 3']) expect(collectText(pulse())).toContain(`${title}進行中・担当の記録なし`);
+    // No agent is invented where the record names none.
+    expect(collectText(pulse())).toContain('AIの担当が記録された仕事はありません');
     signs[0].click();
-    expect(collectText(app.root.querySelector('.bb-world-pick'))).toContain('通り「世界の画面を直す」の仕事 1件');
+    expect(pulse().querySelector('.bb-world-pulse-crumb.is-current').textContent).toBe('世界の画面を直す');
 
     app.root.querySelector('[aria-label="都市の詳細を閉じる"]').click();
     expect(app.drawerOpen()).toBe(false);

@@ -2,6 +2,73 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
+## 0.50.1 candidate — npm公開前
+
+- `develop` bb2a2fa4 までをまとめて公開するpatch更新候補。
+- UNS-264: 議事録一覧に `limit`（既定100、最大500）と `cursor` を足し、続きがあるときだけ `next_cursor` を返す。返す形 `{ state, meetings, absence_confirmed }` は維持し、一覧に版の本文は入れない。不正な `limit`・`cursor` は422。共通の議事録画面は `next_cursor` を辿って全件を表示する（#939）。
+- UNS-264: 引数なしの `list_meetings(context)` は今までどおり全件の配列を返し、options を渡したときだけ `{ meetings, next_cursor }` を返す（#943）。
+- UNS-291: judgment DAG を外部レビューagentに合わせ、契約ファイルのハッシュを更新する（#940, #944）。
+- UNS-36: VibePro producer の公開契約4つをCIで実行する（#937）。
+- これは公開候補の記録。npm公開と利用ホストの本番反映は、別の検証で確認する。
+
+## 0.50.0 candidate — npm公開前
+
+- `develop` 8d1449bc までをまとめて公開するminor更新候補。
+- UNS-59: 所有権サーベイの検証を `src/ownership-survey.ts` としてOSSへ移す（#936）。
+- 公開MCPにagent限定のTask queueの7つの道具と共通契約テストを追加する（#930）。ホストが `QueueTaskBackend` を注入したときだけ登録し、既存の道具は変えない。
+- OSS公開契約のfixtureと照合テストを追加する（#931・#932・#933）。
+- 議事録名が空のときは `minutes_title` を送らず既定名にする（#926）。stage3bのbundleでEXDEV時に同じディレクトリへのcopyとrenameへ戻す（#927）。
+- Growin UIの要望 RQ-151・152・153（#897）、会議要約の取り込み（#906）、開発依存の更新（#928）、PR本文のBrainbase行のCI（#925）。
+- これは公開候補の記録。npm公開と利用ホストの本番反映は、別の検証で確認する。
+
+## 0.49.1 candidate — npm公開前
+
+- 共通ナビゲーションに、ホストが見出しリンクのアイコン・クラスとグループの余白を指定できる後方互換の設定を追加する。未指定時の表示、行き先、選択状態、権限による非表示は維持する。
+- これは公開候補の記録。npm公開と利用ホストへの反映は別に確認する。
+
+## 0.49.0 candidate — npm公開前
+
+- RQ-113: ソースに依存しないentity index builderを `@unson/brainbase-mcp/entity-indexer` として公開するminor更新候補（#920）。
+- `buildIndex`・`createEmptyIndex`、lifecycle helpers、ontology registry、`EntitySource`・entity型、構造型の `RetrievalEvidence` を提供する。既存の `createEntityIndexCache` のbuildとして利用できる。
+- 配列でないcollection、空id、activeな重複idはエラーにする。`GraphAPISource`・認証・evidence関数はホスト側に残す。
+- これは公開候補の記録。npm公開と利用ホストの本番反映は、別の検証で確認する。
+
+## 0.48.4
+
+- ローカルshellのsidebarと世界canvasのdrawer・helpにfallback付きモーショントークンを適用し、durationとreduced motionの挙動を維持する（#909）。
+- 共有モーショントークンを追加し、drawer退場を150ms、通知消去を200msへ短縮。入場・検索帯・モバイル・reduced motionの挙動を維持する（#909）。
+- 受信箱・情報の「種類」・プロジェクトの記録のタブを矢印キーで切り替え、選択の下線をすべらせる（#903）。
+- 共通の主ボタンを目立たせ、パンくずと受信箱の期限切れの文字を読みやすくし、受信箱の取得失敗の理由を開いて見せる（#904）。
+- Workerの判断を共通の形式でローカルoutboxへ書く送り口の契約と骨格を追加する。既定では外部へ送信しない（#907）。
+- 用途に合う既存UI部品の再利用を推奨しつつ、資料の取得・部品利用・登録・デザイン確定を機能開発の前提にしない方針を明記する（#908）。
+- 正式リリース検証のVitest並列数を4から2へ下げる（#912）。
+- 判断ライフサイクルのHost builderとの一致を確かめるテストを、実行環境に左右されないようにする（#914）。
+- npm公開済み。`latest`は`0.48.4`を指し、`gitHead`は`28e45e4b`。利用ホストへの取り込みと本番反映は、別の検証で確認する。
+
+## 0.48.3 candidate — npm公開前
+
+- 共通UIのトークン（`ui/brainbase-tokens.css`）に `--bb-color-muted-on-surface` を追加する。色付きの背景では `--bb-color-muted` をこのトークンへ切り替え、小さな補助テキストを読みやすくする（#911）。
+- これは公開候補の記録。npm公開と利用ホストの本番反映は、別の検証で確認する。
+
+## 0.48.2 candidate — npm公開前
+
+- 共通UIのトークン（`ui/brainbase-tokens.css`）を紺・ミントのテーマとNoto Sans JPへ切り替える。フォントは `--bb-font-sans`・`--bb-font-weight-medium`・`--bb-font-weight-body` で指定する。状態色の意味を保ち、ホストは引き続きトークンを上書きできる（#910）。
+- これは公開候補の記録。npm公開と利用ホストの本番反映は、別の検証で確認する。
+
+## 0.48.1 candidate — npm公開前
+
+- 0.47.5以前の `workspace-kit.js` を読み込んだままの古いタブで、判断の履歴・目的と現状の画面が `workspaceLoadingStage` を取れず開かなかった。両画面は `workspace-kit.js?capability=loading-stage-v1` から読み込む。
+- これは公開候補の記録。npm公開と利用ホストの本番反映は、別の検証で確認する。
+
+## 0.48.0 candidate — npm公開前
+
+- `develop` をまとめて公開する。0.47.3〜0.47.6 で `main` にだけ出した変更も含む。
+- 受信箱に今日決めることの表示と元に戻すを追加し（#881）、取得元が使えないときの空表示を直す（#894）。行の操作で、送信中の停止・成功の表示・読み上げ・`facts`・行内の確認・期限の表示を扱う（#898）。
+- 共通UIに待ち時間の表示（#866）、薄いヘッダーと右詳細パネル（#874）、タブの見た目（#883）、議事録の検索帯（#886・#888）を加える。
+- Canonical Taskに `record_kind` と台帳列を加える（#870）。利用側は追加の列を先に適用してから取り込む。
+- リリースノートの下書きの抽出（#896）、埋め込みの上流エラー本文の記録（#869）、zod 4（#868）、npm audit の修正（#867・#899）。
+- これは公開候補の記録。npm公開と利用ホストの本番反映は、別の検証で確認する。
+
 ## 0.47.2 candidate — npm公開前
 
 - 共通の1列操作帯 `workspaceCompactToolbar` を追加。議事録は `toolbarPresentation: 'compact'` の明示指定で、作成・文字検索・フィルター・並べ替えをまとめる。既存expanded/inlineの契約は維持する。
@@ -47,6 +114,8 @@
 - 共通通知surface `workspaceNotificationCard` を追加。世界の注意・重大なエラーを意味色で区別し、既存のエラー通知とロード表示も共通枠を利用。リンク・操作・理由・原文を保持。
 
 ## Unreleased — develop
+
+- agent 限定の queue tools（`list_my_tasks` / `get_task` / `claim_task` / `claim_next` / `renew_claim` / `attach_evidence` / `update_status`）と、stdio / Streamable HTTP で共通の契約テストを `@unson/brainbase-mcp/queue-task-tools` と test 専用の `@unson/brainbase-mcp/testing/queue-task-tools-contract` で追加する。host が `QueueTaskBackend` を注入したときだけ登録し、既存の local-first の18 tools は変えない。検証はローカルの fixture backend で行った。実 API の応答 schema、durable replay、agent の principal binding は未確認（`story-mcp-queue-task-tools-v1`）。
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 - 「人と会社」で人・会社を選ぶと、一覧が詳細のページに切り替わる。上に一覧へ戻る道と「何件中の何件目」・前後の移動、見出しの下にできる操作（所属を付ける・所属を終える・所属する人を加える）をまとめ、「消す操作は無く、終了日を入れて終える」ことを添える。書けない閲覧者には操作を押せない状態で出し、理由を出す（ホストの `readOnlyNote`）。名前の訂正の案内はホストの `recordFixNote` で差し替えられる。区分・種類・有効期間・IDはホストの右の欄（無ければページの中）に出す。一覧の上に「人を加える」「会社を加える」を並べる。書き込みの経路と規則、段の構成は変えない（`story-people-and-companies-detail-page-v1`）。

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { build } from 'esbuild';
-import { mkdtemp, rename, rm } from 'node:fs/promises';
+import { copyFile, mkdtemp, rename, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,7 +23,19 @@ try {
     sourcemap: false,
     logLevel: 'warning',
   });
-  await rename(temporaryOutput, entryPoint);
+  try {
+    await rename(temporaryOutput, entryPoint);
+  } catch (error) {
+    if (error.code !== 'EXDEV') throw error;
+    const siblingOutput = `${entryPoint}.${process.pid}.tmp`;
+    try {
+      await copyFile(temporaryOutput, siblingOutput);
+      await rename(siblingOutput, entryPoint);
+    } catch (error) {
+      await rm(siblingOutput, { force: true });
+      throw error;
+    }
+  }
 } finally {
   await rm(temporaryRoot, { recursive: true, force: true });
 }

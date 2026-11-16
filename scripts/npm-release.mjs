@@ -405,10 +405,9 @@ export async function validateRelease(
   consumerSmoke = runConsumerSmoke
 ) {
   execute('npm', ['run', 'build'], root);
-  // Match the self-hosted CI worker ceiling. This keeps validation's test
-  // target and Vitest decision rules identical while avoiding host-wide
-  // worker multiplication when several jobs share the runner.
-  execute('npm', ['test', '--', '--maxWorkers=4'], root);
+  // Shared self-hosted runners execute several jobs at once. Cap validation at
+  // two workers and allow bounded scheduling headroom for tests/cleanup.
+  execute('npm', ['test', '--', '--maxWorkers=2', '--testTimeout=30000', '--hookTimeout=30000'], root);
   execute('npm', ['audit', '--omit=dev'], root);
   const artifactDirectory = path.resolve(path.dirname(proofFile));
   const artifact = await createArtifact(root, artifactDirectory, expectedVersion, expectedSha, execute);

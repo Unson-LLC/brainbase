@@ -114,8 +114,9 @@
   border-radius: var(--bb-radius-sm);
   color: var(--bb-color-accent-strong);
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   font-size: 15px;
-  font-weight: 750;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1;
 }
 
@@ -248,7 +249,7 @@
   color: var(--bb-color-muted);
   background: var(--bb-color-canvas);
   font-size: 10px;
-  font-weight: 720;
+  font-weight: var(--bb-font-weight-medium);
   line-height: 1.5;
   white-space: nowrap;
 }
@@ -256,7 +257,8 @@
 .bb-graph-badge.is-success { color: var(--bb-color-accent-strong); background: var(--bb-color-success-soft); }
 .bb-graph-badge.is-warning { color: var(--bb-color-warning); background: var(--bb-color-warning-soft); }
 .bb-graph-badge.is-danger { color: var(--bb-color-danger); background: var(--bb-color-danger-soft); }
-.bb-graph-badge.is-accent { color: var(--bb-color-accent-strong); background: var(--bb-color-accent-soft); }
+.bb-graph-badge.is-accent { color: var(--bb-color-accent-strong); background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface); }
 
 /* Inline messages inside the correction form. */
 .bb-graph-notice,
@@ -268,11 +270,13 @@
   overflow-wrap: anywhere;
 }
 
-.bb-graph-notice.is-muted { border-left-color: var(--bb-color-border-strong); color: var(--bb-color-muted); background: var(--bb-color-surface); }
+.bb-graph-notice.is-muted { border-left-color: var(--bb-color-border-strong); color: var(--bb-color-muted); background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface); }
 .bb-graph-notice.is-warning { border-left-color: var(--bb-color-warning); color: var(--bb-color-warning); background: var(--bb-color-warning-soft); }
 .bb-graph-notice.is-danger { border-left-color: var(--bb-color-danger); color: var(--bb-color-danger); background: var(--bb-color-danger-soft); }
 .bb-graph-notice.is-success,
-.bb-graph-notice.is-accent { border-left-color: var(--bb-color-accent); color: var(--bb-color-accent-strong); background: var(--bb-color-accent-soft); }
+.bb-graph-notice.is-accent { border-left-color: var(--bb-color-accent); color: var(--bb-color-accent-strong); background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface); }
 
 /* A name that opens a record. */
 .bb-graph-link {
@@ -281,7 +285,7 @@
   color: var(--bb-color-accent-strong);
   background: none;
   font: inherit;
-  font-weight: 700;
+  font-weight: var(--bb-font-weight-medium);
   text-align: left;
   cursor: pointer;
   overflow-wrap: anywhere;
@@ -295,7 +299,7 @@
   display: block;
   margin-bottom: 18px;
   font-size: 12px;
-  font-weight: 650;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-graph .bb-ws-ledger-row.is-selectable:focus-visible,
@@ -318,6 +322,7 @@
 /* The selected row keeps its soft green while the pointer is on it. */
 .bb-graph .bb-ws-ledger-row.is-selected:hover {
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-graph-facts {
@@ -376,7 +381,7 @@
   align-items: center;
   gap: var(--bb-space-2);
   color: var(--bb-color-ink);
-  font-weight: 690;
+  font-weight: var(--bb-font-weight-medium);
   cursor: pointer;
 }
 
@@ -388,7 +393,7 @@
   margin: 0 0 var(--bb-space-1);
   color: var(--bb-color-muted);
   font-size: 12px;
-  font-weight: 690;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-graph-evidence-part > p {
@@ -488,7 +493,7 @@
 .bb-graph-field label {
   color: var(--bb-color-muted);
   font-size: 12px;
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-graph-field.is-reason label {

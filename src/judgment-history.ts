@@ -11,6 +11,7 @@ export const JUDGMENT_HISTORY_FEEDBACK_SCHEMA = 'brainbase-judgment-history-feed
 export const JUDGMENT_HISTORY_ENTRYPOINTS = Object.freeze([
   'codex',
   'claude_code',
+  'opencode',
   'mana',
   'company_os',
   'unknown'

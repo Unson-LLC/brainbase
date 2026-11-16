@@ -50,7 +50,7 @@ function appendContent(parent, doc, content) {
 }
 
 /** Breadcrumb, h1, lead, source label and actions, as on the organization screens. */
-export function workspacePageHeader(doc, { crumbs = [], title, lead, source, actions = [] } = {}) {
+export function workspacePageHeader(doc, { crumbs = [], title, lead, help, preserveLead = false, source, actions = [] } = {}) {
   const wrap = el(doc, 'div', { className: 'bb-ws-page' });
   if (crumbs.length > 0) {
     const breadcrumb = el(doc, 'nav', { className: 'bb-ws-breadcrumb', attrs: { 'aria-label': 'パンくず' } });
@@ -63,21 +63,63 @@ export function workspacePageHeader(doc, { crumbs = [], title, lead, source, act
   const head = el(doc, 'header', { className: 'bb-ws-page-head' });
   const copy = el(doc, 'div', { className: 'bb-ws-page-copy' });
   copy.append(el(doc, 'h1', { text: title }));
-  if (lead) copy.append(el(doc, 'p', { className: 'bb-ws-lead', text: lead }));
+  const description = typeof lead === 'string' ? lead.trim() : '';
+  const sentences = description.match(/[^。！？!?]+[。！？!?]?/gu) ?? [];
+  const longLead = !preserveLead && (description.length > 60 || sentences.length > 1);
+  const summary = longLead ? (sentences[0]?.length <= 60 ? sentences[0] : '') : description;
+  if (summary) copy.append(el(doc, 'p', { className: 'bb-ws-lead', text: summary }));
   head.append(copy);
   const side = el(doc, 'div', { className: 'bb-ws-page-side' });
+  if (help || longLead) {
+    const guide = workspaceHelp(doc, { label: title, text: [longLead ? description : '', help].filter(Boolean).join('\n\n') });
+    guide.className += ' is-page-guide';
+    guide.children[0].textContent = '？';
+    side.append(guide);
+  }
   if (source) side.append(el(doc, 'span', { className: 'bb-ws-source', text: source }));
   if (actions.length > 0) side.append(workspaceActions(doc, actions));
-  if (source || actions.length > 0) head.append(side);
+  if (help || longLead || source || actions.length > 0) head.append(side);
   wrap.append(head);
   return wrap;
 }
 
-/** A shared, title-only top bar. The host owns scrolling and immersive-page visibility. */
-export function workspaceTopbar(doc, { title = '' } = {}) {
+/** Shared search presentation. The caller keeps the input, value and handlers. */
+export function workspaceSearchControl(doc, { input } = {}) {
+  if (!input || typeof input.tagName !== 'string') throw new TypeError('search_input_required');
+  const search = el(doc, 'label', { className: 'bb-ws-search-control' });
+  search.append(workspaceActionIcon(doc, 'search'), input);
+  return search;
+}
+
+/** A shared title bar, with an optional search input owned by the caller. */
+export function workspaceTopbar(doc, { title = '', query } = {}) {
   const header = el(doc, 'header', { className: 'bb-ws-topbar' });
   header.append(el(doc, 'h1', { text: title }));
+  let search;
+  let currentQuery;
+  header.setQuery = input => {
+    if (input === currentQuery) return;
+    search?.remove(); search = null; currentQuery = input;
+    if (input) { search = workspaceSearchControl(doc, { input }); header.append(search); }
+    toggleWorkspaceClass(header, 'has-query', Boolean(input));
+  };
+  header.setQuery(query);
   return header;
+}
+
+/**
+ * Backdrop click closes a modal. Browsers with `closedby` do it natively and fire `cancel`,
+ * which the caller already handles; the pointer check is the fallback where it is missing (Safari).
+ */
+function workspaceLightDismiss(doc, dialog, close) {
+  dialog.setAttribute('closedby', 'any');
+  const NativeDialog = doc.defaultView?.HTMLDialogElement;
+  if (NativeDialog && 'closedBy' in NativeDialog.prototype) return;
+  dialog.addEventListener('click', event => {
+    if (event.target !== dialog) return;
+    const rect = dialog.getBoundingClientRect();
+    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) close();
+  });
 }
 
 /** A reusable right inspector whose content can refresh without replacing the modal. */
@@ -108,11 +150,7 @@ export function workspaceDetailDrawer(doc, { title = '詳細', opener, onClose }
   const button = workspaceButton(doc, { text: '閉じる', onClick: () => close() });
   head.append(label, button); dialog.append(head, body); doc.body.append(dialog);
   dialog.addEventListener('cancel', event => { event.preventDefault(); close(); });
-  dialog.addEventListener('click', event => {
-    if (event.target !== dialog) return;
-    const rect = dialog.getBoundingClientRect();
-    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) close();
-  });
+  workspaceLightDismiss(doc, dialog, () => close());
   return {
     dialog,
     setContent(...content) { if (!disposed) body.replaceChildren(...content); },
@@ -131,21 +169,22 @@ export function workspaceDetailDrawer(doc, { title = '詳細', opener, onClose }
 
 /** A notice with a short label, like 接続範囲 on the organization screens. */
 export function workspaceNotice(doc, { label, text, tone = 'info', role } = {}) {
-  const notice = el(doc, 'div', { className: `bb-ws-notice is-${tone}`, attrs: { role: role ?? (tone === 'info' ? undefined : 'alert') } });
-  if (label) notice.append(el(doc, 'strong', { text: label }));
+  const notice = el(doc, 'div', { className: `bb-ws-notice is-${tone}`, attrs: { role: role ?? (tone === 'danger' ? 'alert' : tone === 'warning' ? 'status' : undefined) } });
+  const severity = tone === 'warning' ? '注意' : tone === 'danger' ? 'エラー' : '';
+  if (label || severity) notice.append(el(doc, 'strong', { text: [severity, label].filter(Boolean).join('：') }));
   appendContent(notice, doc, text);
   return notice;
 }
 
 /**
  * The notice a host passes to a part in place of (or in addition to) the
- * part's own: `{ label, text }`, where `text` is a string or an element.  Null
+ * part's own: `{ label, text, tone? }`, where `text` is a string or an element.  Null
  * when the host passed none.
  */
 export function workspaceHostNotice(doc, notice) {
   if (!notice || typeof notice !== 'object' || Array.isArray(notice)) return null;
   const label = typeof notice.label === 'string' && notice.label.trim() ? notice.label.trim() : undefined;
-  return workspaceNotice(doc, { label, text: notice.text });
+  return workspaceNotice(doc, { label, text: notice.text, tone: ['warning', 'danger'].includes(notice.tone) ? notice.tone : 'info' });
 }
 
 /** A host's extra page-head buttons, `[{ text, variant, onClick, disabled }]`, as `workspaceActions` items. */
@@ -328,6 +367,14 @@ export function workspaceHelp(doc, { text, label } = {}) {
 const drawerClosings = new WeakMap();
 const notificationClosings = new WeakMap();
 const reducedMotion = node => node.ownerDocument?.defaultView?.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+const animationFallback = (node, margin, fallback) => {
+  const durations = node.ownerDocument?.defaultView?.getComputedStyle?.(node).animationDuration;
+  const duration = Math.max(...(durations ?? '').split(',').map(value => {
+    const match = value.trim().match(/^(\d*\.?\d+)(ms|s)$/);
+    return match ? Number(match[1]) * (match[2] === 's' ? 1000 : 1) : NaN;
+  }));
+  return Number.isFinite(duration) && duration > 0 ? duration + margin : fallback;
+};
 
 /** Apply the same native-dialog presentation to host-owned and kit drawers. */
 export function workspaceApplyDrawer(dialog) {
@@ -358,7 +405,7 @@ export function workspaceCloseDrawer(dialog, finish) {
   dialog.addEventListener('animationend', ended);
   dialog.addEventListener('close', cancel);
   dialog.classList.add('is-closing');
-  timer = setTimeout(complete, 360); // Animation cancellation / background-tab fallback.
+  timer = setTimeout(complete, animationFallback(dialog, 70, 220)); // Animation cancellation / background-tab fallback.
   return cancel;
 }
 
@@ -397,46 +444,95 @@ export function workspaceDialog(doc, { title, content, opener, presentation = 'c
   const body = el(doc, 'div', { className: 'bb-ws-dialog-body' }); appendContent(body, doc, content);
   dialog.append(head, body); doc.body.append(dialog);
   dialog.addEventListener('cancel', event => { event.preventDefault(); dialog.close(); });
-  dialog.addEventListener('click', event => {
-    if (event.target !== dialog) return;
-    const rect = dialog.getBoundingClientRect();
-    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close();
-  });
+  workspaceLightDismiss(doc, dialog, () => dialog.close());
   dialog.addEventListener('close', cleanup, { once: true });
   try { dialog.showModal(); close.focus(); } catch (error) { cleanup(); throw error; }
   return dialog;
 }
 
+/** Applied condition with an explicit, individually removable value. */
+export function workspaceFilterChip(doc, { label, onRemove, attrs = {} } = {}) {
+  const chip = workspaceButton(doc, { text: `${label} ×`, attrs: { 'aria-label': `${label}を解除`, ...attrs }, onClick: onRemove });
+  chip.className += ' bb-ws-filter-chip';
+  return chip;
+}
+
+/** One filter choice; callers retain selection and lifecycle ownership. */
+export function workspaceFilterOption(doc, { label, count, checked = false, disabled = false, role = 'radio', attrs = {}, onClick } = {}) {
+  const button = workspaceButton(doc, { attrs: { ...attrs, role, 'aria-checked': String(checked) }, disabled, onClick });
+  button.className += ' bb-ws-filter-option';
+  const check = el(doc, 'span', { className: 'bb-ws-filter-option-check', attrs: { 'aria-hidden': 'true' } });
+  button.append(check, el(doc, 'span', { className: 'bb-ws-filter-option-label', text: `${label}${count === undefined || count === null ? '' : ' '}` }));
+  if (count !== undefined && count !== null) button.append(el(doc, 'span', { className: 'bb-ws-filter-option-count', text: count }));
+  return button;
+}
+
 /** Anchored advanced search. Hosts destroy it before replacing its controls. */
-export function workspaceFilterPopover(doc, { content, open = false, onToggle, trigger, panel: suppliedPanel, initialFocus } = {}) {
+export function workspaceFilterPopover(doc, { content, open = false, onToggle, trigger, panel: suppliedPanel, initialFocus, appearance } = {}) {
   const root = el(doc, 'span', { className: 'bb-ws-filter-anchor' });
   const panel = suppliedPanel || el(doc, 'div', { className: 'bb-ws-filter-popover', attrs: { id: `bb-ws-filter-${nextWorkspaceSequence()}`, role: 'region', 'aria-label': '詳細検索' } });
   if (!panel.id && !panel.getAttribute?.('id')) panel.setAttribute('id', `bb-ws-filter-${nextWorkspaceSequence()}`);
   panel.classList?.add('bb-ws-filter-popover');
-  const control = trigger || workspaceButton(doc, { text: '詳細検索', variant: 'quiet' });
+  const control = trigger || workspaceButton(doc, { text: appearance === 'icon' ? undefined : '詳細検索', variant: 'quiet' });
+  if (appearance === 'icon') {
+    control.classList?.add('bb-ws-filter-icon-trigger');
+    if (!control.getAttribute?.('aria-label')) control.setAttribute('aria-label', '絞り込む');
+    if (!Array.from(control.children ?? []).some(child => String(child.tagName).toLowerCase() === 'svg')) {
+      const caption = el(doc, 'span', { className: 'bb-ws-visually-hidden' });
+      const nodes = Array.from(control.childNodes ?? control.children ?? []);
+      if (nodes.length) caption.append(...nodes); else caption.textContent = control.textContent || '';
+      control.replaceChildren(workspaceActionIcon(doc, 'filter'), caption);
+    }
+  }
   control.setAttribute('aria-controls', panel.id || panel.getAttribute?.('id') || panel.attributes?.id);
   appendContent(panel, doc, content); root.append(control, panel);
   let destroyed = false;
+  let isOpen = null;
+  let timer;
   const removeListeners = () => { doc.removeEventListener?.('pointerdown', outside); doc.removeEventListener?.('keydown', escape); };
+  const cancelExit = () => {
+    clearTimeout(timer); timer = undefined;
+    panel.removeEventListener?.('animationend', ended);
+    panel.classList?.remove('is-closing');
+  };
+  const finishExit = () => { cancelExit(); if (!isOpen) panel.hidden = true; };
+  const ended = event => { if (event.target === panel && event.animationName === 'bb-ws-filter-exit') finishExit(); };
   const setOpen = (value, focus = false) => {
     if (destroyed) return;
-    removeListeners(); panel.hidden = !value; control.setAttribute('aria-expanded', String(value));
-    onToggle?.(value);
-    if (value) {
+    const next = Boolean(value);
+    if (next === isOpen) return;
+    const wasOpen = isOpen === true;
+    isOpen = next; removeListeners(); cancelExit();
+    control.setAttribute('aria-expanded', String(next));
+    panel.inert = !next;
+    if (next) {
+      panel.removeAttribute?.('inert'); panel.removeAttribute?.('aria-hidden'); panel.hidden = false;
       doc.addEventListener?.('pointerdown', outside); doc.addEventListener?.('keydown', escape);
       if (focus) (typeof initialFocus === 'function' ? initialFocus() : initialFocus || panel.querySelector?.('input:not(:disabled),select:not(:disabled),button:not(:disabled)'))?.focus();
+    } else {
+      panel.setAttribute('inert', ''); panel.setAttribute('aria-hidden', 'true');
+      if (wasOpen && panel.isConnected !== false && panel.classList && !reducedMotion(panel)) {
+        panel.classList.add('is-closing'); panel.addEventListener('animationend', ended);
+        timer = setTimeout(finishExit, animationFallback(panel, 50, 230));
+      } else panel.hidden = true;
     }
+    onToggle?.(next);
   };
   const outside = event => { if (!root.contains?.(event.target)) setOpen(false); };
   const escape = event => {
     if (event.key !== 'Escape') return;
     event.preventDefault(); event.stopPropagation(); setOpen(false); control.focus();
   };
-  const toggle = () => setOpen(panel.hidden, true);
+  const pointerFocus = () => root.setAttribute('data-pointer-focus', 'true');
+  const keyboardFocus = () => root.removeAttribute?.('data-pointer-focus');
+  root.addEventListener('pointerdown', pointerFocus);
+  root.addEventListener('keydown', keyboardFocus);
+  const toggle = () => setOpen(!isOpen, true);
   control.addEventListener('click', toggle); setOpen(open);
-  return { root, control, panel, destroy() {
-    destroyed = true; removeListeners(); control.removeEventListener?.('click', toggle);
-    panel.hidden = true; control.setAttribute('aria-expanded', 'false');
+  return { root, control, panel, setOpen, get isOpen() { return isOpen === true; }, destroy() {
+    root.removeEventListener?.('pointerdown', pointerFocus); root.removeEventListener?.('keydown', keyboardFocus);
+    destroyed = true; isOpen = false; removeListeners(); cancelExit(); control.removeEventListener?.('click', toggle);
+    panel.hidden = true; panel.inert = true; panel.setAttribute('inert', ''); panel.setAttribute('aria-hidden', 'true'); control.setAttribute('aria-expanded', 'false');
   } };
 }
 
@@ -496,16 +592,17 @@ export function workspaceDismissNotification(card, onDismiss) {
   const complete = () => { if (!active) return; cancel(); remove(); onDismiss?.(); };
   const ended = event => { if (event.target === card && event.animationName === 'bb-ws-notification-out') complete(); };
   notificationClosings.set(card, cancel); card.addEventListener('animationend', ended);
-  card.classList.add('is-dismissing'); timer = setTimeout(complete, 500);
+  card.classList.add('is-dismissing'); timer = setTimeout(complete, animationFallback(card, 50, 250));
   return cancel;
 }
 
-/** Persistent, initially closed notification. The caller owns its lifecycle. */
-export function workspaceErrorCard(doc, { title, message, tone = 'danger', onRetry } = {}) {
-  const card = workspaceNotificationCard(doc, { tone, className: 'bb-ws-error-card', role: 'listitem' });
-  const details = el(doc, 'details');
-  const summary = el(doc, 'summary', { attrs: { 'aria-label': `${title}の通知` } });
-  summary.append(el(doc, 'span', { className: 'bb-ws-error-symbol', text: '!', attrs: { 'aria-hidden': 'true' } }), el(doc, 'span', { text: title }));
+/** Persistent notification, closed unless `open`. The caller owns its lifecycle. */
+export function workspaceErrorCard(doc, { title, message, tone = 'danger', onRetry, open = false } = {}) {
+  const card = workspaceNotificationCard(doc, { tone, className: 'bb-ws-error-card', role: tone === 'warning' ? 'status' : 'alert' });
+  const details = el(doc, 'details'); details.open = open;
+  const severity = tone === 'warning' ? '注意' : 'エラー';
+  const summary = el(doc, 'summary', { attrs: { 'aria-label': `${severity}：${title}の通知` } });
+  summary.append(el(doc, 'span', { className: 'bb-ws-error-symbol', text: tone === 'warning' ? '△' : '×', attrs: { 'aria-hidden': 'true' } }), el(doc, 'span', { text: title }));
   details.append(summary, el(doc, 'p', { text: message })); card.append(details);
   if (onRetry) card.append(workspaceButton(doc, { text: '再試行', attrs: { 'aria-label': `${title}を再試行` }, onClick: onRetry }));
   return card;
@@ -760,7 +857,7 @@ export function workspaceCompactToolbar(doc, { root, query, filters, sort, reset
   }
   controls.append(search, group); if (sort) controls.append(sort.root);
   root.replaceChildren(primary, controls);
-  const closeFilter = () => { if (!filter.panel.hidden) filterButton.click(); };
+  const closeFilter = () => filter.setOpen(false);
   const clear = () => { closeFilter(); filterButton.focus({ preventScroll: true }); };
   const sortClick = () => { if (sort?.trigger.getAttribute('aria-expanded') === 'true') closeFilter(); };
   reset?.addEventListener('click', clear); sort?.trigger.addEventListener('click', sortClick); sort?.trigger.addEventListener('keydown', sortClick);
@@ -783,6 +880,114 @@ export function workspaceTabList(root) {
   return root;
 }
 
+const TAB_STRIP_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'Home', 'End']);
+// How long a key move may wait for the host to redraw before focus is no longer brought back.
+const TAB_STRIP_FOCUS_WINDOW_MS = 5000;
+const tabStrips = new WeakMap();
+const tabStripMemory = new Map();
+const isEnabledTab = node => node?.getAttribute?.('role') === 'tab' && !node.hidden && !node.disabled && node.getAttribute('aria-disabled') !== 'true';
+const isSelectedTab = node => node?.getAttribute?.('aria-selected') === 'true' || node?.getAttribute?.('aria-current') === 'page' || node?.getAttribute?.('aria-pressed') === 'true';
+
+/** Opt-in keyboard switching and a sliding indicator on top of `workspaceTabList`.
+ * Selection stays with the host: a key move calls the tab's own click().  Hosts
+ * that redraw the strip as new nodes pass the same `memoryKey`; hosts that keep
+ * the root and replace its children call `update()` after drawing.
+ */
+export function workspaceTabStrip(root, { memoryKey, appearance } = {}) {
+  workspaceTabList(root);
+  if (appearance === 'prominent') toggleWorkspaceClass(root, 'bb-ws-tabs--prominent', true);
+  if (appearance === 'segmented') toggleWorkspaceClass(root, 'bb-ws-tabs--segmented', true);
+  if (tabStrips.has(root)) return tabStrips.get(root);
+  const doc = root.ownerDocument;
+  const view = doc?.defaultView;
+  const schedule = typeof view?.requestAnimationFrame === 'function' ? fn => view.requestAnimationFrame(fn) : fn => { Promise.resolve().then(fn); };
+  const key = typeof memoryKey === 'string' && memoryKey ? memoryKey : null;
+  if (key && !tabStripMemory.has(key)) tabStripMemory.set(key, { x: null, width: null, focusUntil: 0 });
+  const local = { x: null, width: null, focusUntil: 0 };
+  const memory = () => (key ? tabStripMemory.get(key) : local);
+  const children = () => Array.from(root.children ?? []);
+  const tabs = () => children().filter(isEnabledTab);
+  const selectedTab = () => children().find(isSelectedTab) ?? null;
+  let placed = false;
+  let destroyed = false;
+
+  const setIndicator = ({ x, width }) => {
+    root.style.setProperty('--bb-tab-indicator-x', `${x}px`);
+    root.style.setProperty('--bb-tab-indicator-width', `${width}px`);
+  };
+  const placeIndicator = tab => {
+    const width = tab?.offsetWidth;
+    if (!(width > 0) || typeof root.style?.setProperty !== 'function') {
+      toggleWorkspaceClass(root, 'is-indicator-ready', false); placed = false; return;
+    }
+    // Measure from the strip itself: before the strip is positioned, offsetLeft counts from an outer box.
+    const box = tab.getBoundingClientRect?.();
+    const origin = root.getBoundingClientRect?.();
+    const target = box && origin ? { x: box.left - origin.left + (root.scrollLeft || 0), width: box.width } : { x: tab.offsetLeft, width };
+    const mem = memory();
+    if (!placed) {
+      // A new strip starts where the last strip with the same key left the bar, then slides.
+      const from = mem.width > 0 && !reducedMotion(root) ? mem : target;
+      toggleWorkspaceClass(root, 'is-indicator-instant', true);
+      setIndicator(from); toggleWorkspaceClass(root, 'is-indicator-ready', true);
+      void root.offsetWidth;
+      toggleWorkspaceClass(root, 'is-indicator-instant', false);
+    }
+    setIndicator(target); placed = true;
+    mem.x = target.x; mem.width = target.width;
+  };
+  const restoreFocus = () => {
+    const mem = memory();
+    if (!(mem.focusUntil > Date.now())) return;
+    const target = selectedTab();
+    if (!target || root.isConnected === false) return;
+    const active = doc?.activeElement ?? null;
+    if (active === target) { mem.focusUntil = 0; return; }
+    const lost = !active || active === doc.body || active.isConnected === false;
+    // Focus moved somewhere else: the viewer chose it, so leave it there.
+    if (!lost && !root.contains?.(active)) { mem.focusUntil = 0; return; }
+    // Still on a tab of this strip: the host has not finished selecting yet.
+    if (!lost) return;
+    target.focus?.({ preventScroll: true });
+    target.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+    mem.focusUntil = 0;
+  };
+  const update = () => {
+    // A strip the host already replaced must not move the shared memory back.
+    if (destroyed || root.isConnected === false) return;
+    const all = tabs();
+    const selected = selectedTab();
+    const focusable = all.includes(selected) ? selected : all[0];
+    for (const tab of all) tab.setAttribute('tabindex', tab === focusable ? '0' : '-1');
+    placeIndicator(selected);
+    restoreFocus();
+  };
+  const keydown = event => {
+    if (!TAB_STRIP_KEYS.has(event.key) || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    const all = tabs();
+    const current = all.indexOf(event.target);
+    if (current < 0 || all.length < 2) return;
+    event.preventDefault?.();
+    const last = all.length - 1;
+    const index = event.key === 'Home' ? 0 : event.key === 'End' ? last : (current + (event.key === 'ArrowRight' ? 1 : last)) % all.length;
+    const next = all[index];
+    if (next === event.target) return;
+    memory().focusUntil = Date.now() + TAB_STRIP_FOCUS_WINDOW_MS;
+    next.focus?.({ preventScroll: true });
+    if (!isSelectedTab(next)) next.click?.();
+    schedule(update);
+  };
+  root.addEventListener?.('keydown', keydown);
+  const controller = { root, update, destroy() {
+    destroyed = true; root.removeEventListener?.('keydown', keydown); tabStrips.delete(root);
+    toggleWorkspaceClass(root, 'is-indicator-ready', false);
+    root.style?.removeProperty?.('--bb-tab-indicator-x'); root.style?.removeProperty?.('--bb-tab-indicator-width');
+  } };
+  tabStrips.set(root, controller);
+  schedule(update);
+  return controller;
+}
+
 /** The shared shallow dropdown chevron, sized and colored through shared CSS. */
 export function workspaceDropdownChevron(doc) {
   const wrap = el(doc, 'span', { className: 'bb-ws-combobox-chevron', attrs: { 'aria-hidden': 'true' } });
@@ -800,7 +1005,7 @@ export function workspaceSearchBand(doc, { root, query, filters, sort, reset, on
   const scopeSlot = el(doc, 'span', { className: 'bb-ws-toolbar-scope' });
   const trigger = workspaceButton(doc, { variant: 'quiet', attrs: { 'aria-label': 'フィルター', title: 'フィルター' } });
   trigger.classList.add('bb-ws-toolbar-filter'); trigger.append(workspaceActionIcon(doc, 'filter'));
-  const filter = workspaceFilterPopover(doc, { content: filters, trigger,
+  const filter = workspaceFilterPopover(doc, { content: filters, trigger, appearance: 'icon',
     onToggle: open => { if (open) sort?.close(false); },
   });
   filter.root.classList.add('bb-ws-toolbar-filter-group'); filter.panel.classList.add('bb-ws-toolbar-filter-panel');
@@ -808,7 +1013,7 @@ export function workspaceSearchBand(doc, { root, query, filters, sort, reset, on
     reset.textContent = 'フィルターを解除'; reset.setAttribute('aria-label', 'フィルターを解除');
     const footer = el(doc, 'div', { className: 'bb-ws-menu-reset' }); footer.append(reset); filters.append(footer);
   }
-  const closeFilter = () => { if (!filter.panel.hidden) trigger.click(); };
+  const closeFilter = () => filter.setOpen(false);
   const clear = () => { closeFilter(); trigger.focus({ preventScroll: true }); };
   const sortClick = () => closeFilter();
   const sortReset = workspaceButton(doc, { text: '初期順に戻す', attrs: { 'aria-label': '並べ替えを初期順に戻す' } });

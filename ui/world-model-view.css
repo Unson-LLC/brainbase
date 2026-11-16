@@ -76,7 +76,7 @@
   color: var(--bb-color-accent-strong);
   cursor: pointer;
   font-size: 12px;
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-wm-unavailable-summary:focus-visible {
@@ -103,7 +103,7 @@
 
 .bb-wm-unavailable-reason-label {
   color: var(--bb-color-ink);
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-wm-unavailable-reason-copy {
@@ -130,7 +130,7 @@
 .bb-wm-registration-field > label {
   color: var(--bb-color-ink);
   font-size: 12px;
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-wm-registration-input {
@@ -168,7 +168,7 @@
 /* The local shell resets `.bb-shell button { font: inherit }`, which outranks the kit's button type. */
 .bb-wm .bb-ws-button {
   font-size: 12px;
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 /* Rows wrap: a reference view keeps its details readable instead of cutting them. */
@@ -199,36 +199,36 @@
 
 .bb-wm-cell small.is-warning {
   color: var(--bb-color-warning);
-  font-weight: 650;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-wm-cell small.is-accent {
   color: var(--bb-color-accent-strong);
-  font-weight: 650;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-wm-cell.is-value .bb-wm-main,
 .bb-wm-view-ledger .bb-ws-ledger-row > span:first-child .bb-wm-main {
-  font-weight: 690;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-wm-cell.is-verified .bb-wm-main,
 .bb-wm-cell.is-supported .bb-wm-main,
 .bb-wm-cell.is-approved .bb-wm-main {
   color: var(--bb-color-accent-strong);
-  font-weight: 690;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-wm-cell.is-hypothesis .bb-wm-main,
 .bb-wm-cell.is-unverified .bb-wm-main,
 .bb-wm-cell.is-pending .bb-wm-main {
   color: var(--bb-color-warning);
-  font-weight: 690;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-wm-cell.is-refuted .bb-wm-main {
   color: var(--bb-color-danger);
-  font-weight: 690;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-wm-cell.is-unresolved .bb-wm-main {
@@ -243,6 +243,7 @@
 
 .bb-wm .bb-ws-ledger-row.is-superseded {
   background: var(--bb-color-surface);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-wm .bb-ws-ledger-row.is-superseded .bb-wm-cell.is-value .bb-wm-main {

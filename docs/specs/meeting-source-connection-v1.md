@@ -44,6 +44,7 @@ depends_on: [meeting-source-reader-v1]
 
 ### 接続ごとの同期 `syncMeetingSourceConnection(input)`（AC-04〜AC-08）
 
+- 要約の状態：`pendingSummaries`は取り込み時に`generating`または読み取り不能だった要約を保持し、後続syncで再読する。解決後は全文と要約を同じレコードで再配信する。`maxAttempts`後も解決・配信できない場合は、`{meetingId, reason, message, decidedAt}`を持つ`unobtainableSummaries`へ移す。安定した理由は`summary_retry_exhausted`。これは全文の`unobtainable`とは別で、配信済み全文の再確認を抑止しない。
 - 状態（接続ごと）：`listedThrough`（どこまで一覧を読んだか）、`pending`（会議・理由・次に試す時刻・試した回数）、`unobtainable`（取得できないと確定した会議と理由）、`delivered`（会議IDごとの`digest`・版・渡した時刻）、Tactiqの読み取りの記録、`syncEnabled`、`lastAttemptAt`・`lastSuccessAt`・`lastError`。
 - 接続が`connected`でないか`syncEnabled`が偽なら、呼び出しをせず`skipped`を返す。
 - 期間：`window`の指定が無ければ、`listedThrough`の1日前から今まで（初回は既定7日前から）。`window`を指定した取り直し（AC-08）は`listedThrough`を動かさない。

@@ -15,10 +15,10 @@
 }
 
 .bb-jh .bb-ws-page-head h1 {
-  font-size: 20px;
-  font-weight: 800;
-  line-height: 1.25;
   letter-spacing: 0;
+  font-size: var(--bb-page-title-font-size);
+  font-weight: var(--bb-page-title-font-weight);
+  line-height: var(--bb-page-title-line-height);
 }
 
 .bb-jh .bb-ws-lead {
@@ -109,10 +109,10 @@
 
 .bb-jh-controls {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  margin: 0 0 6px;
+  gap: var(--bb-space-2);
+  margin: 0 0 var(--bb-space-2);
 }
 
 .bb-jh-toolbar-status {
@@ -135,9 +135,9 @@
 }
 
 .bb-jh-summary {
-  margin: 4px 0 6px;
-  color: #3b4148;
-  font-size: 12.5px;
+  margin: var(--bb-space-1) 0 var(--bb-space-2);
+  color: var(--bb-color-muted);
+  font-size: var(--bb-font-size-xs, 12px);
 }
 
 .bb-jh-summary strong {
@@ -337,7 +337,7 @@
 .bb-jh-decision strong {
   overflow-wrap: anywhere;
   color: var(--bb-color-ink);
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
 }
 
 .bb-jh-reference-summary small,
@@ -568,7 +568,7 @@
     color: var(--bb-color-quiet);
     content: '';
     font-size: 10px;
-    font-weight: 700;
+    font-weight: var(--bb-font-weight-medium);
     letter-spacing: .06em;
     text-transform: uppercase;
   }
@@ -587,14 +587,18 @@
 /* Compact workspace header, search controls and shared floating notifications. */
 .bb-jh { position: relative; }
 .bb-jh > .bb-ws-page { margin-bottom: var(--bb-space-6, 32px); }
-.bb-jh .bb-ws-page-head h1 { font-size: 24px; line-height: 1.4; font-weight: 600; letter-spacing: .02em; }
 .bb-jh-controls { margin-bottom: var(--bb-space-4, 16px); }
 .bb-jh-checked { font-size: 11px; font-variant-numeric: tabular-nums; }
-.bb-jh-filter-fields { display: grid; gap: 16px; }
-.bb-jh-filter-fields .bb-jh-periods { flex-wrap: wrap; gap: 6px; }
-.bb-jh-filter-fields .bb-jh-normal-filters { display: grid; flex: none; gap: 16px; }
-.bb-jh-filter-fields .bb-jh-filter { display: grid; gap: 6px; }
-.bb-jh-filter-fields select { width: 100%; }
+.bb-jh-filter-fields { display: flex; flex-wrap: wrap; align-items: center; gap: var(--bb-space-2); min-width: 0; }
+.bb-jh-filter-fields .bb-jh-periods { flex-wrap: wrap; gap: var(--bb-space-1); }
+.bb-jh-filter-fields .bb-jh-normal-filters { flex: none; flex-direction: row; min-width: 0; }
+.bb-jh-filter-fields .bb-jh-filter { display: grid; gap: var(--bb-space-1); max-width: 100%; white-space: normal; }
+.bb-jh-filter-fields .bb-ws-combobox-trigger { max-width: 100%; }
+@media (max-width: 760px) {
+  .bb-jh-filter-fields { flex: 1 1 100%; }
+  .bb-jh-filter-fields .bb-jh-normal-filters { flex: 1 1 100%; }
+  .bb-jh-filter-fields .bb-jh-filter { flex: 1 1 0; }
+}
 .bb-jh-refresh { display: grid; place-items: center; flex: none; width: 32px; height: 32px; padding: 6px; }
 .bb-jh-refresh-mark { display: block; width: 16px; height: 16px; }
 .bb-jh-notifications { display: grid; gap: 8px; }
@@ -622,13 +626,13 @@
 .bb-jh-loading { color: var(--bb-color-muted); }
 .bb-jh-summary-note { font-size: 11.5px; }
 .bb-jh-entrypoint { display: grid; gap: 2px; }
-.bb-jh-entrypoint small.bb-jh-waiting { color: var(--bb-color-warning-strong, var(--bb-color-accent-strong)); font-size: 11px; font-weight: 600; }
+.bb-jh-entrypoint small.bb-jh-waiting { color: var(--bb-color-warning-strong, var(--bb-color-accent-strong)); font-size: 11px; font-weight: var(--bb-font-weight-medium); }
 .bb-jh-filter-fields .bb-jh-filter .bb-ws-combobox { width: 100%; }
 
 /* Detail: references that only have an id, the one question, and the record details. */
 .bb-jh-references { display: grid; gap: 8px; }
 .bb-jh-reference-list small { color: var(--bb-color-quiet); font-size: 11px; }
-.bb-jh-reference-kinds { margin: 0; color: var(--bb-color-ink); font-size: 13px; font-weight: 600; }
+.bb-jh-reference-kinds { margin: 0; color: var(--bb-color-ink); font-size: 13px; font-weight: var(--bb-font-weight-medium); }
 .bb-jh-references .bb-jh-reference-note,
 .bb-jh-handoff .bb-jh-reference-note { margin: 0; }
 .bb-jh-feedback { display: grid; gap: 12px; }
@@ -664,7 +668,7 @@
   margin: 0;
   color: var(--bb-color-muted);
   font-size: 11px;
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
   letter-spacing: 0.04em;
 }
 
@@ -738,6 +742,7 @@
 .bb-jh-owner.is-applied {
   border-color: var(--bb-color-accent);
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
 }
 
 .bb-jh-owner strong {
@@ -767,6 +772,20 @@
 .bb-jh-owner-badge.is-applied {
   border-color: var(--bb-color-accent);
   background: var(--bb-color-accent-soft);
+  --bb-color-muted: var(--bb-color-muted-on-surface);
   color: var(--bb-color-accent-strong);
-  font-weight: 680;
+  font-weight: var(--bb-font-weight-medium);
+}
+
+/* Explicit small warning/error treatments; details retain all coverage metadata. */
+.bb-jh-banner.is-warning {
+  padding: 6px 10px;
+  border-left: 3px solid var(--bb-color-notice-warning);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--bb-color-notice-warning) 18%, transparent), transparent), var(--bb-color-notice-background);
+}
+.bb-jh-notifications .bb-jh-banner.is-warning {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--bb-color-notice-warning) 18%, transparent), transparent), var(--bb-color-notice-background);
+}
+.bb-jh-notifications .bb-jh-banner.is-danger {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--bb-color-notice-danger) 18%, transparent), transparent), var(--bb-color-notice-background);
 }
