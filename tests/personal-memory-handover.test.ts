@@ -349,7 +349,25 @@ describe('H7 local memory re-registration', () => {
     await appendFile(join(dir, MEMORY_REGISTRATION_RECEIPTS_FILE), 'not json\n');
     const result = await run(['memory:list', '--dir', dir]);
     expect(result.code).toBe(1);
+    expect(result.stderr).toContain(MEMORY_REGISTRATION_RECEIPTS_FILE);
     expect(await readdir(dir)).not.toContain('.brainbase-ssot.lock');
+  });
+
+  it('reports the malformed receipt after a blocked legacy read has finished', async () => {
+    // Another holder keeps the canonical lock, so the legacy read waits out the
+    // timeout. memory:list waits for that read to finish, then still reports the receipt.
+    vi.stubEnv('BRAINBASE_SSOT_LOCK_TIMEOUT_MS', '500');
+    await mkdir(join(dir, 'handover'), { recursive: true });
+    await appendFile(join(dir, MEMORY_REGISTRATION_RECEIPTS_FILE), 'not json\n');
+    const lockDir = join(dir, '.brainbase-ssot.lock');
+    await mkdir(lockDir);
+    await writeFile(join(lockDir, 'owner.json'), '{}\n');
+    const started = Date.now();
+    const result = await run(['memory:list', '--dir', dir]);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(400);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain(MEMORY_REGISTRATION_RECEIPTS_FILE);
+    expect(result.stderr).not.toContain('Timed out waiting for canonical SSOT lock');
   });
 
   it('lists nothing and creates nothing for an empty data directory', async () => {
