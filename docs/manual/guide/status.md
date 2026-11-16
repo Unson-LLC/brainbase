@@ -4,6 +4,10 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
+## Candidate — v0.50.19（npm公開前）
+
+0.50.18に、hosted MCP で Claude Code の判断hookを受け取るHTTPの受け口（公開subpath `remote-judgment-hook-http`）と、受け付けたやりとりを組織APIへ送る `judgment-journal-turn-publisher` を加える（#990）patch更新候補です。認証はホストが先に確かめ、共有bearerや会社権限の認証では remote の Claude Code 宣言を受け付けません。既存の公開API、MCPツールの動きは変更しません。npm公開と利用ホストへの配備は別途確認します。
+
 ## Candidate — v0.50.17（npm公開前）
 
 0.50.16に、判断の履歴の絞り込み（検索・期間・プロジェクト・判断したAI）を一覧の直上に常に出す形へ変える（#963）patch更新候補です。仕事ページと同じ並べ方で、件数行も「取得済み・条件一致・表示・総数」の形にそろえます。全件数が分からないときは総数を「未確認」と出します。取得・認可経路や配色の値は変更しません。npm公開と利用ホストへの配備は別途確認します。
