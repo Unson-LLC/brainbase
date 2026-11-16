@@ -689,7 +689,7 @@ export function createInboxUI({
   function renderCardTabs(shown) {
     const bar = el(doc, 'div', { className: 'bb-inbox-card-toolbar' });
     const tablist = el(doc, 'div', { className: 'bb-inbox-tabs', attrs: { role: 'tablist', 'aria-label': '受信箱' } });
-    workspaceTabStrip(tablist, { memoryKey: `${instanceId}-tabs` });
+    workspaceTabStrip(tablist, { memoryKey: `${instanceId}-tabs`, appearance: 'prominent' });
     const definitions = [
       ['waiting', '対応待ち', { tab: 'waiting', view: 'waiting' }],
       ['notices', 'お知らせ', { tab: 'notices', view: 'waiting' }],

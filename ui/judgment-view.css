@@ -69,9 +69,10 @@
 
 .judgment-view h1 {
   margin: 4px 0 8px;
-  font-size: clamp(1.45rem, 3vw, 2rem);
-  line-height: 1.25;
   letter-spacing: -.02em;
+  font-size: var(--bb-page-title-font-size);
+  font-weight: var(--bb-page-title-font-weight);
+  line-height: var(--bb-page-title-line-height);
 }
 
 .judgment-view h2 {

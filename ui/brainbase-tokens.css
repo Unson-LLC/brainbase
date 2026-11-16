@@ -90,7 +90,15 @@
   --bb-font-weight-medium: 500;
   --bb-color-mint: #6fc4b5;
   /* Approved compact Inbox presentation; scoped by the opt-in cards layout. */
-  --bb-inbox-approval-stripe: #d97706;
+  --bb-color-review: #d97706;
+  --bb-knowledge-type-decision: var(--bb-color-action);
+  --bb-knowledge-type-knowledge: var(--bb-color-success);
+  --bb-knowledge-type-fact: var(--bb-color-mint-strong);
+  --bb-knowledge-type-principle: var(--bb-color-warning);
+  --bb-knowledge-type-procedure: color-mix(in srgb, var(--bb-color-action) 70%, var(--bb-color-mint) 30%);
+  --bb-knowledge-type-term: color-mix(in srgb, var(--bb-color-action) 60%, var(--bb-color-danger) 40%);
+  --bb-knowledge-type-policy: color-mix(in srgb, var(--bb-color-success) 70%, var(--bb-color-action) 30%);
+  --bb-inbox-approval-stripe: var(--bb-color-review);
   --bb-inbox-task-stripe: #2563eb;
   --bb-inbox-border-subtle: #ebf0f2;
   --bb-inbox-tab-hover: rgb(255 255 255 / 50%);
@@ -116,6 +124,24 @@
   --bb-space-4: 16px;
   --bb-space-5: 24px;
   --bb-space-6: 32px;
+  /* Shared search, segmented tabs and anchored-filter presentation. */
+  --bb-list-control-height: 36px;
+  --bb-list-search-width: 240px;
+  --bb-list-search-gap: 10px;
+  --bb-list-control-radius: 8px;
+  --bb-filter-width: 280px;
+  --bb-filter-radius: 12px;
+  --bb-filter-enter-duration: 240ms;
+  --bb-filter-exit-duration: 180ms;
+  --bb-filter-enter-distance: -10px;
+  --bb-filter-exit-distance: -8px;
+  --bb-filter-enter-ease: cubic-bezier(.2, .8, .2, 1);
+  --bb-segmented-height: 36px;
+  --bb-segmented-padding: 3px;
+  --bb-segmented-radius: 8px;
+  --bb-segmented-tab-radius: 6px;
+  --bb-segmented-surface: #e8edf0;
+  --bb-segmented-shadow: 0 1px 2px rgb(15 23 42 / 8%);
   /* Additive tokens for opt-in compact list controls. */
   --bb-control-compact-height: 32px;
   --bb-toolbar-height: 44px;
@@ -151,9 +177,9 @@
   --bb-page-title-font-size: 20px;
   --bb-page-title-line-height: 28px;
   --bb-page-title-font-weight: 600;
-  --bb-page-header-padding-top: var(--bb-space-3);
-  --bb-page-header-padding-bottom: var(--bb-space-4);
-  --bb-page-header-height: calc(var(--bb-page-title-line-height) + var(--bb-page-header-padding-top) + var(--bb-page-header-padding-bottom));
+  --bb-page-header-padding-top: 0px;
+  --bb-page-header-padding-bottom: 0px;
+  --bb-page-header-height: 52px;
   --bb-search-band-header-height: var(--bb-page-header-height);
   --bb-search-band-scope-padding: 13px;
   --bb-search-band-scope-viewport-reserve: 192px;
@@ -164,4 +190,29 @@
   --bb-create-hover: var(--bb-color-action-hover);
   --bb-radius-pill: 999px;
 
+  /* Additive neutral compositions; existing palette aliases retain their values. */
+  --bb-color-slate: #475569;
+  --bb-color-line-soft: var(--bb-inbox-border-subtle);
+  --bb-color-placeholder: #9aa3af;
+  --bb-composed-chip-hover: rgb(36 50 75 / .1);
+  --bb-shadow-card-row-hover: 0 8px 18px -10px rgb(36 50 75 / .45);
+  --bb-shadow-card-preview: 0 8px 18px -12px rgb(36 50 75 / .45);
+  --bb-row-move-duration: 320ms;
+  --bb-row-move-ease: cubic-bezier(.2,.8,.2,1);
+  --bb-shadow-compact-dropdown: 0 0 0 1px rgb(27 36 51 / .08), 0 12px 28px rgb(27 36 51 / .18);
+  --bb-shadow-control-panel: 0 0 0 1px rgb(27 36 51 / .08), 0 20px 44px -12px rgb(27 36 51 / .28);
+  --bb-shadow-compact-dialog: 0 0 0 1px rgb(27 36 51 / .08), 0 24px 60px -12px rgb(27 36 51 / .32);
+  --bb-input-frame-width: 600px;
+  --bb-control-panel-width: 372px;
+  --bb-control-panel-duration: 160ms;
+  --bb-compact-dropdown-duration: 140ms;
+  --bb-compact-dropdown-offset: -6px;
+  --bb-compact-dropdown-scale: .98;
+  --bb-header-tab-color-duration: 200ms;
+  --bb-header-tab-duration: 300ms;
+  --bb-header-tab-ease: cubic-bezier(.3,1.4,.5,1);
+  --bb-input-frame-duration: 220ms;
+  --bb-input-frame-ease: cubic-bezier(.2,.7,.2,1);
+  --bb-shadow-input-frame: -12px 0 40px rgb(36 50 75 / .12);
+  --bb-color-input-frame-overlay: rgb(32 41 57 / .18);
 }

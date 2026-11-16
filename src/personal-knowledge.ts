@@ -6,7 +6,7 @@ import type { FileHandle } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { resolveDataDir } from './paths.js';
 
-/** The context header used by the v1 register and search contracts. */
+/** The context header used by the v1 register, search, and reject contracts. */
 export const PERSONAL_KNOWLEDGE_CONTEXT_HEADER = 'X-Brainbase-Personal-Context';
 export const PERSONAL_KNOWLEDGE_CONTEXT_VERSION_HEADER = 'X-Brainbase-Personal-Context-Version';
 /** Short alias retained for consumers that call this a personal context header. */
@@ -786,6 +786,24 @@ export class PersonalKnowledgeClient {
       expectedHeader: true
     });
     return assertSearchEnvelope(payload, this.expectedContext);
+  }
+
+  async reject(eventId: string): Promise<{ event_id: string; action: 'reject'; semantic_state: 'retracted' }> {
+    if (typeof eventId !== 'string' || !eventId.trim()) {
+      throw new Error('Personal Knowledge rejection requires a non-empty event_id.');
+    }
+    const event_id = eventId.trim();
+    await this.getContext();
+    const receipt = await this.request('/api/personal-knowledge/feedback', {
+      method: 'POST',
+      body: { event_id, action: 'reject' },
+      expectedHeader: true
+    });
+    if (!isRecord(receipt) || receipt.event_id !== event_id || receipt.action !== 'reject'
+      || receipt.semantic_state !== 'retracted' || 'error' in receipt) {
+      throw new PersonalKnowledgeClientError('Personal Knowledge reject response schema is invalid.');
+    }
+    return { event_id, action: 'reject', semantic_state: 'retracted' };
   }
 
   private async request(path: string, options: { method: 'GET' | 'POST'; body?: unknown; expectedHeader?: boolean }): Promise<unknown> {

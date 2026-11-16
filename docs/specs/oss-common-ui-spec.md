@@ -31,9 +31,13 @@ Mana委任UI（`ui/outcome-mana`、そのCSSと`ui/icons/mana`）は、0.8.0の�
 
 ### ページヘッダー
 
-- `workspaceTopbar(document, { title })` はタイトルだけの共通バー。本文と同じcanvas背景、文字20px/28px・weight600、上12px・下16px・左右32px（高さ56px）。下線・装飾は付けない。寸法は `--bb-page-header-*` / `--bb-page-title-*` を参照する。スクロール領域の上端へsticky固定し、本文やfocus対象を隠さない。ホストはバーの直下に追加の上余白を入れない。
-- 件数、追加ボタン、画面固有のフィルターは本文の操作帯に置く。全ページ共通の用途が定義されていない3点メニューは追加しない。
+- `workspaceTopbar(document, { title, query, tabs, tools })` は全ページ共通の52pxバー。下に1pxの線、左右24px、間隔8px。左に任意のタブ、右に検索と道具を置く。タイトルは最初の子のH1として常に保持し、`tabs` がある時だけ視覚的に隠す。タブなしは従来どおりタイトルを表示する。本文と同じcanvas背景でsticky固定し、`--bb-page-header-height` が検索帯の固定位置にも使われる。
+- `setQuery(input | null)`、`setTabs(Node | Node[] | null)`、`setTools(Node | Node[] | null)` で内容を更新できる。検索inputの値とhandlerは所有元が保持する。同じinputを再指定しても包みを作り直さない。空slotはDOMを増やさない。道具の処理・名前・利用可否は呼び出す側が決める。
+- `workspaceSearchControl(document, { input })` は幅240px・高さ36px・文字13px・アイコン16pxの共通検索部品。白い面と通常の枠を持ち、ヘッダー内と本文操作帯で同じ部品を使う。入力の値・検索処理・ラベルは所有元が渡す。
+- タブの件数はタブ内、検索・追加・表示条件の道具は `tools` に合成できる。既存画面の本文操作帯は今回移設しない。用途の定まらない道具は追加しない。
 - 世界のような没入型キャンバスはヘッダーを出さず、画面上端から内容を表示する。
+- 単独ページの本文見出しもH1とし、`--bb-page-title-font-size` / `--bb-page-title-line-height` / `--bb-page-title-font-weight` を参照する。画面・viewportごとのサイズを定義しない。
+- `workspacePageHeader` のleadは60字以内・1文までを表示し、それを超える全文は既存 `workspaceHelp` の「？」へ置く。`help` で明示の補足も渡せる。長いleadの全文に補足を続け、説明を失わない。権限を含むleadを呼び出し元で組み立てる場合は `preserveLead: true` で自動分割を止め、操作説明だけを `help` に渡す。状態・権限・失敗・出典は説明と分けて維持する。
 - `workspacePageHeader` は本文の説明・出典・操作を組み立てる既存部品。共通バーを使うホストは `.bb-ws-has-topbar` で重複タイトルを省き、固有の操作や説明を保持する。
 
 ### 文字の濃さと主ボタン・失敗のカード
@@ -49,6 +53,7 @@ Mana委任UI（`ui/outcome-mana`、そのCSSと`ui/icons/mana`）は、0.8.0の�
 - 継続して内容が更新される詳細は `workspaceDetailDrawer` を使う。`setContent` は内容更新、`open` は明示的なユーザー操作や詳細リンク、`close` は終了、`dispose` は画面破棄に対応する。
 - 単発の詳細は `workspaceDialog(..., { presentation: 'drawer' })`。ホスト所有のdialogは `workspaceApplyDrawer` / `workspaceCloseDrawer` を使い同じ幅・開閉モーション・reduced motionへ揃える。
 - Escape、背景クリック、閉じるボタン、モーダルのfocus制御、閉じた後の選択行へのfocus復帰を保持する。非同期応答が来ても、閉じたdrawerを勝手に開き直さない。画面離脱時は破棄して古い応答が前画面を復活させない。
+- 背景クリックで閉じる動作は `closedby="any"` をブラウザに任せる。未対応のブラウザ（Safari）だけ、機能検出のうえでポインタ位置の判定を使う。どちらも `cancel` と同じ終了処理を通る。
 - 知識・議事録は `detailPresentation: 'drawer'` を明示できる。互換性のため未指定時は既存のinline表示を保持する。会議作成、保存結果、失敗、再試行も到達可能な状態に保つ。
 
 ### 所有と変更手順
@@ -56,6 +61,16 @@ Mana委任UI（`ui/outcome-mana`、そのCSSと`ui/icons/mana`）は、0.8.0の�
 共通UIとトークンはこのOSSリポジトリ、組織のルーティング・認証・権限・監査は組織ホスト、テナントの値は設定リポジトリが所有する。[所有境界ADR](../architecture/oss-organization-ui-ownership.md)に従う。ブランド資料とトークンの役割も同ADRを参照する。
 
 共通部品の変更はOSSへ先に実装・テストし、正式公開npmのexact pinを組織ホストへ取り込む。ホストによるコピー、共通CSSの上書き、DOM監視での共通部品の移設は避け、明示的なオプションとライフサイクルで合成する。
+
+### Webの機能の選び方
+
+`ui/` のHTML・CSS・ブラウザ側JavaScriptを書く前に、`modern-web-guidance`（版は `package.json` のdevDependenciesに固定）で該当するガイドを読む。手順は `.claude/skills/modern-web-guidance/SKILL.md`。一部のブラウザが未対応の機能は、機能検出つきの代替を残す。`tests/ui/modern-web-legacy-scan.test.mjs` が `ui/` に古い書き方が入るのを止めるが、機械的に見るのはガイドの約20%である。
+
+対応ブラウザの基準は、機能ごとのBaselineの区分で決める。2026-11-12時点の `ui/` の使い方（`:has()`、`color-mix()`、`dvh`、`inert` を代替なしで使う）を追認したもので、変えるときはこの節を先に直す。
+
+- Widely available: そのまま使う。
+- Newly available: 使ってよい。無いブラウザで操作が止まる機能は、機能検出つきの代替を置く。
+- Limited availability（主要ブラウザのどれかが未対応）: 無くても操作が完結する上乗せとしてだけ使う。代替は既存の処理を機能検出で囲んで残す。例は `closedby`。
 
 ### 検証
 
@@ -76,7 +91,9 @@ desktop/mobile、長いタイトル、スクロール時の固定、詳細の開
 
 The shared appearance is 44px high, 13px text at weight500, no gap and 12px internal horizontal padding. Hover does not change foreground or background. The 1px baseline and 2px selected indicator share the same bottom edge. Strips scroll horizontally within their own bounds, preserve hidden nodes and show keyboard focus. Layout gutters and vertical margins remain the host's responsibility. Use `bb-ws-tab-count` only for existing counts, and `bb-ws-tabs--summary` when a tab already has a secondary line.
 
-`workspaceTabStrip(root, { memoryKey })` is the opt-in for keyboard switching and a sliding indicator ([Story](../stories/story-shared-tab-strip-keys-and-indicator-v1.md)). It applies `workspaceTabList` and returns `{ root, update, destroy }`; calling it again on the same root returns the same controller. On a `role="tab"` child, ←/→ move to the previous/next tab and wrap, Home/End go to the first/last; hidden and disabled tabs are skipped and modified keys are ignored. Selection is made by calling the tab's own `click()`, so the host's handler stays the owner. Only the selected tab has `tabindex="0"`. When the host redraws after a key move, focus returns to the new selected tab and it is scrolled into view, unless the viewer has moved focus elsewhere. The 2px indicator becomes one `::after` bar that slides between tabs; strips redrawn as new nodes pass the same `memoryKey` so the bar slides from the previous position. A host that replaces the children of a kept root calls `update()` after drawing. Reduced motion removes the slide. When a tab cannot be measured, the per-tab indicator above stays.
+`workspaceTabStrip(root, { memoryKey, appearance })` is the opt-in for keyboard switching and a sliding indicator ([Story](../stories/story-shared-tab-strip-keys-and-indicator-v1.md)). It applies `workspaceTabList` and returns `{ root, update, destroy }`; calling it again on the same root returns the same controller. On a `role="tab"` child, ←/→ move to the previous/next tab and wrap, Home/End go to the first/last; hidden and disabled tabs are skipped and modified keys are ignored. Selection is made by calling the tab's own `click()`, so the host's handler stays the owner. Only the selected tab has `tabindex="0"`. When the host redraws after a key move, focus returns to the new selected tab and it is scrolled into view, unless the viewer has moved focus elsewhere. The 2px indicator becomes one `::after` bar that slides between tabs; strips redrawn as new nodes pass the same `memoryKey` so the bar slides from the previous position. A host that replaces the children of a kept root calls `update()` after drawing. Reduced motion removes the slide. When a tab cannot be measured, the per-tab indicator above stays.
+
+The optional `appearance: 'prominent'` applies `.bb-ws-tabs--prominent`, the shared card-inbox appearance: 43px tabs, 14px text at weight500 (selected 600), 16px horizontal padding, 4px gap, `--bb-tab-prominent-ink` foreground/2px indicator (defaults to `--bb-color-accent`) and `--bb-tab-prominent-hover` (defaults to `--bb-inbox-tab-hover`). At 768px and below it wraps with 10px horizontal padding and uses a per-tab underline. The card inbox explicitly selects this variant; ordinary inbox and unspecified strips keep their prior appearance. Selection uses the existing ARIA state; hosts call `update()` after updating kept strips. Use the shared variant instead of importing inbox CSS or copying its selectors into hosts. Container placement and margins stay with the host; prominent strips do not draw a baseline, so the host toolbar owns its bottom border. The optional ink/hover properties are resolved with fallbacks on the strip instead of root aliases, preserving scoped accent/hover customization. A host with a different local accent can explicitly inject `--bb-tab-prominent-ink: var(--bb-color-action)` on its toolbar without overriding shared selectors.
 
 Application must be explicit: do not style every `role=tablist` globally. Task list/kanban/Gantt view modes remain unmarked and retain their existing segmented appearance. Search toolbar placement and intake-page styling are independent changes. Organization hosts consume the published exact-pinned package; source-backed previews do not replace that release gate.
 
@@ -91,6 +108,7 @@ Application must be explicit: do not style every `role=tablist` globally. Task l
 - `workspaceDropdownChevron(document)` は10×6px、線幅1.2、丸端の浅いV字SVG。装飾として `aria-hidden`、クリック・focus・名前は親triggerが所有する。画面ごとの文字グリフ・上下位置補正を増やさない。
 
 `workspaceCombobox` の複数選択は `multiple: true, values: string[]` と `onChange(values, option)` で使う。空値の候補は全選択解除。選択後も開いたまま、選択はチェックのみ、背景はhover時のみ。Arrow/Home/End/PageキーとEnter/Space、Escape/Tab、外側クリックの閉じる操作を保持する。スクロールは候補一覧の内部だけを動かし、同じoptionsと値の `update` でDOMを作り直さない。
+派生した選択の名前には任意の `selectionLabel` をconstructor/updateへ渡せる。値と候補のチェックは変えず、triggerとaria-labelの表示名だけを揃える。省略・空文字では既存の選択要約を使う。
 
 - `renderIcon(option)` は表示用Nodeを返す。画像値・名称はホストの選択肢から渡す。
 - `showHints: false` で識別子などの補足表示を隠す。`showCount: false` は単純な件数のみ隠し、候補なし・表示上限の案内は残す。
@@ -136,3 +154,192 @@ Hosts set the following custom properties on their navigation container instead 
 | `--bb-area-section-link-indicator-display` | `inline` (`none` hides the decorative chevron) |
 
 The heading link's padding-top token replaces the top edge of the label padding, as before. Presentation options do not change routing, remembered screens, section links, counts, keyboard focus or hidden-screen behavior. Hosts consume the published exact-pinned package for these options.
+
+### セグメント型タブと絞り込み
+
+- `workspaceTabStrip(root, { appearance: 'segmented' })` は外枠36px・内側30pxの囲みタブ。既存default/prominentの外観は変えない。選択状態・クリック処理は所有元、キー操作と選択面の移動・再描画後のfocusは共通部品が持つ。
+- `workspaceFilterPopover` は幅280px・余白16px・角丸12pxの共通surfaceを持つ。`appearance: 'icon'` は36pxの絞り込みアイコンボタン。既存文字triggerは省略時のまま。条件やmenu semanticsは所有元が保持する。
+- `setOpen(value, focus = false)` と `isOpen` が論理的な開閉の正本。閉じるとすぐaria-expandedをfalse、panelをinert/aria-hiddenにして非操作にし、180msで上へ8px移動しながら消したあとhiddenにする。開く動きは240ms。閉じる途中のhiddenを開閉判定に使わない。
+- 再openは終了待ちを取り消す。`destroy()` は即時非表示・timer/listener清掃。Escapeはtriggerへfocusを戻し、reduced motionでは終了を待たずに非表示にする。DOM監視や見本専用のghostコピーは本体へ持ち込まない。
+
+### Directory filter choices and applied conditions
+
+`workspaceFilterOption(document, { label, count, checked, disabled, role, attrs, onClick })` returns a button with separate check, label and count cells. `count` may be an unknown/partial description and is never inferred as zero. Selection is expressed by `aria-checked` and a check, with a neutral background; only hover paints the row. Callers retain condition changes, dismissal and focus.
+
+`workspaceFilterChip(document, { label, onRemove, attrs })` provides the shared mint applied-condition surface and individual remove action. The host retains removal and focus behavior. Search-bearing topbars use `--bb-page-header-inline-end` (default `--bb-space-5`) to align the search edge with the host content gutter.
+
+The shared review orange is `--bb-color-review`; the inbox approval stripe aliases this token. Knowledge directory type labels use explicit type tokens and retain their text. `judgment`/`decision` and `document`/`knowledge` aliases share their respective type color; missing or unrecognized types retain the neutral label.
+
+
+### これからの共通標準（0.50.12候補）
+
+同じ目的で同じ動きをするものは同じ部品を使う。見た目が似ていても役目が違うものは区別する。業務データ、文言、取得・保存・権限判断はホストが渡す。既存ページの検索・プルダウン・主ボタンの置き換えは今回行わない。以下の明示選択以外は既定の見た目を維持する。ヘッダーの52px化だけは全利用画面へ適用する。世界のようにヘッダーを生成しない画面には影響しない。
+
+これからの検索は `workspaceSearchControl({ input, appearance: 'compact' })`（210×32px、白面、内側1px枠、角7px、文字12.5px、アイコン14px）。入力の名前と検索処理はホストが持つ。ヘッダータブ付きのqueryにも同じ形を適用する。タブなしの既存queryは240×36pxを維持する。
+
+これからの候補選択は `workspaceCombobox({ appearance: 'compact', ... })`、ページの見方は `workspaceTabStrip(root, { appearance: 'header' })`、主操作は `workspaceButton({ variant: 'primary', ... })` の紺を使う。ページごとにCSSを写さず、tokens → workspace-kit.css → ホストのレイアウトCSSの順で読む。主ボタンの色や共通セレクタをホストで上書きしない。
+
+#### ヘッダーの見方タブ
+
+- 役目: 同じページの見方を選ぶ。文言・件数・選択はホストが持つ。
+- 見た目: `appearance: 'header'`。52pxの文字タブ、左右14px、間2px、15px/600（選択700）。`.bb-ws-tab-count` は22pxのミント丸、文字11.5px/600。選択中は濃いミント。紺の3px下線はヘッダー下線と底をそろえる。
+- 状態・動き: ホストのARIA選択を参照。下線は300ms、`cubic-bezier(.3,1.4,.5,1)`。←→/Home/End、非表示・disabledの除外、描画後のfocus復帰とスクロールは既存controllerを使う。reduced motionでは移動しない。
+- 呼出: `workspaceTabStrip(root, { appearance: 'header', memoryKey })`。保持したrootの子を更新したら `update()`、破棄時は `destroy()`。tablist/tab/aria-selectedとclick処理はホストが用意する。
+- 禁止: 既存stripへ自動適用、IDや件数の推測、同じ下線の二重描画。
+
+#### 条件チップ
+
+- 役目: かかっている条件と解除操作を並べる。
+- 見た目: 24px高、角6px、ミント面、紺12px/500。×は18px、リセットは24pxのアイコン。6px間隔で折り返す。
+- 状態・動き: `workspaceConditionChips(document, { items: [{ label, onRemove }], reset, resetLabel })`。`reset` は初期状態と違う時だけホストが渡す。選択状態を内部で推測しない。解除とリセットの後の描画・focusはホストが管理する。
+- 禁止: 条件解除でqueryや別の条件を勝手に変える、業務条件を部品へ埋め込む。
+
+#### 丸い選択印
+
+- 役目: 2〜4個の排他的な短い選択肢。
+- 見た目: `workspacePills(document, { label, items: [{ value, label, disabled, icon }], value, onChange })`。高さ28px・角999px・間2px、文字12.5px。入力枠内は30px/13px。選択は紺・白文字600、通常はslate/500、hoverはcanvas、disabledはopacity .35。
+- 状態・動き: ネイティブbuttonのTab/Enter/Spaceを保つ。`aria-pressed` を使うgroupでありtablistではない。ホストが変更を受け入れた後 `root.update(value)` で反映する。装飾のiconはホストが渡す。
+- 禁止: 押しただけで業務状態を確定、4択を超える一覧の代用、disabledの操作実行。
+
+#### コンパクトなプルダウンと候補
+
+- 役目: 単一または複数の候補選択。`workspaceCombobox` の `appearance: 'compact'` を明示する。
+- 見た目: trigger28px・角6px（`className: 'is-boxed'` で通常枠、`is-active` で適用中のミント面を明示）、候補32px・角8px、popupはpadding4px・角10px・最小150px幅・最大260px高、通常面は白、hoverはcanvas。複数は15pxの四角いチェックで選択を表す。フォーム内はtrigger32px・候補34px・最小幅200px。
+- 状態・動き: 単一は選んだら閉じる。複数は `multiple: true, values, onChange(values, option)` で選んでも閉じない。候補の空値は全解除。140ms ease-out、-6px/scale .98から現れて逆へ消える。閉じ始めにinert/aria-hiddenにし、アニメ完了またはfallbackで隠す。再openは古い終了を取消す。
+- 呼出: 短い一覧は `searchable: false, showCount: false, showHints: false`。検索可能・空・上限案内・単複選択・候補icon・右揃え等の既存契約も使える。`update`/`open`/`close`/`destroy`を使う。Arrow/Home/End/Page/Enter/Space（複数）/Esc/Tab、外側クリック、focus復帰は既存制御を保つ。reduced motionは即時。
+- 禁止: CSSで開閉だけをまねる、選択を色だけで示す、値を保存先へ直接送る、既存ページへ自動適用。
+
+#### 項目名と操作の2列の小窓
+
+- 役目: 右上の道具から、関連する表示操作をまとめて開く。
+- 見た目: `workspaceFilterPopover(document, { trigger, appearance: 'panel', content })`。372px幅、上40px、角14px、padding上下6px。`workspaceControlRow(document, { label, control, tight })` は左92px・右可変、左右16px、通常44px・tight38px。右に操作をそろえる。影は `--bb-shadow-control-panel`。
+- 状態・動き: 160ms `--bb-filter-enter-ease`。既存のEsc・外側・終了中inert・focus復帰・reopen取消・destroyを使う。reduced motionは即時。内容の選択・初期化の処理はホストが持つ。
+- 禁止: 設定項目や権限の内蔵、画面のDOM監視で移設、下位popupのEscで親まで閉じる。
+
+#### 右から開く入力枠
+
+- 役目: 共通のモーダル内へ道具、札、項目、決定操作を合成する。
+- 呼出: `workspaceInputFrame(document, { title, opener, onClose, tools, preview, rows, footer, showTitle })`。返値は `workspaceDetailDrawer` の `dialog/setContent/setTitle/open/close/dispose` と、`top/tools/fields/footer` の各Node。札自身に見出しがある詳細では `showTitle: false` で重複を避ける（読み上げ名は保持）。`workspaceFormRow(document, { label, control, required, top })` をrowsへ渡す。id付きcontrolのlabelを関連付け、必須は※とaria-required、ネイティブ入力にはrequiredを設定する。
+- 見た目: 幅600px（viewport以下）、canvasの上部・白い入力面。道具がある時は上部52px、ない時は上部22px。札slot、項目は左96px・右可変・高さ52px、focus-withinで下に紺2px。項目面は6px 28px 24px、下の決定行は14px 28px、主ボタンは紺。影・overlayは入力枠専用トークン。
+- 状態・動き: drawer本体のshowModal、Esc、背景クリック、focus trapと戻り、非同期応答で勝手に開かない制御を共有する。入力枠だけ220ms `cubic-bezier(.2,.7,.2,1)` で右端から全面移動する。既存drawerの既定の見た目は変えない。reduced motionでは即時。非同期保存・エラー・必須項目の組合せ・未保存確認はホストの責務。
+- 禁止: 保存・権限・業務状態遷移を部品内で判断、応答で再open、画面破棄後のDOM復活。
+
+#### 一覧の札の行
+
+- 役目: ホストの任意のセルを白い札へ並べる。
+- 呼出: `workspaceCardRow(document, { key, label, cells, stripe, selected, onSelect, preview })`。`stripe` はホストの色またはtoken参照、列定義は親の `--bb-card-columns`。`onSelect(key)` があればnative button、なければ通常Node。セルのNodeをそのまま渡せる。
+- 見た目: 最小48px、下3px、角8px、左右16px/22px、列間20px、左に5pxの色帯。hoverは影だけを150msで表示し、selectedは紺2px枠。previewは52px・列間16px・常設の薄い影。
+- 状態・動き: `workspaceRowMotion(root)` の `capture()` → ホストが並べ替え/再描画 → `play()`。`data-key` で前後の位置を対応させ、既存行だけを320ms `cubic-bezier(.2,.8,.2,1)` で新位置へ移す。reduced motionは動かさない。`destroy()` で進行中の動きを取り消す。
+- 禁止: 業務優先度や表示順の内蔵、重複key、focusできるセル操作をbutton行内へ入れる。複数の操作が要る行は非button行へホストが適切な意味付けを行う。
+
+#### 互換性と検証
+
+既存export/class/必須入力は削除・変更しない。未指定のtab、search、combobox、drawerの見た目と選択契約を保持する。共通tokenの既定色は変更せず、新しい影・slate・動きの値だけ追加する。合成fixtureで見た目・選択・キー・開閉・focus・reduced motionを検証し、npm tarballへ個人情報・ローカル照合資料を混ぜない。
+
+
+### 議事録の横一覧（0.50.16候補、明示選択）
+
+`createMeetingMinutesUI({ pagePresentation: 'table' })` は既存のHTTP・保存・readback・権限callbackを使い、共通topbar・header tabs・condition chips・combobox・filter popover・card row・row motion・input frameで表示する。省略時は既存表示を保持する。会議メタ情報の編集は追加しない。本文の保存は新版を作り、古い版は読み取り専用。
+
+- `participantIdentities()` は現在の本人を表す既存ID・表示名の候補、`meetingProject(meeting)` は既存project文脈の `{ label, icon, stripe }` を渡す。UIが組織の人物や権限を推測しない。
+- 一覧summaryの任意の `current_version_states` は文書ごとの `{ minutes_id, version_id, status: 'pending' | 'confirmed' | 'unknown' }`。既存snapshotから許可確認後に投影し、本文・外部参照・確認者ID・過去版を含めない。複数文書はpending優先、全現行版がconfirmedの時のみconfirmed、不明を確認済みや確認待ちに変換しない。古い応答でversionsも状態もない場合は確認条件を提供しない。
+- 日付の見出しを使わず、2桁の日付・曜日・時刻を各行に置く。未登録日時を取り込み日時で偽装せず、日時なしとして表示・範囲選択から区別する。件数と絞り込みは読み込み済みの範囲で計算し、続きありの表示を保持する。
+- 未保存本文のX・Escape・鉛筆・版/文書選択は破棄確認を通る。ホストの画面/プロジェクト切替は `requestLeave(action)` がfalseなら中断する。破棄を明示した時だけactionを呼ぶ。保存中は本文と切替を凍結し、readback成功前に保存済みと表示しない。失敗は本文と理由を保持する。
+- `workspaceDetailDrawer` / `workspaceInputFrame` の `beforeClose()` がfalseならX・Escape・背景・closeを中止。disposeは画面の清掃として常に実行する。未指定時は従来動作。`workspaceFormRow({ appearance: 'quiet' })` は入力時も細い区切りのみ、`workspaceTopbar({ wrap: true })` は狭い表示でタブと道具を2行にする。
+- 作成入力は会議名と保存先を必須にし、参加候補と自由入力を分ける。既存create callbackで保存/readbackした後、現在の表示条件を変えずに一覧へ戻る。選択範囲外の作成も既存host readbackを維持する。
+
+横一覧のおすすめは、参加記録から得た自分のプロジェクトを選択欄へ反映する。ホストの明示選択を維持している間は別の自分条件を重ねず、手動選択とおすすめ復帰は既存のホストcallbackと未保存保護を通す。取得・認可経路は変更しない。
+
+### Anchored surfaces and compact controls (explicit opt-in)
+
+`workspaceAnchoredPopover(document, { anchor, content, label, surface, width,
+placement, align, onClose })` creates a **closed**, non-modal dialog surface.
+`surface` is `default` (white) or `muted` (the existing segmented surface),
+`width` is a numeric CSS pixel width (default 276), `placement` is `bottom`
+(default) or `overlap`, and `align` is `start` (default), `center`, or `end`.
+The returned controller exposes `element`, `isOpen`, `setContent(content)`,
+`open({ focus: true })`, `close({ restoreFocus: true })`, `reposition()`, and
+`destroy()`. Content changes never open a closed surface. A destroyed controller
+cannot reopen. Hosts own content, close buttons, selection, and asynchronous
+requests; they must destroy surfaces when leaving their view or replacing an
+anchor. Rendering another representation must not revive an old surface.
+
+The surface clamps to an 8px viewport inset and follows document scrolling and
+window resizing. Escape restores the opener; outside pointer dismissal preserves
+the clicked control's focus. A surface inside an open native dialog remains in
+that dialog's top layer and closes with it. Disabled/disconnected anchors do not
+open. Destroy removes listeners, nodes, and its own trigger accessibility state
+without overwriting a newer binding. Binding another controller to the same
+anchor closes and revokes the previous controller; the last current controller
+restores the anchor attributes that predated the first binding. Keyboard focus remains visible, and reduced
+motion disables the entrance animation. This primitive has no provider,
+organization, authorization, or persistence concepts.
+
+`workspaceDialog({ appearance: 'compact', headerTools })` retains the native
+modal contract while opting into a 440px surface, compact heading/padding and
+rounded presentation. `headerTools` accepts nodes before the close button.
+Omitting the options preserves the original dialog. `workspaceHelp` accepts
+`content` nodes, `icon` (default `i`), and `placement: 'bottom-end'` for a compact
+help control and structured explanatory content. The host owns the explanation.
+
+`workspaceCombobox({ appearance: 'compact', boxed: true, triggerHeight: 32,
+matchTriggerWidth: true, popupWidth, active })` opts into a stable boxed trigger.
+Hover/expanded never change its edge; `active` changes only the selected surface
+and can be updated with `update({ active })`. The shared chevron does not change
+shape. `matchTriggerWidth` makes the popup exactly the trigger width;
+`popupWidth` sets a numeric pixel width otherwise. Existing selection/search/
+keyboard/disabled contracts and default presentation are unchanged. Keyboard
+focus remains distinguishable even when hover and expanded edges are stable.
+
+`workspaceSelectionRow({ label, checked, disabled, leading, trailing, color,
+onChange })` returns `{ root, control, update({ checked, disabled }), destroy }`.
+The `control` is a named checkbox button with native Space/Enter activation.
+`leading` is decorative/content before the label; `trailing` is a **sibling** slot
+for status or an independent retry button, never a nested button. `color` is a
+host-supplied CSS color/token for the check; it carries no business meaning.
+`workspaceSwitch({ label, checked, disabled, onChange })` returns the same
+controller shape, with `root === control` and `role=switch`. Both notify the
+host of a changed boolean immediately; hosts retain request, rollback and save
+ownership, and synchronize state with `update`. Destroy detaches activation.
+
+Compact dialog action buttons composed under `.bb-ws-actions` use 34px height,
+14px horizontal padding and 13px text. Hosts supply actions/content, rather than
+overriding shared button presentation. Structured help consumes the first Escape
+only while its explanation is visible; the next Escape reaches the native modal.
+Popup positioning uses untransformed layout dimensions so entrance animation
+cannot invalidate viewport clamping. Explicit combobox `popupWidth` opts out of
+the legacy 150px minimum; `matchTriggerWidth` takes precedence when both are set.
+`workspaceActionIcon` also supports the business-neutral `clock`, `users`,
+`calendar`, `share`, and `folder` symbols; icon meaning and accessible names remain
+with the owning controls.
+
+Explanation Escape priority is owned by the containing `workspaceDialog`:
+a capture handler looks up only help nodes still present in that dialog, and
+dismisses a currently visible explanation before the native modal or a nested
+choice receives that key. The same key cannot dismiss two layers. Help keeps an
+explicit Escape dismissal while either pointer hover or focus remains inside;
+moving the mouse alone cannot revive a focused explanation. Both pointer and
+focus must leave before a new automatic interaction can show it; clicking is an
+explicit reopen. The dialog removes its capture listener during close/dispose;
+help keeps only node-local listeners and a weak lookup, with no document/window
+listener or persistent subscription to detached content.
+
+Anchored surfaces accept `padding: 'none'` for host content that already owns its
+internal spacing. This adds an explicit flush class; omitted padding retains the
+white surface's 14px/8px/8px spacing or the muted surface's 16px bottom spacing.
+Explanation dismissal uses received mouseenter/mouseleave state and actual focus
+containment, not CSS `matches(':hover,:focus-within')`, which can disagree with
+computed tooltip visibility during native pointer sequences.
+
+`workspaceAnchoredPopover({ anchor, positionAnchor })` can measure a separate
+layout node (for example a containing cell) without changing the trigger's
+ARIA, outside-click behavior, or focus restoration. `positionAnchor` defaults to
+`anchor`. Both must remain connected; removing either closes the surface and
+prevents reopening until they are connected again. Placement/alignment/clamping
+are otherwise unchanged.
+
+`workspaceButton({ variant: 'icon', attrs: { 'aria-label': name } })` explicitly
+opts into a 32px square icon control with zero padding, 16px decorative SVG and a
+stable inset 1px edge. Hover/expanded change only surface/foreground, including
+inside `workspaceTopbar`. Hosts supply the accessible name and icon node; button
+activation/disabled and default button variants are unchanged.

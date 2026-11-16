@@ -11,6 +11,7 @@ it('loads a new lazy minutes screen after the unqualified old kit is already cac
     writeFileSync(join(dir, 'workspace-kit.js'), 'export const oldKit = true;');
     writeFileSync(join(dir, 'fresh-kit.txt'), readFileSync(new URL('../../ui/workspace-kit.js', import.meta.url)));
     writeFileSync(join(dir, 'meeting-minutes.js'), readFileSync(new URL('../../ui/meeting-minutes.js', import.meta.url)));
+    writeFileSync(join(dir, 'meeting-minutes-page.js'), readFileSync(new URL('../../ui/meeting-minutes-page.js', import.meta.url)));
     const result = spawnSync(process.execPath, ['--input-type=module', '-e', `
       import { readFileSync, writeFileSync } from 'node:fs';
       import assert from 'node:assert/strict';

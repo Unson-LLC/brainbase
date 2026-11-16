@@ -51,7 +51,13 @@
 .objective-editor-root textarea { font: inherit; }
 .objective-editor-root h1,
 .objective-editor-root p { margin: 0; }
-.objective-editor-root h1 { margin: 4px 0 8px; font-size: clamp(1.45rem, 3vw, 2rem); letter-spacing: -.02em; line-height: 1.25; }
+.objective-editor-root h1 {
+  margin: 4px 0 8px;
+  letter-spacing: -.02em;
+  font-size: var(--bb-page-title-font-size);
+  font-weight: var(--bb-page-title-font-weight);
+  line-height: var(--bb-page-title-line-height);
+}
 .objective-editor-root [hidden],
 .bb-objective-rail [hidden] { display: none !important; }
 

@@ -1,3 +1,5 @@
+@import url('./meeting-minutes-page.css');
+
 .bb-minutes-screen {
   --bb-color-accent: var(--bb-color-brand-indigo);
   --bb-color-accent-strong: var(--bb-color-brand-indigo);
@@ -73,7 +75,6 @@
   margin: 0;
 }
 
-.bb-minutes-heading h1,
 .bb-minutes-detail-head h2 {
   font-size: 20px;
   font-weight: var(--bb-font-weight-medium);
@@ -867,3 +868,9 @@
 }
 
 .bb-ws-search-band .bb-minutes-filter-reset[hidden] { display: none; }
+
+.bb-minutes-heading h1 {
+  font-size: var(--bb-page-title-font-size);
+  font-weight: var(--bb-page-title-font-weight);
+  line-height: var(--bb-page-title-line-height);
+}

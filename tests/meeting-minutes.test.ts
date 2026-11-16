@@ -68,6 +68,69 @@ describe('native meeting minutes lifecycle', () => {
     expect((await minutes.get_version(meeting.meeting.meeting_id, correctedDocument.minutes_id, correctedVersion.version_id, ACTOR)).body).toBe('訂正版');
   });
 
+  it('lists only current confirmation states without version content or extra authorization calls', async () => {
+    const dataDir = await dataDirectory();
+    const reads: MeetingMinutesResource[] = [];
+    let deniedVersionId: string | undefined;
+    const minutes = store(dataDir, {
+      authorizer: {
+        can_read: (resource) => {
+          reads.push(resource);
+          return !('version_id' in resource) || resource.version_id !== deniedVersionId;
+        },
+        can_write: () => true,
+      },
+    });
+    const created = await minutes.create_meeting({ title: 'Current state', initial_body: 'Private version body' }, ACTOR);
+    const document = created.minutes[0]!;
+    const confirmed = await minutes.confirm_version({
+      minutes_id: document.minutes_id, version_id: document.current_version_id, expected_revision: document.revision,
+    }, ACTOR);
+    reads.length = 0;
+    const confirmedList = await minutes.list_meetings(ACTOR);
+    expect(confirmedList[0]?.current_version_states).toEqual([
+      { minutes_id: document.minutes_id, version_id: document.current_version_id, status: 'confirmed' },
+    ]);
+    // The existing meeting/document/version checks each run once; projection adds none.
+    expect(reads).toHaveLength(3);
+    const updated = await minutes.save_version({
+      minutes_id: document.minutes_id, body: 'New private body', expected_revision: confirmed.minutes[0]!.revision,
+    }, ACTOR);
+    reads.length = 0;
+    const page = await minutes.list_meetings(ACTOR, { limit: 1 });
+    expect(page.meetings[0]?.current_version_states).toEqual([
+      { minutes_id: document.minutes_id, version_id: updated.minutes[0]!.current_version_id, status: 'pending' },
+    ]);
+    expect(reads).toHaveLength(4);
+    expect(JSON.stringify(page)).not.toContain('Private version body');
+    expect(JSON.stringify(page)).not.toContain('New private body');
+    expect(page.meetings[0]).not.toHaveProperty('versions');
+    // A denied historical version still hides the entire meeting.
+    deniedVersionId = document.current_version_id;
+    expect(await minutes.list_meetings(ACTOR)).toEqual([]);
+  });
+
+  it('omits withdrawn document states and external source details from listings', async () => {
+    const dataDir = await dataDirectory();
+    const minutes = store(dataDir);
+    const created = await minutes.create_meeting({ title: 'External current state', source_ref: {
+      provider: 'fixture-provider', locator: 'private-source-locator', revision: '1', digest: 'sha256:fixture',
+      provenance: { providerKind: 'fixture-provider', providerId: 'private-source-locator', revision: '1', digest: 'sha256:fixture' },
+    } }, ACTOR);
+    const document = created.minutes[0]!;
+    const listing = await minutes.list_meetings(ACTOR);
+    expect(listing[0]?.current_version_states).toEqual([
+      { minutes_id: document.minutes_id, version_id: document.current_version_id, status: 'pending' },
+    ]);
+    expect(JSON.stringify(listing)).not.toContain('private-source-locator');
+    expect(listing[0]?.current_version_states?.[0]).not.toHaveProperty('confirmation');
+    await minutes.withdraw_minutes({ minutes_id: document.minutes_id, expected_revision: document.revision }, ACTOR);
+    const withdrawnListing = await minutes.list_meetings(ACTOR);
+    expect(withdrawnListing[0]?.minutes).toEqual([]);
+    expect(withdrawnListing[0]?.current_version_states).toEqual([]);
+    expect((await minutes.get_meeting(created.meeting.meeting_id, ACTOR)).versions).toHaveLength(1);
+  });
+
   it('keeps an external source reference as the immutable content union and deduplicates by exact identity', async () => {
     const dataDir = await dataDirectory();
     const minutes = store(dataDir);
