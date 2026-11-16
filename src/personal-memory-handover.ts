@@ -124,12 +124,23 @@ export class PersonalMemoryRegistrationError extends Error {
 /** Read both local memory stores and each memory's registration state. Never uses the network. */
 export async function listLocalMemories(dataDirInput?: string): Promise<LocalMemory[]> {
   const dataDir = resolveDataDir(dataDirInput);
-  const [current, legacy, receipts] = await Promise.all([
+  // Wait for every read before failing. With Promise.all, a malformed receipt file
+  // rejected first while the legacy read still held the canonical SSOT lock, so
+  // the command returned with the lock directory still in the data directory.
+  const [current, legacy, receipts] = settledOrThrow(await Promise.allSettled([
     readCurrentStore(dataDir),
     readLegacyStore(dataDir),
     readMemoryRegistrationReceipts(dataDir)
-  ]);
+  ] as const));
   return [...current, ...legacy].map((memory) => withStatus(memory, receipts));
+}
+
+/** The fulfilled values, or the first rejection in input order once all have settled. */
+function settledOrThrow<T extends readonly unknown[]>(results: { [K in keyof T]: PromiseSettledResult<T[K]> }): T {
+  for (const result of results as readonly PromiseSettledResult<unknown>[]) {
+    if (result.status === 'rejected') throw result.reason;
+  }
+  return (results as readonly PromiseFulfilledResult<unknown>[]).map((result) => result.value) as unknown as T;
 }
 
 /** Pick exactly the requested memories, in request order, or fail before anything is sent. */

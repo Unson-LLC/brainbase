@@ -1,4 +1,4 @@
-import { appendFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -339,6 +339,17 @@ describe('H7 local memory re-registration', () => {
     const result = await run(['memory:list', '--dir', dir]);
     expect(result.code).toBe(1);
     expect(result.stderr).toContain(MEMORY_REGISTRATION_RECEIPTS_FILE);
+  });
+
+  it('finishes reading both local stores before reporting a malformed receipt file', async () => {
+    // Regression (npm-publish run 43977400023): the legacy store read kept holding
+    // the canonical SSOT lock after memory:list had already failed, so cleaning up
+    // the data directory raced with the lock and failed with ENOTEMPTY.
+    await mkdir(join(dir, 'handover'), { recursive: true });
+    await appendFile(join(dir, MEMORY_REGISTRATION_RECEIPTS_FILE), 'not json\n');
+    const result = await run(['memory:list', '--dir', dir]);
+    expect(result.code).toBe(1);
+    expect(await readdir(dir)).not.toContain('.brainbase-ssot.lock');
   });
 
   it('lists nothing and creates nothing for an empty data directory', async () => {
