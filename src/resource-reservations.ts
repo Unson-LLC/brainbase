@@ -285,6 +285,94 @@ interface ResourceReservationLedger {
   operations: ResourceReservationStoredOperation[];
 }
 
+export type ResourceReservationWriteAction = Exclude<ResourceReservationAction, 'estimate' | 'read'>;
+
+export interface ResourceReservationTransitionRule {
+  /** States the action may start from. Empty only for `approve`, which has no record yet. */
+  readonly from: readonly ResourceReservationState[];
+  readonly to: ResourceReservationState;
+  /** External-action statuses the action accepts. Empty only for `approve`. */
+  readonly externalFrom: readonly ExternalActionStatus[];
+  /** The external-action status the action writes, or null when it leaves it alone. */
+  readonly externalTo: ExternalActionStatus | null;
+}
+
+const anyExternalStatus: readonly ExternalActionStatus[] = ['not_started', 'started', 'completed', 'unknown'];
+
+function transitionRule(
+  from: readonly ResourceReservationState[],
+  to: ResourceReservationState,
+  externalFrom: readonly ExternalActionStatus[],
+  externalTo: ExternalActionStatus | null,
+): ResourceReservationTransitionRule {
+  return Object.freeze({ from: Object.freeze([...from]), to, externalFrom: Object.freeze([...externalFrom]), externalTo });
+}
+
+/**
+ * The reservation state machine, written down once. The checks in each
+ * operation read this table, and every write after `approve` goes through
+ * `transitionResourceReservation`, which refuses a step the table does not list.
+ *
+ * - `released`, `cancelled` and `consumed` have no way out.
+ * - No action writes an `unknown` external action; a stored one still blocks
+ *   `release` and `cancel`.
+ * - Only `consume` completes the external action, and it finishes the
+ *   reservation in the same step.
+ */
+export const RESOURCE_RESERVATION_TRANSITIONS: Readonly<Record<ResourceReservationWriteAction, ResourceReservationTransitionRule>> = Object.freeze({
+  approve: transitionRule([], 'approved', [], 'not_started'),
+  reserve: transitionRule(['approved'], 'reserved', anyExternalStatus, null),
+  release: transitionRule(['approved', 'reserved'], 'released', ['not_started', 'completed'], null),
+  cancel: transitionRule(['approved', 'reserved'], 'cancelled', ['not_started', 'completed'], null),
+  consume: transitionRule(['reserved'], 'consumed', anyExternalStatus, 'completed'),
+  start_external: transitionRule(['reserved'], 'reserved', ['not_started'], 'started'),
+});
+
+export interface ResourceReservationTransitionStep {
+  readonly action: Exclude<ResourceReservationWriteAction, 'approve'>;
+  readonly operationId: string;
+  readonly principal: string;
+  readonly at: string;
+}
+
+/**
+ * The only writer of a reservation's state after `approve`. State, update
+ * time, external action and the history entry come from the same step, so they
+ * cannot disagree. Changes the record in place and returns it.
+ */
+export function transitionResourceReservation(
+  reservation: ResourceReservationRecord,
+  step: ResourceReservationTransitionStep,
+): ResourceReservationRecord {
+  const rule = RESOURCE_RESERVATION_TRANSITIONS[step.action];
+  if (rule === undefined || !rule.from.includes(reservation.state) || !rule.externalFrom.includes(reservation.externalAction.status)) {
+    throw new ResourceReservationError(
+      'reservation_state_conflict',
+      `Reservation ${reservation.reservationId} cannot ${step.action} from ${reservation.state} with external action ${reservation.externalAction.status}`,
+    );
+  }
+  const fromState = reservation.state;
+  reservation.state = rule.to;
+  reservation.updatedAt = step.at;
+  if (rule.externalTo !== null) {
+    reservation.externalAction = {
+      status: rule.externalTo,
+      startedAt: rule.externalTo === 'started' ? step.at : reservation.externalAction.startedAt,
+    };
+  }
+  reservation.history.push({
+    action: step.action,
+    operationId: step.operationId,
+    principal: step.principal,
+    occurredAt: step.at,
+    fromState,
+    toState: rule.to,
+    amount: reservation.amount,
+    externalActionStatus: reservation.externalAction.status,
+  });
+  return reservation;
+}
+
 interface ResourceReservationStoredOperation {
   operationId: string;
   tenantId: string;
@@ -385,7 +473,7 @@ export class ResourceReservationService {
       const reservation = findReservationByApprovalId(ledger, approvalId, request);
       assertRequestMatchesReservation(request, reservation);
       assertApprovalUsable(reservation, this.now());
-      if (reservation.state !== 'approved') {
+      if (!RESOURCE_RESERVATION_TRANSITIONS.reserve.from.includes(reservation.state)) {
         throw new ResourceReservationError('reservation_state_conflict', `Reservation ${reservation.reservationId} is ${reservation.state}`);
       }
       const approval = reservation.approval;
@@ -395,34 +483,26 @@ export class ResourceReservationService {
       if (committedAmount + request.amount > capacity) {
         throw new ResourceReservationError('capacity_exceeded', `Capacity ${capacity} is insufficient for ${request.amount}`);
       }
-      const now = this.now().toISOString();
-      const previousState = reservation.state;
-      reservation.state = 'reserved';
-      reservation.updatedAt = now;
-      reservation.history.push({
+      transitionResourceReservation(reservation, {
         action: 'reserve',
         operationId: request.operationId,
         principal: request.principal,
-        occurredAt: now,
-        fromState: previousState,
-        toState: 'reserved',
-        amount: reservation.amount,
-        externalActionStatus: reservation.externalAction.status,
+        at: this.now().toISOString(),
       });
       return { reservation: clone(reservation) };
     });
   }
 
   async release(input: ResourceReservationMutationInput): Promise<ResourceReservationMutationResult> {
-    return this.transition('release', input, 'released');
+    return this.transition('release', input);
   }
 
   async cancel(input: ResourceReservationMutationInput): Promise<ResourceReservationMutationResult> {
-    return this.transition('cancel', input, 'cancelled');
+    return this.transition('cancel', input);
   }
 
   async consume(input: ResourceReservationMutationInput): Promise<ResourceReservationMutationResult> {
-    return this.transition('consume', input, 'consumed');
+    return this.transition('consume', input);
   }
 
   async startExternalAction(input: ResourceReservationMutationInput): Promise<ResourceReservationMutationResult> {
@@ -430,24 +510,18 @@ export class ResourceReservationService {
     return this.mutate('start_external', normalized.operationId, normalized, async (ledger) => {
       const reservation = findReservationById(ledger, normalized.reservationId, normalized);
       await this.authorize({ action: 'start_external', input: normalized, reservation });
-      if (reservation.state !== 'reserved') {
+      const rule = RESOURCE_RESERVATION_TRANSITIONS.start_external;
+      if (!rule.from.includes(reservation.state)) {
         throw new ResourceReservationError('reservation_state_conflict', `Reservation ${reservation.reservationId} is ${reservation.state}`);
       }
-      if (reservation.externalAction.status !== 'not_started') {
+      if (!rule.externalFrom.includes(reservation.externalAction.status)) {
         throw new ResourceReservationError('reservation_state_conflict', `External action is already ${reservation.externalAction.status}`);
       }
-      const now = this.now().toISOString();
-      reservation.externalAction = { status: 'started', startedAt: now };
-      reservation.updatedAt = now;
-      reservation.history.push({
+      transitionResourceReservation(reservation, {
         action: 'start_external',
         operationId: normalized.operationId,
         principal: normalized.principal,
-        occurredAt: now,
-        fromState: reservation.state,
-        toState: reservation.state,
-        amount: reservation.amount,
-        externalActionStatus: 'started',
+        at: this.now().toISOString(),
       });
       return { reservation: clone(reservation) };
     });
@@ -475,38 +549,26 @@ export class ResourceReservationService {
   private async transition(
     action: 'release' | 'cancel' | 'consume',
     input: ResourceReservationMutationInput,
-    targetState: Extract<ResourceReservationState, 'released' | 'cancelled' | 'consumed'>,
   ): Promise<ResourceReservationMutationResult> {
     const normalized = normalizeMutationInput(input);
     return this.mutate(action, normalized.operationId, normalized, async (ledger) => {
       const reservation = findReservationById(ledger, normalized.reservationId, normalized);
       await this.authorize({ action, input: normalized, reservation });
-      if (reservation.externalAction.status === 'started' || reservation.externalAction.status === 'unknown') {
-        if (action === 'release' || action === 'cancel') {
-          throw new ResourceReservationError(
-            'external_action_reconciliation_required',
-            `Reservation ${reservation.reservationId} has an external action in ${reservation.externalAction.status} state`,
-          );
-        }
+      const rule = RESOURCE_RESERVATION_TRANSITIONS[action];
+      if (!rule.externalFrom.includes(reservation.externalAction.status)) {
+        throw new ResourceReservationError(
+          'external_action_reconciliation_required',
+          `Reservation ${reservation.reservationId} has an external action in ${reservation.externalAction.status} state`,
+        );
       }
-      const allowedStates: ResourceReservationState[] = action === 'consume' ? ['reserved'] : ['approved', 'reserved'];
-      if (!allowedStates.includes(reservation.state)) {
+      if (!rule.from.includes(reservation.state)) {
         throw new ResourceReservationError('reservation_state_conflict', `Reservation ${reservation.reservationId} is ${reservation.state}`);
       }
-      const now = this.now().toISOString();
-      const previousState = reservation.state;
-      reservation.state = targetState;
-      reservation.updatedAt = now;
-      if (action === 'consume') reservation.externalAction = { status: 'completed', startedAt: reservation.externalAction.startedAt };
-      reservation.history.push({
+      transitionResourceReservation(reservation, {
         action,
         operationId: normalized.operationId,
         principal: normalized.principal,
-        occurredAt: now,
-        fromState: previousState,
-        toState: targetState,
-        amount: reservation.amount,
-        externalActionStatus: reservation.externalAction.status,
+        at: this.now().toISOString(),
       });
       return { reservation: clone(reservation) };
     });

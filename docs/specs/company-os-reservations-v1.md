@@ -12,6 +12,7 @@
 - `approve` は注入された認可portの現在の承認結果を検証し、承認根拠を履歴付きで保存する。
 - `reserve` は `approve` が返した承認IDを要求し、承認、Problem snapshotの固定参照、現在容量、テナント境界を同じSSOTロック内で検証して予約へ遷移させる。
 - `release`、`cancel`、`consume` は状態遷移と履歴を同じ原子的更新で保存する。
+- 状態遷移の正本は `RESOURCE_RESERVATION_TRANSITIONS`（[`company-os-reservation-transition-table-v1`](./company-os-reservation-transition-table-v1.md)）。操作ごとの遷移元・遷移先と、外部操作の状態の扱いはこの表に従う。
 - `readLedger` は現在の台帳を読み戻す。認可・容量・Problem snapshotの実装はportの責務とし、roles・budget・組織DBは実装しない。
 
 すべての操作は `tenantId`、`principal`、`operationId`、資源、期間、量、単位、対象run、固定Problem snapshot参照を持つ。snapshot参照は Story05 の `problem_snapshot_id`（`sha256:<64桁hex>`）、`problem_id`、`revision` の組であり、Problem本文は保存しない。
