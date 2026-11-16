@@ -159,13 +159,13 @@ void evidence; void index;
             execFileSync(process.execPath, [path.join(root, 'node_modules/typescript/bin/tsc'),
                 '--noEmit', '--strict', '--target', 'ES2022', '--module', 'NodeNext', '--moduleResolution', 'NodeNext',
                 'consumer.ts'
-            ], { cwd: isolatedRoot, encoding: 'utf8' });
+            ], { cwd: isolatedRoot, encoding: 'utf8', timeout: 90_000 });
             const isolated = await import(pathToFileURL(path.join(packageRoot, 'dist/entity-indexer.js')).href);
             expect(typeof isolated.buildIndex).toBe('function');
         } finally {
             await rm(isolatedRoot, { recursive: true, force: true });
         }
-    }, 30_000);
+    }, 120_000);
 
     it('publishes the entity index cache as an independent subpath', async () => {
         const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));

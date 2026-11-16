@@ -26,6 +26,9 @@ jobs:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
     timeout-minutes: 30
+    env:
+      # Keep fixtures separate from other runner slots and their /tmp cleanup.
+      TMPDIR: ${{ runner.temp }}
     services:
       postgres:
         image: postgres:16
@@ -97,6 +100,9 @@ jobs:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
     timeout-minutes: 30
+    env:
+      # Keep fixtures separate from other runner slots and their /tmp cleanup.
+      TMPDIR: ${{ runner.temp }}
     permissions:
       contents: read
     steps:

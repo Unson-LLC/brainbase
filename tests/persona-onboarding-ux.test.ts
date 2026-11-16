@@ -21,8 +21,9 @@ afterEach(async () => {
 });
 
 describe('beginner-safe onboarding output contract', () => {
-  it('keeps source state, review safety, decision meaning, and first-value completion intact across 32 fixtures', async () => {
-    for (let index = 1; index <= 32; index += 1) {
+  it.each(Array.from({ length: 32 }, (_, offset) => offset + 1))(
+    'keeps source state, review safety, decision meaning, and first-value completion intact for fixture %i',
+    async (index) => {
       const dataDir = await mkdtemp(join(TEST_TMP_ROOT, `brainbase-persona-${index}-`));
       dirs.push(dataDir);
       const projectName = `Persona ${index} project`;
@@ -198,8 +199,9 @@ describe('beginner-safe onboarding output contract', () => {
         remaining: 'ありません。'
       });
       expect((completed.guide as typeof completed.guide & { plainText: string }).plainText).toContain('完了済み操作は繰り返しません');
-    }
-  }, 30_000);
+    },
+    30_000
+  );
 
   it('puts a plain-language map before the full ontology contract', async () => {
     const result = await callBrainbaseTool('get_ontology') as {
