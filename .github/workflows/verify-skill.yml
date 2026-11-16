@@ -24,7 +24,9 @@ jobs:
     # Fork heads are not merged by the wrapper, and their token cannot post statuses.
     # Comments from anyone on this public repository start this job, so it runs on a
     # GitHub-hosted runner and executes only the default-branch script for comments.
-    if: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'issue_comment' && github.event.issue.pull_request && github.event.issue.state == 'open') }}
+    # 作成されたコメントは、RUNNER_VERIFY を含むときだけ判定し直す。含まない新しいコメントは判定を変えない。
+    # 編集と削除は必ず判定し直す。証拠のコメントは RUNNER_VERIFY を含まないことがあり、本文と有無が判定に効く。
+    if: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'issue_comment' && github.event.issue.pull_request && github.event.issue.state == 'open' && (github.event.action != 'created' || contains(github.event.comment.body, 'RUNNER_VERIFY'))) }}
     name: Post verify-skill status
     runs-on: ubuntu-latest
     timeout-minutes: 5

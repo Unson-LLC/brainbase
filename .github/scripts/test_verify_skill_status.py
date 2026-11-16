@@ -50,6 +50,15 @@ class VerifySkillStatusTests(unittest.TestCase):
             self.assertEqual(api.call_args.args[2]['state'], 'failure')
             evidence.assert_not_called()
 
+    def test_new_comment_without_a_record_does_not_start_the_job(self):
+        """A created comment without RUNNER_VERIFY cannot change the decision; edits and deletions can."""
+        workflow = (PATH.parents[1] / 'workflows' / 'verify-skill.yml').read_text()
+        self.assertIn("(github.event.action != 'created' || "
+                      "contains(github.event.comment.body, 'RUNNER_VERIFY'))", workflow)
+        before = self.decision()
+        self.comments.append({'body': 'LGTM', 'author_association': 'MEMBER', 'user': {'login': 'writer'}})
+        self.assertEqual(self.decision(), before)
+
     def test_untrusted_author_is_ignored(self):
         self.comments[0]['author_association'] = 'NONE'
         self.assertEqual(self.decision()[0], 'failure')
