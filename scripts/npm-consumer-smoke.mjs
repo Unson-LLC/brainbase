@@ -62,6 +62,10 @@ import {
 import { CanonicalTaskService } from '@unson/brainbase-mcp/canonical-task-service';
 import { OrganizationConnectionService } from '@unson/brainbase-mcp/organization-connection';
 import {
+  OrganizationMemberInviteService,
+  createInMemoryOrganizationMemberInviteRepository
+} from '@unson/brainbase-mcp/organization-member-invite';
+import {
   JUDGMENT_FOUNDATION_CONTRACT_VERSION,
   judgmentFoundationContract
 } from '@unson/brainbase-mcp/ontology-foundation';
@@ -285,6 +289,65 @@ const organizationConnection = {
   readback: 'passed',
   replay: organizationReplay,
   moduleResolution: path.relative(packageRoot, organizationConnectionModulePath).split(path.sep).join('/')
+};
+
+const organizationMemberInviteModulePath = fileURLToPath(
+  import.meta.resolve('@unson/brainbase-mcp/organization-member-invite')
+);
+if (!organizationMemberInviteModulePath.startsWith(packageRoot + path.sep)) {
+  throw new Error('organization member invite subpath resolved outside the installed package');
+}
+const inviteBindings = [];
+const inviteService = new OrganizationMemberInviteService({
+  repository: createInMemoryOrganizationMemberInviteRepository(),
+  policy: { authorize() {} },
+  acceptBinding: {
+    async bind(input) {
+      inviteBindings.push(input);
+      return { outcome: 'bound' };
+    }
+  },
+  buildAcceptUrl: ({ token }) => 'https://consumer.example.test/invites/accept#token=' + token,
+  clock: () => new Date('2026-11-08T00:00:00.000Z')
+});
+const inviteAdmin = { tenantId: 'consumer-tenant', personId: 'consumer-admin' };
+const invitePerson = { personId: 'consumer-invitee', email: 'invitee@example.test', emailVerified: true };
+const inviteCreated = await inviteService.createInvite({
+  actor: inviteAdmin, inviteeEmail: 'invitee@example.test', role: 'member'
+});
+const inviteAccepted = await inviteService.acceptInvite({
+  tenantId: 'consumer-tenant', token: inviteCreated.token, person: invitePerson
+});
+if (inviteAccepted.invite.status !== 'accepted' || inviteBindings.length !== 1) {
+  throw new Error('organization member invite consumer fixture did not accept its invite');
+}
+let inviteReplay = 'failed';
+try {
+  await inviteService.acceptInvite({ tenantId: 'consumer-tenant', token: inviteCreated.token, person: invitePerson });
+} catch (error) {
+  if (error?.code === 'invite_consumed' && error?.status === 409 && inviteBindings.length === 1) inviteReplay = 'passed';
+}
+if (inviteReplay !== 'passed') throw new Error('organization member invite replay was not rejected');
+const inviteToRevoke = await inviteService.createInvite({
+  actor: inviteAdmin, inviteeEmail: 'revoke@example.test', role: 'member'
+});
+const inviteRevoked = await inviteService.revokeInvite({ actor: inviteAdmin, inviteId: inviteToRevoke.invite.inviteId });
+if (inviteRevoked.status !== 'revoked') throw new Error('organization member invite was not revoked');
+const inviteToReissue = await inviteService.createInvite({
+  actor: inviteAdmin, inviteeEmail: 'reissue@example.test', role: 'member'
+});
+const inviteReissued = await inviteService.reissue({ actor: inviteAdmin, inviteId: inviteToReissue.invite.inviteId });
+if (inviteReissued.previous.supersededByInviteId !== inviteReissued.invite.inviteId) {
+  throw new Error('organization member invite reissue did not supersede the previous invite');
+}
+const organizationMemberInvite = {
+  subpathImport: 'passed',
+  create: 'passed',
+  accept: 'passed',
+  revoke: 'passed',
+  reissue: 'passed',
+  replay: inviteReplay,
+  moduleResolution: path.relative(packageRoot, organizationMemberInviteModulePath).split(path.sep).join('/')
 };
 
 const fixture = artifactContents.fixture;
@@ -678,6 +741,7 @@ try {
         moduleResolution: path.relative(packageRoot, canonicalTaskModulePath).split(path.sep).join('/')
       },
       organizationConnection,
+      organizationMemberInvite,
       contractVerification: {
         sourceLockSources: sourceLock.sources.length,
         digestFiles: digest.files.length,

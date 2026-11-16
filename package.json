@@ -343,6 +343,14 @@
       "types": "./dist/organization-connection.d.ts",
       "import": "./dist/organization-connection.js"
     },
+    "./organization-member-invite": {
+      "types": "./dist/organization-member-invite.d.ts",
+      "import": "./dist/organization-member-invite.js"
+    },
+    "./organization-member-invite-http": {
+      "types": "./dist/organization-member-invite-http.d.ts",
+      "import": "./dist/organization-member-invite-http.js"
+    },
     "./mesh": {
       "types": "./dist/mesh.d.ts",
       "import": "./dist/mesh.js"
