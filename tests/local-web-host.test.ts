@@ -17,6 +17,9 @@ import { initializePersonalOs, mutatePersonalOs } from '../src/ssot.js';
 import { createWorldModelStore } from '../src/world-model.js';
 import { ENTITIES, writeGraphV2 } from './graph-web-fixture.js';
 
+// Set by tests/helpers/fixture-root.global-setup.mjs to memory-backed /dev/shm when available.
+const TEST_TMP_ROOT = process.env.BRAINBASE_TEST_FIXTURE_ROOT ?? tmpdir();
+
 const TOKEN = 'local-web-test-token-0123456789';
 const OWNER = { principal: 'self' };
 
@@ -205,7 +208,7 @@ const candidate = {
 };
 
 beforeEach(async () => {
-  directory = await mkdtemp(join(tmpdir(), 'brainbase-local-web-'));
+  directory = await mkdtemp(join(TEST_TMP_ROOT, 'brainbase-local-web-'));
   dataDir = join(directory, 'personal-os');
 });
 
