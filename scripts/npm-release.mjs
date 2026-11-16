@@ -407,9 +407,9 @@ export async function validateRelease(
   execute('npm', ['run', 'build'], root);
   // Run validation's Vitest files serially because the shared
   // self-hosted runner (EVO-X2) saturates when several jobs run at once,
-  // starving tests until unrelated 5s timeouts fire. Only concurrency
-  // changes; test target, timeout, skip, and pass/fail rules stay identical.
-  execute('npm', ['test', '--', '--maxWorkers=1'], root);
+  // starving unrelated tests and filesystem cleanup. Keep every test,
+  // with a bounded 30s default for tests/hooks on the shared host.
+  execute('npm', ['test', '--', '--maxWorkers=1', '--testTimeout=30000', '--hookTimeout=30000'], root);
   execute('npm', ['audit', '--omit=dev'], root);
   const artifactDirectory = path.resolve(path.dirname(proofFile));
   const artifact = await createArtifact(root, artifactDirectory, expectedVersion, expectedSha, execute);
