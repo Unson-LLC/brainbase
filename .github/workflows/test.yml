@@ -41,6 +41,8 @@ jobs:
           --health-retries 12
     strategy:
       fail-fast: false
+      # Runner slots share a host; avoid overlapping dependency installs and suites.
+      max-parallel: 1
       matrix:
         include:
           - node_version: 22
@@ -98,6 +100,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   formal-release-validate-linux:
+    needs: build-and-test
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
     timeout-minutes: 30
