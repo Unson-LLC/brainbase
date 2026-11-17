@@ -1370,7 +1370,7 @@
 .bb-ws-dialog.bb-ws-dialog--compact.bb-ws-dialog--confirmation > .bb-ws-dialog-body > h3:first-child,
 .bb-ws-dialog.bb-ws-dialog--compact.bb-ws-dialog--confirmation > h3:first-child { margin:0; font-size:16px; font-weight:600; line-height:1.6; }
 .bb-ws-dialog.bb-ws-dialog--compact.bb-ws-dialog--confirmation > .bb-ws-dialog-body { padding:0; }
-.bb-ws-dialog--confirmation .bb-ws-actions > .bb-ws-button { box-sizing:border-box; min-width:88px; height:36px; min-height:36px; padding:0 16px; border-radius:7px; font-size:13px; font-weight:var(--bb-font-weight-medium); }
+.bb-ws-dialog--confirmation .bb-ws-actions > .bb-ws-button { box-sizing:border-box; min-width:88px; height:36px; min-height:36px; padding:0 16px; border-radius:7px; font-size:13px; font-weight:var(--bb-font-weight-medium); justify-content:center; }
 .bb-ws-dialog.bb-ws-dialog--confirmation::backdrop { background:var(--bb-color-dialog-overlay); }
 .bb-ws-combobox--compact.bb-ws-combobox--borderless.bb-ws-combobox--suggested .bb-ws-combobox-trigger { font-weight:500; }
 .bb-ws-combobox-portal { display:contents; position:static; }
