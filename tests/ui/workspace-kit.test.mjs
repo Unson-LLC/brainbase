@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import {
   workspaceButton,
+  workspaceActionIcon,
   workspaceFilterOption,
   workspaceCloseDrawer,
   workspaceDismissNotification,
@@ -151,6 +152,26 @@ describe('workspace kit (the organization edition screen pattern)', () => {
     button.listeners.get('click')();
     expect(clicked).toBe(1);
   });
+
+  it('opts a row button into compact dimensions without changing default button markup', () => {
+    const button = workspaceButton(doc, { text: '保存', variant: 'primary', size: 'compact', disabled: true });
+    expect(button.className).toBe('bb-ws-button is-primary bb-ws-button--compact');
+    expect(button.attributes.disabled).toBe('');
+  });
+
+  it('offers an accent visual variant without adding success or pressed semantics', () => {
+    const accent = workspaceButton(doc, { text: '提案しました', variant: 'accent', size: 'compact', disabled: true });
+    expect(accent.className).toBe('bb-ws-button is-accent bb-ws-button--compact');
+    expect(accent.attributes['aria-pressed']).toBeUndefined();
+    expect(workspaceButton(doc, { text: 'Default' }).className).toBe('bb-ws-button');
+  });
+
+  it('renders the generic lock action icon as a decorative shared glyph', () => {
+    const icon = workspaceActionIcon(doc, 'lock');
+    expect(icon.attributes.class).toBe('bb-ws-action-icon');
+    expect(icon.attributes['aria-hidden']).toBe('true');
+    expect(findAll(icon, (node) => node.tagName === 'PATH')[0].attributes.d).toMatch(/V7a4 4 0 1 1 8 0v3/);
+  });
 });
 
 
@@ -193,6 +214,53 @@ describe('readable colors', () => {
     expect(rule('workspace-kit.css', '.bb-ws-button.is-primary:hover:not(:disabled)')).toMatch(/background:\s*var\(--bb-color-action-hover\)/);
     // Screens no longer repaint the shared primary button.
     expect(readFileSync(new URL('../../ui/people-and-companies-view.css', import.meta.url), 'utf8')).not.toContain('.bb-ws-button.is-primary');
+  });
+
+  it('limits compact button, confirmation action and borderless trigger styles to explicit opt-ins', () => {
+    const compactButton = rule('workspace-kit.css', '.bb-ws-button.bb-ws-button--compact');
+    expect(compactButton).toMatch(/height:\s*32px/);
+    expect(compactButton).toMatch(/padding:\s*0 12px/);
+    expect(compactButton).toMatch(/justify-content:\s*center/);
+    expect(compactButton).toMatch(/font-size:\s*12\.5px/);
+    const disabledPrimary = rule('workspace-kit.css', '.bb-ws-button.bb-ws-button--compact.is-primary:disabled');
+    expect(disabledPrimary).toMatch(/background:\s*var\(--bb-color-canvas\)/);
+    expect(disabledPrimary).toMatch(/opacity:\s*1/);
+    const compactDisabled = rule('workspace-kit.css', '.bb-ws-button.bb-ws-button--compact:disabled');
+    expect(compactDisabled).toMatch(/background:\s*var\(--bb-color-canvas\)/);
+    expect(compactDisabled).toMatch(/color:\s*var\(--bb-color-muted\)/);
+    expect(compactDisabled).toMatch(/opacity:\s*1/);
+    const accent = rule('workspace-kit.css', '.bb-ws-button.is-accent');
+    expect(accent).toMatch(/background:\s*var\(--bb-color-accent-soft\)/);
+    expect(accent).toMatch(/color:\s*var\(--bb-color-action\)/);
+    expect(accent).toMatch(/border:\s*0/);
+    expect(rule('workspace-kit.css', '.bb-ws-button.is-accent:hover:not(:disabled)')).toMatch(/background:\s*var\(--bb-color-accent-soft\)/);
+    const confirmationActions = rule('workspace-kit.css', '.bb-ws-dialog--confirmation .bb-ws-actions > .bb-ws-button');
+    expect(confirmationActions).toMatch(/height:\s*36px/);
+    expect(confirmationActions).toMatch(/padding:\s*0 16px/);
+    const borderless = rule('workspace-kit.css', '.bb-ws-combobox--compact.bb-ws-combobox--borderless .bb-ws-combobox-trigger');
+    expect(borderless).toMatch(/font-weight:\s*500/);
+    const selectionActionCombo = rule('workspace-kit.css', '.bb-ws-selection-bar .bb-ws-selection-bar-actions > .bb-ws-combobox .bb-ws-combobox-trigger');
+    expect(selectionActionCombo).toMatch(/background:color-mix\(in srgb,var\(--bb-color-action-text\) 12%,transparent\)/);
+    expect(selectionActionCombo).toMatch(/color:var\(--bb-color-action-text\)/);
+    expect(rule('workspace-kit.css', '.bb-ws-selection-bar .bb-ws-selection-bar-actions > .bb-ws-combobox .bb-ws-combobox-trigger[data-empty="true"] .bb-ws-combobox-value')).toMatch(/color:inherit/);
+    const compactPanel = rule('workspace-kit.css', '.bb-ws-card-row.bb-ws-card-row--compact-panel');
+    expect(compactPanel).toMatch(/min-height:0/);
+    expect(compactPanel).toMatch(/margin-bottom:6px/);
+    expect(compactPanel).toMatch(/padding:12px 14px 12px 19px/);
+    expect(compactPanel).toMatch(/background:var\(--bb-color-canvas\)/);
+    expect(rule('workspace-kit.css', '.bb-ws-combobox-portal')).toMatch(/display:\s*contents/);
+    expect(rule('workspace-kit.css', '.bb-ws-combobox-popup--viewport')).toMatch(/position:\s*fixed/);
+    expect(rule('workspace-kit.css', '.bb-ws-combobox-portal .bb-ws-combobox-popup--viewport > .bb-ws-combobox-list')).toMatch(/overflow-y:\s*auto/);
+  });
+
+  it('limits content-aligned topbar gutters to an explicit desktop opt-in', () => {
+    const css = readFileSync(new URL('../../ui/workspace-kit.css', import.meta.url), 'utf8');
+    const desktop = css.slice(css.lastIndexOf('@media (min-width: 761px)'));
+    expect(desktop).toContain('.bb-ws-topbar.bb-ws-topbar--content-aligned { padding-inline: var(--bb-space-5); }');
+    expect(desktop).toContain('padding-inline-start: calc(var(--bb-space-6) - var(--bb-space-5));');
+    expect(desktop).not.toMatch(/height\s*:/);
+    expect(desktop).not.toMatch(/font(?:-size)?\s*:/);
+    expect(css).not.toContain('.bb-ws-topbar--content-aligned.has-tabs > h1 { position:');
   });
 
   it('keeps small breadcrumb and expired-due text at 4.5:1 or more by choosing darker existing tokens', () => {

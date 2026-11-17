@@ -32,6 +32,7 @@ Mana委任UI（`ui/outcome-mana`、そのCSSと`ui/icons/mana`）は、0.8.0の�
 ### ページヘッダー
 
 - `workspaceTopbar(document, { title, query, tabs, tools })` keeps its H1 visible in a dedicated 52px first row. Existing tabs, search and tools occupy the next row; on narrow screens they wrap below the title. The title row has no divider, inset shadow or card frame. Tab baselines and selected indicators remain. Use shared spacing and typography tokens, keep H1 first, and keep the complete header sticky. Pages without controls show only the title row.
+- `alignment: 'content'` または生成後の `setAlignment('content' | null)` は、desktop（761px以上）で左右gutterを `--bb-space-5` にし、H1だけ開始位置へ `calc(var(--bb-space-6) - var(--bb-space-5))` を足す明示opt-in。タイトル・タブ・道具の高さや文字、表示制御は変えず、省略時は従来どおり。760px以下は既存の共通mobile挙動を保つ。
 - `setQuery(input | null)`、`setTabs(Node | Node[] | null)`、`setTools(Node | Node[] | null)` で内容を更新できる。検索inputの値とhandlerは所有元が保持する。同じinputを再指定しても包みを作り直さない。空slotはDOMを増やさない。道具の処理・名前・利用可否は呼び出す側が決める。
 - `workspaceSearchControl(document, { input })` は幅240px・高さ36px・文字13px・アイコン16pxの共通検索部品。白い面と通常の枠を持ち、ヘッダー内と本文操作帯で同じ部品を使う。入力の値・検索処理・ラベルは所有元が渡す。
 - タブの件数はタブ内、検索・追加・表示条件の道具は `tools` に合成できる。既存画面の本文操作帯は今回移設しない。用途の定まらない道具は追加しない。
@@ -43,6 +44,7 @@ Mana委任UI（`ui/outcome-mana`、そのCSSと`ui/icons/mana`）は、0.8.0の�
 ### 文字の濃さと主ボタン・失敗のカード
 
 - 主ボタン（`.bb-ws-button.is-primary`）は `--bb-color-action` の地と枠、`--bb-color-action-text` の文字、hoverは `--bb-color-action-hover`。白い面の上でも普通のボタンより強く見える。画面のCSSで主ボタンの色を上書きしない。
+- `workspaceButton(document, { size: 'compact' })` は行内操作用の明示opt-in。高さ32px、padding 0 12px、角7px、文字12.5px/500を使う。未指定の38pxボタンは変えない。compactボタンがdisabledならvariantによらずcanvas面・muted文字、枠なし・opacity 1にする。`variant: 'accent'` は単なる視覚面としてaccent-soft地・action文字・枠なしを使い、hover時も面を変えない。success状態やaria-pressedの意味は加えない。
 - 11〜13pxの文字は、背景に対して4.5:1以上の色を使う。パンくずは `--bb-color-muted`。`--bb-color-quiet` は #f6f6f8 の上で4.17:1と4.5:1に届かないので、読ませる文字に新しく使わない（既存の28か所は画面ごとに直す）。淡い危険の面（`--bb-color-danger-soft`）の上の文字は `--bb-color-inline-error`。
 - 色を直すときは、トークンの値ではなく使うトークンを替える（値の正本は組織版のデザイン）。
 - `workspaceErrorCard` は既定で閉じた通知。画面の中身の代わりに置く失敗（一覧全体を読めなかった、など）には `open: true` を渡し、理由と「0件ではありません」を最初から見せる。
@@ -227,7 +229,7 @@ The shared review orange is `--bb-color-review`; the inbox approval stripe alias
 #### 一覧の札の行
 
 - 役目: ホストの任意のセルを白い札へ並べる。
-- 呼出: `workspaceCardRow(document, { key, label, cells, stripe, selected, onSelect, preview })`。`stripe` はホストの色またはtoken参照、列定義は親の `--bb-card-columns`。`onSelect(key)` があればnative button、なければ通常Node。セルのNodeをそのまま渡せる。
+- 呼出: `workspaceCardRow(document, { key, label, cells, stripe, selected, onSelect, preview, columnGap, selectionAppearance, appearance })`。`stripe` はホストの色またはtoken参照、列定義は親の `--bb-card-columns`。`onSelect(key)` があればnative button、なければ通常Node。セルのNodeをそのまま渡せる。`{ className, content }` のセル記述子は共通cell wrapperへ任意classを追加する。`columnGap` は行だけにpx値で明示し、省略時は通常20px・preview16px。`selectionAppearance: 'soft'` は選択時に枠を使わず、淡い選択面を使う。`appearance: 'compact-panel'` は単一のrich content cell向けに、canvas面・既存5px stripe・8px角・`12px 14px 12px 19px` padding・6px下余白・高さ自動へ切り替える。`appearance: 'busy'` はopacityを0.72にする見た目だけのopt-inで、状態や操作可否は変更しない。いずれも明示opt-inで、通常行やpreviewの既定を変えない。
 - 見た目: 最小48px、下3px、角8px、左右16px/22px、列間20px、左に5pxの色帯。hoverは影だけを150msで表示し、selectedは紺2px枠。previewは52px・列間16px・常設の薄い影。
 - 状態・動き: `workspaceRowMotion(root)` の `capture()` → ホストが並べ替え/再描画 → `play()`。`data-key` で前後の位置を対応させ、既存行だけを320ms `cubic-bezier(.2,.8,.2,1)` で新位置へ移す。reduced motionは動かさない。`destroy()` で進行中の動きを取り消す。
 - 禁止: 業務優先度や表示順の内蔵、重複key、focusできるセル操作をbutton行内へ入れる。複数の操作が要る行は非button行へホストが適切な意味付けを行う。
@@ -275,21 +277,84 @@ restores the anchor attributes that predated the first binding. Keyboard focus r
 motion disables the entrance animation. This primitive has no provider,
 organization, authorization, or persistence concepts.
 
-`workspaceDialog({ appearance: 'compact', headerTools })` retains the native
-modal contract while opting into a 440px surface, compact heading/padding and
-rounded presentation. `headerTools` accepts nodes before the close button.
-Omitting the options preserves the original dialog. `workspaceHelp` accepts
+`workspaceDialog({ appearance: 'compact', compactWidth, headerTools })` retains the native
+modal contract while opting into a compact surface. `compactWidth` is a positive
+pixel maximum; omitted width keeps the existing 440px surface. `headerTools`
+accepts nodes before the close button. `workspaceDialogAppearance(dialog, {
+appearance: 'compact' | 'confirmation', compactWidth })` applies these shared
+classes to a **host-owned** native dialog without changing its lifecycle. The
+`confirmation` appearance uses a 520px default maximum, 24px/24px/20px content
+padding, a 16px/600 heading, and the shared compact shadow; viewport width still
+limits the dialog. Its backdrop uses the existing `--bb-color-dialog-overlay`
+token. Its `.bb-ws-actions > .bb-ws-button` actions use 36px height, 16px
+horizontal padding, 13px/500 text, and an 88px minimum width. Hosts can add
+`.bb-ws-dialog-body` around persistent dialog content to use the shared padding.
+Omitting these options preserves existing dialogs. `workspaceHelp` accepts
 `content` nodes, `icon` (default `i`), and `placement: 'bottom-end'` for a compact
 help control and structured explanatory content. The host owns the explanation.
 
-`workspaceCombobox({ appearance: 'compact', boxed: true, triggerHeight: 32,
-matchTriggerWidth: true, popupWidth, active })` opts into a stable boxed trigger.
+`workspaceDisclosure(document, { title, help, content, open, onToggle,
+appearance: 'compact', headingLevel })` returns a native `<details>` with a
+keyboard-operable `<summary>`. `open` defaults to `false`; `onToggle(open)`
+reports native open/close changes while the host owns any state that must survive
+a rerender. `headingLevel` accepts 2–6 and defaults to 2. `appearance: 'compact'`
+opts into compact spacing and heading size; omitting it preserves the existing
+presentation.
+
+`workspaceCombobox({ appearance: 'compact', boxed: true, borderless: true,
+popupAppearance: 'control-panel', suggested, triggerHeight: 32,
+matchTriggerWidth: true, popupWidth, active, popupPlacement: 'viewport',
+onSelect })` opts into explicit compact
+trigger and popup presentations. `borderless` keeps the trigger edge absent and
+uses weight 500 for trigger text; rich content returned by `renderValue` can set
+emphasis on a specific part of the value. `suggested` adds a mint surface and decorative sparkle without changing the
+chevron, and can be changed through `update({ suggested })`. The decorative
+sparkle uses the existing mint token. `popupAppearance: 'control-panel'` uses
+the shared 14px control-panel corner and shadow. Existing
+selection/search/keyboard/disabled contracts and default presentation remain intact.
+`boxed: true` opts into a stable boxed trigger.
 Hover/expanded never change its edge; `active` changes only the selected surface
 and can be updated with `update({ active })`. The shared chevron does not change
 shape. `matchTriggerWidth` makes the popup exactly the trigger width;
-`popupWidth` sets a numeric pixel width otherwise. Existing selection/search/
-keyboard/disabled contracts and default presentation are unchanged. Keyboard
-focus remains distinguishable even when hover and expanded edges are stable.
+`popupWidth` sets a numeric pixel width otherwise. Keyboard focus remains
+distinguishable even when hover and expanded edges are stable.
+`popupPlacement: 'viewport'` explicitly portals the open popup into the nearest
+open native dialog (or `document.body`) and positions it with an 8px inset,
+horizontal clamping, vertical flipping, and a height cap when neither side
+fits. Inside a dialog, its candidate bounds are the dialog's inner rectangle;
+the list scrolls within a capped panel so options remain reachable. It follows
+scrolling, viewport changes, and dialog transform animations. While open, the listbox remains in the same document and the
+trigger's `aria-controls` still names it, but it is outside `root`; use the
+returned `list` or its ID instead of querying inside `root`. Close, dialog
+dismissal, and destroy return the popup under root and release listeners.
+Unspecified placement retains the existing inline popup DOM and position.
+For single-select options, `onChange(value, option)` remains change-only;
+optional `onSelect(value, option)` runs on every user selection, including
+reselecting the current value. Multi-select keeps its existing `onChange` array
+contract.
+
+Options may include `group`; adjacent options with the same group render inside
+an accessible group. `renderValue(option)` may return a Node for rich trigger
+content only; the accessible name still includes the group's and option's text.
+Grouped headers are not options, so active index, arrow keys and selection stay
+aligned with the actual options.
+
+`workspaceStatusPill(document, { label, tone, width })` supports `neutral`, `success`,
+`warning`, and `danger` using existing semantic tokens. The pill is 22px high;
+`width` is an optional numeric pixel width for fixed-width status columns.
+`workspaceCheckbox(document,
+{ label, checked, indeterminate, disabled, onChange })` returns a native checkbox;
+`onChange(checked, indeterminate, input)` leaves selection ownership with the
+host. `workspaceSelectionBar(document, { count, actions, onDismiss, announce })`
+creates a navy selection surface with a mint primary action. Action nodes and
+callbacks remain host-owned and the host places the bar. Its count is not a live
+region by default; pass `announce: true` only when no other selection live region
+announces it. `workspaceInlineNotice(document, { text, tone, icon, action,
+onDismiss })` provides a white success or soft-danger notice. Text wraps when
+needed so full error details remain visible. `workspaceCardRowSkeleton(document,
+{ cells, stripe, columnGap })` creates aria-hidden placeholder cells on the same
+row grid. Each cell may be a width string or `{ width, height }`; skeleton motion
+stops for reduced-motion preferences.
 
 `workspaceSelectionRow({ label, checked, disabled, leading, trailing, color,
 onChange })` returns `{ root, control, update({ checked, disabled }), destroy }`.
@@ -309,9 +374,9 @@ only while its explanation is visible; the next Escape reaches the native modal.
 Popup positioning uses untransformed layout dimensions so entrance animation
 cannot invalidate viewport clamping. Explicit combobox `popupWidth` opts out of
 the legacy 150px minimum; `matchTriggerWidth` takes precedence when both are set.
-`workspaceActionIcon` also supports the business-neutral `clock`, `users`,
-`calendar`, `share`, and `folder` symbols; icon meaning and accessible names remain
-with the owning controls.
+`workspaceActionIcon` also supports the business-neutral `lock`, `clock`, `users`,
+`calendar`, `share`, `folder`, `close`, and `sparkles` symbols; icon meaning and
+accessible names remain with the owning controls.
 
 Explanation Escape priority is owned by the containing `workspaceDialog`:
 a capture handler looks up only help nodes still present in that dialog, and

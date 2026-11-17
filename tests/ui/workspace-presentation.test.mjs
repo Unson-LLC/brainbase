@@ -252,6 +252,7 @@ describe('composable page header and panel', () => {
     const tabs = doc.createElement('nav'); const action = doc.createElement('button');
     const clicked = vi.fn(); action.addEventListener('click', clicked);
     const header = workspaceTopbar(doc, { title: '一覧', tabs, query, tools: action });
+    expect(header.classList.contains('bb-ws-topbar--content-aligned')).toBe(false);
     expect(header.children.map(node => node.className || node.tagName)).toEqual(['H1', 'bb-ws-topbar-tabs', 'bb-ws-search-control', 'bb-ws-topbar-tools']);
     expect(header.classList.contains('has-tabs')).toBe(true);
     expect(header.children[0].textContent).toBe('一覧');
@@ -265,6 +266,16 @@ describe('composable page header and panel', () => {
     expect(header.children[0].tagName).toBe('H1'); expect(header.children[1]).toBe(search);
     header.setQuery(null); header.setTools(null); expect(header.children).toHaveLength(1);
     expect(header.classList.contains('has-tools')).toBe(false);
+  });
+  it('opts into desktop content alignment without changing the topbar structure and can reset it', () => {
+    const doc = new Document(); const tabs = doc.createElement('nav');
+    const header = workspaceTopbar(doc, { title: '振り分け待ち', tabs, alignment: 'content' });
+    expect(header.classList.contains('bb-ws-topbar--content-aligned')).toBe(true);
+    expect(header.children.map(node => node.className || node.tagName)).toEqual(['H1', 'bb-ws-topbar-tabs']);
+    expect(header.setAlignment(null)).toBe(header);
+    expect(header.classList.contains('bb-ws-topbar--content-aligned')).toBe(false);
+    header.setAlignment('content');
+    expect(header.classList.contains('bb-ws-topbar--content-aligned')).toBe(true);
   });
   it('opts into compact search without replacing its input', () => {
     const doc = new Document(); const input = doc.createElement('input');
