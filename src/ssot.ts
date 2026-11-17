@@ -219,12 +219,26 @@ function blockMigrationWrite(
 }
 
 async function loadPersonalOsUnlocked(dataDir: string): Promise<PersonalOs> {
-  const graph = parseGraph(await readJson(join(dataDir, 'graph.json')));
-  const relationships = relationshipsSchema.parse(await readJson(join(dataDir, 'relationships.json')));
-  const personalKg = await readJsonl(join(dataDir, 'personal-kg.jsonl'), personalKgSchema, 'personal-kg.jsonl');
-  const decisions = await readJsonl(join(dataDir, 'decisions.jsonl'), decisionSchema, 'decisions.jsonl');
-  const sourceCount = await countSources(dataDir);
+  // Read and validate the files at the same time, but report a failure in the same
+  // file order as before so the first broken canonical file is the one named.
+  const [graph, relationships, personalKg, decisions, sourceCount] = await settleInOrder([
+    readJson(join(dataDir, 'graph.json')).then(parseGraph),
+    readJson(join(dataDir, 'relationships.json')).then((value) => relationshipsSchema.parse(value)),
+    readJsonl(join(dataDir, 'personal-kg.jsonl'), personalKgSchema, 'personal-kg.jsonl'),
+    readJsonl(join(dataDir, 'decisions.jsonl'), decisionSchema, 'decisions.jsonl'),
+    countSources(dataDir)
+  ] as const);
   return { dataDir, graph, personalKg, relationships, decisions, sourceCount };
+}
+
+async function settleInOrder<T extends readonly unknown[]>(
+  promises: { readonly [K in keyof T]: Promise<T[K]> }
+): Promise<T> {
+  const results = await Promise.allSettled(promises);
+  for (const result of results) {
+    if (result.status === 'rejected') throw result.reason;
+  }
+  return results.map((result) => (result as PromiseFulfilledResult<unknown>).value) as unknown as T;
 }
 
 async function commitAggregate(
@@ -418,33 +432,72 @@ async function copyCanonicalSet(sourceDir: string, targetDir: string): Promise<v
 }
 
 async function ensureAncillaryDirectories(dataDir: string): Promise<void> {
-  for (const relative of ['sources', 'sources/gmail', 'sources/calendar', 'sources/drive', 'sources/tasks', 'candidates', 'schemas']) {
-    await mkdir(join(dataDir, relative), { recursive: true });
-  }
-  for (const [fileName, schema] of Object.entries(schemaTemplates)) {
-    await writeFile(join(dataDir, 'schemas', fileName), `${JSON.stringify(schema, null, 2)}\n`, { flag: 'wx' }).catch((error: NodeJS.ErrnoException) => {
+  // This runs on every initialization, including for an existing directory, so the
+  // independent directories and schema files are created at the same time.
+  await Promise.all(['sources/gmail', 'sources/calendar', 'sources/drive', 'sources/tasks', 'candidates', 'schemas']
+    .map((relative) => mkdir(join(dataDir, relative), { recursive: true })));
+  await Promise.all(Object.entries(schemaTemplates).map(([fileName, schema]) => (
+    writeFile(join(dataDir, 'schemas', fileName), `${JSON.stringify(schema, null, 2)}\n`, { flag: 'wx' }).catch((error: NodeJS.ErrnoException) => {
       if (error.code !== 'EEXIST') throw error;
-    });
-  }
+    })
+  )));
 }
+
+/**
+ * Callers in this process that wait for the same lock directory, in arrival order.
+ * The directory lock still guards other processes. Without this queue, callers in
+ * one process (for example the parallel checks in execution-authority) polled the
+ * directory lock every retry interval, so each one waited longer than the holder
+ * worked, and the polling added file operations while the holder was still writing.
+ */
+const inProcessLockQueues = new Map<string, Promise<void>>();
 
 async function withSsotLock<T>(dataDir: string, operation: () => Promise<T>): Promise<T> {
-  await mkdir(dataDir, { recursive: true });
-  const owner = await acquireLock(dataDir);
+  const deadline = Date.now() + parsePositiveInteger(process.env.BRAINBASE_SSOT_LOCK_TIMEOUT_MS, 5_000);
+  const lockDir = join(dataDir, lockName);
+  const queueKey = resolve(lockDir);
+  const previous = inProcessLockQueues.get(queueKey);
+  let finishTurn!: () => void;
+  const turn = new Promise<void>((resolveTurn) => { finishTurn = resolveTurn; });
+  // A caller that gives up still keeps its place until the callers before it finish,
+  // so the next caller never starts while an earlier holder is working.
+  const queueTail = previous ? previous.then(() => turn) : turn;
+  inProcessLockQueues.set(queueKey, queueTail);
   try {
-    return await operation();
+    await mkdir(dataDir, { recursive: true });
+    if (previous) await waitForInProcessTurn(previous, deadline, lockDir);
+    const owner = await acquireLock(dataDir, deadline);
+    try {
+      return await operation();
+    } finally {
+      await releaseLock(dataDir, owner).catch((error) => {
+        warnCleanupFailure(`canonical SSOT lock ${lockDir}`, error);
+      });
+    }
   } finally {
-    await releaseLock(dataDir, owner).catch((error) => {
-      warnCleanupFailure(`canonical SSOT lock ${join(dataDir, lockName)}`, error);
-    });
+    finishTurn();
+    if (inProcessLockQueues.get(queueKey) === queueTail) inProcessLockQueues.delete(queueKey);
   }
 }
 
-async function acquireLock(dataDir: string): Promise<LockOwner> {
+async function waitForInProcessTurn(previous: Promise<void>, deadline: number, lockDir: string): Promise<void> {
+  let timer: NodeJS.Timeout | undefined;
+  const timedOut = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`Timed out waiting for canonical SSOT lock ${lockDir}`)),
+      Math.max(0, deadline - Date.now())
+    );
+  });
+  try {
+    await Promise.race([previous, timedOut]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function acquireLock(dataDir: string, deadline: number): Promise<LockOwner> {
   const lockDir = join(dataDir, lockName);
-  const timeoutMs = parsePositiveInteger(process.env.BRAINBASE_SSOT_LOCK_TIMEOUT_MS, 5_000);
   const retryMs = parsePositiveInteger(process.env.BRAINBASE_SSOT_LOCK_RETRY_MS, 20);
-  const deadline = Date.now() + timeoutMs;
   const owner: LockOwner = { token: randomUUID(), pid: process.pid, hostname: hostname() };
 
   while (true) {
@@ -509,11 +562,8 @@ function isProcessAlive(pid: number): boolean {
 }
 
 async function canonicalPresence(dataDir: string): Promise<string[]> {
-  const result: string[] = [];
-  for (const fileName of canonicalFiles) {
-    if (await exists(join(dataDir, fileName))) result.push(fileName);
-  }
-  return result;
+  const present = await Promise.all(canonicalFiles.map((fileName) => exists(join(dataDir, fileName))));
+  return canonicalFiles.filter((_fileName, index) => present[index]);
 }
 
 function assertCompleteCanonicalSet(dataDir: string, present: string[]): void {
@@ -609,11 +659,13 @@ async function countSources(dataDir: string): Promise<number> {
 
 async function countSourceFiles(sourceDir: string): Promise<number> {
   try {
-    const entries = await readdir(sourceDir);
-    const counts = await Promise.all(entries.filter((entry) => !entry.startsWith('.')).map(async (entry) => {
-      const entryPath = join(sourceDir, entry);
-      const entryStat = await stat(entryPath);
-      return entryStat.isDirectory() ? countSourceFiles(entryPath) : entryStat.isFile() ? 1 : 0;
+    const entries = await readdir(sourceDir, { withFileTypes: true });
+    const counts = await Promise.all(entries.filter((entry) => !entry.name.startsWith('.')).map(async (entry) => {
+      const entryPath = join(sourceDir, entry.name);
+      // The directory listing already says what most entries are. Only links and
+      // unknown types need stat, which follows the link as before.
+      const kind = entry.isDirectory() || entry.isFile() ? entry : await stat(entryPath);
+      return kind.isDirectory() ? countSourceFiles(entryPath) : kind.isFile() ? 1 : 0;
     }));
     return counts.reduce((sum, count) => sum + count, 0);
   } catch {

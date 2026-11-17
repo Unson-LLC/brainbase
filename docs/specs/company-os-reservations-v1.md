@@ -1,5 +1,7 @@
 # Company OS reservations v1
 
+> **2026-11-17 移設**: 予約の本体と受け口は brainbase-organization の `packages/company-os`（台帳はPostgreSQL）へ移した。OSSの `./resource-reservations` と `./resource-reservation-http` は削除済み。この文書は移設前の記録として残す。
+
 ## 目的
 
 同じテナントの同じ資源について、承認済みの確保を単独所有者のローカル正本へ原子的に記録する。見積・承認・確保・消費は別の状態として扱い、資源の目的やモデルの正本をこの台帳へ複製しない。

@@ -405,9 +405,9 @@ export async function validateRelease(
   consumerSmoke = runConsumerSmoke
 ) {
   execute('npm', ['run', 'build'], root);
-  // Shared self-hosted runners execute several jobs at once. Keep disk-heavy
-  // validation serial and allow bounded scheduling headroom for tests/cleanup.
-  execute('npm', ['test', '--', '--maxWorkers=1', '--testTimeout=30000', '--hookTimeout=30000'], root);
+  // Shared self-hosted runners execute several jobs at once. Cap validation at
+  // two workers and allow bounded scheduling headroom for tests/cleanup.
+  execute('npm', ['test', '--', '--maxWorkers=2', '--testTimeout=30000', '--hookTimeout=30000'], root);
   execute('npm', ['audit', '--omit=dev'], root);
   const artifactDirectory = path.resolve(path.dirname(proofFile));
   const artifact = await createArtifact(root, artifactDirectory, expectedVersion, expectedSha, execute);
