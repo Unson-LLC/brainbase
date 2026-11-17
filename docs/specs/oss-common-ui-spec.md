@@ -31,11 +31,11 @@ Mana委任UI（`ui/outcome-mana`、そのCSSと`ui/icons/mana`）は、0.8.0の�
 
 ### ページヘッダー
 
-- `workspaceTopbar(document, { title, query, tabs, tools })` は全ページ共通の52pxバー。下に1pxの線、左右24px、間隔8px。左に任意のタブ、右に検索と道具を置く。タイトルは最初の子のH1として常に保持し、`tabs` がある時だけ視覚的に隠す。タブなしは従来どおりタイトルを表示する。本文と同じcanvas背景でsticky固定し、`--bb-page-header-height` が検索帯の固定位置にも使われる。
+- `workspaceTopbar(document, { title, query, tabs, tools })` keeps its H1 visible in a dedicated 52px first row. Existing tabs, search and tools occupy the next row; on narrow screens they wrap below the title. The title row has no divider, inset shadow or card frame. Tab baselines and selected indicators remain. Use shared spacing and typography tokens, keep H1 first, and keep the complete header sticky. Pages without controls show only the title row.
 - `setQuery(input | null)`、`setTabs(Node | Node[] | null)`、`setTools(Node | Node[] | null)` で内容を更新できる。検索inputの値とhandlerは所有元が保持する。同じinputを再指定しても包みを作り直さない。空slotはDOMを増やさない。道具の処理・名前・利用可否は呼び出す側が決める。
 - `workspaceSearchControl(document, { input })` は幅240px・高さ36px・文字13px・アイコン16pxの共通検索部品。白い面と通常の枠を持ち、ヘッダー内と本文操作帯で同じ部品を使う。入力の値・検索処理・ラベルは所有元が渡す。
 - タブの件数はタブ内、検索・追加・表示条件の道具は `tools` に合成できる。既存画面の本文操作帯は今回移設しない。用途の定まらない道具は追加しない。
-- 世界のような没入型キャンバスはヘッダーを出さず、画面上端から内容を表示する。
+- Canvas pages also show the shared title and use the remaining content area for their canvas.
 - 単独ページの本文見出しもH1とし、`--bb-page-title-font-size` / `--bb-page-title-line-height` / `--bb-page-title-font-weight` を参照する。画面・viewportごとのサイズを定義しない。
 - `workspacePageHeader` のleadは60字以内・1文までを表示し、それを超える全文は既存 `workspaceHelp` の「？」へ置く。`help` で明示の補足も渡せる。長いleadの全文に補足を続け、説明を失わない。権限を含むleadを呼び出し元で組み立てる場合は `preserveLead: true` で自動分割を止め、操作説明だけを `help` に渡す。状態・権限・失敗・出典は説明と分けて維持する。
 - `workspacePageHeader` は本文の説明・出典・操作を組み立てる既存部品。共通バーを使うホストは `.bb-ws-has-topbar` で重複タイトルを省き、固有の操作や説明を保持する。
