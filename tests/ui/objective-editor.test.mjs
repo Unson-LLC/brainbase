@@ -1221,10 +1221,17 @@ describe('Objective editor common UI contract', () => {
       } finally {
         if (browser.exitCode === null && browser.signalCode === null) {
           const exited = new Promise(resolve => browser.once('exit', resolve));
-          browser.kill();
-          await exited;
+          // Close through the protocol so Chrome's helper processes finish writing the
+          // profile before it exits; killing only the main process left the cache being
+          // written while the profile was removed (ENOTEMPTY).
+          await send('Browser.close').catch(() => browser.kill());
+          await Promise.race([exited, new Promise(resolve => setTimeout(resolve, 10000))]);
+          if (browser.exitCode === null && browser.signalCode === null) {
+            browser.kill('SIGKILL');
+            await exited;
+          }
         }
-        rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+        rmSync(temp, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
       }
       // Reusing one Chrome was not enough on the shared CI runner: on a busy run this test
       // took 43.6s in one job and passed 60s in another. Each Chrome call still fails at 10s.
