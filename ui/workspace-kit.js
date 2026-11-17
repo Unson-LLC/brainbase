@@ -93,7 +93,7 @@ export function workspaceSearchControl(doc, { input, appearance } = {}) {
 }
 
 /** A shared title bar, with an optional search input owned by the caller. */
-export function workspaceTopbar(doc, { title = '', query, tabs, tools, wrap = false } = {}) {
+export function workspaceTopbar(doc, { title = '', query, tabs, tools, wrap = false, alignment } = {}) {
   const header = el(doc, 'header', { className: `bb-ws-topbar${wrap ? ' bb-ws-topbar--wrap' : ''}` });
   header.append(el(doc, 'h1', { text: title }));
   let search;
@@ -123,6 +123,11 @@ export function workspaceTopbar(doc, { title = '', query, tabs, tools, wrap = fa
     if (input) { search = workspaceSearchControl(doc, { input }); header.append(search); if (toolsSlot) header.append(toolsSlot); }
     toggleWorkspaceClass(header, 'has-query', Boolean(input));
   };
+  header.setAlignment = value => {
+    toggleWorkspaceClass(header, 'bb-ws-topbar--content-aligned', value === 'content');
+    return header;
+  };
+  header.setAlignment(alignment);
   header.setTabs(tabs); header.setQuery(query); header.setTools(tools);
   return header;
 }
@@ -196,6 +201,33 @@ export function workspaceNotice(doc, { label, text, tone = 'info', role } = {}) 
   return notice;
 }
 
+/** One-line status/alert surface with optional icon, action and dismissal. */
+export function workspaceInlineNotice(doc, { text, tone = 'success', icon, action, onDismiss, role } = {}) {
+  const appearance = tone === 'danger' ? 'danger' : 'success';
+  const notice = el(doc, 'div', { className: `bb-ws-inline-notice is-${appearance}`, attrs: {
+    role: role || (appearance === 'danger' ? 'alert' : 'status'),
+    'aria-live': appearance === 'danger' ? 'assertive' : 'polite',
+    'aria-atomic': 'true',
+  } });
+  if (icon) {
+    const mark = el(doc, 'span', { className: 'bb-ws-inline-notice-icon', attrs: { 'aria-hidden': 'true' } });
+    appendContent(mark, doc, icon); notice.append(mark);
+  }
+  const message = el(doc, 'span', { className: 'bb-ws-inline-notice-text' });
+  appendContent(message, doc, text); notice.append(message);
+  if (action || onDismiss) {
+    const actions = el(doc, 'span', { className: 'bb-ws-inline-notice-actions' });
+    if (action) actions.append(typeof action.tagName === 'string' ? action : workspaceButton(doc, action));
+    if (onDismiss) {
+      const dismiss = workspaceButton(doc, { variant: 'quiet', attrs: { 'aria-label': 'お知らせを閉じる' }, onClick: onDismiss });
+      dismiss.classList?.add('bb-ws-inline-notice-dismiss'); actions.append(dismiss);
+      dismiss.append(workspaceActionIcon(doc, 'close'));
+    }
+    notice.append(actions);
+  }
+  return notice;
+}
+
 /**
  * The notice a host passes to a part in place of (or in addition to) the
  * part's own: `{ label, text }`, where `text` is a string or an element.  Null
@@ -215,9 +247,16 @@ export function workspaceHostActions(actions) {
     .map(({ text, variant, onClick, disabled }) => ({ text, variant, onClick, disabled: disabled === true }));
 }
 
-export function workspaceButton(doc, { text, variant = 'default', onClick, disabled = false, attrs = {} } = {}) {
+export function workspaceButton(doc, { text, variant = 'default', size, onClick, disabled = false, attrs = {} } = {}) {
+  const classes = ['bb-ws-button'];
+  if (variant === 'primary') classes.push('is-primary');
+  else if (variant === 'danger') classes.push('is-danger');
+  else if (variant === 'accent') classes.push('is-accent');
+  else if (variant === 'quiet') classes.push('is-quiet');
+  else if (variant === 'icon') classes.push('is-icon');
+  if (size === 'compact') classes.push('bb-ws-button--compact');
   const button = el(doc, 'button', {
-    className: `bb-ws-button${variant === 'primary' ? ' is-primary' : variant === 'danger' ? ' is-danger' : variant === 'quiet' ? ' is-quiet' : variant === 'icon' ? ' is-icon' : ''}`,
+    className: classes.join(' '),
     text,
     attrs: { type: 'button', disabled, ...attrs },
   });
@@ -231,6 +270,45 @@ export function workspaceActions(doc, buttons = []) {
     if (button) actions.append(typeof button.tagName === 'string' ? button : workspaceButton(doc, button));
   }
   return actions;
+}
+
+/** A business-neutral status label. The host supplies its text and meaning. */
+export function workspaceStatusPill(doc, { label, tone = 'neutral', width, attrs = {} } = {}) {
+  const tones = new Set(['neutral', 'success', 'warning', 'danger']);
+  const appearance = tones.has(tone) ? tone : 'neutral';
+  const pill = el(doc, 'span', { className: `bb-ws-status-pill is-${appearance}`, text: label, attrs });
+  if (Number.isFinite(width) && width > 0) pill.style?.setProperty('--bb-status-pill-width', `${width}px`);
+  return pill;
+}
+
+/** Native checkbox with the shared compact mark and caller-owned selection. */
+export function workspaceCheckbox(doc, { label, checked = false, indeterminate = false, disabled = false, onChange, attrs = {} } = {}) {
+  const checkbox = el(doc, 'input', { className: 'bb-ws-checkbox', attrs: {
+    ...attrs, type: 'checkbox', 'aria-label': attrs['aria-label'] ?? label, checked: Boolean(checked), disabled: Boolean(disabled),
+  } });
+  checkbox.checked = Boolean(checked);
+  checkbox.indeterminate = Boolean(indeterminate);
+  checkbox.addEventListener('change', () => onChange?.(checkbox.checked, checkbox.indeterminate, checkbox));
+  return checkbox;
+}
+
+/** Shared selection bar; the host owns its placement and action callbacks. */
+export function workspaceSelectionBar(doc, { count = 0, actions = [], onDismiss, label = '選択中の項目', announce = false } = {}) {
+  const root = el(doc, 'div', { className: `bb-ws-selection-bar${onDismiss ? ' has-dismiss' : ''}`, attrs: { role: 'region', 'aria-label': label } });
+  if (onDismiss) {
+    const dismiss = workspaceButton(doc, { variant: 'quiet', attrs: { 'aria-label': '選択を解除' }, onClick: onDismiss });
+    dismiss.classList?.add('bb-ws-selection-bar-dismiss');
+    dismiss.append(workspaceActionIcon(doc, 'close'));
+    root.append(dismiss);
+  }
+  const countLabel = typeof count === 'number' && Number.isFinite(count) ? `${count}件を選択中` : String(count ?? '');
+  root.append(el(doc, 'span', { className: 'bb-ws-selection-bar-count', text: countLabel, attrs: { 'aria-live': announce ? 'polite' : undefined } }));
+  const actionSlot = el(doc, 'div', { className: 'bb-ws-selection-bar-actions' });
+  for (const action of actions) {
+    if (action) actionSlot.append(typeof action.tagName === 'string' ? action : workspaceButton(doc, action));
+  }
+  root.append(actionSlot);
+  return root;
 }
 
 /** Summary metrics in one ruled row. `value` null means 未確認, never zero. */
@@ -447,9 +525,9 @@ export function workspaceCloseDrawer(dialog, finish) {
 }
 
 /** Native modal, optionally a right drawer. close() animates; dispose() tears down immediately. */
-export function workspaceDialog(doc, { title, content, opener, presentation = 'center', onClose, appearance, headerTools } = {}) {
+export function workspaceDialog(doc, { title, content, opener, presentation = 'center', onClose, appearance, headerTools, compactWidth } = {}) {
   const dialog = el(doc, 'dialog', { className: 'bb-ws-dialog' });
-  if (appearance === 'compact') toggleWorkspaceClass(dialog, 'bb-ws-dialog--compact', true);
+  workspaceDialogAppearance(dialog, { appearance, compactWidth });
   if (presentation === 'drawer') workspaceApplyDrawer(dialog);
   const headingId = `bb-ws-dialog-${nextWorkspaceSequence()}`;
   dialog.setAttribute('aria-labelledby', headingId);
@@ -500,6 +578,19 @@ export function workspaceDialog(doc, { title, content, opener, presentation = 'c
   return dialog;
 }
 
+/** Apply shared dialog appearance to a host-owned native dialog without owning its lifecycle. */
+export function workspaceDialogAppearance(dialog, { appearance, compactWidth } = {}) {
+  if (!dialog || typeof dialog.setAttribute !== 'function') throw new TypeError('dialog_element_required');
+  const isConfirmation = appearance === 'confirmation';
+  const isCompact = appearance === 'compact' || isConfirmation;
+  toggleWorkspaceClass(dialog, 'bb-ws-dialog', true);
+  toggleWorkspaceClass(dialog, 'bb-ws-dialog--compact', isCompact);
+  toggleWorkspaceClass(dialog, 'bb-ws-dialog--confirmation', isConfirmation);
+  if (isCompact && Number.isFinite(compactWidth) && compactWidth > 0) dialog.style?.setProperty('--bb-dialog-compact-width', `${compactWidth}px`);
+  else dialog.style?.removeProperty?.('--bb-dialog-compact-width');
+  return dialog;
+}
+
 /** Applied condition with an explicit, individually removable value. */
 export function workspaceFilterChip(doc, { label, onRemove, attrs = {} } = {}) {
   const chip = workspaceButton(doc, { text: `${label} ×`, attrs: { 'aria-label': `${label}を解除`, ...attrs }, onClick: onRemove });
@@ -508,6 +599,52 @@ export function workspaceFilterChip(doc, { label, onRemove, attrs = {} } = {}) {
 }
 
 const anchoredPopoverBindings = new WeakMap();
+
+function workspacePositionAnchoredElement(element, positionAnchor, {
+  align = 'start', placement = 'bottom', gap = 4, inset = 8, view, doc, flip = false, clampHeight = false, clampOverflow = 'auto', preciseWidth = false, bounds,
+} = {}) {
+  const at = positionAnchor.getBoundingClientRect();
+  const box = element.getBoundingClientRect();
+  const viewportWidth = view?.innerWidth || doc?.documentElement?.clientWidth || 1024;
+  const viewportHeight = view?.innerHeight || doc?.documentElement?.clientHeight || 768;
+  const boundary = bounds?.getBoundingClientRect?.() ?? bounds;
+  const leftInset = Math.max(inset, boundary?.left + inset || inset);
+  const topInset = Math.max(inset, boundary?.top + inset || inset);
+  const rightEdge = Math.min(viewportWidth - inset, boundary?.right - inset || viewportWidth - inset);
+  const bottomEdge = Math.min(viewportHeight - inset, boundary?.bottom - inset || viewportHeight - inset);
+  const computedWidth = preciseWidth ? Number.parseFloat(view?.getComputedStyle?.(element)?.width) : NaN;
+  const panelWidth = (Number.isFinite(computedWidth) && computedWidth > 0 ? computedWidth : 0) || element.offsetWidth || box.width || box.right - box.left;
+  let panelHeight = element.offsetHeight || box.height || box.bottom - box.top;
+  const anchorLeft = at.left ?? at.x ?? 0;
+  const anchorRight = at.right ?? anchorLeft + (at.width ?? 0);
+  const anchorTop = at.top ?? at.y ?? 0;
+  const anchorBottom = at.bottom ?? anchorTop + (at.height ?? 0);
+  const anchorWidth = at.width ?? anchorRight - anchorLeft;
+  const x = align === 'end' ? anchorRight - panelWidth : align === 'center' ? anchorLeft + (anchorWidth - panelWidth) / 2 : anchorLeft;
+  let y;
+  let side = placement;
+  if (flip) {
+    const availableBelow = Math.max(0, bottomEdge - anchorBottom - gap);
+    const availableAbove = Math.max(0, anchorTop - topInset - gap);
+    side = placement === 'top' ? 'top' : 'bottom';
+    if (side !== 'top' && panelHeight > availableBelow && availableAbove > availableBelow) side = 'top';
+    const available = side === 'top' ? availableAbove : availableBelow;
+    if (clampHeight && panelHeight > available) {
+      element.style?.setProperty('max-height', `${available}px`);
+      element.style?.setProperty('overflow-y', clampOverflow);
+      panelHeight = element.offsetHeight || Math.min(panelHeight, available);
+    } else if (clampHeight) {
+      element.style?.removeProperty?.('max-height');
+      element.style?.removeProperty?.('overflow-y');
+    }
+    y = side === 'top' ? anchorTop - gap - panelHeight : anchorBottom + gap;
+  } else y = placement === 'overlap' ? anchorTop - 10 : anchorBottom + gap;
+  return {
+    left: Math.max(leftInset, Math.min(x, rightEdge - panelWidth)),
+    top: Math.max(topInset, Math.min(y, bottomEdge - panelHeight)),
+    width: panelWidth, height: panelHeight, side, viewportWidth, viewportHeight,
+  };
+}
 
 /** Non-modal anchored surface. Content and visibility have independent lifecycles. */
 export function workspaceAnchoredPopover(doc, {
@@ -540,17 +677,9 @@ export function workspaceAnchoredPopover(doc, {
   const reposition = () => {
     if (!opened || destroyed) return;
     if (anchor.isConnected === false || positionAnchor.isConnected === false) { close({ restoreFocus: false }); return; }
-    const at = positionAnchor.getBoundingClientRect();
-    const box = element.getBoundingClientRect();
-    const viewportWidth = view?.innerWidth || doc.documentElement?.clientWidth || 1024;
-    const viewportHeight = view?.innerHeight || doc.documentElement?.clientHeight || 768;
-    // offset dimensions are layout sizes, unaffected by the entrance transform.
-    const panelWidth = element.offsetWidth || box.width || box.right - box.left;
-    const panelHeight = element.offsetHeight || box.height || box.bottom - box.top;
-    const x = align === 'end' ? at.right - panelWidth : align === 'center' ? at.left + ((at.width ?? at.right - at.left) - panelWidth) / 2 : at.left;
-    const y = placement === 'overlap' ? at.top - 10 : at.bottom + 4;
-    element.style?.setProperty('left', `${Math.max(8, Math.min(x, viewportWidth - panelWidth - 8))}px`);
-    element.style?.setProperty('top', `${Math.max(8, Math.min(y, viewportHeight - panelHeight - 8))}px`);
+    const point = workspacePositionAnchoredElement(element, positionAnchor, { align, placement, gap: 4, inset: 8, view, doc });
+    element.style?.setProperty('left', `${point.left}px`);
+    element.style?.setProperty('top', `${point.top}px`);
   };
   const removeListeners = () => {
     doc.removeEventListener?.('pointerdown', outside); doc.removeEventListener?.('keydown', escape);
@@ -822,14 +951,20 @@ function comboboxText(value) {
  */
 export function workspaceCombobox(doc, {
   label, options = [], value = '', placeholder = '選択してください', searchLabel, searchPlaceholder = '絞り込む',
-  emptyText = '一致する候補はありません', limit = 100, searchable = 'auto', className, onChange,
-  multiple = false, values = [], selectionLabel = '', renderIcon, showCount = true, showHints = true, align = 'start', appearance, boxed = false, matchTriggerWidth = false, triggerHeight, popupWidth, active = false,
+  emptyText = '一致する候補はありません', limit = 100, searchable = 'auto', className, onChange, onSelect,
+  multiple = false, values = [], selectionLabel = '', renderIcon, renderValue, showCount = true, showHints = true, align = 'start', appearance, boxed = false, borderless = false, popupAppearance, suggested = false, matchTriggerWidth = false, triggerHeight, popupWidth, active = false,
+  popupPlacement,
 } = {}) {
   const sequence = nextWorkspaceSequence();
   const listId = `bb-ws-combobox-${sequence}-list`;
   const root = el(doc, 'span', { className: ['bb-ws-combobox', className].filter(Boolean).join(' ') });
+  const useViewportPopup = popupPlacement === 'viewport';
+  if (useViewportPopup) toggleWorkspaceClass(root, 'bb-ws-combobox--viewport-popup', true);
   if (appearance === 'compact') toggleWorkspaceClass(root, 'bb-ws-combobox--compact', true);
   if (boxed) { toggleWorkspaceClass(root, 'is-boxed', true); toggleWorkspaceClass(root, 'bb-ws-combobox--stable-box', true); }
+  if (borderless) toggleWorkspaceClass(root, 'bb-ws-combobox--borderless', true);
+  if (popupAppearance === 'control-panel') toggleWorkspaceClass(root, 'bb-ws-combobox--control-panel', true);
+  if (suggested) toggleWorkspaceClass(root, 'bb-ws-combobox--suggested', true);
   if (active) toggleWorkspaceClass(root, 'is-active', true);
   if (matchTriggerWidth) toggleWorkspaceClass(root, 'bb-ws-combobox--match-width', true);
   if (triggerHeight === 32) toggleWorkspaceClass(root, 'bb-ws-combobox--tall', true);
@@ -841,7 +976,9 @@ export function workspaceCombobox(doc, {
   if (align === 'end') root.classList?.add('bb-ws-combobox-align-end');
   const trigger = el(doc, 'button', { className: 'bb-ws-combobox-trigger', attrs: { type: 'button', 'aria-haspopup': 'listbox', 'aria-expanded': 'false', 'aria-controls': listId } });
   const triggerText = el(doc, 'span', { className: 'bb-ws-combobox-value' });
-  trigger.append(triggerText, workspaceDropdownChevron(doc));
+  const chevron = workspaceDropdownChevron(doc);
+  let suggestionMark;
+  trigger.append(triggerText, chevron);
   const popup = el(doc, 'div', { className: 'bb-ws-combobox-popup' });
   popup.hidden = true;
   const search = el(doc, 'input', { className: 'bb-ws-combobox-search', attrs: {
@@ -854,19 +991,136 @@ export function workspaceCombobox(doc, {
   popup.append(search, list, status);
   root.append(trigger, popup);
 
-  const state = { selectionLabel: String(selectionLabel ?? ''), options: [], values: [...new Set((Array.isArray(values) ? values : []).map(String))].filter(Boolean), value: String(value ?? ''), query: '', active: -1, shown: [], open: false, disabled: false };
+  const state = { selectionLabel: String(selectionLabel ?? ''), options: [], values: [...new Set((Array.isArray(values) ? values : []).map(String))].filter(Boolean), value: String(value ?? ''), query: '', active: -1, shown: [], open: false, disabled: false, suggested: Boolean(suggested) };
+  let optionNodes = [];
+  let portal;
+  let modalHost;
+  let portalMotionPending = false;
+  let pendingPortalFocus = false;
+  let portalMotionTimer;
+  let destroyed = false;
   let exitTimer;
   const cancelExit = () => { clearTimeout(exitTimer); exitTimer = undefined; popup.removeEventListener?.('animationend', exitEnded); toggleWorkspaceClass(popup, 'is-closing', false); };
-  const finishExit = () => { cancelExit(); if (!state.open) popup.hidden = true; };
+  const finishExit = () => {
+    cancelExit();
+    if (!state.open) { popup.hidden = true; if (useViewportPopup) restoreViewportPopup(); }
+  };
   const exitEnded = event => { if (event.target === popup && event.animationName === 'bb-ws-compact-dropdown-out') finishExit(); };
   const usesSearch = () => searchable === true || (searchable === 'auto' && state.options.length > 8);
   const focusTarget = () => (usesSearch() ? search : list);
   const chosen = () => state.options.find(option => option.value === state.value);
 
+  function syncPortalClasses() {
+    if (!portal) return;
+    portal.className = `${root.className} bb-ws-combobox-portal`;
+    if (Number.isFinite(popupWidth) && popupWidth > 0) portal.style?.setProperty('--bb-combobox-popup-width', `${popupWidth}px`);
+  }
+
+  function clearPortalMotionTimer() {
+    clearTimeout(portalMotionTimer); portalMotionTimer = undefined;
+  }
+
+  function dialogHasRunningTransform() {
+    if (!modalHost) return false;
+    const active = modalHost.getAnimations?.().some(animation => animation.effect?.target === modalHost && animation.playState === 'running') === true;
+    const transform = doc.defaultView?.getComputedStyle?.(modalHost)?.transform;
+    return active && transform !== 'none';
+  }
+
+  function repositionViewportPopup() {
+    if (!useViewportPopup || !state.open || !portal || portalMotionPending) return;
+    if (root.isConnected === false || trigger.isConnected === false || (modalHost && !modalHost.open)) { close(false, true); return; }
+    const triggerRect = trigger.getBoundingClientRect();
+    const viewportWidth = doc.defaultView?.innerWidth || doc.documentElement?.clientWidth || 1024;
+    const dialogRect = modalHost?.getBoundingClientRect?.();
+    const listScrollTop = list.scrollTop;
+    const maxWidth = Math.max(0, Math.min(viewportWidth - 16, dialogRect ? dialogRect.width - 16 : viewportWidth - 16));
+    popup.style?.setProperty('max-width', `${maxWidth}px`);
+    if (matchTriggerWidth) popup.style?.setProperty('width', `${Math.max(0, Math.min(triggerRect.width || 0, maxWidth))}px`);
+    else popup.style?.removeProperty?.('width');
+    popup.style?.removeProperty?.('max-height');
+    popup.style?.removeProperty?.('overflow-y');
+    const point = workspacePositionAnchoredElement(popup, trigger, {
+      align, placement: 'bottom', gap: 6, inset: 8, view: doc.defaultView, doc, flip: true, clampHeight: true, clampOverflow: 'hidden', preciseWidth: true, bounds: dialogRect,
+    });
+    popup.style?.setProperty('left', `${point.left}px`);
+    popup.style?.setProperty('top', `${point.top}px`);
+    if (Number.isFinite(listScrollTop)) list.scrollTop = listScrollTop;
+  }
+
+  function finishPortalMotion() {
+    if (!portalMotionPending || !state.open) return;
+    if (modalHost?.classList?.contains('is-closing')) { close(false, true); return; }
+    if (dialogHasRunningTransform()) return;
+    clearPortalMotionTimer(); portalMotionPending = false;
+    repositionViewportPopup();
+    popup.style?.removeProperty?.('visibility');
+    if (pendingPortalFocus) { pendingPortalFocus = false; focusTarget().focus?.({ preventScroll: true }); }
+  }
+
+  function portalDialogAnimationStart(event) {
+    if (event.target !== modalHost) return;
+    if (modalHost?.classList?.contains('is-closing')) { close(false, true); return; }
+    if (doc.defaultView?.getComputedStyle?.(modalHost)?.transform !== 'none') {
+      portalMotionPending = true; pendingPortalFocus = true;
+      popup.style?.setProperty('visibility', 'hidden');
+      clearPortalMotionTimer(); portalMotionTimer = setTimeout(finishPortalMotion, animationFallback(modalHost, 24, 240));
+    }
+  }
+
+  function portalDialogAnimationEnd(event) {
+    if (event.target !== modalHost) return;
+    if (modalHost?.classList?.contains('is-closing')) { close(false, true); return; }
+    finishPortalMotion();
+  }
+
+  function mountViewportPopup() {
+    if (!useViewportPopup) return;
+    modalHost = root.closest?.('dialog[open]') || null;
+    if (!portal) {
+      portal = el(doc, 'span', { className: `${root.className} bb-ws-combobox-portal` });
+      portal.style?.setProperty('display', 'contents');
+    }
+    syncPortalClasses();
+    toggleWorkspaceClass(popup, 'bb-ws-combobox-popup--viewport', true);
+    const portalParent = modalHost || doc.body;
+    if (portal.parentNode !== portalParent) portalParent.append(portal);
+    if (popup.parentNode !== portal) portal.append(popup);
+    doc.addEventListener?.('scroll', repositionViewportPopup, true);
+    doc.defaultView?.addEventListener?.('resize', repositionViewportPopup);
+    doc.defaultView?.visualViewport?.addEventListener?.('resize', repositionViewportPopup);
+    doc.defaultView?.visualViewport?.addEventListener?.('scroll', repositionViewportPopup);
+    if (modalHost) {
+      modalHost.addEventListener?.('close', closeForDialog);
+      modalHost.addEventListener?.('cancel', closeForDialog);
+      modalHost.addEventListener?.('animationstart', portalDialogAnimationStart);
+      modalHost.addEventListener?.('animationend', portalDialogAnimationEnd);
+      modalHost.addEventListener?.('transitionrun', portalDialogAnimationStart);
+      modalHost.addEventListener?.('transitionstart', portalDialogAnimationStart);
+      modalHost.addEventListener?.('transitionend', portalDialogAnimationEnd);
+    }
+    if (dialogHasRunningTransform()) {
+      portalMotionPending = true; pendingPortalFocus = true;
+      popup.style?.setProperty('visibility', 'hidden');
+      portalMotionTimer = setTimeout(finishPortalMotion, animationFallback(modalHost, 24, 240));
+    } else repositionViewportPopup();
+  }
+
+  function returnViewportPopupToRoot({ hide = true } = {}) {
+    if (!useViewportPopup) return;
+    if (hide) popup.hidden = true;
+    toggleWorkspaceClass(popup, 'bb-ws-combobox-popup--viewport', false);
+    for (const property of ['left', 'top', 'width', 'max-width', 'max-height', 'overflow-y', 'visibility']) popup.style?.removeProperty?.(property);
+    if (portal) { root.append(popup); portal.remove(); portal = undefined; }
+    modalHost = undefined; portalMotionPending = false; pendingPortalFocus = false; clearPortalMotionTimer();
+  }
+
+  function restoreViewportPopup() { returnViewportPopupToRoot({ hide: true }); }
+
   function setOptions(next) {
     state.options = (Array.isArray(next) ? next : []).map(option => ({
       ...option, value: String(option?.value ?? ''), label: String(option?.label ?? option?.value ?? ''),
-      hint: option?.hint ? String(option.hint) : '', keywords: option?.keywords ? String(option.keywords) : '',
+      hint: option?.hint ? String(option.hint) : '', keywords: option?.keywords ? String(option.keywords) : '', group: option?.group ? String(option.group) : '',
     }));
   }
 
@@ -874,15 +1128,27 @@ export function workspaceCombobox(doc, {
     const option = multiple ? (state.values.length === 1 ? state.options.find(option => option.value === state.values[0]) : state.options.find(option => !option.value)) : chosen();
     const summary = multiple && state.values.length > 1 ? `${state.values.length}件選択中` : null;
     const text = state.selectionLabel || summary || (option ? option.label : multiple ? state.values.join('、') || placeholder : state.value || placeholder);
+    if (state.suggested) {
+      if (!suggestionMark) {
+        suggestionMark = el(doc, 'span', { className: 'bb-ws-combobox-suggestion-mark', attrs: { 'aria-hidden': 'true' } });
+        suggestionMark.append(workspaceActionIcon(doc, 'sparkles'));
+      }
+      trigger.insertBefore(suggestionMark, triggerText);
+    } else suggestionMark?.remove();
     triggerText.textContent = text;
-    if (!state.selectionLabel && !summary && option && typeof renderIcon === 'function') {
+    if (!state.selectionLabel && !summary && option && typeof renderValue === 'function') {
+      triggerText.textContent = '';
+      appendContent(triggerText, doc, renderValue(option));
+    } else if (!state.selectionLabel && !summary && option && typeof renderIcon === 'function') {
       const icon = renderIcon(option);
       if (icon) { triggerText.textContent = ''; triggerText.append(icon, el(doc, 'span', { className: 'bb-ws-combobox-text', text })); }
     }
     toggleWorkspaceClass(root, 'is-multi-selected', Boolean(summary));
-    trigger.setAttribute('aria-label', `${label ? `${label}: ` : ''}${text}`);
+    const accessibleText = !state.selectionLabel && !summary && option?.group ? `${option.group}・${option.label}` : text;
+    trigger.setAttribute('aria-label', `${label ? `${label}: ` : ''}${accessibleText}`);
     trigger.setAttribute('data-empty', String(multiple ? !state.values.length : !option && !state.value));
     if (state.disabled) trigger.setAttribute('disabled', ''); else trigger.removeAttribute('disabled');
+    syncPortalClasses();
   }
 
   function activeDescendant(node) {
@@ -896,13 +1162,23 @@ export function workspaceCombobox(doc, {
     const scrollTop = list.scrollTop;
     const terms = comboboxText(state.query).split(/\s+/u).filter(Boolean);
     const matches = terms.length
-      ? state.options.filter(option => { const text = comboboxText(`${option.label}\n${option.hint}\n${option.keywords}`); return terms.every(term => text.includes(term)); })
+      ? state.options.filter(option => { const text = comboboxText(`${option.label}\n${option.hint}\n${option.keywords}\n${option.group}`); return terms.every(term => text.includes(term)); })
       : state.options;
     const max = Math.max(1, Number(limit) || 100);
     state.shown = matches.slice(0, max);
     if (state.active >= state.shown.length) state.active = state.shown.length - 1;
-    list.replaceChildren();
+    list.replaceChildren(); optionNodes = [];
+    let groupName = '';
+    let groupNode;
+    let groupOptions;
     state.shown.forEach((option, index) => {
+      if (option.group && option.group !== groupName) {
+        groupName = option.group;
+        groupNode = el(doc, 'li', { className: 'bb-ws-combobox-group', attrs: { role: 'group', 'aria-label': groupName } });
+        groupOptions = el(doc, 'ul', { className: 'bb-ws-combobox-group-options', attrs: { role: 'presentation' } });
+        groupNode.append(el(doc, 'span', { className: 'bb-ws-combobox-group-label', text: groupName, attrs: { 'aria-hidden': 'true' } }), groupOptions);
+        list.append(groupNode);
+      } else if (!option.group) { groupName = ''; groupNode = undefined; groupOptions = undefined; }
       const selected = multiple ? option.value ? state.values.includes(option.value) : state.values.length === 0 : option.value === state.value;
       const item = el(doc, 'li', { className: `bb-ws-combobox-option${index === state.active ? ' is-active' : ''}`, attrs: { id: `bb-ws-combobox-${sequence}-option-${index}`, role: 'option', 'aria-selected': String(selected), 'data-value': option.value } });
       const optionLabel = el(doc, 'span', { className: 'bb-ws-combobox-option-label', text: option.label });
@@ -915,9 +1191,9 @@ export function workspaceCombobox(doc, {
       if (showHints && option.hint) item.append(el(doc, 'span', { className: 'bb-ws-combobox-option-hint', text: option.hint }));
       item.addEventListener('pointerdown', event => event.preventDefault?.());
       item.addEventListener('click', () => choose(option));
-      list.append(item);
+      (groupOptions || list).append(item); optionNodes.push(item);
     });
-    const active = list.children?.[state.active];
+    const active = optionNodes[state.active];
     activeDescendant(active);
     if (scrollTop !== undefined) list.scrollTop = scrollTop;
     if (reveal) {
@@ -932,6 +1208,7 @@ export function workspaceCombobox(doc, {
     const rest = matches.length - state.shown.length;
     status.hidden = !showCount && matches.length > 0 && rest === 0;
     status.textContent = !matches.length ? emptyText : rest > 0 ? `${matches.length}件中${state.shown.length}件を表示。ほか${rest}件は絞り込むと出ます` : `${matches.length}件`;
+    if (state.open && useViewportPopup) repositionViewportPopup();
   }
 
   function move(index) {
@@ -940,29 +1217,56 @@ export function workspaceCombobox(doc, {
     renderList({ reveal: true });
   }
 
-  function removeListeners() { doc.removeEventListener?.('pointerdown', outside); }
-  function outside(event) { if (!root.contains?.(event.target)) close(false); }
+  function closeForDialog() { close(false, true); }
+
+  function removeListeners() {
+    doc.removeEventListener?.('pointerdown', outside);
+    if (!useViewportPopup) return;
+    doc.removeEventListener?.('scroll', repositionViewportPopup, true);
+    doc.defaultView?.removeEventListener?.('resize', repositionViewportPopup);
+    doc.defaultView?.visualViewport?.removeEventListener?.('resize', repositionViewportPopup);
+    doc.defaultView?.visualViewport?.removeEventListener?.('scroll', repositionViewportPopup);
+    modalHost?.removeEventListener?.('close', closeForDialog);
+    modalHost?.removeEventListener?.('cancel', closeForDialog);
+    modalHost?.removeEventListener?.('animationstart', portalDialogAnimationStart);
+    modalHost?.removeEventListener?.('animationend', portalDialogAnimationEnd);
+    modalHost?.removeEventListener?.('transitionrun', portalDialogAnimationStart);
+    modalHost?.removeEventListener?.('transitionstart', portalDialogAnimationStart);
+    modalHost?.removeEventListener?.('transitionend', portalDialogAnimationEnd);
+    clearPortalMotionTimer(); portalMotionPending = false; pendingPortalFocus = false;
+    popup.style?.removeProperty?.('visibility');
+  }
+
+  function outside(event) {
+    if (!root.contains?.(event.target) && !popup.contains?.(event.target) && !portal?.contains?.(event.target)) close(false);
+  }
 
   function open(query = '') {
-    if (state.disabled) return;
+    if (state.disabled || (useViewportPopup && destroyed)) return;
     cancelExit(); popup.inert = false; popup.removeAttribute?.('inert'); popup.removeAttribute?.('aria-hidden');
     if (!state.open) { state.open = true; doc.addEventListener?.('pointerdown', outside); }
     state.query = query; search.value = query; search.hidden = !usesSearch();
     const selectedIndex = state.options.findIndex(option => multiple ? state.values.includes(option.value) : option.value === state.value);
     state.active = query ? 0 : Math.max(0, selectedIndex);
     popup.hidden = false; trigger.setAttribute('aria-expanded', 'true');
+    if (useViewportPopup) mountViewportPopup();
     renderList({ reveal: true });
-    focusTarget().focus?.({ preventScroll: true });
+    if (useViewportPopup) repositionViewportPopup();
+    if (!portalMotionPending) focusTarget().focus?.({ preventScroll: true });
   }
 
-  function close(returnFocus = true) {
+  function close(returnFocus = true, immediate = false) {
     if (!state.open) return;
     state.open = false; removeListeners();
-    if (appearance === 'compact' && !reducedMotion(popup) && popup.isConnected !== false) {
+    if (useViewportPopup && !immediate) returnViewportPopupToRoot({ hide: false });
+    if (immediate) {
+      cancelExit(); popup.hidden = true;
+      if (useViewportPopup) restoreViewportPopup();
+    } else if (appearance === 'compact' && !reducedMotion(popup) && popup.isConnected !== false) {
       popup.inert = true; popup.setAttribute('inert', ''); popup.setAttribute('aria-hidden', 'true');
       toggleWorkspaceClass(popup, 'is-closing', true); popup.addEventListener?.('animationend', exitEnded);
       exitTimer = setTimeout(finishExit, animationFallback(popup, 50, 190));
-    } else popup.hidden = true;
+    } else { popup.hidden = true; if (useViewportPopup) restoreViewportPopup(); }
     trigger.setAttribute('aria-expanded', 'false'); activeDescendant(null);
     if (returnFocus) trigger.focus?.();
   }
@@ -976,6 +1280,26 @@ export function workspaceCombobox(doc, {
     const changed = option.value !== state.value;
     state.value = option.value; renderTrigger(); close(true);
     if (changed) onChange?.(option.value, option);
+    onSelect?.(option.value, option);
+  }
+
+  function viewportTabTarget(backward) {
+    const scope = modalHost?.open ? modalHost : doc;
+    const selector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const candidates = Array.from(scope.querySelectorAll?.(selector) ?? []).filter(node => {
+      if (node === popup || popup.contains?.(node) || portal?.contains?.(node)) return false;
+      if (node.disabled || node.hidden || node.matches?.(':disabled') || node.getAttribute?.('aria-hidden') === 'true') return false;
+      const style = doc.defaultView?.getComputedStyle?.(node);
+      if (style?.display === 'none' || style?.visibility === 'hidden' || node.getClientRects?.().length === 0) return false;
+      return true;
+    });
+    const index = candidates.indexOf(trigger);
+    if (index < 0) return modalHost?.open ? trigger : null;
+    const direction = backward ? -1 : 1;
+    const adjacent = candidates[index + direction];
+    if (adjacent) return adjacent;
+    if (modalHost?.open && candidates.length > 1) return candidates[backward ? candidates.length - 1 : 0];
+    return null;
   }
 
   function keydown(event) {
@@ -988,7 +1312,15 @@ export function workspaceCombobox(doc, {
     };
     // Home and End move the caret while a search box is shown.
     if (!usesSearch()) Object.assign(keys, { Home: () => move(0), End: () => move(state.shown.length - 1) });
-    if (event.key === 'Tab') { close(false); return; }
+    if (event.key === 'Tab') {
+      if (useViewportPopup) {
+        const target = viewportTabTarget(Boolean(event.shiftKey));
+        close(false, true);
+        if (target) { event.preventDefault?.(); target.focus?.({ preventScroll: true }); }
+        return;
+      }
+      close(false); return;
+    }
     if (multiple && event.key === ' ' && !usesSearch()) keys[' '] = keys.Enter;
     const action = keys[event.key];
     if (!action) return;
@@ -1013,19 +1345,33 @@ export function workspaceCombobox(doc, {
     get values() { return [...state.values]; },
     get isOpen() { return state.open; },
     open, close,
-    update({ options: nextOptions, value: nextValue, values: nextValues, selectionLabel: nextSelectionLabel, disabled, active: nextActive } = {}) {
+    update({ options: nextOptions, value: nextValue, values: nextValues, selectionLabel: nextSelectionLabel, disabled, active: nextActive, suggested: nextSuggested } = {}) {
       if (nextActive !== undefined) toggleWorkspaceClass(root, 'is-active', Boolean(nextActive));
-      const previous = JSON.stringify([state.options, state.value, state.values, state.selectionLabel, state.disabled]);
+      const previous = JSON.stringify([state.options, state.value, state.values, state.selectionLabel, state.disabled, state.suggested]);
+      if (nextSuggested !== undefined) {
+        state.suggested = Boolean(nextSuggested);
+        toggleWorkspaceClass(root, 'bb-ws-combobox--suggested', state.suggested);
+      }
+      syncPortalClasses();
       if (nextOptions !== undefined) setOptions(nextOptions);
       if (nextSelectionLabel !== undefined) state.selectionLabel = String(nextSelectionLabel ?? '');
       if (nextValue !== undefined) state.value = String(nextValue ?? '');
       if (nextValues !== undefined) state.values = [...new Set((Array.isArray(nextValues) ? nextValues : []).map(String))].filter(Boolean);
       if (disabled !== undefined) { state.disabled = Boolean(disabled); if (state.disabled) close(false); }
-      if (previous === JSON.stringify([state.options, state.value, state.values, state.selectionLabel, state.disabled])) return;
+      if (previous === JSON.stringify([state.options, state.value, state.values, state.selectionLabel, state.disabled, state.suggested])) return;
       renderTrigger();
       if (state.open) { search.hidden = !usesSearch(); renderList(); }
     },
-    destroy() { close(false); removeListeners(); cancelExit(); popup.hidden = true; },
+    destroy() {
+      if (useViewportPopup) {
+        if (destroyed) return;
+        destroyed = true;
+        if (state.open) close(false, true);
+        removeListeners(); cancelExit(); restoreViewportPopup();
+        return;
+      }
+      close(false); removeListeners(); cancelExit(); popup.hidden = true;
+    },
   };
 }
 
@@ -1034,8 +1380,9 @@ export function workspaceActionIcon(doc, name) {
   const svg = typeof doc.createElementNS === 'function' ? doc.createElementNS('http://www.w3.org/2000/svg', 'svg') : doc.createElement('svg');
   for (const [key, value] of Object.entries({ class: 'bb-ws-action-icon', viewBox: '0 0 24 24', 'aria-hidden': 'true' })) svg.setAttribute(key, value);
   const path = typeof doc.createElementNS === 'function' ? doc.createElementNS('http://www.w3.org/2000/svg', 'path') : doc.createElement('path');
-  const paths = { edit: 'M4 20h4L19 9l-4-4L4 16z M13.5 6.5l4 4', undo: 'M4 5v5h5 M4.6 10A8 8 0 1 1 6.3 17.7', check: 'M5 12l5 5 9-10', sliders: 'M4 8h8M18 8h2M4 16h2M12 16h8 M17.4 8a2.4 2.4 0 1 1-4.8 0 2.4 2.4 0 0 1 4.8 0 M11.4 16a2.4 2.4 0 1 1-4.8 0 2.4 2.4 0 0 1 4.8 0', plus: 'M12 5v14M5 12h14', search: 'M21 21l-4.35-4.35M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0', filter: 'M4 7h16M7 12h10M10 17h4', sort: 'M8 4v16m-3-3 3 3 3-3M16 20V4m-3 3 3-3 3 3' };
+  const paths = { edit: 'M4 20h4L19 9l-4-4L4 16z M13.5 6.5l4 4', undo: 'M4 5v5h5 M4.6 10A8 8 0 1 1 6.3 17.7', check: 'M5 12l5 5 9-10', sliders: 'M4 8h8M18 8h2M4 16h2M12 16h8 M17.4 8a2.4 2.4 0 1 1-4.8 0 2.4 2.4 0 0 1 4.8 0 M11.4 16a2.4 2.4 0 1 1-4.8 0 2.4 2.4 0 0 1 4.8 0', plus: 'M12 5v14M5 12h14', search: 'M21 21l-4.35-4.35M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0', filter: 'M4 7h16M7 12h10M10 17h4', sort: 'M8 4v16m-3-3 3 3 3-3M16 20V4m-3 3 3-3 3 3', close: 'M6 6l12 12M18 6L6 18', sparkles: 'M12 3l1.8 6.7 6.7 1.8-6.7 1.8L12 20l-1.8-6.7-6.7-1.8 6.7-1.8z M19 2v4 M17 4h4' };
   Object.assign(paths, {
+    lock: 'M6 10h12v11H6z M8 10V7a4 4 0 1 1 8 0v3',
     clock: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M12 7v5l3 2',
     users: 'M12.2 8a3.2 3.2 0 1 1-6.4 0 3.2 3.2 0 0 1 6.4 0 M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5 M16 5.2a3.2 3.2 0 0 1 0 5.6 M18 14.8c1.9.7 3 2.5 3 5.2',
     calendar: 'M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2 M8 2v4 M16 2v4 M3 10h18',
@@ -1332,16 +1679,45 @@ export function workspaceInputFrame(doc, { title, opener, onClose, beforeClose, 
   };
 }
 
-export function workspaceCardRow(doc, { cells = [], stripe, selected = false, key, onSelect, label, preview = false } = {}) {
-  const root = el(doc, onSelect ? 'button' : 'div', { className: `bb-ws-card-row${selected ? ' is-selected' : ''}${preview ? ' is-preview' : ''}`,
+export function workspaceCardRow(doc, { cells = [], stripe, selected = false, key, onSelect, label, preview = false, columnGap, selectionAppearance, appearance } = {}) {
+  const root = el(doc, onSelect ? 'button' : 'div', { className: `bb-ws-card-row${selected ? ' is-selected' : ''}${preview ? ' is-preview' : ''}${selectionAppearance === 'soft' ? ' bb-ws-card-row--soft-selected' : ''}${appearance === 'compact-panel' ? ' bb-ws-card-row--compact-panel' : ''}`,
     attrs: { type: onSelect ? 'button' : undefined, 'data-key': key, 'aria-label': label, 'aria-pressed': onSelect ? String(selected) : undefined } });
   if (stripe) root.style.setProperty('--bb-card-stripe', stripe);
+  if (Number.isFinite(columnGap) && columnGap >= 0) root.style?.setProperty('--bb-ws-card-column-gap', `${columnGap}px`);
   for (const cell of cells) {
-    const slot = el(doc, 'span', { className: 'bb-ws-card-cell' });
-    if (cell && typeof cell === 'object' && cell.tagName) slot.append(cell); else slot.textContent = String(cell ?? '');
+    const descriptor = cell && typeof cell === 'object' && typeof cell.tagName !== 'string' && ('className' in cell || 'content' in cell) ? cell : null;
+    const cellClass = typeof descriptor?.className === 'string' && descriptor.className.trim() ? ` ${descriptor.className.trim()}` : '';
+    const slot = el(doc, 'span', { className: `bb-ws-card-cell${cellClass}` });
+    if (descriptor) appendContent(slot, doc, descriptor.content);
+    else if (cell && typeof cell === 'object' && typeof cell.tagName === 'string') slot.append(cell);
+    else slot.textContent = String(cell ?? '');
     root.append(slot);
   }
   if (onSelect) root.addEventListener('click', () => onSelect(key));
+  return root;
+}
+
+function workspaceCardLength(value, fallback) {
+  if (Number.isFinite(value) && value >= 0) return `${value}px`;
+  if (typeof value === 'string' && /^(?:\d+(?:\.\d+)?)(?:px|%|rem|em|ch)$/u.test(value.trim())) return value.trim();
+  return fallback;
+}
+
+/** Skeleton rows use the same caller-provided column grid as card rows. */
+export function workspaceCardRowSkeleton(doc, { cells = [], stripe, columnGap } = {}) {
+  const root = el(doc, 'div', { className: 'bb-ws-card-row bb-ws-card-row--skeleton', attrs: { 'aria-hidden': 'true', role: 'presentation' } });
+  if (stripe) root.style?.setProperty('--bb-card-stripe', stripe);
+  if (Number.isFinite(columnGap) && columnGap >= 0) root.style?.setProperty('--bb-ws-card-column-gap', `${columnGap}px`);
+  for (const item of cells) {
+    const config = typeof item === 'object' && item !== null ? item : { width: item };
+    const slot = el(doc, 'span', { className: 'bb-ws-card-cell' });
+    const line = el(doc, 'span', { className: 'bb-ws-card-skeleton-line' });
+    line.style?.setProperty('--bb-card-skeleton-width', workspaceCardLength(config.width, '100%'));
+    const height = workspaceCardLength(config.height, '10px');
+    line.style?.setProperty('--bb-card-skeleton-height', height);
+    if (parseFloat(height) > 12) line.style?.setProperty('--bb-card-skeleton-radius', '7px');
+    slot.append(line); root.append(slot);
+  }
   return root;
 }
 
