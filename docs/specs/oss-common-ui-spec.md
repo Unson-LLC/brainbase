@@ -293,6 +293,14 @@ Omitting these options preserves existing dialogs. `workspaceHelp` accepts
 `content` nodes, `icon` (default `i`), and `placement: 'bottom-end'` for a compact
 help control and structured explanatory content. The host owns the explanation.
 
+`workspaceDisclosure(document, { title, help, content, open, onToggle,
+appearance: 'compact', headingLevel })` returns a native `<details>` with a
+keyboard-operable `<summary>`. `open` defaults to `false`; `onToggle(open)`
+reports native open/close changes while the host owns any state that must survive
+a rerender. `headingLevel` accepts 2–6 and defaults to 2. `appearance: 'compact'`
+opts into compact spacing and heading size; omitting it preserves the existing
+presentation.
+
 `workspaceCombobox({ appearance: 'compact', boxed: true, borderless: true,
 popupAppearance: 'control-panel', suggested, triggerHeight: 32,
 matchTriggerWidth: true, popupWidth, active, popupPlacement: 'viewport',

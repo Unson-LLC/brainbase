@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { workspaceConditionChips, workspacePills, workspaceFormRow, workspaceCardRow, workspaceCardRowSkeleton, workspaceCheckbox, workspaceCombobox, workspaceDialogAppearance, workspaceInlineNotice, workspaceSelectionBar, workspaceStatusPill, workspaceRowMotion, workspaceInputFrame, workspaceDetailDrawer } from '../../ui/workspace-kit.js';
+import { workspaceConditionChips, workspacePills, workspaceFormRow, workspaceCardRow, workspaceCardRowSkeleton, workspaceCheckbox, workspaceCombobox, workspaceDialogAppearance, workspaceDisclosure, workspaceInlineNotice, workspaceSelectionBar, workspaceStatusPill, workspaceRowMotion, workspaceInputFrame, workspaceDetailDrawer } from '../../ui/workspace-kit.js';
 class ChildNodes extends Array { find=undefined; }
 class Node {
   constructor(doc, tag) { this.ownerDocument=doc; this.tagName=tag.toUpperCase(); this.children=new ChildNodes(); this.attributes={}; this.listeners={}; this.style={setProperty:vi.fn()}; this.top=0; this.className=''; this.classList={add:n=>{this.className+=' '+n},remove:n=>{this.className=this.className.split(' ').filter(x=>x!==n).join(' ')}}; }
@@ -58,6 +58,16 @@ describe('business-neutral workspace compositions',()=>{
     expect(row.style.setProperty).toHaveBeenCalledWith('--bb-card-stripe','var(--bb-color-border)');
     expect(row.children[0].children[0]).toBe(content);
     expect(workspaceCardRow(doc,{cells:[content]}).className).not.toContain('compact-panel');
+  });
+  it('keeps native disclosures closed by default and opts into compact sizing without changing the default',()=>{
+    const doc=document(), content=doc.createElement('p'), changed=vi.fn();
+    const standard=workspaceDisclosure(doc,{title:'Standard details',content});
+    expect(standard.tagName).toBe('DETAILS');expect(standard.open).toBe(false);expect(standard.className).toBe('bb-ws-disclosure');
+    expect(standard.children[0].children[0].tagName).toBe('H2');
+    const compact=workspaceDisclosure(doc,{title:'More details',content,open:true,onToggle:changed,appearance:'compact',headingLevel:4});
+    expect(compact.open).toBe(true);expect(compact.className).toBe('bb-ws-disclosure bb-ws-disclosure--compact');
+    expect(compact.children[0].children[0].tagName).toBe('H4');expect(compact.children[1]).toBe(content);
+    compact.open=false;compact.listeners.toggle({target:compact});expect(changed).toHaveBeenCalledWith(false);
   });
   it('accepts a shared combobox root directly as a selection-bar action',()=>{
     const doc=document();const combo=workspaceCombobox(doc,{label:'Destination',appearance:'compact',borderless:true,searchable:false,options:[{value:'a',label:'Alpha'}]});

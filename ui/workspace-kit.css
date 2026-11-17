@@ -536,6 +536,11 @@
 .bb-ws-disclosure[open] > summary::before { transform: rotate(90deg); }
 .bb-ws-disclosure > summary h2 { margin: 0; font-size: 22px; line-height: 1.4; }
 .bb-ws-disclosure > :not(summary) { margin: 0 0 18px 25px; }
+.bb-ws-disclosure--compact { border-top: 0; }
+.bb-ws-disclosure--compact > summary { gap: var(--bb-space-2); padding: 0; }
+.bb-ws-disclosure--compact > summary::before { font-size: 16px; }
+.bb-ws-disclosure--compact > summary :is(h2,h3,h4,h5,h6) { margin: 0; font-size: 14px; line-height: 1.4; }
+.bb-ws-disclosure--compact > :not(summary) { margin: var(--bb-space-1) 0 0 var(--bb-space-4); }
 .bb-ws-disclosure > summary:focus-visible, .bb-ws-help-button:focus-visible { outline: 2px solid var(--bb-color-focus); outline-offset: 3px; }
 .bb-ws-error-stack { position: absolute; z-index: 55; top: 0; right: 0; width: min(300px,100%); max-height: none; padding-bottom: 64px; pointer-events: none; box-sizing: border-box; overflow: visible; }
 .bb-ws-error-list { display: grid; gap: 6px; }

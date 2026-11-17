@@ -926,10 +926,12 @@ export function workspaceErrorCard(doc, { title, message, tone = 'danger', onRet
   return card;
 }
 
-export function workspaceDisclosure(doc, { title, help, content, open = false, onToggle } = {}) {
-  const details = el(doc, 'details', { className: 'bb-ws-disclosure' }); details.open = open;
+export function workspaceDisclosure(doc, { title, help, content, open = false, onToggle, appearance, headingLevel = 2 } = {}) {
+  const compact = appearance === 'compact';
+  const level = [2, 3, 4, 5, 6].includes(headingLevel) ? headingLevel : 2;
+  const details = el(doc, 'details', { className: `bb-ws-disclosure${compact ? ' bb-ws-disclosure--compact' : ''}` }); details.open = open;
   const summary = el(doc, 'summary');
-  summary.append(el(doc, 'h2', { text: title }));
+  summary.append(el(doc, `h${level}`, { text: title }));
   if (help) summary.append(workspaceHelp(doc, { label: title, text: help }));
   details.append(summary, content);
   if (onToggle) details.addEventListener('toggle', () => onToggle(details.open));
