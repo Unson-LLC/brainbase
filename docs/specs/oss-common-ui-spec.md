@@ -285,10 +285,11 @@ appearance: 'compact' | 'confirmation', compactWidth })` applies these shared
 classes to a **host-owned** native dialog without changing its lifecycle. The
 `confirmation` appearance uses a 520px default maximum, 24px/24px/20px content
 padding, a 16px/600 heading, and the shared compact shadow; viewport width still
-limits the dialog. Its `.bb-ws-actions > .bb-ws-button` actions use 36px height,
-16px horizontal padding, and 13px text. Hosts can add `.bb-ws-dialog-body` around persistent dialog
-content to use the shared padding. Omitting these options preserves existing
-dialogs. `workspaceHelp` accepts
+limits the dialog. Its backdrop uses the existing `--bb-color-dialog-overlay`
+token. Its `.bb-ws-actions > .bb-ws-button` actions use 36px height, 16px
+horizontal padding, 13px/500 text, and an 88px minimum width. Hosts can add
+`.bb-ws-dialog-body` around persistent dialog content to use the shared padding.
+Omitting these options preserves existing dialogs. `workspaceHelp` accepts
 `content` nodes, `icon` (default `i`), and `placement: 'bottom-end'` for a compact
 help control and structured explanatory content. The host owns the explanation.
 
@@ -299,8 +300,9 @@ onSelect })` opts into explicit compact
 trigger and popup presentations. `borderless` keeps the trigger edge absent and
 uses weight 500 for trigger text; rich content returned by `renderValue` can set
 emphasis on a specific part of the value. `suggested` adds a mint surface and decorative sparkle without changing the
-chevron, and can be changed through `update({ suggested })`. `popupAppearance:
-'control-panel'` uses the shared 14px control-panel corner and shadow. Existing
+chevron, and can be changed through `update({ suggested })`. The decorative
+sparkle uses the existing mint token. `popupAppearance: 'control-panel'` uses
+the shared 14px control-panel corner and shadow. Existing
 selection/search/keyboard/disabled contracts and default presentation remain intact.
 `boxed: true` opts into a stable boxed trigger.
 Hover/expanded never change its edge; `active` changes only the selected surface
