@@ -59,6 +59,13 @@ describe('business-neutral workspace compositions',()=>{
     expect(row.children[0].children[0]).toBe(content);
     expect(workspaceCardRow(doc,{cells:[content]}).className).not.toContain('compact-panel');
   });
+  it('opts a card row into busy appearance without changing the default row',()=>{
+    const doc=document();
+    const busy=workspaceCardRow(doc,{appearance:'busy'});
+    const standard=workspaceCardRow(doc,{});
+    expect(busy.className).toContain('bb-ws-card-row--busy');
+    expect(standard.className).toBe('bb-ws-card-row');
+  });
   it('keeps native disclosures closed by default and opts into compact sizing without changing the default',()=>{
     const doc=document(), content=doc.createElement('p'), changed=vi.fn();
     const standard=workspaceDisclosure(doc,{title:'Standard details',content});

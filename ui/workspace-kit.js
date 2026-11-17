@@ -1682,7 +1682,7 @@ export function workspaceInputFrame(doc, { title, opener, onClose, beforeClose, 
 }
 
 export function workspaceCardRow(doc, { cells = [], stripe, selected = false, key, onSelect, label, preview = false, columnGap, selectionAppearance, appearance } = {}) {
-  const root = el(doc, onSelect ? 'button' : 'div', { className: `bb-ws-card-row${selected ? ' is-selected' : ''}${preview ? ' is-preview' : ''}${selectionAppearance === 'soft' ? ' bb-ws-card-row--soft-selected' : ''}${appearance === 'compact-panel' ? ' bb-ws-card-row--compact-panel' : ''}`,
+  const root = el(doc, onSelect ? 'button' : 'div', { className: `bb-ws-card-row${selected ? ' is-selected' : ''}${preview ? ' is-preview' : ''}${selectionAppearance === 'soft' ? ' bb-ws-card-row--soft-selected' : ''}${appearance === 'compact-panel' ? ' bb-ws-card-row--compact-panel' : ''}${appearance === 'busy' ? ' bb-ws-card-row--busy' : ''}`,
     attrs: { type: onSelect ? 'button' : undefined, 'data-key': key, 'aria-label': label, 'aria-pressed': onSelect ? String(selected) : undefined } });
   if (stripe) root.style.setProperty('--bb-card-stripe', stripe);
   if (Number.isFinite(columnGap) && columnGap >= 0) root.style?.setProperty('--bb-ws-card-column-gap', `${columnGap}px`);

@@ -1160,6 +1160,7 @@
 .bb-ws-card-row::before { content:""; position:absolute; left:0; top:0; bottom:0; width:5px; border-radius:8px 0 0 8px; background:var(--bb-card-stripe,var(--bb-color-border)); }
 .bb-ws-card-row:hover { box-shadow:var(--bb-shadow-card-row-hover); }
 .bb-ws-card-row.is-selected { box-shadow:0 0 0 2px var(--bb-color-action); }
+.bb-ws-card-row--busy { opacity:.72; }
 .bb-ws-card-row.is-preview { margin-bottom:0; min-height:52px; column-gap:var(--bb-ws-card-column-gap,16px); box-shadow:var(--bb-shadow-card-preview); }
 .bb-ws-card-cell { min-width:0; }
 .bb-ws-pills > button:focus-visible, .bb-ws-card-row:focus-visible, .bb-ws-condition-chips button:focus-visible { outline:2px solid var(--bb-color-focus); outline-offset:2px; }

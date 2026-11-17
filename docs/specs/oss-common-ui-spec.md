@@ -229,7 +229,7 @@ The shared review orange is `--bb-color-review`; the inbox approval stripe alias
 #### 一覧の札の行
 
 - 役目: ホストの任意のセルを白い札へ並べる。
-- 呼出: `workspaceCardRow(document, { key, label, cells, stripe, selected, onSelect, preview, columnGap, selectionAppearance, appearance })`。`stripe` はホストの色またはtoken参照、列定義は親の `--bb-card-columns`。`onSelect(key)` があればnative button、なければ通常Node。セルのNodeをそのまま渡せる。`{ className, content }` のセル記述子は共通cell wrapperへ任意classを追加する。`columnGap` は行だけにpx値で明示し、省略時は通常20px・preview16px。`selectionAppearance: 'soft'` は選択時に枠を使わず、淡い選択面を使う。`appearance: 'compact-panel'` は単一のrich content cell向けに、canvas面・既存5px stripe・8px角・`12px 14px 12px 19px` padding・6px下余白・高さ自動へ切り替える。いずれも明示opt-inで、通常行やpreviewの既定を変えない。
+- 呼出: `workspaceCardRow(document, { key, label, cells, stripe, selected, onSelect, preview, columnGap, selectionAppearance, appearance })`。`stripe` はホストの色またはtoken参照、列定義は親の `--bb-card-columns`。`onSelect(key)` があればnative button、なければ通常Node。セルのNodeをそのまま渡せる。`{ className, content }` のセル記述子は共通cell wrapperへ任意classを追加する。`columnGap` は行だけにpx値で明示し、省略時は通常20px・preview16px。`selectionAppearance: 'soft'` は選択時に枠を使わず、淡い選択面を使う。`appearance: 'compact-panel'` は単一のrich content cell向けに、canvas面・既存5px stripe・8px角・`12px 14px 12px 19px` padding・6px下余白・高さ自動へ切り替える。`appearance: 'busy'` はopacityを0.72にする見た目だけのopt-inで、状態や操作可否は変更しない。いずれも明示opt-inで、通常行やpreviewの既定を変えない。
 - 見た目: 最小48px、下3px、角8px、左右16px/22px、列間20px、左に5pxの色帯。hoverは影だけを150msで表示し、selectedは紺2px枠。previewは52px・列間16px・常設の薄い影。
 - 状態・動き: `workspaceRowMotion(root)` の `capture()` → ホストが並べ替え/再描画 → `play()`。`data-key` で前後の位置を対応させ、既存行だけを320ms `cubic-bezier(.2,.8,.2,1)` で新位置へ移す。reduced motionは動かさない。`destroy()` で進行中の動きを取り消す。
 - 禁止: 業務優先度や表示順の内蔵、重複key、focusできるセル操作をbutton行内へ入れる。複数の操作が要る行は非button行へホストが適切な意味付けを行う。
