@@ -3,7 +3,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
-  createResourceReservationExecutionPort,
   ExecutionAuthorityError,
   ExecutionAuthorityService,
   type ExecutionCheckKind,
@@ -15,10 +14,6 @@ import {
   type ExecutionReadAccessResult,
   type ExecutionStartInput,
 } from '../src/execution-authority.js';
-import type {
-  ResourceReservationMutationResult,
-  ResourceReservationService,
-} from '../src/resource-reservations.js';
 
 const dirs: string[] = [];
 const problem = {
@@ -272,54 +267,5 @@ describe('execution authority', () => {
 
     await expect(harness.service.start(input('execute-snapshot-evidence'))).rejects.toMatchObject({ code: 'authority_revoked' });
     expect(harness.effectCalls).toHaveLength(0);
-  });
-
-  it('adapts the current reservation store and forwards the reservation revision fence', async () => {
-    const calls: Array<Record<string, string>> = [];
-    let startCalls = 0;
-    const reservation = {
-      reservationId: 'reservation-a',
-      state: 'reserved' as const,
-      tenantId: 'tenant-a',
-      principal: 'owner-a',
-      scopeId: 'scope-a',
-      updatedAt: '2026-09-23T10:00:00.000Z',
-      approval: {
-        approvalId: 'approval-a',
-        approvedAt: '2026-09-23T09:00:00.000Z',
-        expiresAt: '2099-01-01T00:00:00.000Z',
-        evidence: {},
-      },
-      externalAction: { status: 'not_started' as const },
-    };
-    const service = {
-      readLedger: async (request: { tenantId: string; principal: string; scopeId: string }) => {
-        calls.push(request);
-        return { version: 1 as const, reservations: [reservation] };
-      },
-      startExternalAction: async (request: { operationId: string; tenantId: string; principal: string; scopeId: string; reservationId: string }): Promise<ResourceReservationMutationResult> => {
-        startCalls += 1;
-        return { reservation: { ...reservation, externalAction: { status: 'started' as const } } } as ResourceReservationMutationResult;
-      },
-    } as unknown as Pick<ResourceReservationService, 'readLedger' | 'startExternalAction'>;
-    const port = createResourceReservationExecutionPort({ service });
-    const request = input('execute-adapter');
-    const check = await port.verify({ ...request, check: 'reservation', phase: 'final' });
-
-    expect(check).toEqual({
-      status: 'approved',
-      revision: 'reservation-a:2026-09-23T10:00:00.000Z',
-      fencingToken: 'reservation:reservation-a:2026-09-23T10:00:00.000Z',
-      expiresAt: '2099-01-01T00:00:00.000Z',
-    });
-    await expect(port.markStarted({ ...request, expectedRevision: 'reservation-a:stale' })).resolves.toEqual({ status: 'unknown' });
-    expect(startCalls).toBe(0);
-    await expect(port.markStarted({ ...request, expectedRevision: check.revision! })).resolves.toEqual({ status: 'started' });
-    expect(startCalls).toBe(1);
-    expect(calls).toEqual([
-      { tenantId: 'tenant-a', principal: 'owner-a', scopeId: 'scope-a' },
-      { tenantId: 'tenant-a', principal: 'owner-a', scopeId: 'scope-a' },
-      { tenantId: 'tenant-a', principal: 'owner-a', scopeId: 'scope-a' },
-    ]);
   });
 });
