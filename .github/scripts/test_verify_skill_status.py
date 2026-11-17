@@ -59,6 +59,48 @@ class VerifySkillStatusTests(unittest.TestCase):
         self.comments.append({'body': 'LGTM', 'author_association': 'MEMBER', 'user': {'login': 'writer'}})
         self.assertEqual(self.decision(), before)
 
+    def test_skipped_comment_does_not_replace_a_pending_recheck(self):
+        """A new comment that cannot change the decision must not take the pending slot of a recheck.
+
+        GitHub keeps one running and one pending run per concurrency group, and a new run replaces the
+        pending one even with cancel-in-progress: false. Review of brainbase#1014: run A is running,
+        deleting the record queues run B, then a new "LGTM" queues run C. If C shares B's group, B is
+        cancelled and C is skipped, so A's old success stays.
+        """
+        workflow = (PATH.parents[1] / 'workflows' / 'verify-skill.yml').read_text()
+        prefix, group = re.search(r'^  group: (.*?)\$\{\{(.*)\}\}$', workflow, re.M).groups()
+        job_if = re.search(r'^    if: (?:\$\{\{)?(.*?)(?:\}\})?$', workflow, re.M).group(1)
+
+        def evaluate(expression, event):
+            def lookup(path):
+                value = event
+                for key in path.split('.'):
+                    value = value.get(key) if isinstance(value, dict) else None
+                return value
+            source = re.sub(r'github((?:\.[a-z_]+)+)', lambda m: 'lookup(%r)' % m.group(1)[1:], expression)
+            source = re.sub(r'!(?!=)', ' not ', source).replace('&&', ' and ').replace('||', ' or ')
+            return eval(source, {'lookup': lookup, 'format': lambda f, *a: f.format(*a),
+                                 'contains': lambda text, part: part in (text or '')})
+
+        def group_of(event):
+            return prefix + str(evaluate(group, event))
+
+        def comment(action, body, run_id):
+            return {'event_name': 'issue_comment', 'run_id': run_id, 'repository': REPO,
+                    'event': {'action': action, 'comment': {'body': body},
+                              'issue': {'number': 7, 'state': 'open', 'pull_request': {'url': 'x'}}}}
+
+        push = {'event_name': 'pull_request', 'run_id': 1, 'repository': REPO,
+                'event': {'action': 'synchronize', 'pull_request': {'number': 7, 'head': {'repo': {'full_name': REPO}}}}}
+        deleted, chat, record = comment('deleted', RECORD, 2), comment('created', 'LGTM', 3), comment('created', RECORD, 4)
+        recheck_group = group_of(push)
+        self.assertEqual(group_of(deleted), recheck_group)
+        self.assertEqual(group_of(record), recheck_group)
+        self.assertTrue(evaluate(job_if, deleted) and evaluate(job_if, record) and evaluate(job_if, push))
+        self.assertFalse(evaluate(job_if, chat))
+        self.assertNotEqual(group_of(chat), recheck_group)
+        self.assertNotEqual(group_of(chat), group_of(comment('created', 'LGTM', 5)))
+
     def test_untrusted_author_is_ignored(self):
         self.comments[0]['author_association'] = 'NONE'
         self.assertEqual(self.decision()[0], 'failure')

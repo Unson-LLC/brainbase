@@ -16,7 +16,9 @@ permissions:
   statuses: write
 
 concurrency:
-  group: verify-skill-${{ github.event.pull_request.number || github.event.issue.number }}
+  # 判定に効かない新しいコメントの実行は、PRごとのグループに入れない。入れると、待っている判定し直しの実行を
+  # 取り消したうえで自分はスキップされ、古い判定が残る。job の if で動かす条件と、ちょうど裏返しにする。
+  group: ${{ github.event_name == 'issue_comment' && github.event.action == 'created' && !contains(github.event.comment.body, 'RUNNER_VERIFY') && format('verify-skill-noop-{0}', github.run_id) || format('verify-skill-{0}', github.event.pull_request.number || github.event.issue.number) }}
   cancel-in-progress: false
 
 jobs:
