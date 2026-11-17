@@ -1226,7 +1226,9 @@ describe('Objective editor common UI contract', () => {
         }
         rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
       }
-    }, 60000);
+      // Reusing one Chrome was not enough on the shared CI runner: on a busy run this test
+      // took 43.6s in one job and passed 60s in another. Each Chrome call still fails at 10s.
+    }, 180000);
 
     it('without a rail keeps the tabs layout and never draws the workspace pattern', async () => {
       globalThis.document = new FakeDocument();
