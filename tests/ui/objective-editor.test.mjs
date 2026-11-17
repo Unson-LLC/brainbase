@@ -1108,6 +1108,58 @@ describe('Objective editor common UI contract', () => {
       if (!chrome) throw new Error('Chrome is required in CI; install Chrome or set CHROME_BIN');
       const repo = fileURLToPath(new URL('../../', import.meta.url));
       const temp = mkdtempSync(join(tmpdir(), 'brainbase-objective-layout-'));
+      // One Chrome process serves all 36 measurements (2 pages x 2 CSS orders x 9 widths).
+      // Each measurement gets its own browser context and tab, so no page state is shared.
+      const browser = spawn(chrome, [
+        '--headless', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
+        '--no-first-run', '--no-default-browser-check', '--allow-file-access-from-files',
+        '--disable-background-networking', '--disable-extensions', '--no-proxy-server',
+        `--user-data-dir=${temp}/profile`, '--window-size=1280,800',
+        '--remote-debugging-pipe',
+      ], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
+      let id = 0;
+      let buffer = '';
+      const pending = new Map();
+      const loadWaiters = new Map();
+      const send = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
+        const requestId = ++id;
+        const timeout = setTimeout(() => {
+          pending.delete(requestId);
+          reject(new Error(`Chrome timed out: ${method}`));
+        }, 10000);
+        pending.set(requestId, {
+          resolve: result => { clearTimeout(timeout); resolve(result); },
+          reject: error => { clearTimeout(timeout); reject(error); },
+        });
+        browser.stdio[3].write(JSON.stringify({ id: requestId, method, params, sessionId }) + '\0');
+      });
+      // Wait for the fixture's own load event so the measurement never runs in the previous document.
+      const loaded = sessionId => new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          loadWaiters.delete(sessionId);
+          reject(new Error('Chrome timed out: Page.loadEventFired'));
+        }, 10000);
+        loadWaiters.set(sessionId, () => { clearTimeout(timeout); resolve(); });
+      });
+      browser.stdio[4].on('data', chunk => {
+        buffer += chunk;
+        let end;
+        while ((end = buffer.indexOf('\0')) >= 0) {
+          const message = JSON.parse(buffer.slice(0, end));
+          buffer = buffer.slice(end + 1);
+          if (message.method === 'Page.loadEventFired') {
+            const waiter = loadWaiters.get(message.sessionId);
+            loadWaiters.delete(message.sessionId);
+            waiter?.();
+            continue;
+          }
+          const request = pending.get(message.id);
+          if (!request) continue;
+          pending.delete(message.id);
+          if (message.error) request.reject(new Error(JSON.stringify(message.error)));
+          else request.resolve(message.result);
+        }
+      });
       try {
         for (const [page, sharedLast] of [
           ['objective', false], ['objective', true], ['knowledge', false], ['knowledge', true],
@@ -1115,7 +1167,7 @@ describe('Objective editor common UI contract', () => {
           const styles = ['brainbase-tokens', ...(sharedLast
             ? ['objective-editor', 'outcome-knowledge', 'workspace-kit']
             : ['workspace-kit', 'objective-editor', 'outcome-knowledge'])];
-          const fixture = `${temp}/index.html`;
+          const fixture = `${temp}/${page}-${sharedLast ? 'shared-last' : 'shared-first'}.html`;
           writeFileSync(fixture, `<!doctype html><meta charset="utf-8">
             ${styles.map(name => `<link rel="stylesheet" href="${pathToFileURL(`${repo}ui/${name}.css`)}">`).join('')}
             <div id="root"></div><pre id="measurements"></pre>
@@ -1138,88 +1190,61 @@ describe('Objective editor common UI contract', () => {
                 });
               }, 200);
             </script>`);
-          // Reuse Chrome across widths; each measurement still gets a fresh page.
-          const browser = spawn(chrome, [
-            '--headless', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
-            '--no-first-run', '--no-default-browser-check', '--allow-file-access-from-files',
-            '--disable-background-networking', '--disable-extensions', '--no-proxy-server',
-            `--user-data-dir=${temp}/profile-${page}-${sharedLast}`,
-            '--remote-debugging-pipe',
-          ], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
-          let id = 0;
-          let buffer = '';
-          const pending = new Map();
-          const send = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
-            const requestId = ++id;
-            const timeout = setTimeout(() => {
-              pending.delete(requestId);
-              reject(new Error(`Chrome timed out: ${method}`));
-            }, 10000);
-            pending.set(requestId, {
-              resolve: result => { clearTimeout(timeout); resolve(result); },
-              reject: error => { clearTimeout(timeout); reject(error); },
-            });
-            browser.stdio[3].write(JSON.stringify({ id: requestId, method, params, sessionId }) + '\0');
-          });
-          browser.stdio[4].on('data', chunk => {
-            buffer += chunk;
-            let end;
-            while ((end = buffer.indexOf('\0')) >= 0) {
-              const message = JSON.parse(buffer.slice(0, end));
-              buffer = buffer.slice(end + 1);
-              const request = pending.get(message.id);
-              if (!request) continue;
-              pending.delete(message.id);
-              if (message.error) request.reject(new Error(JSON.stringify(message.error)));
-              else request.resolve(message.result);
+          for (const width of [1280, 900, 760, 740, 721, 720, 700, 600, 320]) {
+            const { browserContextId } = await send('Target.createBrowserContext');
+            let measurements;
+            try {
+              const { targetId } = await send('Target.createTarget', { url: 'about:blank', browserContextId });
+              const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+              await send('Emulation.setDeviceMetricsOverride', { width, height: 800, deviceScaleFactor: 1, mobile: false }, sessionId);
+              await send('Page.enable', {}, sessionId);
+              const load = loaded(sessionId);
+              await send('Page.navigate', { url: pathToFileURL(fixture).href }, sessionId);
+              await load;
+              const result = await send('Runtime.evaluate', {
+                expression: `new Promise(resolve => {
+                  const timer = setInterval(() => {
+                    const text = document.querySelector('#measurements')?.textContent;
+                    if (text) { clearInterval(timer); resolve(JSON.parse(text)); }
+                  }, 20);
+                })`,
+                awaitPromise: true, returnByValue: true,
+              }, sessionId);
+              expect(result.exceptionDetails).toBeUndefined();
+              measurements = result.result.value;
+            } finally {
+              await send('Target.disposeBrowserContext', { browserContextId });
             }
-          });
-          try {
-            for (const width of [1280, 900, 760, 740, 721, 720, 700, 600, 320]) {
-              let measurements;
-              let targetId;
-              try {
-                ({ targetId } = await send('Target.createTarget', { url: 'about:blank' }));
-                const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
-                await send('Emulation.setDeviceMetricsOverride', { width, height: 800, deviceScaleFactor: 1, mobile: false }, sessionId);
-                await send('Page.navigate', { url: pathToFileURL(fixture).href }, sessionId);
-                const result = await send('Runtime.evaluate', {
-                  expression: `new Promise(resolve => {
-                    const timer = setInterval(() => {
-                      const text = document.querySelector('#measurements')?.textContent;
-                      if (text) { clearInterval(timer); resolve(JSON.parse(text)); }
-                    }, 20);
-                  })`,
-                  awaitPromise: true, returnByValue: true,
-                }, sessionId);
-                expect(result.exceptionDetails).toBeUndefined();
-                measurements = result.result.value;
-              } finally {
-                if (targetId) await send('Target.closeTarget', { targetId });
-              }
-              const { button, bubble, guide, header, visible, viewport } = measurements;
-              expect(viewport).toBe(width);
-              expect(visible).toBe('visible');
-              expect(bubble.top - button.bottom).toBeGreaterThanOrEqual(7);
-              expect(bubble.top - button.bottom).toBeLessThanOrEqual(9);
-              expect(Math.abs(button.right - bubble.right), `adjacent edges at ${width}px`).toBeLessThanOrEqual(1);
-              expect(bubble.right, `${page}, sharedLast=${sharedLast}, ${width}px right`).toBeLessThanOrEqual(viewport);
-              expect(bubble.left, `${page}, sharedLast=${sharedLast}, ${width}px left`).toBeGreaterThanOrEqual(0);
-              expect(guide.width).toBeCloseTo(16, 0);
-              if (viewport > 760) expect(header.right - button.right).toBeLessThanOrEqual(26);
-            }
-          } finally {
-            if (browser.exitCode === null && browser.signalCode === null) {
-              const exited = new Promise(resolve => browser.once('exit', resolve));
-              browser.kill();
-              await exited;
-            }
+            const { button, bubble, guide, header, visible, viewport } = measurements;
+            expect(viewport).toBe(width);
+            expect(visible).toBe('visible');
+            expect(bubble.top - button.bottom).toBeGreaterThanOrEqual(7);
+            expect(bubble.top - button.bottom).toBeLessThanOrEqual(9);
+            expect(Math.abs(button.right - bubble.right), `adjacent edges at ${width}px`).toBeLessThanOrEqual(1);
+            expect(bubble.right, `${page}, sharedLast=${sharedLast}, ${width}px right`).toBeLessThanOrEqual(viewport);
+            expect(bubble.left, `${page}, sharedLast=${sharedLast}, ${width}px left`).toBeGreaterThanOrEqual(0);
+            expect(guide.width).toBeCloseTo(16, 0);
+            if (viewport > 760) expect(header.right - button.right).toBeLessThanOrEqual(26);
           }
         }
       } finally {
-        rmSync(temp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+        if (browser.exitCode === null && browser.signalCode === null) {
+          const exited = new Promise(resolve => browser.once('exit', resolve));
+          // Close through the protocol so Chrome's helper processes finish writing the
+          // profile before it exits; killing only the main process left the cache being
+          // written while the profile was removed (ENOTEMPTY).
+          await send('Browser.close').catch(() => browser.kill());
+          await Promise.race([exited, new Promise(resolve => setTimeout(resolve, 10000))]);
+          if (browser.exitCode === null && browser.signalCode === null) {
+            browser.kill('SIGKILL');
+            await exited;
+          }
+        }
+        rmSync(temp, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
       }
-    }, 60000);
+      // Reusing one Chrome was not enough on the shared CI runner: on a busy run this test
+      // took 43.6s in one job and passed 60s in another. Each Chrome call still fails at 10s.
+    }, 180000);
 
     it('without a rail keeps the tabs layout and never draws the workspace pattern', async () => {
       globalThis.document = new FakeDocument();

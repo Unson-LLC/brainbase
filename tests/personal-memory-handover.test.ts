@@ -1,4 +1,4 @@
-import { appendFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -12,7 +12,6 @@ import {
 } from '../src/personal-knowledge.js';
 import { MEMORY_REGISTRATION_RECEIPTS_FILE, organizationMemoryEventId } from '../src/personal-memory-handover.js';
 import { createFixturePersonalOs } from './fixtures.js';
-import * as ssot from '../src/ssot.js';
 
 const localContext: PersonalKnowledgeContext = {
   contract_version: 1,
@@ -129,7 +128,6 @@ describe('H7 local memory re-registration', () => {
   });
 
   afterEach(async () => {
-    vi.restoreAllMocks();
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
     await rm(dir, { recursive: true, force: true });
@@ -336,15 +334,40 @@ describe('H7 local memory re-registration', () => {
   });
 
   it('rejects a malformed receipt file instead of guessing registration state', async () => {
-    const loadLegacy = vi.spyOn(ssot, 'loadPersonalOs');
     await mkdir(join(dir, 'handover'), { recursive: true });
     await appendFile(join(dir, MEMORY_REGISTRATION_RECEIPTS_FILE), 'not json\n');
     const result = await run(['memory:list', '--dir', dir]);
     expect(result.code).toBe(1);
     expect(result.stderr).toContain(MEMORY_REGISTRATION_RECEIPTS_FILE);
-    // A rejected receipt must not leave legacy initialization running after
-    // the CLI has returned and teardown is allowed to remove the directory.
-    expect(loadLegacy).not.toHaveBeenCalled();
+  });
+
+  it('finishes reading both local stores before reporting a malformed receipt file', async () => {
+    // Regression (npm-publish run 43977400023): the legacy store read kept holding
+    // the canonical SSOT lock after memory:list had already failed, so cleaning up
+    // the data directory raced with the lock and failed with ENOTEMPTY.
+    await mkdir(join(dir, 'handover'), { recursive: true });
+    await appendFile(join(dir, MEMORY_REGISTRATION_RECEIPTS_FILE), 'not json\n');
+    const result = await run(['memory:list', '--dir', dir]);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain(MEMORY_REGISTRATION_RECEIPTS_FILE);
+    expect(await readdir(dir)).not.toContain('.brainbase-ssot.lock');
+  });
+
+  it('reports the malformed receipt after a blocked legacy read has finished', async () => {
+    // Another holder keeps the canonical lock, so the legacy read waits out the
+    // timeout. memory:list waits for that read to finish, then still reports the receipt.
+    vi.stubEnv('BRAINBASE_SSOT_LOCK_TIMEOUT_MS', '500');
+    await mkdir(join(dir, 'handover'), { recursive: true });
+    await appendFile(join(dir, MEMORY_REGISTRATION_RECEIPTS_FILE), 'not json\n');
+    const lockDir = join(dir, '.brainbase-ssot.lock');
+    await mkdir(lockDir);
+    await writeFile(join(lockDir, 'owner.json'), '{}\n');
+    const started = Date.now();
+    const result = await run(['memory:list', '--dir', dir]);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(400);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain(MEMORY_REGISTRATION_RECEIPTS_FILE);
+    expect(result.stderr).not.toContain('Timed out waiting for canonical SSOT lock');
   });
 
   it('lists nothing and creates nothing for an empty data directory', async () => {

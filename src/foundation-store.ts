@@ -1,5 +1,4 @@
 import {
-  assertFoundationCatalog,
   cloneFoundationCatalog,
   cloneFoundationDefinition,
   digestFoundationDefinition,
@@ -483,7 +482,8 @@ function readCatalog(os: PersonalOs): FoundationCatalog {
     throw new FoundationStoreError('unsupported_graph', 'Foundation catalog writes require canonical Graph v2');
   }
   try {
-    assertFoundationCatalog(os.graph.foundation);
+    // foundationCatalogOrEmpty validates the whole catalog (shape and every digest)
+    // before it clones it. A second assertFoundationCatalog here repeated that work.
     return foundationCatalogOrEmpty(os.graph.foundation);
   } catch (error) {
     throw new FoundationStoreError('corrupt_catalog', formatError(error));

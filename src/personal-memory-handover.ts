@@ -124,12 +124,36 @@ export class PersonalMemoryRegistrationError extends Error {
 /** Read both local memory stores and each memory's registration state. Never uses the network. */
 export async function listLocalMemories(dataDirInput?: string): Promise<LocalMemory[]> {
   const dataDir = resolveDataDir(dataDirInput);
-  // Finish each read before reporting failure: legacy loading can create local
-  // files, which must not continue after the caller starts cleaning up.
-  const receipts = await readMemoryRegistrationReceipts(dataDir);
-  const current = await readCurrentStore(dataDir);
-  const legacy = await readLegacyStore(dataDir);
+  // A malformed receipt rejects while the legacy read is still inside the
+  // canonical SSOT lock. Promise.all would return that rejection immediately
+  // and leave the lock to be created and removed afterwards. Wait for every
+  // read, then throw the rejection that happened first: the same one Promise.all
+  // would have thrown, once the other reads have released what they held.
+  const [current, legacy, receipts] = await awaitFirstRejection([
+    readCurrentStore(dataDir),
+    readLegacyStore(dataDir),
+    readMemoryRegistrationReceipts(dataDir)
+  ] as const);
   return [...current, ...legacy].map((memory) => withStatus(memory, receipts));
+}
+
+/** The fulfilled values, or the earliest rejection, after every promise has settled. */
+async function awaitFirstRejection<T extends readonly unknown[]>(
+  promises: { [K in keyof T]: Promise<T[K]> }
+): Promise<T> {
+  let rejected = false;
+  let firstReason: unknown;
+  const values = await Promise.all(promises.map((promise) => promise.then(
+    (value) => value,
+    (reason: unknown) => {
+      if (!rejected) {
+        rejected = true;
+        firstReason = reason;
+      }
+    }
+  )));
+  if (rejected) throw firstReason;
+  return values as unknown as T;
 }
 
 /** Pick exactly the requested memories, in request order, or fail before anything is sent. */
