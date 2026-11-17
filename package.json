@@ -371,10 +371,6 @@
       "types": "./dist/mcp-runtime.d.ts",
       "import": "./dist/mcp-runtime.js"
     },
-    "./resource-reservations": {
-      "types": "./dist/resource-reservations.d.ts",
-      "import": "./dist/resource-reservations.js"
-    },
     "./durable-waits": {
       "types": "./dist/durable-waits.d.ts",
       "import": "./dist/durable-waits.js"
@@ -508,10 +504,6 @@
     "./problem-candidates": {
       "types": "./dist/problem-candidates.d.ts",
       "import": "./dist/problem-candidates.js"
-    },
-    "./resource-reservation-http": {
-      "types": "./dist/resource-reservation-http.d.ts",
-      "import": "./dist/resource-reservation-http.js"
     },
     "./execution-authority": {
       "types": "./dist/execution-authority.d.ts",

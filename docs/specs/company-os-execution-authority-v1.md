@@ -11,7 +11,7 @@
 - 組織のauthority・承認・制約の内容、RACI、tenantの実装は組織側providerが所有する。
 - 実際の外部作用はManaなどの実行側が所有する。OSSの `ExecutionEffectPort` は試験では副作用なしのadapterを注入する。
 - Problem snapshot参照は判断時点の証跡であり、実行許可やgrantではない。実行前の各providerが現在の判断を返す。
-- 予約台帳は既存の `ResourceReservationService` を使う。実行側のsidecarから同じSSOT lockへ再入せず、二つのsidecar transactionを一つのatomic transactionとは主張しない。
+- 予約台帳は組織側（brainbase-organization の `packages/company-os`）が所有し、`ExecutionReservationPort` として注入する。OSSは予約の実装を持たない。実行側のsidecarから同じSSOT lockへ再入せず、二つのsidecar transactionを一つのatomic transactionとは主張しない。
 
 ## 公開API
 
@@ -23,7 +23,6 @@
 - `ExecutionAuthorityPort`、`ExecutionApprovalPort`、`ExecutionConstraintPort`、`ExecutionReservationPort`
 - `ExecutionReadAccessPort`
 - `ExecutionEffectPort`
-- `createResourceReservationExecutionPort({ service })`
 
 `ExecutionStartInput` は `operationId`、`tenantId`、`principal`、`scopeId`、`runId`、`reservationId`、`approvalId`、`authorityRef`、`constraintRefs`、固定Problem snapshot参照を持つ。`readIntent` と既存operationの再送は、保存principalの一致だけでなく、`ExecutionReadAccessPort` の現在read ACLを必ず通す。Manaへ渡す `ExecutionEffectPort.start` の入力にも同じ安定した `operationId` を含める。
 
@@ -36,7 +35,7 @@
 3. 現在の検証結果と安定した操作IDを、既存canonical SSOT lock/transactionで `execution-authority/intents.json` へ保存する。保存直後のphaseは `recovery_required` であり、プロセスがここで止まっても自動再試行しない。
 4. 作用直前に4つのproviderを `final` phaseで再検証する。初回のrevisionを `expectedRevision` として渡し、revisionが変わったら `revision_conflict` で止める。各providerは期限付きopaque `fencingToken` と `expiresAt` も返す。欠落・期限切れは `fencing_unsupported` または `capability_expired` として止める。
 5. 最終検証のrevision・fencing token・期限から `ExecutionStartCapability` を作り、作用portへ渡す。final検証後にauthorityが変わるraceは、作用側がこのcapabilityを自身の開始境界で検証・消費して拒否する契約で閉じる。作用側がこの機能を提供できない場合はfail closedする。
-6. 予約providerへ `expectedRevision` を渡して開始印を付ける。既存のResourceReservationServiceは現在の台帳と認可を自身のSSOT lock内で再確認し、ここが予約状態の線形化点になる。予約の線形化点をauthority・承認・制約全体の線形化点とは扱わない。印の失敗や不明は `recovery_required` として残す。
+6. 予約providerへ `expectedRevision` を渡して開始印を付ける。予約providerは現在の台帳と認可を自身の書き込みの中で再確認し、ここが予約状態の線形化点になる。予約の線形化点をauthority・承認・制約全体の線形化点とは扱わない。印の失敗や不明は `recovery_required` として残す。
 7. 予約開始後、sidecarへ `reservation_marked` と `effect: unknown` を保存してから `ExecutionEffectPort.start` を一度だけ呼ぶ。
 8. 作用側がcapabilityを検証・消費して `started` を返したら、sidecarを `started` へ更新する。作用側が不明を返す、または呼出し後にプロセスが落ちる可能性がある場合は `unknown` として照合待ちにする。
 
@@ -76,6 +75,5 @@
 - 失効・期限切れ・不明、scope変更、payload衝突をfail closedすること。
 - 意図を作用前に保存し、予約印・作用開始不明を永続化して再試行を拒否すること。
 - 同じoperationIdのstarted再試行で作用を再実行しないこと。
-- 既存ResourceReservationService adapterが現在台帳を読み、stale revisionを拒否すること。
 
 実行コマンドは `npm run build` と `npx vitest run tests/execution-authority.test.ts` とする。組織provider、Manaの実作用、tenant/RACIの本番接続は別境界で検証する。

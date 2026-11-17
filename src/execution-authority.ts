@@ -1,16 +1,16 @@
 import { createHash } from 'node:crypto';
 import { initializePersonalOs, mutatePersonalOsWithSidecar, readPersonalOsSidecar } from './ssot.js';
-import type {
-  ResourceReservationMutationInput,
-  ResourceReservationProblemReference,
-  ResourceReservationService,
-} from './resource-reservations.js';
 
 const ledgerVersion = 1 as const;
 const defaultSidecarPath = 'execution-authority/intents.json';
 const snapshotIdPattern = /^sha256:[0-9a-f]{64}$/u;
 
-export type ExecutionProblemReference = ResourceReservationProblemReference;
+/** Problem snapshot the execution is judged against (evidence reference only). */
+export interface ExecutionProblemReference {
+  problem_snapshot_id: string;
+  problem_id: string;
+  revision: string;
+}
 
 export interface ExecutionStartInput {
   operationId: string;
@@ -876,73 +876,6 @@ export function createSidecarExecutionIntentStore(options: { dataDir: string; si
         return { next: current, sidecarContent: serializeLedger(ledger), result: clone(next) };
       });
     },
-  };
-}
-
-/**
- * Binds the existing reservation store to the execution port without calling
- * it from inside the execution sidecar transaction. The store remains the
- * owner of its current authorization and reservation-state checks.
- */
-export function createResourceReservationExecutionPort(options: {
-  service: Pick<ResourceReservationService, 'readLedger' | 'startExternalAction'>;
-}): ExecutionReservationPort {
-  if (!options || !options.service || typeof options.service.readLedger !== 'function' || typeof options.service.startExternalAction !== 'function') {
-    throw new TypeError('resource reservation service is required');
-  }
-  return {
-    async verify(input): Promise<ExecutionCheckResult> {
-      try {
-        const snapshot = await options.service.readLedger({
-          tenantId: input.tenantId,
-          principal: input.principal,
-          scopeId: input.scopeId,
-        });
-        const reservation = snapshot.reservations.find((candidate) => candidate.reservationId === input.reservationId);
-        if (!reservation || reservation.state !== 'reserved') return { status: 'revoked', revision: 'missing' };
-        const revision = `${reservation.reservationId}:${reservation.updatedAt}`;
-        if (reservation.externalAction.status !== 'not_started') return { status: 'unknown', revision };
-        const expiresAt = reservation.approval.expiresAt;
-        if (!expiresAt) return { status: 'unknown', revision };
-        return {
-          status: 'approved',
-          revision,
-          fencingToken: `reservation:${revision}`,
-          expiresAt,
-        };
-      } catch {
-        return { status: 'unknown', revision: null };
-      }
-    },
-    async markStarted(input: ExecutionReservationMarkRequest): Promise<ExecutionReservationMarkResult> {
-      try {
-        const snapshot = await options.service.readLedger({
-          tenantId: input.tenantId,
-          principal: input.principal,
-          scopeId: input.scopeId,
-        });
-        const reservation = snapshot.reservations.find((candidate) => candidate.reservationId === input.reservationId);
-        if (!reservation || reservation.state !== 'reserved' || reservation.externalAction.status !== 'not_started') {
-          return { status: 'unknown' };
-        }
-        const currentRevision = `${reservation.reservationId}:${reservation.updatedAt}`;
-        if (currentRevision !== input.expectedRevision) return { status: 'unknown' };
-        const result = await options.service.startExternalAction(toReservationMutationInput(input));
-        return { status: result.reservation.externalAction.status === 'started' ? 'started' : 'unknown' };
-      } catch {
-        return { status: 'unknown' };
-      }
-    },
-  };
-}
-
-function toReservationMutationInput(input: ExecutionStartInput): ResourceReservationMutationInput {
-  return {
-    operationId: input.operationId,
-    tenantId: input.tenantId,
-    principal: input.principal,
-    scopeId: input.scopeId,
-    reservationId: input.reservationId,
   };
 }
 

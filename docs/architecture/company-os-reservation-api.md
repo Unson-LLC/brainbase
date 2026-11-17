@@ -1,5 +1,7 @@
 # 資源予約Canonical HTTP adapterの境界
 
+> **2026-11-17 移設**: 予約の本体と受け口は brainbase-organization の `packages/company-os`（台帳はPostgreSQL）へ移した。OSSの `./resource-reservations` と `./resource-reservation-http` は削除済み。この文書は移設前の記録として残す。
+
 この文書は [story-company-os-reservation-api-v1](../stories/story-company-os-reservation-api-v1.md) の境界を定める。HTTPで予約サービスを公開するが、予約の正本や組織の認証・承認を別の場所へ移さない。
 
 ## 責務の分離
