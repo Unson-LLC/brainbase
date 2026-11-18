@@ -1320,6 +1320,23 @@
 .bb-ws-status-pill.is-success { background:var(--bb-color-accent-soft); color:var(--bb-color-success); }
 .bb-ws-status-pill.is-warning { background:var(--bb-color-warning-soft); color:var(--bb-color-warning); font-weight:600; }
 .bb-ws-status-pill.is-danger { background:var(--bb-color-danger-soft); color:var(--bb-color-danger); }
+.bb-ws-status-pill.bb-ws-status-pill--compact { min-height:20px; height:20px; padding:0 8px; font-size:11px; }
+.bb-ws-tabs--header .bb-ws-tab-count.is-zero { background:none; color:var(--bb-color-muted); font-weight:400; }
+.bb-ws-progress-bar { display:block; width:100%; height:6px; overflow:hidden; border-radius:3px; background:var(--bb-color-canvas); }
+.bb-ws-progress-segment.is-done { fill:var(--bb-color-action); }
+.bb-ws-progress-segment.is-remaining { fill:var(--bb-color-mint); opacity:.55; }
+.bb-ws-progress-segment.is-review { fill:var(--bb-color-review); }
+.bb-ws-empty-state { display:grid; justify-items:center; gap:14px; padding:0; color:var(--bb-color-slate); font-size:13.5px; text-align:center; }
+.bb-ws-empty-state > p { margin:0; }
+.bb-ws-empty-state-mark { display:grid; place-items:center; width:48px; height:48px; border-radius:var(--bb-radius-pill); background:var(--bb-color-accent-soft); color:var(--bb-color-mint); }
+.bb-ws-empty-state-mark .bb-ws-action-icon { width:22px; height:22px; stroke-width:2.2; }
+.bb-ws-empty-state-action { margin-top:4px; }
+.bb-ws-form-row.is-stacked { display:grid; grid-template-columns:minmax(0,1fr); align-items:start; min-height:0; gap:6px; padding:0; box-shadow:none; }
+.bb-ws-form-row.is-stacked:focus-within { box-shadow:none; }
+.bb-ws-form-row.is-stacked > :is(input,textarea) { box-sizing:border-box; width:100%; min-width:0; height:36px; margin:0; padding:0 12px; border:0; border-radius:7px; background:var(--bb-color-canvas); color:var(--bb-color-ink); font:400 13.5px/1.6 var(--bb-font-sans); outline:none; box-shadow:none; }
+.bb-ws-form-row.is-stacked > textarea { height:auto; min-height:84px; padding-block:8px; resize:vertical; }
+.bb-ws-form-row.is-stacked > :is(input,textarea):focus { border:0; outline:none; background:var(--bb-color-accent-soft); box-shadow:none; }
+.bb-ws-form-row.is-stacked > small { color:var(--bb-color-muted); font-size:11.5px; }
 
 .bb-ws-checkbox { appearance:none; display:inline-grid; place-items:center; flex:none; box-sizing:border-box; width:16px; min-width:16px; height:16px; margin:0; padding:0; border:0; border-radius:4px; background:var(--bb-color-paper); box-shadow:inset 0 0 0 1.5px var(--bb-color-border); color:transparent; vertical-align:middle; cursor:pointer; }
 .bb-ws-checkbox:hover:not(:disabled) { box-shadow:inset 0 0 0 1.5px var(--bb-color-muted); }

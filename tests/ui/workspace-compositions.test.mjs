@@ -189,16 +189,16 @@ describe('host-controlled unsaved form dismissal', () => {
     });
   }
 
-  it('applies quiet form appearance explicitly while retaining required labels and controls', () => {
+  for (const appearance of ['quiet', 'stacked']) it(`applies ${appearance} form appearance while retaining required labels and controls`, () => {
     const doc = document(), input = doc.createElement('input'); input.id = 'fixture-quiet-title';
     const onInput = vi.fn(); input.addEventListener('input', onInput);
-    const row = workspaceFormRow(doc, { label: 'Title', control: input, required: true, appearance: 'quiet' });
-    expect(row.className).toContain('is-quiet');
+    const row = workspaceFormRow(doc, { label: 'Title', control: input, required: true, appearance });
+    expect(row.className).toContain(`is-${appearance}`);
     expect(row.children[0].getAttribute('for')).toBe(input.id);
     expect(row.children[1]).toBe(input);
     expect(input.required).toBe(true);
     expect(input.getAttribute('aria-required')).toBe('true');
     expect(input.listeners.input).toBe(onInput);
-    expect(workspaceFormRow(doc, { label: 'Default' }).className).not.toContain('is-quiet');
+    expect(workspaceFormRow(doc, { label: 'Default' }).className).not.toContain(`is-${appearance}`);
   });
 });
