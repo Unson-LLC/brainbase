@@ -2,6 +2,9 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import {
   workspaceButton,
+  workspaceStatusPill,
+  workspaceProgressBar,
+  workspaceEmptyState,
   workspaceActionIcon,
   workspaceFilterOption,
   workspaceCloseDrawer,
@@ -44,6 +47,50 @@ const findAll = (node, predicate, found = []) => {
   return found;
 };
 const byClass = (node, className) => findAll(node, (item) => String(item.className).split(' ').includes(className));
+
+describe('compact list presentation primitives', () => {
+  it('keeps confirmed segment proportions and puts review last without changing caller data', () => {
+    const segments = [{ value: 2, tone: 'review' }, { value: 3, tone: 'done' }, { value: 5, tone: 'remaining' }];
+    const bar = workspaceProgressBar(doc, { segments, label: '3 of 10 complete, 2 awaiting review' });
+    expect(bar.attributes.role).toBe('img');
+    expect(bar.attributes['aria-label']).toBe('3 of 10 complete, 2 awaiting review');
+    expect(bar.children.map(segment => segment.attributes.class)).toEqual([
+      'bb-ws-progress-segment is-done', 'bb-ws-progress-segment is-remaining', 'bb-ws-progress-segment is-review',
+    ]);
+    expect(bar.children.map(segment => [segment.attributes.x, segment.attributes.width])).toEqual([['0', '30'], ['30', '50'], ['80', '20']]);
+    expect(segments[0].tone).toBe('review');
+  });
+
+  it('rejects unknown or invalid quantities instead of painting a false empty bar', () => {
+    for (const value of [null, undefined, '3', NaN, Infinity, -1]) {
+      expect(() => workspaceProgressBar(doc, { segments: [{ value, tone: 'done' }] })).toThrow('workspace_progress_segments_required');
+    }
+    expect(() => workspaceProgressBar(doc)).toThrow('workspace_progress_segments_required');
+    expect(() => workspaceProgressBar(doc, { segments: [{ value: 1, tone: 'unknown' }] })).toThrow('workspace_progress_segments_required');
+    expect(() => workspaceProgressBar(doc, { segments: [{ value: 0, tone: 'done' }] })).toThrow('workspace_progress_total_must_be_positive');
+    expect(() => workspaceProgressBar(doc, { segments: [{ value: Number.MAX_VALUE, tone: 'done' }, { value: Number.MAX_VALUE, tone: 'review' }] })).toThrow('workspace_progress_total_must_be_positive');
+    const bar = workspaceProgressBar(doc, { segments: [{ value: 0, tone: 'review' }, { value: 4, tone: 'done' }] });
+    expect(bar.attributes['aria-hidden']).toBe('true');
+    expect(bar.children).toHaveLength(1);
+    expect(bar.children[0].attributes.width).toBe('100');
+  });
+
+  it('keeps the default pill unchanged and offers a compact opt-in', () => {
+    expect(workspaceStatusPill(doc, { label: 'Pending' }).className).toBe('bb-ws-status-pill is-neutral');
+    expect(workspaceStatusPill(doc, { label: 'Review', tone: 'warning', appearance: 'compact' }).className).toBe('bb-ws-status-pill is-warning bb-ws-status-pill--compact');
+  });
+
+  it('keeps empty-list copy and an actionable node owned by the caller', () => {
+    let clicked = 0;
+    const action = workspaceButton(doc, { text: 'Create', onClick: () => clicked++ });
+    const empty = workspaceEmptyState(doc, { text: 'No records', action });
+    expect(text(empty)).toBe('No recordsCreate');
+    expect(byClass(empty, 'bb-ws-empty-state-mark')[0].attributes['aria-hidden']).toBe('true');
+    expect(byClass(empty, 'bb-ws-empty-state-action')[0].children[0]).toBe(action);
+    action.listeners.get('click')();
+    expect(clicked).toBe(1);
+  });
+});
 
 describe('workspace kit (the organization edition screen pattern)', () => {
   it('builds the page head with breadcrumb, title, lead and the source label', () => {
@@ -171,6 +218,14 @@ describe('workspace kit (the organization edition screen pattern)', () => {
     expect(icon.attributes.class).toBe('bb-ws-action-icon');
     expect(icon.attributes['aria-hidden']).toBe('true');
     expect(findAll(icon, (node) => node.tagName === 'PATH')[0].attributes.d).toMatch(/V7a4 4 0 1 1 8 0v3/);
+  });
+
+  it('renders the copy glyph without introducing its own control semantics', () => {
+    const icon = workspaceActionIcon(doc, 'copy');
+    expect(icon.attributes.class).toBe('bb-ws-action-icon');
+    expect(icon.attributes['aria-hidden']).toBe('true');
+    expect(icon.attributes.role).toBeUndefined();
+    expect(findAll(icon, (node) => node.tagName === 'PATH')[0].attributes.d).toBe('M9 9h12v12H9z M5 15H3V3h12v2');
   });
 });
 

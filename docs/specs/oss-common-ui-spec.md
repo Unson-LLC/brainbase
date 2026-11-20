@@ -408,3 +408,41 @@ opts into a 32px square icon control with zero padding, 16px decorative SVG and 
 stable inset 1px edge. Hover/expanded change only surface/foreground, including
 inside `workspaceTopbar`. Hosts supply the accessible name and icon node; button
 activation/disabled and default button variants are unchanged.
+
+### Compact list proportions and empty state (explicit opt-in)
+
+`workspaceProgressBar(document, { segments, label })` paints one 6px-high,
+3px-radius segmented bar. Each segment is `{ value, tone }`, with a finite,
+nonnegative numeric value and tone `done`, `remaining`, or `review`. Existing
+action, mint (55% opacity), and review tokens supply the colors. Review segments
+always appear at the right end; the input array is not modified. Values must be
+confirmed by the host. Invalid or unknown quantities throw `TypeError`; a zero
+or overflowing total throws `RangeError`. Hosts render their empty/unknown
+message instead of passing unknown quantities as zero. The component does not
+infer totals, completion, business state, or loading state. `label` gives the
+SVG an image role and accessible name; without it the bar is decorative and the
+host supplies the textual counts.
+
+`workspaceEmptyState(document, { text, icon, action })` composes a 48px mint
+icon circle, host-supplied text, and optional host-owned action node. The icon
+defaults to the shared folder symbol. This does not change
+`workspaceDetailEmpty`, and the host owns placement, state, copy, and actions.
+
+`workspaceStatusPill({ appearance: 'compact' })` explicitly uses 20px height,
+11px text, and 8px horizontal padding; the default remains 22px. Header tab
+counts may explicitly use `.bb-ws-tab-count.is-zero` to keep their number visible
+with muted text and no circular fill, including on a selected tab. Hosts own the
+counts and add this class only for confirmed zero values.
+
+`workspaceFormRow({ appearance: 'stacked' })` places the existing associated
+label above its input with a 6px gap. Inputs use the existing canvas surface,
+36px height, 12px horizontal padding, 7px radius, and no edge or underline.
+Textareas use an 84px minimum height and 8px vertical padding. Focus changes
+the surface to the existing accent-soft token, with no thick edge. The required
+mark, native required state, input identity, handlers, and label association
+remain unchanged. Hosts may append a `small` help node under the control. The
+default horizontal and opt-in quiet appearances are unchanged.
+
+`workspaceActionIcon(document, 'copy')` supplies a decorative copy glyph. The
+host owns its containing button, accessible name, clipboard operation, and
+success or failure announcement.

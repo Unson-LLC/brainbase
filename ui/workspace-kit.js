@@ -273,12 +273,54 @@ export function workspaceActions(doc, buttons = []) {
 }
 
 /** A business-neutral status label. The host supplies its text and meaning. */
-export function workspaceStatusPill(doc, { label, tone = 'neutral', width, attrs = {} } = {}) {
+export function workspaceStatusPill(doc, { label, tone = 'neutral', width, appearance, attrs = {} } = {}) {
   const tones = new Set(['neutral', 'success', 'warning', 'danger']);
-  const appearance = tones.has(tone) ? tone : 'neutral';
-  const pill = el(doc, 'span', { className: `bb-ws-status-pill is-${appearance}`, text: label, attrs });
+  const pill = el(doc, 'span', { className: `bb-ws-status-pill is-${tones.has(tone) ? tone : 'neutral'}${appearance === 'compact' ? ' bb-ws-status-pill--compact' : ''}`, text: label, attrs });
   if (Number.isFinite(width) && width > 0) pill.style?.setProperty('--bb-status-pill-width', `${width}px`);
   return pill;
+}
+
+/** A segmented visual proportion. Hosts supply confirmed quantities and meaning. */
+export function workspaceProgressBar(doc, { segments = [], label } = {}) {
+  const tones = new Set(['done', 'remaining', 'review']);
+  if (!Array.isArray(segments) || !segments.length || segments.some(segment =>
+    !segment || !Number.isFinite(segment.value) || segment.value < 0 || !tones.has(segment.tone))) {
+    throw new TypeError('workspace_progress_segments_required');
+  }
+  const total = segments.reduce((sum, segment) => sum + segment.value, 0);
+  if (!Number.isFinite(total) || total <= 0) throw new RangeError('workspace_progress_total_must_be_positive');
+  const svgElement = (name, attrs) => {
+    const node = typeof doc.createElementNS === 'function'
+      ? doc.createElementNS('http://www.w3.org/2000/svg', name) : doc.createElement(name);
+    for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value));
+    return node;
+  };
+  const root = svgElement('svg', { class: 'bb-ws-progress-bar', viewBox: '0 0 100 6', preserveAspectRatio: 'none',
+    ...(label ? { role: 'img', 'aria-label': label } : { 'aria-hidden': 'true' }) });
+  let offset = 0;
+  // Review is always the final portion; the caller's array is never mutated.
+  const ordered = [...segments.filter(segment => segment.tone !== 'review'), ...segments.filter(segment => segment.tone === 'review')];
+  for (const segment of ordered) {
+    if (segment.value === 0) continue;
+    const width = segment.value / total * 100;
+    root.append(svgElement('rect', { class: `bb-ws-progress-segment is-${segment.tone}`, x: offset, y: 0, width, height: 6 }));
+    offset += width;
+  }
+  return root;
+}
+
+/** An empty list invitation. Copy and action remain owned by the host. */
+export function workspaceEmptyState(doc, { text, icon = 'folder', action } = {}) {
+  const root = el(doc, 'div', { className: 'bb-ws-empty-state' });
+  const mark = el(doc, 'span', { className: 'bb-ws-empty-state-mark', attrs: { 'aria-hidden': 'true' } });
+  mark.append(workspaceActionIcon(doc, icon));
+  root.append(mark, el(doc, 'p', { text }));
+  if (action) {
+    const actions = el(doc, 'div', { className: 'bb-ws-empty-state-action' });
+    appendContent(actions, doc, action);
+    root.append(actions);
+  }
+  return root;
 }
 
 /** Native checkbox with the shared compact mark and caller-owned selection. */
@@ -1384,6 +1426,7 @@ export function workspaceActionIcon(doc, name) {
   const path = typeof doc.createElementNS === 'function' ? doc.createElementNS('http://www.w3.org/2000/svg', 'path') : doc.createElement('path');
   const paths = { edit: 'M4 20h4L19 9l-4-4L4 16z M13.5 6.5l4 4', undo: 'M4 5v5h5 M4.6 10A8 8 0 1 1 6.3 17.7', check: 'M5 12l5 5 9-10', sliders: 'M4 8h8M18 8h2M4 16h2M12 16h8 M17.4 8a2.4 2.4 0 1 1-4.8 0 2.4 2.4 0 0 1 4.8 0 M11.4 16a2.4 2.4 0 1 1-4.8 0 2.4 2.4 0 0 1 4.8 0', plus: 'M12 5v14M5 12h14', search: 'M21 21l-4.35-4.35M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0', filter: 'M4 7h16M7 12h10M10 17h4', sort: 'M8 4v16m-3-3 3 3 3-3M16 20V4m-3 3 3-3 3 3', close: 'M6 6l12 12M18 6L6 18', sparkles: 'M12 3l1.8 6.7 6.7 1.8-6.7 1.8L12 20l-1.8-6.7-6.7-1.8 6.7-1.8z M19 2v4 M17 4h4' };
   Object.assign(paths, {
+    copy: 'M9 9h12v12H9z M5 15H3V3h12v2',
     lock: 'M6 10h12v11H6z M8 10V7a4 4 0 1 1 8 0v3',
     clock: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M12 7v5l3 2',
     users: 'M12.2 8a3.2 3.2 0 1 1-6.4 0 3.2 3.2 0 0 1 6.4 0 M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5 M16 5.2a3.2 3.2 0 0 1 0 5.6 M18 14.8c1.9.7 3 2.5 3 5.2',
@@ -1650,7 +1693,7 @@ export function workspaceControlRow(doc, { label, control, tight = false } = {})
 }
 
 export function workspaceFormRow(doc, { label, control, required = false, top = false, appearance } = {}) {
-  const root = el(doc, 'div', { className: `bb-ws-form-row${top ? ' is-top' : ''}${appearance === 'quiet' ? ' is-quiet' : ''}` });
+  const root = el(doc, 'div', { className: `bb-ws-form-row${top ? ' is-top' : ''}${appearance === 'quiet' ? ' is-quiet' : ''}${appearance === 'stacked' ? ' is-stacked' : ''}` });
   const caption = el(doc, control?.id ? 'label' : 'span', { className: 'bb-ws-form-label', text: label,
     attrs: { for: control?.id || undefined } });
   if (required) {
