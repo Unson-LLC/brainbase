@@ -870,3 +870,130 @@ describe('Stage 3c injected runtime contracts', () => {
     }, new Date('2026-10-18T00:00:00.000Z'))).toBe(true);
   });
 });
+
+type RunStoreMethod = 'claim' | 'markRunnerStarted' | 'markReceiptPersisted' | 'complete' | 'release';
+type RunStoreFault = { readonly method: RunStoreMethod; readonly when: 'before' | 'after' };
+
+/**
+ * Wraps a runStore so every call that moves the stored record is logged as
+ * `method:from>to`, where a state is `status(phase)` and `(new)` is a missing
+ * record. A fault throws before the call, or after it has written (a lost response).
+ */
+function observedRunStore(store: AutomationRunStorePort, seen: Set<string>, fault?: RunStoreFault): AutomationRunStorePort {
+  const stateOf = async (input: Parameters<AutomationRunStorePort['read']>[0]) => {
+    const stored = await store.read(input);
+    return stored.status === 'missing' ? '(new)' : `${stored.status}(${stored.phase})`;
+  };
+  const observe = <M extends RunStoreMethod>(method: M) => async (input: Parameters<AutomationRunStorePort[M]>[0]) => {
+    if (fault?.method === method && fault.when === 'before') throw new Error(`${method} lost before write`);
+    const before = await stateOf(input);
+    const result = await (store[method] as (value: typeof input) => unknown)(input);
+    const after = await stateOf(input);
+    if (before !== after) seen.add(`${method}:${before}>${after}`);
+    if (fault?.method === method && fault.when === 'after') throw new Error(`${method} lost after write`);
+    return result;
+  };
+  return {
+    claim: observe('claim') as AutomationRunStorePort['claim'],
+    markRunnerStarted: observe('markRunnerStarted'),
+    markReceiptPersisted: observe('markReceiptPersisted'),
+    complete: observe('complete'),
+    release: observe('release'),
+    read: (input) => store.read(input)
+  };
+}
+
+/** Expands the `method: from[, from] -> to | to` lines of the spec's stored-record diagram. */
+async function automationRunDiagramSteps(): Promise<string[]> {
+  const { readFile } = await import('node:fs/promises');
+  const spec = await readFile(new URL('../docs/specs/automation-run-states-v1.md', import.meta.url), 'utf8');
+  const block = /## 保存された記録の遷移[\s\S]*?```text\n([\s\S]*?)```/u.exec(spec);
+  if (block === null) throw new Error('stored-record diagram not found in automation-run-states-v1');
+  return block[1].split('\n').filter((line) => line.trim() !== '').flatMap((line) => {
+    const match = /^(\w+):\s+(.+?)\s+->\s+(.+?)\s*$/u.exec(line);
+    if (match === null) throw new Error(`unreadable diagram line: ${line}`);
+    const sources = match[2].split(',').map((source) => source.trim());
+    const targets = match[3].split('|').map((target) => target.trim());
+    return sources.flatMap((source) => targets.map((target) => `${match[1]}:${source}>${target}`));
+  });
+}
+
+describe('automation run stored-record transitions', () => {
+  type Scenario = {
+    readonly name: string;
+    readonly fault?: RunStoreFault;
+    readonly checkpointFails?: boolean;
+    readonly transitionFailsTo?: 'runner_started' | 'receipt_persisted' | 'completed';
+    readonly runnerFails?: boolean;
+    readonly receiptPersistFails?: boolean;
+  };
+  const scenarios: readonly Scenario[] = [
+    { name: 'success' },
+    { name: 'checkpoint fails', checkpointFails: true },
+    { name: 'runner-start marker lost before write', fault: { method: 'markRunnerStarted', when: 'before' } },
+    { name: 'runner-start marker lost after write', fault: { method: 'markRunnerStarted', when: 'after' } },
+    { name: 'transition to runner_started fails', transitionFailsTo: 'runner_started' },
+    { name: 'runner fails', runnerFails: true },
+    { name: 'receipt persist fails', receiptPersistFails: true },
+    { name: 'receipt marker lost before write', fault: { method: 'markReceiptPersisted', when: 'before' } },
+    { name: 'receipt marker lost after write', fault: { method: 'markReceiptPersisted', when: 'after' } },
+    { name: 'transition to receipt_persisted fails', transitionFailsTo: 'receipt_persisted' },
+    { name: 'complete lost before write', fault: { method: 'complete', when: 'before' } },
+    { name: 'complete lost after write', fault: { method: 'complete', when: 'after' } },
+    { name: 'transition to completed fails', transitionFailsTo: 'completed' }
+  ];
+
+  async function runScenarios(): Promise<Set<string>> {
+    const seen = new Set<string>();
+    for (const [index, scenario] of scenarios.entries()) {
+      const { host } = hostPorts();
+      const externalRunId = `automation-states-${index}`;
+      const service = new AutomationRunService({
+        ...host,
+        lifecycle: {
+          checkpoint: () => {
+            if (scenario.checkpointFails) throw new Error('checkpoint lost');
+          },
+          transition: ({ to }) => {
+            if (scenario.transitionFailsTo === to) throw new Error(`transition to ${to} lost`);
+          }
+        },
+        runner: {
+          start: async () => {
+            if (scenario.runnerFails) throw new Error('runner failed');
+            return { receipt: makeReceipt(externalRunId, 'github_actions') };
+          }
+        },
+        receipt: {
+          persist: () => {
+            if (scenario.receiptPersistFails) throw new Error('receipt persist failed');
+            return { ok: true };
+          },
+          query: () => []
+        },
+        runStore: observedRunStore(memoryRunStore(), seen, scenario.fault)
+      } as AutomationRunPorts);
+      const request = {
+        workflowId: 'portable-workflow',
+        projectId: 'portable-project',
+        organizationId: 'org-injected',
+        actorId: 'actor-injected',
+        externalRunId
+      };
+      const outcome = await service.start(request).then(() => 'ok', () => 'failed');
+      expect(outcome, scenario.name).toBe(scenario.name === 'success' ? 'ok' : 'failed');
+    }
+    return seen;
+  }
+
+  it('is drawn exactly by the spec diagram, in both directions', async () => {
+    const seen = await runScenarios();
+    expect([...seen].sort()).toEqual((await automationRunDiagramSteps()).sort());
+  });
+
+  it('never reaches retryable today, even when the checkpoint fails before the runner', async () => {
+    const seen = await runScenarios();
+    expect([...seen].some((step) => step.includes('retryable'))).toBe(false);
+    expect(seen.has('release:in_progress(claimed)>uncertain(unknown)')).toBe(true);
+  });
+});
