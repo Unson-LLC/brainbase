@@ -9,6 +9,8 @@ depends_on: []
 
 # 組織メンバーの招待（招待メール・リンク）v1 仕様
 
+> **2026-11-20 移設**: 招待の本体と受け口は brainbase-organization の `packages/server-parts/organization-member-invites`（`kernel.js`・`http.js`、保存先 `postgres-repository.js` の隣）へ移した（Unson-LLC/brainbase-organization#1473）。招待はテナント・役割・認可・メンバーの付与・監査を持つ組織の管理で、OSSの境界に合わないため。OSSの `./organization-member-invite` と `./organization-member-invite-http` は外した。以下は移す前の記録。
+
 ## 目的
 
 組織の管理者がメールアドレスを入れてメンバーを招待し、招待された人がリンクから、その組織で

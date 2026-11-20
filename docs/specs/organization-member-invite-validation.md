@@ -1,5 +1,7 @@
 # 組織メンバー招待 v1 の受け入れ確認
 
+> **2026-11-20 移設**: 招待の本体と受け口は brainbase-organization の `packages/server-parts/organization-member-invites`（`kernel.js`・`http.js`、保存先 `postgres-repository.js` の隣）へ移した（Unson-LLC/brainbase-organization#1473）。招待はテナント・役割・認可・メンバーの付与・監査を持つ組織の管理で、OSSの境界に合わないため。OSSの `./organization-member-invite` と `./organization-member-invite-http` は外した。以下は移す前の記録。
+
 対象は [招待仕様 v1](./organization-member-invite-v1.md) と
 [Story](../stories/story-organization-member-invite-v1.md)。これは実装時に使う検証計画であり、
 テスト成功・機能提供済みを示す記録ではない。仕様の AC と境界を正本とする。

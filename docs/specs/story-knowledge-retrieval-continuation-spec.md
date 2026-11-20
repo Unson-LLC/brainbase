@@ -13,6 +13,26 @@
 - unfinished Stopは次の実取得へ戻すためのblockと文脈を返す。取消・上限・権限拒否・未対応は明示的に終了する。未確認を成功としない。
 - coreの保存用状態に取得本文を含めない。Host側で状態の認証境界とロックを保証する。
 
+## 状態と操作
+
+`status` は8つ。`resolving`・`retrieving`・`retry_pending`・`awaiting_replan` が途中、`satisfied`・`unresolved`・`needs_user_input`・`cancelled` が終わり。下の図は公開関数ごとに `status` が変わる遷移だけを書く（変わらない呼出し、たとえば拒否された計画や finish の予約は書かない）。
+
+```text
+createKnowledgeLookup:  (new) -> resolving
+prepareKnowledgeAction: resolving/retry_pending/awaiting_replan -> retrieving                 (retrieval reserved)
+prepareKnowledgeAction: resolving/retrieving/retry_pending/awaiting_replan -> unresolved      (invalid-plan limit, retrieval or replan budget, time budget)
+recordKnowledgeResult:  retrieving -> retry_pending | awaiting_replan | unresolved            (transport_error | other outcome | forbidden, unsupported or time budget)
+recordKnowledgeResult:  retry_pending -> awaiting_replan | unresolved                          (finish not accepted | finish unresolved or time budget)
+recordKnowledgeResult:  awaiting_replan -> satisfied | unresolved | needs_user_input           (accepted finish, or time budget for unresolved)
+stopKnowledgeLookup:    resolving/retrieving/retry_pending -> awaiting_replan                  (unfinished Stop; an in-flight reservation is kept as transport_error)
+stopKnowledgeLookup:    retrieving/retry_pending/awaiting_replan -> unresolved                 (Stop limit or time budget)
+cancelKnowledgeLookup:  resolving/retrieving/retry_pending/awaiting_replan -> cancelled
+```
+
+- 終わりの状態からはどの操作でも移らない。遅れて届いた結果、Stop、取消は終わりの状態をそのまま返す（取消済みをもう一度取り消しても同じ）。
+- 途中の状態は、分岐の判断に使わない。判断は `pending`・`attempts`・`required_fields` と予算で決まり、`status` は Host とモデルへ見せる要約である。
+- `tests/knowledge-continuation-transitions.test.ts` が、公開関数を有限の深さまで総当たりで呼んだときに起きる遷移の集合と、この図を展開した集合の一致を両方向で確かめる。
+
 ## 対象検証
 
 lookupの検索・本文・関係、失敗分類、公開フィールドと機密項目排除を検証する。coreは不足→再計画→本文→出典付き完了、入力不正、目的変更、検索要約での偽完了、通信再試行、重複Post、再開、取消を検証する。実Hostのモデル継続や稼働環境の有効化は、利用側の統合検証として別に記録する。
