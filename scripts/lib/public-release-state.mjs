@@ -20,7 +20,10 @@ export function parsePublicReleaseState(statusText, packageVersion) {
   const isCandidate = candidateVersion === packageVersion && !isReleased;
   if (!isReleased && !isCandidate) {
     throw new Error(
-      `package version ${packageVersion} must match either the Released version or the Candidate version`
+      `package version ${packageVersion} must match either the Released version or the Candidate version in docs/manual/guide/status.md ` +
+      `(first Released heading is v${releasedVersion}; first Candidate heading is ${candidateVersion ? `v${candidateVersion}` : 'missing'}). ` +
+      `Only those first headings count. ` +
+      `A version-bump pull request must add "## Candidate — v${packageVersion}（npm公開前）" above the other Candidate headings, and "## ${packageVersion} candidate — npm公開前" in docs/manual/reference/version-history.md, in the same commit.`
     );
   }
 
@@ -29,4 +32,20 @@ export function parsePublicReleaseState(statusText, packageVersion) {
     candidateVersion,
     state: isCandidate ? 'candidate' : 'released'
   });
+}
+
+export function assertVersionHistoryDocuments(headingsList, state, packageVersion) {
+  const expected = state.state === 'candidate' ? `${packageVersion} candidate — npm公開前` : packageVersion;
+  const documented = headingsList.some((heading) => (
+    heading.level === 2 && (
+      heading.title === expected || (state.state === 'released' && heading.title.startsWith(`${expected} `))
+    )
+  ));
+  if (!documented) {
+    throw new Error(
+      `version-history missing heading: ## ${expected} in docs/manual/reference/version-history.md. ` +
+      `A version-bump pull request must add it in the same commit as the status.md Candidate or Released heading.`
+    );
+  }
+  return expected;
 }
