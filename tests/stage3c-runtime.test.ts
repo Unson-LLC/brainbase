@@ -926,10 +926,12 @@ describe('automation run stored-record transitions', () => {
     readonly transitionFailsTo?: 'runner_started' | 'receipt_persisted' | 'completed';
     readonly runnerFails?: boolean;
     readonly receiptPersistFails?: boolean;
+    /** Start the same run again after the failure and expect it to succeed. */
+    readonly startsAgain?: boolean;
   };
   const scenarios: readonly Scenario[] = [
     { name: 'success' },
-    { name: 'checkpoint fails', checkpointFails: true },
+    { name: 'checkpoint fails', checkpointFails: true, startsAgain: true },
     { name: 'runner-start marker lost before write', fault: { method: 'markRunnerStarted', when: 'before' } },
     { name: 'runner-start marker lost after write', fault: { method: 'markRunnerStarted', when: 'after' } },
     { name: 'transition to runner_started fails', transitionFailsTo: 'runner_started' },
@@ -948,11 +950,13 @@ describe('automation run stored-record transitions', () => {
     for (const [index, scenario] of scenarios.entries()) {
       const { host } = hostPorts();
       const externalRunId = `automation-states-${index}`;
+      let checkpointCalls = 0;
       const service = new AutomationRunService({
         ...host,
         lifecycle: {
           checkpoint: () => {
-            if (scenario.checkpointFails) throw new Error('checkpoint lost');
+            checkpointCalls += 1;
+            if (scenario.checkpointFails && checkpointCalls === 1) throw new Error('checkpoint lost');
           },
           transition: ({ to }) => {
             if (scenario.transitionFailsTo === to) throw new Error(`transition to ${to} lost`);
@@ -982,6 +986,7 @@ describe('automation run stored-record transitions', () => {
       };
       const outcome = await service.start(request).then(() => 'ok', () => 'failed');
       expect(outcome, scenario.name).toBe(scenario.name === 'success' ? 'ok' : 'failed');
+      if (scenario.startsAgain) await expect(service.start(request), scenario.name).resolves.toBeDefined();
     }
     return seen;
   }
@@ -991,9 +996,91 @@ describe('automation run stored-record transitions', () => {
     expect([...seen].sort()).toEqual((await automationRunDiagramSteps()).sort());
   });
 
-  it('never reaches retryable today, even when the checkpoint fails before the runner', async () => {
-    const seen = await runScenarios();
-    expect([...seen].some((step) => step.includes('retryable'))).toBe(false);
-    expect(seen.has('release:in_progress(claimed)>uncertain(unknown)')).toBe(true);
+  it('makes a failed checkpoint retryable and runs the runner once on the next start', async () => {
+    const { host } = hostPorts();
+    const runStore = memoryRunStore();
+    const releases: string[] = [];
+    let checkpointCalls = 0;
+    let runnerCalls = 0;
+    const service = new AutomationRunService({
+      ...host,
+      lifecycle: {
+        checkpoint: () => {
+          checkpointCalls += 1;
+          if (checkpointCalls === 1) throw new Error('checkpoint lost');
+        }
+      },
+      runner: {
+        start: async () => {
+          runnerCalls += 1;
+          return { receipt: makeReceipt('automation-checkpoint-retry-1', 'github_actions') };
+        }
+      },
+      receipt: { persist: () => ({ ok: true }), query: () => [] },
+      runStore: {
+        ...runStore,
+        release: (input) => {
+          releases.push(`${input.outcome}:${input.phase}`);
+          return runStore.release(input);
+        }
+      }
+    } as AutomationRunPorts);
+    const request = {
+      workflowId: 'portable-workflow',
+      projectId: 'portable-project',
+      organizationId: 'org-injected',
+      actorId: 'actor-injected',
+      externalRunId: 'automation-checkpoint-retry-1'
+    };
+
+    await expect(service.start(request)).rejects.toThrow('checkpoint lost');
+    expect(releases).toEqual(['retryable:retryable']);
+    expect(runnerCalls).toBe(0);
+    await expect(service.start(request)).resolves.toMatchObject({
+      normalizedReceipt: { run: { external_run_id: 'automation-checkpoint-retry-1' } }
+    });
+    expect(runnerCalls).toBe(1);
+  });
+
+  it('keeps a lost runner-start marker uncertain, because the runner may already have been called', async () => {
+    const { host } = hostPorts();
+    const runStore = memoryRunStore();
+    const releases: string[] = [];
+    let runnerCalls = 0;
+    const service = new AutomationRunService({
+      ...host,
+      lifecycle: { checkpoint: () => undefined },
+      runner: {
+        start: async () => {
+          runnerCalls += 1;
+          return { receipt: makeReceipt('automation-marker-lost-1', 'github_actions') };
+        }
+      },
+      receipt: { persist: () => ({ ok: true }), query: () => [] },
+      runStore: {
+        ...runStore,
+        markRunnerStarted: () => {
+          throw new Error('runner start checkpoint lost');
+        },
+        release: (input) => {
+          releases.push(`${input.outcome}:${input.phase}`);
+          return runStore.release(input);
+        }
+      }
+    } as AutomationRunPorts);
+    const request = {
+      workflowId: 'portable-workflow',
+      projectId: 'portable-project',
+      organizationId: 'org-injected',
+      actorId: 'actor-injected',
+      externalRunId: 'automation-marker-lost-1'
+    };
+
+    await expect(service.start(request)).rejects.toThrow('runner start checkpoint lost');
+    expect(releases).toEqual(['uncertain:unknown']);
+    await expect(service.start(request)).rejects.toMatchObject({
+      code: 'automation_run_uncertain', status: 409
+    });
+    expect(runnerCalls).toBe(0);
   });
 });

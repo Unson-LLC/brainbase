@@ -22,12 +22,13 @@ depends_on: []
 
 - AC-01: Spec `automation-run-states-v1` が、runStore の記録の遷移を呼び出しごとに図で示す。
 - AC-02: 実際の runStore（テストの memoryRunStore）で、成功と各段階の失敗を通したときに記録が動いた遷移の集合が、Specの図を展開した集合と両方向で一致する。
-- AC-03: Specが、`retryable` に今は到達しないこと、checkpoint の失敗でも `uncertain` になることを「現状」として書く。
-- AC-04: コードの振る舞い、エラーのコードと文言、port の型は変わらない。
+- AC-03: Specが、変更前は `retryable` に到達せず、checkpoint の失敗でも `uncertain` になっていたことを変更の記録として残す。
+- AC-04: AC-05 の他は、コードの振る舞い、エラーのコードと文言、port の型は変わらない。
+- AC-05: runner を呼ぶ前の `lifecycle.checkpoint` の失敗は `retryable` で release し、次の `start` は runner を1回だけ呼ぶ。`markRunnerStarted` 以降の失敗は今どおり `uncertain`。投げるエラーはそのまま。
 
 ## 対象外
 
-checkpoint の失敗を `retryable` にする修正（別のPRで扱う）。遷移表と単一の書き込み関数の導入（状態はコアに無く、利用側の runStore が書くため）。組織版への移設。
+遷移表と単一の書き込み関数の導入（状態はコアに無く、利用側の runStore が書くため）。組織版への移設。
 
 ## 検証
 

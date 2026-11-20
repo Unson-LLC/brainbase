@@ -17,19 +17,20 @@
 記録は `status(phase)` で書く。`(new)` は記録が無い状態。runStore の各呼び出しが成功したとき、または呼び出しが記録を書いた後に応答を失ったときに、記録は次のように動く。
 
 ```text
-claim:                (new) -> in_progress(claimed)
+claim:                (new), retryable(retryable) -> in_progress(claimed)
 markRunnerStarted:    in_progress(claimed) -> in_progress(runner_started)
 markReceiptPersisted: in_progress(runner_started) -> in_progress(receipt_persisted)
 complete:             in_progress(receipt_persisted) -> completed(completed)
 release:              in_progress(claimed), in_progress(runner_started), in_progress(receipt_persisted) -> uncertain(unknown)
 release:              in_progress(runner_started) -> uncertain(runner_started)
+release:              in_progress(claimed) -> retryable(retryable)
 ```
 
 `tests/stage3c-runtime.test.ts` が、成功と各段階の失敗を memoryRunStore で通し、記録が動いた遷移の集合とこの図の展開が一致することを確かめる。
 
-- `claim` は、記録が `completed` なら `replay`、`in_progress` なら `in_progress`、`uncertain` なら `conflict` を返し、記録を動かさない。fingerprint・operation・namespace が違えば `conflict`（`identity_mismatch`）を返す。
+- `claim` は、記録が無いときと `retryable` のときだけ新しい claim を作る（試行回数を1つ増やす）。記録が `completed` なら `replay`、`in_progress` なら `in_progress`、`uncertain` なら `conflict` を返し、記録を動かさない。fingerprint・operation・namespace が違えば `conflict`（`identity_mismatch`）を返す。
 - `release` は、記録が `in_progress` で claimToken が一致するときだけ記録を動かす。`complete` が記録を書いた後の読み直しや lifecycle の遷移で失敗したときもコアは `release` を呼ぶが、記録は `completed` のまま動かない。
-- コアは `uncertain` の記録を自動で `retryable` に戻さない。照合は利用側の仕事である。
+- `retryable` にするのは、runner をまだ呼んでいないと分かっているときだけ。コアは `uncertain` の記録を自動で `retryable` に戻さない。照合は利用側の仕事である。
 
 ## 失敗したときの `release`
 
@@ -37,7 +38,7 @@ release:              in_progress(runner_started) -> uncertain(runner_started)
 
 | 失敗した場所 | runner | `release` |
 |---|---|---|
-| `lifecycle.checkpoint` | 呼んでいない | `uncertain`、`unknown` |
+| `lifecycle.checkpoint` | 呼んでいない | `retryable`、`retryable` |
 | `runStore.markRunnerStarted` | 呼んでいない | `uncertain`、`unknown` |
 | `lifecycle.transition`（`claimed → runner_started`） | 呼んでいない | `uncertain`、`unknown` |
 | runner、受領記録の正規化、`receipt.persist` | 呼んだ | `uncertain`、`runner_started` |
@@ -46,13 +47,14 @@ release:              in_progress(runner_started) -> uncertain(runner_started)
 | `runStore.complete` | 呼んだ | `uncertain`、`unknown` |
 | `complete` の後の読み直し、`lifecycle.transition`（`receipt_persisted → completed`） | 呼んだ | `uncertain`、`unknown`（記録は `completed` のまま） |
 
-`uncertain` の記録への次の `start` は `automation_run_uncertain`（409）で止まり、runner を呼ばない。
+`uncertain` の記録への次の `start` は `automation_run_uncertain`（409）で止まり、runner を呼ばない。`retryable` の記録への次の `start` は新しく claim して、runner を1回呼ぶ。
 
-### 現状（2026-11-20）
+- `markRunnerStarted` は、記録を書いた後に応答を失うことがある。その場合 runner を呼んだかどうかを記録から区別できないため、失敗は `uncertain` のままにする。
+- `AutomationRunPhase` のうち `release` に渡るのは `retryable`、`runner_started`、`unknown` だけ。`claimed`、`receipt_persisted`、`completed`、`uncertain` は渡されない。
 
-- `retryable` には、どの経路からも進まない。catch は段階が `claimed` のときだけ `retryable` を選ぶが、`checkpoint` と `markRunnerStarted` を呼ぶ直前に段階を `unknown` にしているため、catch が `claimed` を見ることは無い。
-- そのため、runner をまだ呼んでいない `lifecycle.checkpoint` の失敗でも `uncertain` になり、同じ実行はやり直せない。
-- `AutomationRunPhase` の `uncertain` と `claimed` は `release` に渡されない。`retryable` と `receipt_persisted` と `completed` も、今は渡されない。
+### 変更の記録
+
+- 2026-11-20（`story-automation-run-states-v1` の後）: `lifecycle.checkpoint` の失敗を `uncertain` から `retryable` に変えた。それまでは checkpoint を呼ぶ直前に段階を `unknown` にしていたため、`retryable` にはどの経路からも進まず、runner を呼ぶ前の失敗でも同じ実行をやり直せなかった。
 
 ## host の lifecycle
 
