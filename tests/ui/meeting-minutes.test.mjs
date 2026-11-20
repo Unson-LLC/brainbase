@@ -1117,6 +1117,18 @@ describe('meeting minutes page review', () => {
     expect(collectText(root)).not.toContain('保存された会議はありません');
   });
 
+  it('uses the host guidance when the minutes list is empty and search is clear', async () => {
+    const guidance = '振り分け待ちから会議を振り分けると表示されます';
+    const { root } = mount([], { toolbarPresentation: 'search-band', emptyListMessage: guidance });
+    await flush();
+    expect(collectText(root)).toContain(guidance);
+    const keyword = findAll(root, node => node.className.includes('bb-minutes-filter-keyword'))[0];
+    keyword.value = '探す会議';
+    keyword.listeners.get('input')();
+    expect(collectText(root)).toContain('条件に合う会議はありません。');
+    expect(collectText(root)).not.toContain(guidance);
+  });
+
   function listTitles(root) {
     const list = findAll(root, (node) => node.className === 'bb-minutes-meeting-list')[0];
     return list ? list.children.filter((child) => child.tagName === 'BUTTON').map((child) => child.children[0].textContent) : [];

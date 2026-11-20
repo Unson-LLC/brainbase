@@ -703,6 +703,7 @@ export function createMeetingMinutesUI({
   createUnavailableReason,
   canEditMinutes,
   hostFilters = [],
+  emptyListMessage,
   currentPrincipalId,
   now = () => new Date(),
 } = {}) {
@@ -846,6 +847,7 @@ export function createMeetingMinutesUI({
   if (tablePage) {
     pageUI = createMinutesPage({ doc, state, screen, toolbar, listPane, keyword, clock,
       hostFilters: currentHostFilters,
+      emptyListMessage: text(emptyListMessage),
       principalIds: () => typeof participantIdentities === 'function' ? participantIdentities() : [typeof currentPrincipalId === 'function' ? currentPrincipalId() : currentPrincipalId],
       projectContext: meeting => {
         if (typeof meetingProject === 'function') return meetingProject(meeting);
@@ -1597,9 +1599,9 @@ export function createMeetingMinutesUI({
       if (state.listError) return;
       listPane.append(makeElement(doc, 'p', {
         className: 'bb-minutes-empty',
-        textContent: filtersActive()
+        textContent: (clientFiltersActive() || filtersActive() || state.nextCursor)
           ? '条件に合う会議はありません。'
-          : 'まだ議事録はありません。会議を取り込むと、ここに新しい順で並びます。',
+          : text(emptyListMessage) || 'まだ議事録はありません。会議を取り込むと、ここに新しい順で並びます。',
       }));
       if (filtersActive() && !compact) listPane.append(button(doc, '条件を外す', () => clearFilters()));
       appendMore(listPane);
