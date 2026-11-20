@@ -17,12 +17,17 @@
 ## 状態と操作
 
 ```text
-waiting -> claimed -> resumed
-claimed -> claimed                                      (handoff of an expired lease)
-waiting/claimed/handoff_required -> handoff_required    (premise changed; new Problem required)
-waiting/claimed/handoff_required -> reconciliation_wait (external effect unknown)
-reconciliation_wait -> effect_confirmed | waiting | reconciliation_wait (reconciled: performed | not performed | still unknown)
+create:            (new) -> waiting
+claim:             waiting -> claimed
+claim:             claimed -> claimed                   (record in claimed without claim info; not produced by normal operations)
+handoff:           claimed -> claimed                   (handoff of an expired lease)
+resume:            claimed -> resumed
+premise_changed:   waiting/claimed/handoff_required -> handoff_required        (premise changed; new Problem required)
+effect_unknown:    waiting/claimed/handoff_required/reconciliation_wait -> reconciliation_wait (external effect unknown; repeated report while already waiting)
+effect_reconciled: reconciliation_wait -> effect_confirmed | waiting | reconciliation_wait (reconciled: performed | not performed | still unknown)
 ```
+
+この図の15本（`create` を含む）は `DURABLE_WAIT_TRANSITIONS` を操作ごとに展開したものと同じで、`tests/durable-wait-transitions.test.ts` が実ストアの履歴と表の一致を確かめる。
 
 遷移の正本は `src/durable-waits.ts` の `DURABLE_WAIT_TRANSITIONS`（[`company-os-durable-wait-transition-table-v1`](./company-os-durable-wait-transition-table-v1.md)）。`failed` と `cancelled` は型と保存済みledgerの読み取りにだけあり、そこへ進む操作は無い。
 

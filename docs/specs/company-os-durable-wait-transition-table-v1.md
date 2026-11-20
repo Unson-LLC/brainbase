@@ -40,4 +40,4 @@ npx vitest run tests/durable-wait-transitions.test.ts tests/durable-waits.test.t
 | AC-02 | 表の外の遷移を `transitionWait` が `state_conflict` で拒否する |
 | AC-03 | 実際のstoreで起こした履歴の遷移の集合が、表を展開した集合と一致する |
 | AC-04 | 既存の待機のテスト42件が変更なしで通る |
-| AC-05 | `company-os-durable-waits-v1` の状態図が表と同じ遷移を示す |
+| AC-05 | `company-os-durable-waits-v1` の状態図を読み取って展開した遷移の集合が、表を展開した集合と一致する |

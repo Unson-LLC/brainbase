@@ -118,6 +118,20 @@ function tableSteps(): string[] {
   });
 }
 
+/** Expands the `action: from -> to` lines of the spec's state diagram. */
+async function diagramSteps(): Promise<string[]> {
+  const spec = await readFile(new URL('../docs/specs/company-os-durable-waits-v1.md', import.meta.url), 'utf8');
+  const block = /## 状態と操作\s*```text\n([\s\S]*?)```/u.exec(spec);
+  if (block === null) throw new Error('state diagram not found in company-os-durable-waits-v1');
+  return block[1].split('\n').filter((line) => line.trim() !== '').flatMap((line) => {
+    const match = /^(\w+):\s+(\S+)\s+->\s+([\w|\s]+?)(?:\s+\(.*\))?\s*$/u.exec(line);
+    if (match === null) throw new Error(`unreadable state diagram line: ${line}`);
+    const sources = match[2] === '(new)' ? ['-'] : match[2].split('/');
+    const targets = match[3].split('|').map((target) => target.trim());
+    return sources.flatMap((source) => targets.map((target) => `${match[1]}:${source}>${target}`));
+  });
+}
+
 describe('durable wait transition table', () => {
   it('lists every history action once and cannot be changed at run time', () => {
     expect(Object.keys(DURABLE_WAIT_TRANSITIONS).sort()).toEqual([...ACTIONS].sort());
@@ -228,5 +242,9 @@ describe('durable wait transition table', () => {
     record((await claim(edited.store, 'claim-1')).wait);
 
     expect([...seen].sort()).toEqual(tableSteps().sort());
+  });
+
+  it('is drawn exactly by the spec state diagram', async () => {
+    expect((await diagramSteps()).sort()).toEqual(tableSteps().sort());
   });
 });
