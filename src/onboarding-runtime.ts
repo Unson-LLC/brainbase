@@ -15,14 +15,7 @@ import {
 /** Shared state and receipt vocabulary for host onboarding runtimes. */
 export const ONBOARDING_RUNTIME_CONTRACT_VERSION = 'connected_onboarding.v1' as const;
 
-export const ONBOARDING_WORKFLOW_STATES = [
-  'initialized',
-  'source_ready',
-  'candidates_ready',
-  'promotion_reviewed',
-  'first_value_ready',
-  'first_value_answer_reviewed'
-] as const;
+export { ONBOARDING_WORKFLOW_STATES } from './connected-onboarding.js';
 
 export const ONBOARDING_SOURCE_MODES = ['mcp', 'drive', 'gmail', 'local_folder', 'single_document'] as const;
 export const ONBOARDING_SOURCE_STATUSES = ['ready', 'waiting_for_authorization', 'unavailable', 'error', 'unconfirmed'] as const;

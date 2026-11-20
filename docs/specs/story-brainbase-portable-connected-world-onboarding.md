@@ -39,11 +39,27 @@ flowchart LR
   Human -->|"reject"| AuditOnly["Audit state only; no canonical ID"]
 ```
 
+## 状態と操作
+
+runの`state`は6つで、`ONBOARDING_WORKFLOW_STATES`（`./connected-onboarding`と`./onboarding-runtime`が同じ配列を公開する）の順に前へだけ進む。下の図は操作ごとに`state`が変わる遷移だけを書く。冪等な再試行、空のingest、後段に進んだ後のingestやreviewは`state`を変えないので書かない。
+
+```text
+start:      (new) -> initialized | source_ready                     (blocked | warm or fallback)
+ingest:     source_ready -> candidates_ready                        (at least one candidate stored)
+review:     candidates_ready -> promotion_reviewed                  (any applied approve, edit, reject or merge)
+firstValue: promotion_reviewed -> first_value_ready                 (action record)
+firstValue: first_value_ready -> first_value_answer_reviewed        (action review)
+```
+
+- `initialized`はblocked runで、ingestが拒否されるため、そこから進む操作は無い（`initialized -> source_ready`は起きない）。
+- 状態の書き込みはすべて、前へだけ進める関数を通す。各段階は他の欄（候補の有無、review済み候補、first-valueのreceiptとreview）と対応するが、読込み時の検証は`state`が6つのどれかであることだけを見る。
+- `tests/connected-onboarding-transitions.test.ts`が、実際のruntimeで全操作と再試行を通したときに起きた遷移の集合と、この図を展開した集合の一致を両方向で確かめる。
+
 ## Source inventory contract
 
 sourceは`id`、`mode`、`status`、任意の`evidencePointer`、`permissionScope`、`detail`を持つ。modeは`mcp|drive|gmail|local_folder|single_document`、statusは`ready|waiting_for_authorization|unavailable|error|unconfirmed`に限定する。
 
-startはready sourceが1件以上なら`warm`、readyな`single_document`だけなら`fallback`、それ以外は`blocked`を返す。blocked runも失敗理由を保持するがingestは許可しない。
+startはready sourceが1件以上なら`warm`、readyな`single_document`だけなら`fallback`、それ以外は`blocked`を返す。blocked runの失敗理由は、run自体の欄ではなく、inventoryの各sourceの`status`と`detail`として保持する。blocked runへのingestは`source_not_ready`で拒否する。
 
 ## Ingest contract
 
