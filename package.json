@@ -387,10 +387,6 @@
       "types": "./dist/judgment-view-http.d.ts",
       "import": "./dist/judgment-view-http.js"
     },
-    "./execution-authority-http": {
-      "types": "./dist/execution-authority-http.d.ts",
-      "import": "./dist/execution-authority-http.js"
-    },
     "./server-support": {
       "types": "./dist/server-support.d.ts",
       "import": "./dist/server-support.js"
@@ -504,10 +500,6 @@
     "./problem-candidates": {
       "types": "./dist/problem-candidates.d.ts",
       "import": "./dist/problem-candidates.js"
-    },
-    "./execution-authority": {
-      "types": "./dist/execution-authority.d.ts",
-      "import": "./dist/execution-authority.js"
     },
     "./knowledge-continuation": {
       "types": "./dist/knowledge-continuation.d.ts",
