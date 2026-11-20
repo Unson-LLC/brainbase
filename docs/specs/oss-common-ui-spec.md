@@ -118,6 +118,8 @@ Application must be explicit: do not style every `role=tablist` globally. Task l
 
 議事録は `toolbarPresentation: 'search-band'` でこの共通部品を選ぶ。`hostFilters` は `placement: 'scope', multiple: true, values, options, renderIcon, showHints: false, onChange` を受け取る。任意の `matches(entry, values)` は取得済みの一覧を絞り込む。候補の可視性・許可、複数scopeの取得と合算、URL状態はホストが所有し、OSSが組織の認可や取得経路を変更しない。
 
+ホストは `emptyListMessage` で、検索や絞り込みを指定していない空の一覧に案内を渡せる。テーブル表示の既定の「おすすめ」でも、取得した会議がなければ案内を表示する。取得失敗時や続きのページがある場合は案内を表示しない。
+
 `refresh({ quiet: true })` は既存結果を保って再取得し、正常な更新時に一時読込文で本文を押し下げない。失敗と再試行は隠さない。選択中のscope rootと開いたメニューを差し替えず、スクロールとfocusを保つ。
 
 会議作成は一覧scopeとは独立して `createProjectOptions()` と `createProjectValue()` で保存先を選べる。候補にない保存先は送信せず、`createMeeting(payload, projectCode)` へ明示scopeを渡す。ホストが既存の認可・mutation・詳細readbackを担当する。callback未指定は従来の `mutate` を保つ。作成可否は引き続きホストの `canCreateMeeting` で決まる。
