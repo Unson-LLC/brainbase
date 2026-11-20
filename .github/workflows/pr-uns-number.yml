@@ -1,0 +1,49 @@
+name: PR UNS number
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  check-pr-uns-number:
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_BACKUP == 'on' && '"ubuntu-latest"' || '["self-hosted","Linux","X64","wsl-linux","nucbox-evo-x2"]') }}
+    timeout-minutes: 5
+    steps:
+      - name: Check title, branch, or body for UNS number
+        env:
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          python3 - <<'PYTHON'
+          r"""Check PR metadata for the case-sensitive UNS-\d+ pattern."""
+
+          import os
+          import re
+
+
+          def has_uns_number(author, title, branch, body):
+              """Allow the two exempt authors or a UNS number in any metadata field."""
+              if author in {"dependabot[bot]", "vercel[bot]"}:
+                  return True
+              return any(re.search(r"UNS-\d+", field or "") for field in (title, branch, body))
+
+
+          def main():
+              passed = has_uns_number(*(os.environ.get(key, "") for key in (
+                  "PR_AUTHOR", "PR_TITLE", "PR_BRANCH", "PR_BODY"
+              )))
+              if passed:
+                  print("PR UNS number check passed.")
+                  return 0
+              print("PR title, branch, or body must contain a UNS number matching UNS-\\d+.")
+              return 1
+
+
+          if __name__ == "__main__":
+              raise SystemExit(main())
+          PYTHON
