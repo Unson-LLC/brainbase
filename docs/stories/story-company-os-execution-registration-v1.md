@@ -11,6 +11,8 @@ external_dependencies: []
 
 # 実行の登録を、帰属付きで差し替え可能な保存先へ残し、同じ実行IDで読み戻す
 
+> **2026-11-20 移設**: 実行の意図の本体（`ExecutionAuthorityService`）とHTTPの受け口は brainbase-organization の `packages/company-os`（`execution-authority.js`・`execution-authority-http.js`。保存先はPostgreSQL）へ移した。OSSの `./execution-authority` と `./execution-authority-http` は削除済み。この文書は移設前の記録として残す。
+
 ## 利用者成果
 
 組織の実行hostとして、外部作用を自分では持たずに実行を登録したい。登録には、受付、現在の権限・承認・制約・予約の再検査、予約の開始印、許可（capability）の発行までを含める。登録の記録には、本人、代行サービス、委任、相関IDを残す。記録は自分の保存先（組織ならPostgreSQL）に置き、同じ実行IDで読み戻したい。外部作用の結果は、作用を持つ側から後で受け取りたい。
