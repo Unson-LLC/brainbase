@@ -343,9 +343,17 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
     if ((repositoryValues !== undefined || parsed.flags.has('repositories')) && repositories.length === 0) {
       throw new Error('judgment:install --repositories needs at least one host/owner/name; leave the option out to audit every repository');
     }
+    // The hook sends only the login made to this API, so a later login to
+    // another environment never reaches this Host.
+    const loginServer = first(parsed, 'server')
+      ?? (await readCredentials(defaultCredentialsPath()).catch(() => null))?.server_url;
+    if (!loginServer) {
+      throw new Error('judgment:install --target claude-code requires --server <API URL> (the server you log in to with brainbase login), or a saved login');
+    }
     config = {
       schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA,
       origin: normalizeServerUrl(origin),
+      login_server: normalizeServerUrl(loginServer),
       ...(projectCode ? { project_code: projectCode } : {}),
       ...(repositories.length > 0 ? { repositories: [...new Set(repositories)] } : {}),
       registration: { id: registrationId, settings: settingsReal }
@@ -353,7 +361,7 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
   }
   const cliPath = fileURLToPath(new URL('./cli.js', import.meta.url));
   const command = claudeCodeHookCommand(process.execPath, cliPath, configPath, registrationId);
-  const run = () => applyClaudeCodeRegistration({ settingsPath, settingsReal, configPath, config, command, remove, dryRun }, io);
+  const run = () => applyClaudeCodeRegistration({ settingsPath, settingsReal, configPath, configReal, config, command, remove, dryRun }, io);
   // A preview writes nothing, so it takes no lock.
   return dryRun ? await run() : await withInstallLocks([settingsReal, configReal], run);
 }
@@ -363,13 +371,13 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
  * same Claude Code settings or the same hook config run one after the other:
  * each reads, checks ownership and writes both files under the locks. The
  * locks are taken in one order (sorted real paths), so two installs never wait
- * on each other. They live in the brainbase home, keyed by the real path, and
- * follow the rules of the saved-login lock: a lock is only taken over when its
- * holder no longer runs.
+ * on each other. Each lock sits next to the real file (`<real path>.lock`),
+ * so installs run with different homes still share it. They follow the rules
+ * of the saved-login lock: a lock is only taken over when its holder no
+ * longer runs.
  */
 async function withInstallLocks<T>(files: string[], task: () => Promise<T>): Promise<T> {
-  const lockDir = join(process.env.HOME || homedir(), '.brainbase', 'var', 'install-locks');
-  const keys = [...new Set(files)].sort().map((file) => join(lockDir, createHash('sha256').update(file).digest('hex').slice(0, 32)));
+  const keys = [...new Set(files)].sort();
   const hold = async (index: number): Promise<T> => {
     if (index === keys.length) return await task();
     try {
@@ -388,6 +396,7 @@ interface ClaudeCodeRegistrationPlan {
   settingsPath: string;
   settingsReal: string;
   configPath: string;
+  configReal: string;
   config: ClaudeCodeHookConfig | undefined;
   command: string;
   remove: boolean;
@@ -395,7 +404,7 @@ interface ClaudeCodeRegistrationPlan {
 }
 
 async function applyClaudeCodeRegistration(plan: ClaudeCodeRegistrationPlan, io: CliIo): Promise<number> {
-  const { settingsPath, settingsReal, configPath, config, command, remove, dryRun } = plan;
+  const { settingsPath, settingsReal, configPath, configReal, config, command, remove, dryRun } = plan;
   let settings: Record<string, unknown> = {};
   try {
     const parsedSettings: unknown = JSON.parse(await readFile(settingsPath, 'utf8'));
@@ -440,7 +449,9 @@ async function applyClaudeCodeRegistration(plan: ClaudeCodeRegistrationPlan, io:
     // The config is deleted only when the registration it now carries was one
     // of the commands just taken out; otherwise a command elsewhere still uses it.
     const currentElsewhere = !!existingConfig && !removedIds.has(existingConfig.registration.id);
-    if (configOwned && !registeredElsewhere && !currentElsewhere) await rm(configPath, { force: true });
+    // The real file goes, not a link to it: a command that names the real
+    // path would otherwise still find its registration. The link is left.
+    if (configOwned && !registeredElsewhere && !currentElsewhere) await rm(configReal, { force: true });
     write(io, [
       `Claude Codeの判断フックを外しました（${settingsPath}）。`,
       ...(configExists && !configOwned ? [`${configPath} は判断フックの設定ではないため、残しました。`] : []),
@@ -1678,7 +1689,7 @@ function usage(): string {
   brainbase memory:register --id id [--id id...] [--dir path] [--write] [--format text|json]
   brainbase ontology:migrate [--dir path] [--write --expected-input-digest digest]
   brainbase judgment:install --target codex [--autonomy-mode off|canary|on] [--autonomy-project code] [--dry-run] [--output path]
-  brainbase judgment:install --target claude-code --origin url [--project code] [--repositories name,name] [--settings path] [--config path] [--dry-run] [--remove]
+  brainbase judgment:install --target claude-code --origin url [--server url] [--project code] [--repositories name,name] [--settings path] [--config path] [--dry-run] [--remove]
   brainbase judgment:claude-code-hook [--config path]
   brainbase judgment:hook [--autonomy-mode off|canary|on] [--autonomy-project code]
   brainbase login --server url [--credentials path]

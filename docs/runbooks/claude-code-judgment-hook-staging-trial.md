@@ -39,10 +39,12 @@
 4. Claude Codeにフックを登録する。
 
    ```sh
-   brainbase judgment:install --target claude-code --origin <MCP>
+   brainbase judgment:install --target claude-code --origin <MCP> --server <API>
    ```
 
-   projectが2つ以上ある人は`--project <project>`を足します。特定のリポジトリだけを記録したいときは`--repositories github.com/<owner>/<名前>`を足します。複数ならカンマで区切ります。名前だけや`<owner>/<名前>`では登録できません。同じ名前の別のリポジトリまで記録しないためです。足さなければ、gitのリポジトリの中で動くClaude Codeのターンはすべて記録されます。`--repositories`に空の値を渡すと、登録できません。先に`--dry-run`をつけると、書き込む内容だけを表示します。
+   `--server`には、手順3でログインしたAPIのURLを書きます。省くと、いま保存しているログインのサーバーを使います。ログインもしていないときは、登録できません。フックは、保存したログインがこのサーバーのものであるときだけtokenを送ります。あとで別の環境（本番など）にログインし直すと、このフックは何も送らず、`judgment_hook_login_origin_mismatch`の警告を出します。別の環境のtokenを、このHostに送らないためです。
+
+   projectが2つ以上ある人は`--project <project>`を足します。特定のリポジトリだけを記録したいときは`--repositories github.com/<owner>/<名前>`を足します。複数ならカンマで区切ります。名前だけや`<owner>/<名前>`では登録できません。同じ名前の別のリポジトリまで記録しないためです。足さなければ、gitのリポジトリの中で動くClaude Codeのターンはすべて記録されます。`--repositories`に空の値を渡すと、登録できません。名前の末尾の`.git`は、originのURLと同じく1つだけ取ります。名前そのものが`.git`で終わる自前のGitサーバーのリポジトリは、`--repositories <host>/<owner>/<名前>.git`のように、末尾に`.git`をもう1つ足して書きます。設定ファイルに保存した名前は、読み直しても変わりません。先に`--dry-run`をつけると、書き込む内容だけを表示します。
 
    Hostに送るリポジトリ名も`github.com/<owner>/<名前>`の形です（originのURLから作ります）。ホスト名は大文字と小文字を区別しません。パスは、`github.com`では区別せず小文字にそろえ、ほかのホストでは区別します。自前のGitサーバーでは、`--repositories`にoriginと同じ大文字・小文字で書きます。ターンの途中で別のリポジトリに移ると、そのあとの記録は送りません。ターンの途中で`--repositories`からそのリポジトリを外したときも、そのあとの記録と回答は送りません（設定は記録のたびに読み直します）。originのないリポジトリでは、ターンを始めたチェックアウトの中だけを同じターンとして扱います。gitの外での記録は送りません。
 
@@ -52,7 +54,7 @@
 
    Claude Codeの設定ファイルがシンボリックリンクのときは、リンクを残したまま、リンク先のファイルを書き換えます。リンク先がないリンクは、何も変えずに失敗します。登録では、フックの設定ファイルを先に書き、Claude Codeの設定をあとに書きます。あとの書き込みが失敗したときは、フックの設定ファイルを前の内容に戻します（新しく作ったときは消します）。前の登録は、前と同じ送り先へ送り続けます。
 
-   登録と解除は、同じClaude Codeの設定か同じフックの設定ファイルを使うものどうしで、1つずつ順に動きます。同時に動かしても、先の登録が消えることはありません。待つためのロックは`~/.brainbase/var/install-locks`に置き、終われば消えます。
+   登録と解除は、同じClaude Codeの設定か同じフックの設定ファイルを使うものどうしで、1つずつ順に動きます。同時に動かしても、先の登録が消えることはありません。待つためのロックは、それぞれのファイルの実体の隣（`<ファイル>.lock`）に置き、終われば消えます。HOMEを変えて動かした登録どうしも、同じファイルなら互いを待ちます。
 
    判断フックはClaude Codeの作業を止めません。Hostの返事のうち、Claude Codeに渡すのは、人に見せる通知とモデルへの補足（PreToolUseの知識取得では、その拒否）だけです。
 
@@ -67,6 +69,7 @@
 Claude Codeの画面に`⚠️ Brainbase判断フック:`で始まる警告が出ます。作業は止まりません。警告の中の理由で、次のように直します。
 
 - `judgment_hook_login_missing`、`judgment_hook_login_expired`: `brainbase login --server <API>`をやり直す。
+- `judgment_hook_login_origin_mismatch`: 保存しているログインが、登録したときの`--server`と別のサーバーのもの。`brainbase login --server <API>`で、登録したときのAPIにログインし直す。別の環境で使うなら、手順4をその環境の`--origin`と`--server`でやり直す。
 - `judgment_hook_login_refresh_unavailable`: APIが一時的にtokenを更新できない。少し待って、もう一度依頼を送る。
 - `judgment_hook_http_400_judgment_project_unresolved`: projectが2つ以上あり、Hostが決められなかった。手順4を`--project <project>`つきでやり直す。
 - `judgment_hook_http_403_project_not_authorized`: 指定したprojectに権限がない。運用する側にprojectと権限を確かめてもらう。
@@ -82,7 +85,7 @@ brainbase judgment:install --target claude-code --remove
 brainbase logout
 ```
 
-1つ目はClaude Codeの設定から判断フックだけを外し、フックの設定ファイルを消します。外すのは、このコマンドが同じ設定ファイルで登録したものだけです。その登録が見つからないときは、何も変えずに失敗します。設定ファイルが判断フックのものでなければ、登録だけを外してファイルは残します。設定ファイルが別の`--settings`の登録に使われているときも、登録だけを外してファイルは残します。`--config`をつけて登録したときは、外すときも同じ`--config`をつけます。ほかのフックと設定は残ります。2つ目は、この端末に保存したログインを消します。
+1つ目はClaude Codeの設定から判断フックだけを外し、フックの設定ファイルを消します。外すのは、このコマンドが同じ設定ファイルで登録したものだけです。その登録が見つからないときは、何も変えずに失敗します。`--config`にフックの設定ファイルへのシンボリックリンクを渡したときは、リンク先の設定ファイルを消し、リンクは残します。設定ファイルが判断フックのものでなければ、登録だけを外してファイルは残します。設定ファイルが別の`--settings`の登録に使われているときも、登録だけを外してファイルは残します。`--config`をつけて登録したときは、外すときも同じ`--config`をつけます。ほかのフックと設定は残ります。2つ目は、この端末に保存したログインを消します。
 
 一時的に止めたいだけなら、`BRAINBASE_CLAUDE_JUDGMENT_HOOK=disabled`をつけてClaude Codeを起動します。
 

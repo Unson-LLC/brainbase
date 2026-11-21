@@ -48,7 +48,7 @@ function host(output: (body: Record<string, unknown>) => Record<string, unknown>
 
 async function writeConfig(path: string, fields: Record<string, unknown>): Promise<string> {
   await writeFile(path, JSON.stringify({
-    schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, origin: 'https://a.example.net',
+    schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, origin: 'https://a.example.net', login_server: 'https://api.example.net',
     registration: { id: REG, settings: '/home/me/.claude/settings.json' }, ...fields,
   }));
   return path;
@@ -70,7 +70,7 @@ function capture() {
 }
 
 const install = (settings: string, config: string, extra: string[] = []) => runCli(['judgment:install', '--target', 'claude-code',
-  '--origin', 'https://a.example.net', '--settings', settings, '--config', config, ...extra], capture().io);
+  '--origin', 'https://a.example.net', '--server', 'https://api.example.net', '--settings', settings, '--config', config, ...extra], capture().io);
 
 function commandsOf(settings: Record<string, unknown>, event = 'UserPromptSubmit'): string[] {
   const groups = ((settings.hooks ?? {}) as Record<string, Array<{ hooks: Array<{ command: string }> }>>)[event] ?? [];
@@ -202,7 +202,7 @@ describe('a failed settings write', () => {
     const before = await readFile(config, 'utf8');
     await chmod(join(dir, 'claude'), 0o500);
     try {
-      expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'https://b.example.net',
+      expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'https://b.example.net', '--server', 'https://api.example.net',
         '--settings', settings, '--config', config], capture().io)).toBe(1);
     } finally {
       await chmod(join(dir, 'claude'), 0o700);

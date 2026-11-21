@@ -29,6 +29,12 @@ export interface ClaudeCodeHookConfig {
   schema_version: typeof CLAUDE_CODE_HOOK_CONFIG_SCHEMA;
   /** Origin of the hosted MCP that serves /host/judgment/hook. */
   origin: string;
+  /**
+   * Origin of the Brainbase API the person logged in to for this Host. The
+   * hook sends the saved login's token only when that login is for this
+   * server, so a login to another environment never reaches this Host.
+   */
+  login_server: string;
   /** Sent as x-brainbase-project-code. Omit to let the Host decide. */
   project_code?: string;
   /**
@@ -114,13 +120,16 @@ export function readClaudeCodeHookConfig(path: string): ClaudeCodeHookConfig | n
   }
   const value = parsed as Partial<ClaudeCodeHookConfig> | null;
   if (!value || value.schema_version !== CLAUDE_CODE_HOOK_CONFIG_SCHEMA || typeof value.origin !== 'string') return null;
+  // Without the login it belongs to, no saved token may be sent.
+  if (typeof value.login_server !== 'string' || !value.login_server) return null;
   let repositories: string[] | undefined;
   if (value.repositories !== undefined) {
     // A list that cannot be read must not widen into "audit everything".
     if (!Array.isArray(value.repositories)) return null;
     repositories = [];
     for (const entry of value.repositories) {
-      const normalized = typeof entry === 'string' ? normalizeRepositoryEntry(entry) : null;
+      // Already an identifier: read as is, so a name ending in `.git` stays whole.
+      const normalized = typeof entry === 'string' ? canonicalRepositoryIdentifier(entry) : null;
       if (!normalized) return null;
       repositories.push(normalized);
     }
@@ -131,6 +140,7 @@ export function readClaudeCodeHookConfig(path: string): ClaudeCodeHookConfig | n
   return {
     schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA,
     origin: value.origin,
+    login_server: value.login_server,
     registration: { id: registration.id, settings: registration.settings },
     ...(typeof value.project_code === 'string' && value.project_code ? { project_code: value.project_code } : {}),
     // An empty list stays empty: it audits no repository, it never means all.
@@ -168,7 +178,17 @@ const CASE_INSENSITIVE_PATH_HOSTS = new Set(['github.com']);
  * owner or host.
  */
 export function normalizeRepositoryEntry(entry: string): string | null {
-  const value = entry.trim().replace(/\.git$/iu, '').replace(/\/+$/u, '');
+  // As in a remote URL, one trailing `.git` is the URL's, not the name's.
+  return canonicalRepositoryIdentifier(entry.trim().replace(/\/+$/u, '').replace(/\.git$/iu, ''));
+}
+
+/**
+ * A `host/owner/name` identifier in its one spelling: the host lowercased,
+ * the path lowercased only on a host whose paths ignore case. Nothing is
+ * stripped, so an identifier read back from the config stays the same.
+ */
+export function canonicalRepositoryIdentifier(entry: string): string | null {
+  const value = entry.trim().replace(/\/+$/u, '');
   const slash = value.indexOf('/');
   if (slash <= 0) return null;
   const host = value.slice(0, slash).toLowerCase();
@@ -777,8 +797,15 @@ export async function handleClaudeCodeJudgmentHook(
       env,
       config,
       fetch: options.fetch ?? fetch,
-      accessToken: options.accessToken
-        ?? (async () => (await getAccessToken({ fetch: options.fetch, ...options.credentials })).token),
+      accessToken: options.accessToken ?? (async () => {
+        const login = await getAccessToken({ fetch: options.fetch, ...options.credentials });
+        // A login to another environment (production instead of staging, say)
+        // must not reach this Host.
+        if (login.serverUrl !== config.login_server) {
+          throw Object.assign(new Error('login_origin_mismatch'), { code: 'login_origin_mismatch' });
+        }
+        return login.token;
+      }),
       scope: eventRepository(payload),
       configPath,
     };

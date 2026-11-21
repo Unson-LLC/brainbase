@@ -52,7 +52,7 @@ function host() {
 
 async function hookConfig(path: string, fields: Record<string, unknown>): Promise<string> {
   await mkdir(join(path, '..'), { recursive: true });
-  await writeFile(path, JSON.stringify({ schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, registration: REGISTRATION, ...fields }));
+  await writeFile(path, JSON.stringify({ schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, login_server: 'https://api.example.net', registration: REGISTRATION, ...fields }));
   return path;
 }
 
@@ -129,7 +129,7 @@ describe('an empty repository list audits nothing', () => {
     const dir = await tempDir();
     for (const value of ['', ',', ' , ']) {
       const out = capture();
-      expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'https://mcp.example.net',
+      expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'https://mcp.example.net', '--server', 'https://api.example.net',
         '--repositories', value, '--settings', join(dir, 'settings.json'), '--config', join(dir, 'hook.json')], out.io)).toBe(1);
       expect(out.stderr()).toContain('--repositories');
     }
@@ -153,7 +153,7 @@ describe('the installer only touches files it owns', () => {
     const notes = join(dir, 'notes.json');
     await writeFile(notes, '{"todo": ["keep me"]}\n');
     const out = capture();
-    expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'https://mcp.example.net',
+    expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'https://mcp.example.net', '--server', 'https://api.example.net',
       '--settings', settings, '--config', notes], out.io)).toBe(1);
     expect(out.stderr()).toContain('not a brainbase hook config');
     expect(await readFile(notes, 'utf8')).toBe('{"todo": ["keep me"]}\n');
@@ -200,7 +200,7 @@ describe('origin remote parsing', () => {
 describe('one hook config belongs to one registration', () => {
   async function install(settings: string, config: string, origin: string, extra: string[] = []) {
     const out = capture();
-    const code = await runCli(['judgment:install', '--target', 'claude-code', '--origin', origin,
+    const code = await runCli(['judgment:install', '--target', 'claude-code', '--origin', origin, '--server', 'https://api.example.net',
       '--settings', settings, '--config', config, ...extra], out.io);
     return { code, out };
   }
@@ -315,7 +315,7 @@ describe('repository paths keep their case where the host tells them apart', () 
     const dir = await tempDir();
     const config = join(dir, 'hook.json');
     const out = capture();
-    expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'https://a.example.net',
+    expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'https://a.example.net', '--server', 'https://api.example.net',
       '--repositories', 'Git.Example.org/Team/App,GitHub.com/Acme/App', '--settings', join(dir, 'settings.json'), '--config', config], out.io)).toBe(0);
     expect(JSON.parse(await readFile(config, 'utf8')).repositories).toEqual(['git.example.org/Team/App', 'github.com/acme/app']);
   });
@@ -331,7 +331,7 @@ describe('a settings file that is a symbolic link', () => {
     await writeFile(shared, JSON.stringify({ permissions: { allow: ['Read'] } }));
     await symlink(shared, settings);
     const config = join(dir, 'hook.json');
-    expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'https://a.example.net',
+    expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'https://a.example.net', '--server', 'https://api.example.net',
       '--settings', settings, '--config', config], capture().io)).toBe(0);
     expect((await lstat(settings)).isSymbolicLink()).toBe(true);
     expect(JSON.parse(await readFile(shared, 'utf8')).hooks.Stop).toHaveLength(1);
@@ -345,7 +345,7 @@ describe('a settings file that is a symbolic link', () => {
     const settings = join(dir, 'settings.json');
     await symlink(join(dir, 'missing.json'), settings);
     const out = capture();
-    expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'https://a.example.net',
+    expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'https://a.example.net', '--server', 'https://api.example.net',
       '--settings', settings, '--config', join(dir, 'hook.json')], out.io)).toBe(1);
     expect(out.stderr()).toContain('symbolic link');
     expect((await lstat(settings)).isSymbolicLink()).toBe(true);

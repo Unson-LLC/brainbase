@@ -67,7 +67,7 @@ async function setup(config: Partial<ClaudeCodeHookConfig> | null = {}) {
   if (config) {
     await mkdir(join(home, '.brainbase'), { recursive: true });
     await writeFile(join(home, '.brainbase', 'claude-code-judgment-hook.json'), JSON.stringify({
-      schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, origin: 'https://mcp.example.net', registration: REGISTRATION, ...config,
+      schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, origin: 'https://mcp.example.net', login_server: 'https://api.example.net', registration: REGISTRATION, ...config,
     }));
   }
   const env = { HOME: home } as NodeJS.ProcessEnv;
@@ -186,7 +186,7 @@ describe('handleClaudeCodeJudgmentHook', () => {
     const { home, repo, env } = await setup(null);
     const config = join(home, 'elsewhere', 'hook.json');
     await mkdir(join(home, 'elsewhere'));
-    await writeFile(config, JSON.stringify({ schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, origin: 'https://other.example.net', registration: REGISTRATION }));
+    await writeFile(config, JSON.stringify({ schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, origin: 'https://other.example.net', login_server: 'https://api.example.net', registration: REGISTRATION }));
     const { fetchImpl, sent } = host();
     await handleClaudeCodeJudgmentHook(
       { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: repo },
@@ -332,7 +332,7 @@ describe('repository identity', () => {
     const env = { HOME: root } as NodeJS.ProcessEnv;
     await mkdir(join(root, '.brainbase'));
     await writeFile(join(root, '.brainbase', 'claude-code-judgment-hook.json'), JSON.stringify({
-      schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, origin: 'https://mcp.example.net', registration: REGISTRATION,
+      schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, origin: 'https://mcp.example.net', login_server: 'https://api.example.net', registration: REGISTRATION,
     }));
     await handleClaudeCodeJudgmentHook(
       { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: root },
@@ -428,7 +428,7 @@ describe('judgment:install --target claude-code', () => {
     await writeFile(settings, JSON.stringify({ permissions: { allow: ['Read'] } }));
     const out = capture();
     expect(await runCli([
-      'judgment:install', '--target', 'claude-code', '--origin', 'https://mcp.example.net/mcp',
+      'judgment:install', '--target', 'claude-code', '--origin', 'https://mcp.example.net/mcp', '--server', 'https://api.example.net',
       '--repositories', 'github.com/Acme/growin-app,github.com/acme/growin-api', '--settings', settings, '--config', config,
     ], out.io)).toBe(0);
     const written = JSON.parse(await readFile(settings, 'utf8'));
@@ -436,7 +436,7 @@ describe('judgment:install --target claude-code', () => {
     expect(installedHookConfigPath(written.hooks.UserPromptSubmit[0].hooks[0])).toBe(config);
     const savedConfig = JSON.parse(await readFile(config, 'utf8'));
     expect(savedConfig).toEqual({
-      schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, origin: 'https://mcp.example.net',
+      schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, origin: 'https://mcp.example.net', login_server: 'https://api.example.net',
       repositories: ['github.com/acme/growin-app', 'github.com/acme/growin-api'],
       registration: { id: expect.stringMatching(/^[a-f0-9]{32}$/u), settings: await realpath(settings) },
     });
@@ -458,7 +458,7 @@ describe('judgment:install --target claude-code', () => {
     for (const config of [settings, join(dir, 'alias', 'settings.json'), join(dir, 'claude', '..', 'claude', 'settings.json')]) {
       for (const extra of [[], ['--remove']]) {
         const out = capture();
-        expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'https://mcp.example.net',
+        expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'https://mcp.example.net', '--server', 'https://api.example.net',
           '--settings', settings, '--config', config, ...extra], out.io)).toBe(1);
         expect(out.stderr()).toContain('different files');
       }
@@ -466,7 +466,7 @@ describe('judgment:install --target claude-code', () => {
     expect(await readFile(settings, 'utf8')).toBe(original);
 
     const bare = capture();
-    expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'https://mcp.example.net',
+    expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'https://mcp.example.net', '--server', 'https://api.example.net',
       '--repositories', 'growin-app', '--settings', settings, '--config', join(dir, 'hook.json')], bare.io)).toBe(1);
     expect(bare.stderr()).toContain('host/owner/name');
   });
@@ -475,7 +475,7 @@ describe('judgment:install --target claude-code', () => {
     const dir = await tempDir();
     const settings = join(dir, 'settings.json');
     const out = capture();
-    expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'https://mcp.example.net', '--project', 'growin',
+    expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'https://mcp.example.net', '--server', 'https://api.example.net', '--project', 'growin',
       '--settings', settings, '--config', join(dir, 'hook.json'), '--dry-run'], out.io)).toBe(0);
     expect(JSON.parse(out.stdout()).config).toMatchObject({ origin: 'https://mcp.example.net', project_code: 'growin' });
     await expect(readFile(settings, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
@@ -484,7 +484,7 @@ describe('judgment:install --target claude-code', () => {
     expect(await runCli(['judgment:install', '--target', 'claude-code', '--settings', settings], missing.io)).toBe(1);
     expect(missing.stderr()).toContain('--origin');
     const unsafe = capture();
-    expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'http://mcp.example.net', '--settings', settings], unsafe.io)).toBe(1);
+    expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'http://mcp.example.net', '--server', 'https://api.example.net', '--settings', settings], unsafe.io)).toBe(1);
   });
 
   it('the hook command answers with valid JSON and exit 0 even for broken input', async () => {
