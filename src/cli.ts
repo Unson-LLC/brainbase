@@ -261,13 +261,24 @@ async function judgmentInstall(parsed: ParsedArgs, io: CliIo): Promise<number> {
   return 0;
 }
 
+/**
+ * An option the user typed must carry a value. parseArgs turns `--opt` with no
+ * value (or `--opt ''`) into a bare flag; falling back to the default there would
+ * act on a path or server the user did not choose (logout would delete the
+ * default login). Stop before touching any file or the network.
+ */
+function explicitValue(parsed: ParsedArgs, key: string, hint: string): string | undefined {
+  if (parsed.flags.has(key)) throw new Error(`--${key} には値が要ります（${hint}）。何も変えずに止めました。`);
+  return first(parsed, key);
+}
+
 function credentialsPathOf(parsed: ParsedArgs): string {
-  return first(parsed, 'credentials') ?? defaultCredentialsPath();
+  return explicitValue(parsed, 'credentials', '--credentials <path>') ?? defaultCredentialsPath();
 }
 
 async function login(parsed: ParsedArgs, io: CliIo): Promise<number> {
   const credentialsPath = credentialsPathOf(parsed);
-  const serverUrl = first(parsed, 'server') ?? (await readCredentials(credentialsPath).catch(() => null))?.server_url;
+  const serverUrl = explicitValue(parsed, 'server', '--server <url>') ?? (await readCredentials(credentialsPath).catch(() => null))?.server_url;
   if (!serverUrl) throw new Error('login requires --server <url> (your Brainbase API URL)');
   const credentials = await loginWithDeviceCode({
     serverUrl,

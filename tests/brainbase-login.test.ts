@@ -424,6 +424,43 @@ describe('login CLI', () => {
     expect(out.stderr()).toContain('--server');
   });
 
+  describe('an explicit --credentials without a value', () => {
+    let savedEnv: string | undefined;
+    afterEach(() => {
+      if (savedEnv === undefined) delete process.env.BRAINBASE_CREDENTIALS_FILE;
+      else process.env.BRAINBASE_CREDENTIALS_FILE = savedEnv;
+    });
+
+    async function defaultLogin(): Promise<string> {
+      const path = await credentialsFile();
+      savedEnv = process.env.BRAINBASE_CREDENTIALS_FILE;
+      process.env.BRAINBASE_CREDENTIALS_FILE = path;
+      await writeCredentials(path, {
+        schema_version: CREDENTIALS_SCHEMA_VERSION, login_id: 'login-default', server_url: 'https://api.example.net',
+        access_token: 'fake-access', refresh_token: 'fake-refresh', expires_at: '2099-01-01T00:00:00.000Z',
+      });
+      return path;
+    }
+
+    for (const argv of [
+      ['logout', '--credentials'],
+      ['logout', '--credentials', ''],
+      ['logout', '--credentials', '--server', 'https://api.example.net'],
+      ['login:status', '--credentials'],
+      ['login', '--credentials', '--server', 'https://api.example.net'],
+      ['login', '--server', '--credentials', '/tmp/unused-brainbase-credentials.json'],
+    ]) {
+      it(`refuses ${JSON.stringify(argv)} and leaves the default login alone`, async () => {
+        const path = await defaultLogin();
+        const out = capture();
+        expect(await runCli(argv, out.io)).toBe(1);
+        expect(out.stderr()).toMatch(/--(credentials|server) には値が要ります/);
+        expect(out.stdout()).toBe('');
+        expect(await readCredentials(path)).toMatchObject({ login_id: 'login-default' });
+      });
+    }
+  });
+
   it('refuses an unsafe server before sending anything', async () => {
     const path = await credentialsFile();
     const out = capture();
