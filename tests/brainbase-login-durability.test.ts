@@ -1,5 +1,5 @@
 import * as realFs from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -50,9 +50,14 @@ function jwt(expSeconds: number): string {
   return `${part({ alg: 'HS256', typ: 'JWT' })}.${part({ sub: 'person-1', exp: expSeconds })}.signature`;
 }
 
-async function run() {
+async function newRoot(): Promise<string> {
   const root = await realFs.mkdtemp(join(tmpdir(), 'brainbase-login-sync-'));
   dirs.push(root);
+  return root;
+}
+
+async function run(existingRoot?: string) {
+  const root = existingRoot ?? await newRoot();
   const path = join(root, 'a', 'b', 'credentials.json');
   const calls: string[] = [];
   const fetchImpl = (async (input: string | URL) => {
@@ -79,6 +84,28 @@ describe('receipt only after the login is durable', () => {
     await result;
     expect(syncFailure.synced).toEqual(expect.arrayContaining([root, join(root, 'a'), join(root, 'a', 'b')]));
     expect(calls).toContain('/api/auth/device/received');
+  });
+
+  it('flushes the directories above it even when they already exist', async () => {
+    const root = await newRoot();
+    // Made a moment ago by another brainbase process, which has not flushed them yet.
+    await realFs.mkdir(join(root, 'a', 'b'), { recursive: true });
+    const { calls, result } = await run(root);
+    await result;
+    expect(syncFailure.synced).toEqual(expect.arrayContaining([join(root, 'a', 'b'), join(root, 'a'), root, dirname(root)]));
+    expect(calls).toContain('/api/auth/device/received');
+  });
+
+  it('after a save whose flush failed, the next login flushes the directories it left before the receipt', async () => {
+    syncFailure.code = 'EIO';
+    const first = await run();
+    await expect(first.result).rejects.toMatchObject({ code: 'login_save_failed' });
+    syncFailure.code = undefined;
+    syncFailure.synced = [];
+    const second = await run(first.root);
+    await second.result;
+    expect(syncFailure.synced).toEqual(expect.arrayContaining([join(first.root, 'a'), first.root]));
+    expect(second.calls).toContain('/api/auth/device/received');
   });
 
   it('sends no receipt and fails when flushing the directory hits an I/O error', async () => {

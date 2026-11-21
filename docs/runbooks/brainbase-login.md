@@ -25,20 +25,25 @@ brainbase logout         # removes the saved login from this machine
 - `refresh_token`: present when the server issues one.
 - `expires_at`: taken from the token's `exp`, or from `expires_in`.
 
-The file is written to a temporary file, flushed to disk, renamed, and the directory is flushed too. A directory created for the file is also flushed in its parent. The receipt goes to the server only after all of that succeeded. An I/O error while flushing fails the login with `login_save_failed` and sends no receipt. On a platform or file system that cannot flush directories (Windows, some network file systems), the login is kept but no receipt is sent; the server then lets the code expire on its own.
+The file is written to a temporary file, flushed to disk, and renamed. Then its directory is flushed, and so is each directory above it, up to and including the first one that this user does not own (for `~/.brainbase/credentials.json`: `~/.brainbase`, `~`, `/home`). This happens on every save, even when the directories already existed: another process may have just created them, or an earlier save may have failed to flush them. The receipt goes to the server only after all of that succeeded. An I/O error while flushing fails the login with `login_save_failed` and sends no receipt. On a platform or file system that cannot flush directories (Windows, some network file systems), the login is kept but no receipt is sent; the server then lets the code expire on its own.
 
-`getAccessToken` returns the stored token while it has more than a minute left. Otherwise it calls `POST /api/auth/refresh`. A login without a refresh token is used until it actually expires.
+`getAccessToken` returns the stored token while it has more than a minute left. Otherwise it gets a CSRF token from `GET /api/csrf-token` and calls `POST /api/auth/refresh` with it, the same way the organization client does. The API keeps CSRF tokens in each server process, so a refusal of the CSRF token is asked once more with a new one, and otherwise reported as `login_refresh_unavailable` (the refresh token still works). A login without a refresh token is used until it actually expires.
 
 Login, logout and renewal take a lock file next to the credentials (`credentials.json.lock`). A renewal holds it from its request to its write-back. A logout or another login started meanwhile waits for the renewal and then wins. A second renewal waits too, then uses the token the first one stored without calling the server. Under the lock, a renewal goes ahead only when the file still holds the same login (same `login_id` and server); otherwise it fails with `login_changed`. A token from a different login is never handed out.
 
-The lock file holds a random id of its holder. The holder touches it every 2 seconds while it works. Another process takes the lock over only when it was not touched for 10 seconds (its holder died). Only the holder removes the lock. Right before replacing the credentials file, a write checks the lock still carries its id; if not, it writes nothing and fails with `login_lock_lost`. A waiter gives up after 20 seconds with `login_busy`.
+The lock file holds a random id of its holder, its process id and the host name. It is created with that content in one step, and only its holder removes it. Another process removes it only when the holder's process no longer runs on this machine, so a holder keeps the lock for as long as it works, through every read, write and removal of the credentials file. Before removing a dead holder's lock, a process takes a takeover lock named after what it read, then reads the lock again and removes it only when it is unchanged; two processes taking over the same dead lock never remove the new lock of a third. A lock held from another machine (a shared home directory) is never taken over: the waiter fails with `login_busy` and names the host. A waiter gives up after 35 seconds with `login_busy`. Right before replacing the credentials file, a write checks the lock still carries its id; if something outside brainbase replaced it, it writes nothing and fails with `login_lock_lost`.
+
+While polling, the CLI checks the code's expiry again after each wait, so a longer wait after `slow_down` does not send a request past the expiry.
 
 ## Server contract
 
 - `POST /api/auth/device/code` with `{ code_verifier, receipt_required: true }` → `{ device_code, user_code?, verification_uri, verification_uri_complete?, expires_in, interval }`
 - `POST /api/auth/device/token` with `{ device_code, code_verifier }` → `{ access_token, refresh_token?, expires_in?, receipt_token? }`, or 400 `authorization_pending` / `slow_down` / `expired_token` / `invalid_grant`, or 403 `access_denied`; a 5xx is retried until the code expires
 - `POST /api/auth/device/received` with `{ device_code, receipt_token }`
-- `POST /api/auth/refresh` with `{ refresh_token }` → `{ token, refresh_token? }`; 503 means try again later
+- `GET /api/csrf-token` with `x-session-id` → `{ token }`; a 404 means the server has no CSRF check, and the refresh goes without these headers
+- `POST /api/auth/refresh` with `{ refresh_token }` and the headers `x-session-id` and `x-csrf-token` → `{ token, refresh_token? }`; 503, or 403 with a CSRF message, means try again later
+
+The device-flow paths (`/api/auth/device/*`) need no CSRF token.
 
 Only HTTPS servers are accepted, plus HTTP on localhost for local development.
 
