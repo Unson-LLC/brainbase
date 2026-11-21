@@ -146,7 +146,7 @@ describe('receipt only after the login is durable', () => {
 });
 
 const SAVED = {
-  schema_version: 1,
+  schema_version: 'brainbase-credentials-v1',
   login_id: 'login-1',
   server_url: 'https://api.example.net',
   access_token: jwt(NOW / 1000 + 3600),
