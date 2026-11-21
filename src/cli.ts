@@ -64,6 +64,7 @@ import { applyCanonicalWrites, buildCanonicalEdge } from './canonical-edge-build
 import { defaultJudgmentJournalRoot } from './judgment-value-proof-review.js';
 import { createWorldExtension, readWorldVocabulary } from './world-extension.js';
 import { createLocalWebHost, LOCAL_WEB_DEFAULT_PORT } from './local-web-host.js';
+import { assertCredentialsFilePath, BrainbaseLoginError, defaultCredentialsPath, loginWithDeviceCode, readCredentials, removeCredentials } from './brainbase-login.js';
 import type { CanonicalEntity, DecisionRecord, PersonalKgEntry, PersonalOs, RelationshipRecord } from './types.js';
 
 interface CliIo {
@@ -162,6 +163,12 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
         return await judgmentHook(parsed, io);
       case 'judgment:install':
         return await judgmentInstall(parsed, io);
+      case 'login':
+        return await login(parsed, io);
+      case 'login:status':
+        return await loginStatus(parsed, io);
+      case 'logout':
+        return await logout(parsed, io);
       case 'doctor':
         return await doctor(parsed, io);
       case 'web:serve':
@@ -251,6 +258,88 @@ async function judgmentInstall(parsed: ParsedArgs, io: CliIo): Promise<number> {
   await mkdir(dirname(outputPath), { recursive: true });
   await writeConfigSnippet(outputPath, payload);
   write(io, `Wrote Codex Judgment Host config snippet to ${outputPath}\n`);
+  return 0;
+}
+
+/**
+ * An option the user typed must carry a value. parseArgs turns `--opt` with no
+ * value (or `--opt ''`) into a bare flag; falling back to the default there would
+ * act on a path or server the user did not choose (logout would delete the
+ * default login). Stop before touching any file or the network.
+ */
+function explicitValue(parsed: ParsedArgs, key: string, hint: string): string | undefined {
+  if (parsed.flags.has(key)) throw new Error(`--${key} には値が要ります（${hint}）。何も変えずに止めました。`);
+  // parseArgs keeps `--opt=value` whole as the key `opt=value`, so the option
+  // would look absent and the default would be used. Refuse that spelling.
+  const prefix = `${key}=`;
+  if ([...parsed.flags, ...parsed.values.keys()].some((name) => name.startsWith(prefix))) {
+    throw new Error(`--${key}=… の形は使えません。${hint} のように空白で区切ってください。何も変えずに止めました。`);
+  }
+  return first(parsed, key);
+}
+
+function credentialsPathOf(parsed: ParsedArgs): string {
+  const path = explicitValue(parsed, 'credentials', '--credentials <path>') ?? defaultCredentialsPath();
+  assertCredentialsFilePath(path);
+  return path;
+}
+
+async function login(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const credentialsPath = credentialsPathOf(parsed);
+  const serverUrl = explicitValue(parsed, 'server', '--server <url>') ?? (await readCredentials(credentialsPath).catch(() => null))?.server_url;
+  if (!serverUrl) throw new Error('login requires --server <url> (your Brainbase API URL)');
+  const credentials = await loginWithDeviceCode({
+    serverUrl,
+    credentialsPath,
+    onPrompt: (prompt) => {
+      write(io, [
+        'ブラウザで次の URL を開き、ログインして承認してください。',
+        `  URL: ${prompt.verificationUriComplete ?? prompt.verificationUri}`,
+        ...(prompt.userCode ? [`  コード: ${prompt.userCode}`] : []),
+        `  期限: ${Math.round(prompt.expiresInSeconds / 60)} 分`,
+        '承認を待っています...',
+        ''
+      ].join('\n'));
+    }
+  });
+  write(io, `ログインしました（${credentials.server_url}）。保存先: ${credentialsPath}\n`);
+  return 0;
+}
+
+async function loginStatus(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const credentialsPath = credentialsPathOf(parsed);
+  const credentials = await readCredentials(credentialsPath);
+  if (!credentials) {
+    write(io, 'ログインしていません。brainbase login --server <url> を実行してください。\n');
+    return 1;
+  }
+  const expired = Date.parse(credentials.expires_at) <= Date.now();
+  write(io, [
+    `サーバー: ${credentials.server_url}`,
+    `token の期限: ${credentials.expires_at}${expired ? '（切れています）' : ''}`,
+    `自動の更新: ${credentials.refresh_token ? 'できる' : 'できない（期限が来たら brainbase login をやり直す）'}`,
+    `保存先: ${credentialsPath}`,
+    ''
+  ].join('\n'));
+  return 0;
+}
+
+async function logout(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const credentialsPath = credentialsPathOf(parsed);
+  let removed;
+  try {
+    removed = await removeCredentials(credentialsPath);
+  } catch (error) {
+    if (error instanceof BrainbaseLoginError) throw error; // login_busy and the like say what to do.
+    // The file may be gone in memory but not on disk: do not report a logout.
+    const code = (error as NodeJS.ErrnoException)?.code ?? 'error';
+    writeError(io, `ログインを消したことを、ディスクに書き切れませんでした（${code}）。brainbase logout をやり直してください。\n`);
+    return 1;
+  }
+  write(io, removed.existed ? `この端末のログインを消しました（${credentialsPath}）。\n` : 'ログインはありませんでした。\n');
+  if (!removed.durable) {
+    writeError(io, 'この環境ではディレクトリをディスクに書き切れないため、電源が落ちると消したログインが戻ることがあります。\n');
+  }
   return 0;
 }
 
@@ -1351,6 +1440,9 @@ function usage(): string {
   brainbase ontology:migrate [--dir path] [--write --expected-input-digest digest]
   brainbase judgment:install --target codex [--autonomy-mode off|canary|on] [--autonomy-project code] [--dry-run] [--output path]
   brainbase judgment:hook [--autonomy-mode off|canary|on] [--autonomy-project code]
+  brainbase login --server url [--credentials path]
+  brainbase login:status [--credentials path]
+  brainbase logout [--credentials path]
   brainbase doctor [--dir path] [--judgment-hooks path]
   brainbase web:serve [--dir path] [--journal path] [--port n] [--world [--world-vocabulary file]]
   brainbase review:serve [--dir path] [--journal path] [--port n]  （web:serveの別名）
