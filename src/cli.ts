@@ -306,7 +306,36 @@ async function judgmentClaudeCodeHook(parsed: ParsedArgs, io: CliIo): Promise<nu
 
 const HOOK_PROJECT_CODE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/u;
 
+// Every option judgment:install --target claude-code reads. Anything else
+// (a typo, or `--opt=value`, which parseArgs keeps whole as the key
+// `opt=value`) would be ignored silently and widen what gets audited or write
+// where a preview was meant, so it is refused before any file is touched.
+const CLAUDE_CODE_INSTALL_VALUE_OPTIONS = new Set(['target', 'settings', 'config', 'origin', 'server', 'project', 'repositories']);
+const CLAUDE_CODE_INSTALL_SWITCHES = new Set(['remove', 'dry-run']);
+
+function assertClaudeCodeInstallOptions(parsed: ParsedArgs): void {
+  for (const name of [...parsed.flags, ...parsed.values.keys()]) {
+    if (CLAUDE_CODE_INSTALL_VALUE_OPTIONS.has(name) || CLAUDE_CODE_INSTALL_SWITCHES.has(name)) continue;
+    const base = name.split('=')[0] ?? name;
+    if (base !== name && (CLAUDE_CODE_INSTALL_VALUE_OPTIONS.has(base) || CLAUDE_CODE_INSTALL_SWITCHES.has(base))) {
+      const hint = CLAUDE_CODE_INSTALL_SWITCHES.has(base) ? `--${base}` : `--${base} <値>`;
+      throw new Error(`--${base}=… の形は使えません。${hint} のように書いてください。何も変えずに止めました。`);
+    }
+    throw new Error(`judgment:install --target claude-code は --${name} を知りません。何も変えずに止めました。`);
+  }
+  for (const name of CLAUDE_CODE_INSTALL_SWITCHES) {
+    // `--dry-run true` would leave dry-run unset and write for real.
+    if (parsed.values.has(name)) throw new Error(`--${name} は値をとりません（--${name} だけを書きます）。何も変えずに止めました。`);
+  }
+  for (const name of CLAUDE_CODE_INSTALL_VALUE_OPTIONS) {
+    if (name !== 'repositories' && (parsed.values.get(name)?.length ?? 0) > 1) {
+      throw new Error(`--${name} は1回だけ書けます。何も変えずに止めました。`);
+    }
+  }
+}
+
 async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  assertClaudeCodeInstallOptions(parsed);
   // `--opt=value` or a bare `--opt` would otherwise fall back to the default
   // settings or config, and --remove would edit a file the user did not name.
   const settingsPath = resolve(explicitValue(parsed, 'settings', '--settings <path>')
@@ -328,8 +357,12 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
   if (!remove) {
     const origin = explicitValue(parsed, 'origin', '--origin <hosted MCP URL>');
     if (!origin) throw new Error('judgment:install --target claude-code requires --origin <hosted MCP URL>');
-    const projectCode = first(parsed, 'project')?.trim();
-    if (projectCode && !HOOK_PROJECT_CODE_PATTERN.test(projectCode)) throw new Error('judgment:install --project must match [a-z0-9][a-z0-9._-]{0,63}');
+    // A bare, empty or blank --project would drop the project and let the Host
+    // pick one; leave the option out for that instead.
+    const projectValue = explicitValue(parsed, 'project', '--project <code>');
+    const projectCode = projectValue?.trim();
+    if (projectValue !== undefined && !HOOK_PROJECT_CODE_PATTERN.test(projectCode ?? '')) throw new Error('judgment:install --project must match [a-z0-9][a-z0-9._-]{0,63}');
+    explicitValue(parsed, 'repositories', '--repositories <host/owner/name,...>');
     const repositoryValues = parsed.values.get('repositories');
     const repositories = (repositoryValues ?? [])
       .flatMap((value) => value.split(',')).map((name) => name.trim()).filter(Boolean)
