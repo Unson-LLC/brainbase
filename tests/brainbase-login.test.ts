@@ -101,11 +101,12 @@ describe('loginWithDeviceCode', () => {
     expect(ack).toEqual({ url: 'https://api.example.net/api/auth/device/received', body: { device_code: 'dev-1', receipt_token: 'receipt-1' } });
 
     expect(credentials).toEqual({
-      schema_version: CREDENTIALS_SCHEMA_VERSION, server_url: 'https://api.example.net',
+      schema_version: CREDENTIALS_SCHEMA_VERSION, login_id: expect.stringMatching(/^[0-9a-f]{32}$/u), server_url: 'https://api.example.net',
       access_token: access, refresh_token: 'refresh-1', expires_at: new Date(NOW + 3600_000).toISOString(),
     });
     expect(await readCredentials(path)).toEqual(credentials);
     expect((await stat(path)).mode & 0o777).toBe(0o600);
+    expect((await stat(join(path, '..'))).mode & 0o777).toBe(0o700);
     expect(JSON.parse(await readFile(path, 'utf8'))).not.toHaveProperty('receipt_token');
   });
 
@@ -123,6 +124,32 @@ describe('loginWithDeviceCode', () => {
       expect(await readCredentials(path)).toBeNull();
     });
   }
+
+  it('stores the login before the receipt goes out, and retries a passing server error while polling', async () => {
+    const path = await credentialsFile();
+    const access = jwt(NOW / 1000 + 3600);
+    let storedAtReceipt: unknown = 'not called';
+    const base = fakeServer({
+      '/api/auth/device/code': [{ status: 200, body: { device_code: 'dev-1', verification_uri: 'https://x.example/d', expires_in: 60, interval: 1 } }],
+      '/api/auth/device/token': [
+        { status: 500, body: { error: 'server_error' } },
+        { status: 200, body: { access_token: access, refresh_token: 'refresh-1', receipt_token: 'receipt-1' } },
+      ],
+      '/api/auth/device/received': [{ status: 200, body: { ok: true } }],
+    });
+    const fetchImpl = (async (input: string | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/api/auth/device/received')) {
+        storedAtReceipt = (await readCredentials(path))?.access_token;
+      }
+      return base.fetchImpl(input, init);
+    }) as typeof fetch;
+    const credentials = await loginWithDeviceCode({
+      serverUrl: 'https://api.example.net', credentialsPath: path, fetch: fetchImpl, now: () => NOW,
+      sleep: async () => {}, onPrompt: () => {},
+    });
+    expect(credentials.access_token).toBe(access);
+    expect(storedAtReceipt).toBe(access);
+  });
 
   it('says terminal login is unavailable on a server without the device flow', async () => {
     const { fetchImpl } = fakeServer({});
@@ -149,7 +176,7 @@ describe('getAccessToken', () => {
   async function saved(overrides: Partial<BrainbaseCredentials> = {}): Promise<string> {
     const path = await credentialsFile();
     await writeCredentials(path, {
-      schema_version: CREDENTIALS_SCHEMA_VERSION, server_url: 'https://api.example.net',
+      schema_version: CREDENTIALS_SCHEMA_VERSION, login_id: 'login-1', server_url: 'https://api.example.net',
       access_token: 'old-access', refresh_token: 'refresh-1', expires_at: new Date(NOW + 3600_000).toISOString(),
       ...overrides,
     });
@@ -192,11 +219,66 @@ describe('getAccessToken', () => {
       .rejects.toMatchObject({ code: 'login_refresh_unavailable' });
   });
 
+  it('does not bring back a login that was logged out while the renewal was in flight', async () => {
+    const path = await saved({ expires_at: new Date(NOW - 1000).toISOString() });
+    const fresh = jwt(NOW / 1000 + 3600);
+    const fetchImpl = (async () => {
+      await removeCredentials(path);
+      return new Response(JSON.stringify({ token: fresh, refresh_token: 'refresh-2' }), { status: 200 });
+    }) as typeof fetch;
+    await expect(getAccessToken({ credentialsPath: path, fetch: fetchImpl, now: () => NOW }))
+      .rejects.toMatchObject({ code: 'login_changed' });
+    expect(await readCredentials(path)).toBeNull();
+  });
+
+  it('does not overwrite another login made while the renewal was in flight, nor hand out its token', async () => {
+    const path = await saved({ expires_at: new Date(NOW - 1000).toISOString() });
+    const other: BrainbaseCredentials = {
+      schema_version: CREDENTIALS_SCHEMA_VERSION, login_id: 'login-2', server_url: 'https://api.example.net',
+      access_token: 'other-person', refresh_token: 'refresh-x', expires_at: new Date(NOW + 3600_000).toISOString(),
+    };
+    const fetchImpl = (async () => {
+      await writeCredentials(path, other);
+      return new Response(JSON.stringify({ token: jwt(NOW / 1000 + 3600), refresh_token: 'refresh-2' }), { status: 200 });
+    }) as typeof fetch;
+    await expect(getAccessToken({ credentialsPath: path, fetch: fetchImpl, now: () => NOW }))
+      .rejects.toMatchObject({ code: 'login_changed' });
+    expect(await readCredentials(path)).toEqual(other);
+  });
+
+  it('after a failed renewal, ignores a fresh token that belongs to another login', async () => {
+    const path = await saved({ expires_at: new Date(NOW - 1000).toISOString() });
+    const fetchImpl = (async () => {
+      await writeCredentials(path, {
+        schema_version: CREDENTIALS_SCHEMA_VERSION, login_id: 'login-2', server_url: 'https://api.example.net',
+        access_token: 'other-person', refresh_token: 'refresh-x', expires_at: new Date(NOW + 3600_000).toISOString(),
+      });
+      return new Response(JSON.stringify({ error: 'Refresh failed' }), { status: 401 });
+    }) as typeof fetch;
+    await expect(getAccessToken({ credentialsPath: path, fetch: fetchImpl, now: () => NOW }))
+      .rejects.toMatchObject({ code: 'login_expired' });
+  });
+
+  it('refuses a saved server that would send the refresh token over plain http', async () => {
+    const path = await saved({ server_url: 'http://api.example.net', expires_at: new Date(NOW - 1000).toISOString() });
+    const { fetchImpl, calls } = fakeServer({});
+    await expect(getAccessToken({ credentialsPath: path, fetch: fetchImpl, now: () => NOW }))
+      .rejects.toMatchObject({ code: 'login_credentials_invalid' });
+    expect(calls).toEqual([]);
+  });
+
+  it('uses a token without a refresh token until it actually expires', async () => {
+    const path = await saved({ refresh_token: undefined, expires_at: new Date(NOW + 30_000).toISOString() });
+    expect(await getAccessToken({ credentialsPath: path, now: () => NOW })).toMatchObject({ token: 'old-access' });
+    await expect(getAccessToken({ credentialsPath: path, now: () => NOW + 31_000 }))
+      .rejects.toMatchObject({ code: 'login_expired' });
+  });
+
   it('uses a token another process stored while this one failed to renew', async () => {
     const path = await saved({ expires_at: new Date(NOW - 1000).toISOString() });
     const fetchImpl = (async () => {
       await writeCredentials(path, {
-        schema_version: CREDENTIALS_SCHEMA_VERSION, server_url: 'https://api.example.net',
+        schema_version: CREDENTIALS_SCHEMA_VERSION, login_id: 'login-1', server_url: 'https://api.example.net',
         access_token: 'other-process', refresh_token: 'refresh-2', expires_at: new Date(NOW + 3600_000).toISOString(),
       });
       return new Response(JSON.stringify({ error: 'Refresh failed' }), { status: 401 });
@@ -226,7 +308,7 @@ describe('login CLI', () => {
   it('shows the saved login without printing the token, and logout removes it', async () => {
     const path = await credentialsFile();
     await writeCredentials(path, {
-      schema_version: CREDENTIALS_SCHEMA_VERSION, server_url: 'https://api.example.net',
+      schema_version: CREDENTIALS_SCHEMA_VERSION, login_id: 'login-1', server_url: 'https://api.example.net',
       access_token: 'secret-access', refresh_token: 'secret-refresh', expires_at: '2099-01-01T00:00:00.000Z',
     });
     const status = capture();
