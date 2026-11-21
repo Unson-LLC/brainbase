@@ -10,7 +10,8 @@
 
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
-import { link, mkdir, open, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { constants as fsConstants } from 'node:fs';
+import { link, lstat, mkdir, open, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir, hostname } from 'node:os';
 import { basename, dirname, join, sep } from 'node:path';
 import { promisify } from 'node:util';
@@ -203,14 +204,41 @@ function expiryIso(token: string, expiresInSeconds: unknown, now: number): strin
 }
 
 export async function readCredentials(path = defaultCredentialsPath()): Promise<BrainbaseCredentials | null> {
-  assertCredentialsFilePath(path);
-  let text: string;
+  const text = await readCredentialsText(path);
+  return text === null ? null : parseCredentials(text, path);
+}
+
+/**
+ * The saved login's text, read from the same file that saves, locks and
+ * logout act on (see physicalPath); null when there is none. A saved login
+ * that is a symbolic link is refused, also when it is swapped in between.
+ */
+async function readCredentialsText(path: string): Promise<string | null> {
+  let target: string;
   try {
-    text = await readFile(path, 'utf8');
+    target = await physicalPath(path);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return null;
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return null; // Its folder is not there.
     throw error;
   }
+  let handle;
+  try {
+    handle = await open(target, fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0));
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException)?.code;
+    if (code === 'ENOENT') return null;
+    if (code === 'ELOOP') throw symbolicLinkRefused(path);
+    throw error;
+  }
+  try {
+    if (!(await handle.stat()).isFile()) throw notAFile(path);
+    return await handle.readFile('utf8');
+  } finally {
+    await handle.close();
+  }
+}
+
+function parseCredentials(text: string, path: string): BrainbaseCredentials {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
@@ -300,7 +328,34 @@ async function syncDirectoryChain(directory: string): Promise<boolean> {
  */
 async function physicalPath(path: string): Promise<string> {
   assertCredentialsFilePath(path);
-  return join(await realpath(dirname(path)), basename(path));
+  const target = join(await realpath(dirname(path)), basename(path));
+  await assertNotSymbolicLink(target, path);
+  return target;
+}
+
+/**
+ * The saved login itself must not be a symbolic link. Reading follows a link
+ * while rename() and rm() replace or remove the link itself, so a save would
+ * split the login into two files and a logout would leave the linked file
+ * behind with its tokens. Refused before anything is read, saved or removed.
+ */
+async function assertNotSymbolicLink(target: string, path: string): Promise<void> {
+  try {
+    if ((await lstat(target)).isSymbolicLink()) throw symbolicLinkRefused(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return;
+    throw error;
+  }
+}
+
+function symbolicLinkRefused(path: string): BrainbaseLoginError {
+  return new BrainbaseLoginError('login_credentials_path_symlink',
+    `The saved-login path is a symbolic link: ${JSON.stringify(path)}. Give the real file with --credentials. Nothing was changed.`);
+}
+
+function notAFile(path: string): BrainbaseLoginError {
+  return new BrainbaseLoginError('login_credentials_path_invalid',
+    `The saved-login path is not a file: ${JSON.stringify(path)}. Nothing was changed.`);
 }
 
 /**
@@ -625,15 +680,53 @@ export interface RemoveCredentialsResult {
 }
 
 /**
+ * Whether `path` holds a saved login that logout may remove: false when no
+ * file is there. A file that brainbase did not write (a mistyped
+ * --credentials naming some other file) or that cannot be read is refused,
+ * so logout never deletes it. A saved login that has become unusable still
+ * counts while it carries brainbase's schema_version, so the person can log
+ * out of a broken one.
+ */
+async function isSavedLogin(path: string): Promise<boolean> {
+  let text: string | null;
+  try {
+    text = await readCredentialsText(path);
+  } catch (error) {
+    if (error instanceof BrainbaseLoginError) throw error;
+    const code = (error as NodeJS.ErrnoException)?.code ?? 'error';
+    throw new BrainbaseLoginError('login_credentials_unreadable',
+      `The saved login could not be read (${code}): ${path}. Nothing was removed.`);
+  }
+  if (text === null) return false;
+  try {
+    parseCredentials(text, path);
+    return true;
+  } catch {
+    // Unusable: still ours if brainbase wrote it.
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    parsed = null;
+  }
+  if ((parsed as { schema_version?: unknown } | null)?.schema_version === CREDENTIALS_SCHEMA_VERSION) return true;
+  throw new BrainbaseLoginError('login_credentials_unrecognized',
+    `This file is not a saved brainbase login: ${path}. It was left as it is. Check --credentials.`);
+}
+
+/**
  * Removes the saved login and flushes the directory that held it, under the
  * lock, before this returns. Without the flush, a power loss right after a
  * logout could bring the old login back. The directory is flushed even when
  * no file was there, since an earlier logout may have stopped before its flush.
+ * Only a file that is a saved login is removed (see isSavedLogin); any other
+ * file is left as it is and `login_credentials_unrecognized` is thrown.
  */
 export async function removeCredentials(path = defaultCredentialsPath()): Promise<RemoveCredentialsResult> {
   assertCredentialsFilePath(path);
   return withCredentialsLock(path, async (lock) => {
-    const existed = (await readCredentials(path).catch(() => ({}))) !== null;
+    const existed = await isSavedLogin(path);
     // Remove and flush in the same, real directory (the lock made it exist).
     const target = await physicalPath(path);
     await lock.assertHeld();
