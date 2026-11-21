@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -10,6 +10,10 @@ import {
   repositoryIdentity,
 } from '../src/claude-code-judgment-hook.js';
 import { runCli } from '../src/cli.js';
+
+const REG = 'a'.repeat(32);
+const REGISTRATION = { id: REG, settings: '/home/me/.claude/settings.json' };
+const REGISTRATION_B = { id: 'b'.repeat(32), settings: '/home/me/.claude-work/settings.json' };
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -48,7 +52,7 @@ function host() {
 
 async function hookConfig(path: string, fields: Record<string, unknown>): Promise<string> {
   await mkdir(join(path, '..'), { recursive: true });
-  await writeFile(path, JSON.stringify({ schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, ...fields }));
+  await writeFile(path, JSON.stringify({ schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, registration: REGISTRATION, ...fields }));
   return path;
 }
 
@@ -65,7 +69,7 @@ describe('a turn keeps the destination it was opened with', () => {
     const repo = await checkout(home, 'app', withOrigin('git@github.com:acme/app.git'));
     const config = await hookConfig(join(home, 'hook.json'), { origin: 'https://a.example.net' });
     const { fetchImpl, sent } = host();
-    const options = { env: { HOME: home }, fetch: fetchImpl, accessToken: token, configPath: config };
+    const options = { env: { HOME: home }, fetch: fetchImpl, accessToken: token, registrationId: REG, configPath: config };
     await handleClaudeCodeJudgmentHook(submit(repo), options);
     await hookConfig(config, { origin: 'https://b.example.net', project_code: 'other' });
     expect(await handleClaudeCodeJudgmentHook(tool(repo), options)).toEqual({});
@@ -78,12 +82,12 @@ describe('a turn keeps the destination it was opened with', () => {
     const home = await tempDir();
     const repo = await checkout(home, 'app', withOrigin('git@github.com:acme/app.git'));
     const configA = await hookConfig(join(home, 'a.json'), { origin: 'https://a.example.net' });
-    const configB = await hookConfig(join(home, 'b.json'), { origin: 'https://b.example.net' });
+    const configB = await hookConfig(join(home, 'b.json'), { origin: 'https://b.example.net', registration: REGISTRATION_B });
     const { fetchImpl, sent } = host();
-    const base = { env: { HOME: home }, fetch: fetchImpl, accessToken: token };
+    const base = { env: { HOME: home }, fetch: fetchImpl, accessToken: token, registrationId: REG };
     for (const event of [submit(repo), tool(repo), stop(repo)]) {
       await handleClaudeCodeJudgmentHook(event, { ...base, configPath: configA });
-      await handleClaudeCodeJudgmentHook(event, { ...base, configPath: configB });
+      await handleClaudeCodeJudgmentHook(event, { ...base, configPath: configB, registrationId: REGISTRATION_B.id });
     }
     const to = (origin: string) => sent.filter((request) => request.url.startsWith(origin)).map((request) => request.body.hook_event_name);
     expect(to('https://a.example.net')).toEqual(['UserPromptSubmit', 'PostToolUse', 'Stop']);
@@ -100,7 +104,7 @@ describe('a turn in a repository without an origin stays in that checkout', () =
     await mkdir(outside);
     const config = await hookConfig(join(home, 'hook.json'), { origin: 'https://a.example.net' });
     const { fetchImpl, sent } = host();
-    const options = { env: { HOME: home }, fetch: fetchImpl, accessToken: token, configPath: config };
+    const options = { env: { HOME: home }, fetch: fetchImpl, accessToken: token, registrationId: REG, configPath: config };
     await handleClaudeCodeJudgmentHook(submit(repo), options);
     expect(await handleClaudeCodeJudgmentHook(tool(other), options)).toEqual({});
     expect(await handleClaudeCodeJudgmentHook(tool(outside), options)).toEqual({});
@@ -117,7 +121,7 @@ describe('an empty repository list audits nothing', () => {
     const repo = await checkout(home, 'app', withOrigin('git@github.com:acme/app.git'));
     const config = await hookConfig(join(home, 'hook.json'), { origin: 'https://a.example.net', repositories: [] });
     const { fetchImpl, sent } = host();
-    await handleClaudeCodeJudgmentHook(submit(repo), { env: { HOME: home }, fetch: fetchImpl, accessToken: token, configPath: config });
+    await handleClaudeCodeJudgmentHook(submit(repo), { env: { HOME: home }, fetch: fetchImpl, accessToken: token, registrationId: REG, configPath: config });
     expect(sent).toEqual([]);
   });
 
@@ -175,7 +179,7 @@ describe('the installer only touches files it owns', () => {
     const settings = join(dir, 'settings.json');
     const notes = join(dir, 'notes.json');
     await writeFile(notes, 'my notes\n');
-    const registered = registerClaudeCodeJudgmentHooks({}, { command: claudeCodeHookCommand('/bin/node', '/cli.js', notes), configPath: notes });
+    const registered = registerClaudeCodeJudgmentHooks({}, { command: claudeCodeHookCommand('/bin/node', '/cli.js', notes, REG), configPath: notes });
     await writeFile(settings, JSON.stringify(registered));
     const out = capture();
     expect(await runCli(['judgment:install', '--target', 'claude-code', '--remove', '--settings', settings, '--config', notes], out.io)).toBe(0);
@@ -189,5 +193,161 @@ describe('origin remote parsing', () => {
     const home = await tempDir();
     const repo = await checkout(home, 'app', '[core]\n[Remote "origin"]\n\tURL = "git@github.com:acme/app.git" ; mirror\n');
     expect(repositoryIdentity(repo)).toBe('github.com/acme/app');
+  });
+});
+
+// Review 7057359957 (PR #1042 at 517f607).
+describe('one hook config belongs to one registration', () => {
+  async function install(settings: string, config: string, origin: string, extra: string[] = []) {
+    const out = capture();
+    const code = await runCli(['judgment:install', '--target', 'claude-code', '--origin', origin,
+      '--settings', settings, '--config', config, ...extra], out.io);
+    return { code, out };
+  }
+  const registrationOf = async (settings: string) => {
+    const saved = JSON.parse(await readFile(settings, 'utf8'));
+    const command: string = saved.hooks.UserPromptSubmit[0].hooks[0].command;
+    return /'--registration' '([a-f0-9]{32})'/u.exec(command)![1];
+  };
+
+  it('refuses to reuse a config registered from another Claude Code settings file, and leaves it as it was', async () => {
+    const dir = await tempDir();
+    const settingsA = join(dir, 'a', 'settings.json');
+    const settingsB = join(dir, 'b', 'settings.json');
+    const config = join(dir, 'hook.json');
+    expect((await install(settingsA, config, 'https://a.example.net')).code).toBe(0);
+    const before = await readFile(config, 'utf8');
+    const second = await install(settingsB, config, 'https://b.example.net');
+    expect(second.code).toBe(1);
+    expect(second.out.stderr()).toContain('is used by');
+    expect(await readFile(config, 'utf8')).toBe(before);
+    await expect(readFile(settingsB, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('a command copied from an earlier registration sends nothing, and removing it keeps the config of the current one', async () => {
+    const dir = await tempDir();
+    const settingsA = join(dir, 'a', 'settings.json');
+    const settingsB = join(dir, 'b', 'settings.json');
+    const config = join(dir, 'hook.json');
+    expect((await install(settingsA, config, 'https://a.example.net')).code).toBe(0);
+    // B holds a copy of A's registration (hand-copied settings).
+    await mkdir(join(dir, 'b'));
+    await writeFile(settingsB, await readFile(settingsA, 'utf8'));
+    const oldId = await registrationOf(settingsA);
+    expect((await install(settingsA, config, 'https://a2.example.net')).code).toBe(0);
+    const repo = await checkout(dir, 'app', withOrigin('git@github.com:acme/app.git'));
+    const { fetchImpl, sent } = host();
+    const output = await handleClaudeCodeJudgmentHook(submit(repo),
+      { env: { HOME: dir }, fetch: fetchImpl, accessToken: token, configPath: config, registrationId: oldId });
+    expect(String(output.systemMessage)).toContain('judgment:install');
+    expect(sent).toEqual([]);
+
+    const removed = capture();
+    expect(await runCli(['judgment:install', '--target', 'claude-code', '--remove', '--settings', settingsB, '--config', config], removed.io)).toBe(0);
+    expect(JSON.parse(await readFile(settingsB, 'utf8'))).toEqual({});
+    expect(JSON.parse(await readFile(config, 'utf8'))).toMatchObject({ origin: 'https://a2.example.net' });
+    await handleClaudeCodeJudgmentHook(submit(repo),
+      { env: { HOME: dir }, fetch: fetchImpl, accessToken: token, configPath: config, registrationId: await registrationOf(settingsA) });
+    expect(sent.map((request) => request.url)).toEqual(['https://a2.example.net/host/judgment/hook']);
+  });
+
+  it('two registrations of one Claude Code session send different session and turn ids', async () => {
+    const home = await tempDir();
+    const repo = await checkout(home, 'app', withOrigin('git@github.com:acme/app.git'));
+    const configA = await hookConfig(join(home, 'a.json'), { origin: 'https://host.example.net', project_code: 'one' });
+    const configB = await hookConfig(join(home, 'b.json'), { origin: 'https://host.example.net', project_code: 'two', registration: REGISTRATION_B });
+    const { fetchImpl, sent } = host();
+    const base = { env: { HOME: home }, fetch: fetchImpl, accessToken: token, registrationId: REG };
+    await handleClaudeCodeJudgmentHook(submit(repo), { ...base, configPath: configA });
+    await handleClaudeCodeJudgmentHook(submit(repo), { ...base, configPath: configB, registrationId: REGISTRATION_B.id });
+    expect(sent).toHaveLength(2);
+    const [a, b] = sent.map((request) => request.body);
+    expect(a.session_id).not.toBe(b.session_id);
+    expect(a.turn_id).not.toBe(b.turn_id);
+    expect([a.session_id, b.session_id]).not.toContain('s1');
+  });
+
+  it('when writing the settings fails, the earlier registration sends nothing rather than to the new destination', async () => {
+    const dir = await tempDir();
+    const settings = join(dir, 'claude', 'settings.json');
+    const config = join(dir, 'hook.json');
+    expect((await install(settings, config, 'https://a.example.net')).code).toBe(0);
+    const oldId = await registrationOf(settings);
+    await chmod(join(dir, 'claude'), 0o500);
+    try {
+      expect((await install(settings, config, 'https://b.example.net')).code).toBe(1);
+    } finally {
+      await chmod(join(dir, 'claude'), 0o700);
+    }
+    const repo = await checkout(dir, 'app', withOrigin('git@github.com:acme/app.git'));
+    const { fetchImpl, sent } = host();
+    await handleClaudeCodeJudgmentHook(submit(repo),
+      { env: { HOME: dir }, fetch: fetchImpl, accessToken: token, configPath: config, registrationId: oldId });
+    expect(sent).toEqual([]);
+  });
+});
+
+describe('repository paths keep their case where the host tells them apart', () => {
+  it('a self-hosted server: Team/App and team/app are different repositories', async () => {
+    const home = await tempDir();
+    const listed = await checkout(home, 'listed', withOrigin('git@git.example.org:Team/App.git'));
+    const other = await checkout(home, 'other', withOrigin('git@git.example.org:team/app.git'));
+    const config = await hookConfig(join(home, 'hook.json'), { origin: 'https://a.example.net', repositories: ['GIT.example.org/Team/App'] });
+    expect(repositoryIdentity(listed)).toBe('git.example.org/Team/App');
+    expect(repositoryIdentity(other)).toBe('git.example.org/team/app');
+    const { fetchImpl, sent } = host();
+    const options = { env: { HOME: home }, fetch: fetchImpl, accessToken: token, registrationId: REG, configPath: config };
+    await handleClaudeCodeJudgmentHook(submit(other, 'p0'), options);
+    expect(sent).toEqual([]);
+    await handleClaudeCodeJudgmentHook(submit(listed), options);
+    expect(await handleClaudeCodeJudgmentHook(tool(other), options)).toEqual({});
+    expect(sent.map((request) => request.body.hook_event_name)).toEqual(['UserPromptSubmit']);
+    expect(sent[0].headers['x-brainbase-repository']).toBe('git.example.org/Team/App');
+  });
+
+  it('github.com ignores the case of owner and name', async () => {
+    const home = await tempDir();
+    const repo = await checkout(home, 'app', withOrigin('git@GitHub.com:Acme/App.git'));
+    expect(repositoryIdentity(repo)).toBe('github.com/acme/app');
+  });
+
+  it('the installer keeps the case of a self-hosted path', async () => {
+    const dir = await tempDir();
+    const config = join(dir, 'hook.json');
+    const out = capture();
+    expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'https://a.example.net',
+      '--repositories', 'Git.Example.org/Team/App,GitHub.com/Acme/App', '--settings', join(dir, 'settings.json'), '--config', config], out.io)).toBe(0);
+    expect(JSON.parse(await readFile(config, 'utf8')).repositories).toEqual(['git.example.org/Team/App', 'github.com/acme/app']);
+  });
+});
+
+describe('a settings file that is a symbolic link', () => {
+  it('stays a link: install and removal change the file it points to', async () => {
+    const dir = await tempDir();
+    await mkdir(join(dir, 'dotfiles'));
+    await mkdir(join(dir, 'claude'));
+    const shared = join(dir, 'dotfiles', 'claude-settings.json');
+    const settings = join(dir, 'claude', 'settings.json');
+    await writeFile(shared, JSON.stringify({ permissions: { allow: ['Read'] } }));
+    await symlink(shared, settings);
+    const config = join(dir, 'hook.json');
+    expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'https://a.example.net',
+      '--settings', settings, '--config', config], capture().io)).toBe(0);
+    expect((await lstat(settings)).isSymbolicLink()).toBe(true);
+    expect(JSON.parse(await readFile(shared, 'utf8')).hooks.Stop).toHaveLength(1);
+    expect(await runCli(['judgment:install', '--target', 'claude-code', '--remove', '--settings', settings, '--config', config], capture().io)).toBe(0);
+    expect((await lstat(settings)).isSymbolicLink()).toBe(true);
+    expect(JSON.parse(await readFile(shared, 'utf8'))).toEqual({ permissions: { allow: ['Read'] } });
+  });
+
+  it('refuses a link that points to nothing', async () => {
+    const dir = await tempDir();
+    const settings = join(dir, 'settings.json');
+    await symlink(join(dir, 'missing.json'), settings);
+    const out = capture();
+    expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'https://a.example.net',
+      '--settings', settings, '--config', join(dir, 'hook.json')], out.io)).toBe(1);
+    expect(out.stderr()).toContain('symbolic link');
+    expect((await lstat(settings)).isSymbolicLink()).toBe(true);
   });
 });

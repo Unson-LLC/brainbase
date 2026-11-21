@@ -32,11 +32,20 @@ export interface ClaudeCodeHookConfig {
   /** Sent as x-brainbase-project-code. Omit to let the Host decide. */
   project_code?: string;
   /**
-   * Repositories to audit, as `host/owner/name` of the origin remote
-   * (lowercase), e.g. `github.com/example-org/app`. Omit to audit every git
-   * repository; an empty list audits none.
+   * Repositories to audit, as `host/owner/name` of the origin remote, e.g.
+   * `github.com/example-org/app`. The host is compared without case; the
+   * path keeps its case, except on hosts whose paths ignore case
+   * (`github.com`). Omit to audit every git repository; an empty list audits
+   * none.
    */
   repositories?: string[];
+  /**
+   * The one registration this config belongs to: a random id, also carried
+   * by the registered command, and the Claude Code settings file that holds
+   * it. A command with another id (a registration this config was taken
+   * from) sends nothing.
+   */
+  registration: { id: string; settings: string };
 }
 
 export type ClaudeCodeHookPayload = Record<string, unknown>;
@@ -50,6 +59,8 @@ export interface ClaudeCodeHookOptions {
   credentials?: AccessTokenOptions;
   /** The hook config file; the installer passes it as `--config`. */
   configPath?: string;
+  /** The registration id the installer put in the command as `--registration`. */
+  registrationId?: string;
 }
 
 const HOOK_PATH = '/host/judgment/hook';
@@ -115,9 +126,13 @@ export function readClaudeCodeHookConfig(path: string): ClaudeCodeHookConfig | n
       repositories.push(normalized);
     }
   }
+  const registration = value.registration as Partial<ClaudeCodeHookConfig['registration']> | undefined;
+  if (!registration || typeof registration.id !== 'string' || !REGISTRATION_ID.test(registration.id)
+    || typeof registration.settings !== 'string' || !registration.settings) return null;
   return {
     schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA,
     origin: value.origin,
+    registration: { id: registration.id, settings: registration.settings },
     ...(typeof value.project_code === 'string' && value.project_code ? { project_code: value.project_code } : {}),
     // An empty list stays empty: it audits no repository, it never means all.
     ...(repositories ? { repositories } : {}),
@@ -135,16 +150,33 @@ export function isClaudeCodeHookConfigFile(path: string): boolean {
   }
 }
 
-const REPOSITORY_IDENTITY = /^[a-z0-9][a-z0-9.-]*(?::[0-9]+)?(?:\/[a-z0-9._~-]+){2,}$/u;
+export const REGISTRATION_ID = /^[a-f0-9]{32}$/u;
+
+const REPOSITORY_HOST = /^[a-z0-9][a-z0-9.-]*(?::[0-9]+)?$/u;
+const REPOSITORY_PATH = /^[A-Za-z0-9._~-]+(?:\/[A-Za-z0-9._~-]+)+$/u;
+/**
+ * Hosts whose repository paths ignore case: there, `Owner/App` and `owner/app`
+ * are one repository. Elsewhere (a self-hosted server may tell them apart),
+ * the path is compared exactly.
+ */
+const CASE_INSENSITIVE_PATH_HOSTS = new Set(['github.com']);
 
 /**
- * A repository named in the config: `host/owner/name`, lowercase. A bare name
- * or `owner/name` is refused, because it would also match a repository of the
- * same name under another owner or host.
+ * A repository named in the config: `host/owner/name`. The host is
+ * lowercased (host names ignore case). The path keeps its case, except on a
+ * host whose paths ignore case. A bare name or `owner/name` is refused,
+ * because it would also match a repository of the same name under another
+ * owner or host.
  */
 export function normalizeRepositoryEntry(entry: string): string | null {
-  const value = entry.trim().toLowerCase().replace(/\.git$/u, '').replace(/\/+$/u, '');
-  return REPOSITORY_IDENTITY.test(value) ? value : null;
+  const value = entry.trim().replace(/\.git$/iu, '').replace(/\/+$/u, '');
+  const slash = value.indexOf('/');
+  if (slash <= 0) return null;
+  const host = value.slice(0, slash).toLowerCase();
+  const rawPath = value.slice(slash + 1);
+  if (!REPOSITORY_HOST.test(host) || !REPOSITORY_PATH.test(rawPath)) return null;
+  const path = CASE_INSENSITIVE_PATH_HOSTS.has(host) ? rawPath.toLowerCase() : rawPath;
+  return `${host}/${path}`;
 }
 
 // ---- Repository identity, read from git files without starting git ----
@@ -242,7 +274,7 @@ function originRepositoryUrl(commonDir: string): string | null {
 }
 
 /**
- * `host/owner/name` of a git remote URL, lowercase, or null when the URL has
+ * `host/owner/name` of a git remote URL (normalized as in the config), or null when the URL has
  * no host or no owner. Accepts https/ssh/git URLs and scp-like `user@host:path`.
  */
 export function repositoryIdentityFromUrl(remote: string): string | null {
@@ -412,6 +444,11 @@ interface Context {
   configPath: string;
 }
 
+/** `id` as this registration sends it to the Host. */
+export function namespacedId(id: string, config: Pick<ClaudeCodeHookConfig, 'registration'>): string {
+  return `${id}.bb-${sha256(`brainbase-claude-code-registration\n${config.registration.id}`).slice(0, 16)}`;
+}
+
 async function forward(
   payload: ClaudeCodeHookPayload,
   context: Context,
@@ -433,6 +470,14 @@ async function forward(
       ? `judgment_hook_${code}` : 'judgment_hook_login_unavailable');
   }
   const eventName = String(payload.hook_event_name);
+  // Claude Code's session and turn ids are the same for every registration
+  // that sees the event. The Host keys a turn by them, so each registration
+  // sends its own: the id with a tag of the registration appended.
+  const sent = {
+    ...payload,
+    session_id: namespacedId(String(payload.session_id), context.config),
+    turn_id: namespacedId(String(payload.turn_id), context.config),
+  };
   let response: Response;
   try {
     response = await context.fetch(endpoint, {
@@ -444,7 +489,7 @@ async function forward(
         ...(context.config.project_code ? { 'x-brainbase-project-code': context.config.project_code } : {}),
         ...(repository ? { 'x-brainbase-repository': repository } : {}),
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(sent),
       redirect: 'error',
       signal: AbortSignal.timeout(TIMEOUT_MS[eventName] ?? 15_000),
     });
@@ -466,7 +511,7 @@ async function forward(
   const output = envelope?.output;
   if (!envelope || envelope.schema_version !== '1' || envelope.accepted !== true
     || envelope.hook_event_name !== payload.hook_event_name
-    || envelope.session_id !== payload.session_id || envelope.turn_id !== payload.turn_id
+    || envelope.session_id !== sent.session_id || envelope.turn_id !== sent.turn_id
     || !output || typeof output !== 'object' || Array.isArray(output)) {
     throw new Error('judgment_hook_response_invalid');
   }
@@ -713,6 +758,13 @@ export async function handleClaudeCodeJudgmentHook(
     // Not installed for this person, or removed: forward nothing.
     if (!config) return {};
     const eventName = payload.hook_event_name;
+    // The config now belongs to another registration (installed again from
+    // another settings file): this one sends nothing, and says so once a turn.
+    if (options.registrationId !== config.registration.id) {
+      return eventName === 'UserPromptSubmit'
+        ? warning(`この登録の設定（${configPath}）は、別のClaude Codeの設定（${config.registration.settings}）の登録に使われています。判断監査なしで続行します。judgment:install をやり直してください。`)
+        : {};
+    }
     if (typeof payload.session_id !== 'string' || !payload.session_id) return {};
     // A subagent's events are not the parent turn's.
     if (typeof payload.agent_id === 'string' && payload.agent_id) return {};
@@ -747,11 +799,12 @@ export function shellQuote(argument: string): string {
 }
 
 /**
- * The command the installer registers: node, the CLI, the hook command and
- * the config file, each quoted for the shell.
+ * The command the installer registers: node, the CLI, the hook command, the
+ * config file and the registration id, each quoted for the shell.
  */
-export function claudeCodeHookCommand(nodePath: string, cliPath: string, configPath: string): string {
-  return [nodePath, cliPath, CLAUDE_CODE_HOOK_COMMAND, '--config', configPath].map(shellQuote).join(' ');
+export function claudeCodeHookCommand(nodePath: string, cliPath: string, configPath: string, registrationId: string): string {
+  return [nodePath, cliPath, CLAUDE_CODE_HOOK_COMMAND, '--config', configPath, '--registration', registrationId]
+    .map(shellQuote).join(' ');
 }
 
 /** The arguments of a command made only of single-quoted words, or null. */
@@ -789,7 +842,8 @@ export function installedHookConfigPath(hook: unknown): string | null {
   const value = hook as { type?: unknown; command?: unknown } | null;
   if (!value || value.type !== 'command' || typeof value.command !== 'string') return null;
   const words = singleQuotedWords(value.command);
-  if (!words || words.length !== 5 || words[2] !== CLAUDE_CODE_HOOK_COMMAND || words[3] !== '--config') return null;
+  if (!words || words.length !== 7 || words[2] !== CLAUDE_CODE_HOOK_COMMAND || words[3] !== '--config'
+    || words[5] !== '--registration' || !REGISTRATION_ID.test(words[6])) return null;
   return words[4] || null;
 }
 

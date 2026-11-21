@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Readable } from 'node:stream';
@@ -9,6 +9,7 @@ import {
   forwardedToolPayload,
   handleClaudeCodeJudgmentHook,
   claudeCodeHookCommand,
+  namespacedId,
   installedHookConfigPath,
   registerClaudeCodeJudgmentHooks,
   repositoryIdentity,
@@ -17,6 +18,9 @@ import {
 } from '../src/claude-code-judgment-hook.js';
 import { BrainbaseLoginError } from '../src/brainbase-login.js';
 import { readHookStdin, runCli } from '../src/cli.js';
+
+const REG = 'a'.repeat(32);
+const REGISTRATION = { id: REG, settings: '/home/me/.claude/settings.json' };
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -63,7 +67,7 @@ async function setup(config: Partial<ClaudeCodeHookConfig> | null = {}) {
   if (config) {
     await mkdir(join(home, '.brainbase'), { recursive: true });
     await writeFile(join(home, '.brainbase', 'claude-code-judgment-hook.json'), JSON.stringify({
-      schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, origin: 'https://mcp.example.net', ...config,
+      schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, origin: 'https://mcp.example.net', registration: REGISTRATION, ...config,
     }));
   }
   const env = { HOME: home } as NodeJS.ProcessEnv;
@@ -78,7 +82,7 @@ describe('handleClaudeCodeJudgmentHook', () => {
     const { fetchImpl, sent } = host();
     const output = await handleClaudeCodeJudgmentHook(
       { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: repo, prompt: 'hi' },
-      { env, fetch: fetchImpl, accessToken: token },
+      { env, fetch: fetchImpl, accessToken: token, registrationId: REG },
     );
     expect(output).toEqual({});
     expect(sent).toEqual([]);
@@ -89,7 +93,7 @@ describe('handleClaudeCodeJudgmentHook', () => {
     const { fetchImpl, sent } = host();
     const output = await handleClaudeCodeJudgmentHook(
       { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: join(repo, 'src'), prompt: 'hi' },
-      { env, fetch: fetchImpl, accessToken: token },
+      { env, fetch: fetchImpl, accessToken: token, registrationId: REG },
     );
     expect(output).toEqual({ hookSpecificOutput: { additionalContext: 'context from host', hookEventName: 'UserPromptSubmit' } });
     expect(sent).toHaveLength(1);
@@ -100,7 +104,11 @@ describe('handleClaudeCodeJudgmentHook', () => {
       'x-brainbase-judgment-host': 'claude-code',
       'x-brainbase-repository': 'github.com/acme/growin-app',
     });
-    expect(sent[0].body).toMatchObject({ hook_event_name: 'UserPromptSubmit', session_id: 's1', turn_id: 'p1' });
+    expect(sent[0].body).toMatchObject({
+      hook_event_name: 'UserPromptSubmit',
+      session_id: namespacedId('s1', { registration: REGISTRATION }),
+      turn_id: namespacedId('p1', { registration: REGISTRATION }),
+    });
   });
 
   it('sends the configured project code', async () => {
@@ -108,7 +116,7 @@ describe('handleClaudeCodeJudgmentHook', () => {
     const { fetchImpl, sent } = host();
     await handleClaudeCodeJudgmentHook(
       { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: repo },
-      { env, fetch: fetchImpl, accessToken: token },
+      { env, fetch: fetchImpl, accessToken: token, registrationId: REG },
     );
     expect(sent[0].headers['x-brainbase-project-code']).toBe('growin');
   });
@@ -118,11 +126,11 @@ describe('handleClaudeCodeJudgmentHook', () => {
     const { fetchImpl, sent } = host();
     const submit = await handleClaudeCodeJudgmentHook(
       { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: repo },
-      { env, fetch: fetchImpl, accessToken: token },
+      { env, fetch: fetchImpl, accessToken: token, registrationId: REG },
     );
     const post = await handleClaudeCodeJudgmentHook(
       { hook_event_name: 'PostToolUse', session_id: 's1', prompt_id: 'p1', cwd: repo, tool_name: 'Bash', tool_input: {}, tool_response: {} },
-      { env, fetch: fetchImpl, accessToken: token },
+      { env, fetch: fetchImpl, accessToken: token, registrationId: REG },
     );
     expect([submit, post]).toEqual([{}, {}]);
     expect(sent).toEqual([]);
@@ -133,7 +141,7 @@ describe('handleClaudeCodeJudgmentHook', () => {
     const { fetchImpl, sent } = host();
     await handleClaudeCodeJudgmentHook(
       { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: repo },
-      { env, fetch: fetchImpl, accessToken: token },
+      { env, fetch: fetchImpl, accessToken: token, registrationId: REG },
     );
     expect(sent).toEqual([]);
   });
@@ -143,7 +151,7 @@ describe('handleClaudeCodeJudgmentHook', () => {
     const { fetchImpl, sent } = host();
     await handleClaudeCodeJudgmentHook(
       { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: repo },
-      { env, fetch: fetchImpl, accessToken: token },
+      { env, fetch: fetchImpl, accessToken: token, registrationId: REG },
     );
     expect(sent).toEqual([]);
   });
@@ -152,7 +160,7 @@ describe('handleClaudeCodeJudgmentHook', () => {
     const { home, repo, env } = await setup({ repositories: ['github.com/acme/growin-app'] });
     const elsewhere = await checkout(home, 'private', 'git@github.com:acme/private-notes.git');
     const { fetchImpl, sent } = host();
-    const options = { env, fetch: fetchImpl, accessToken: token };
+    const options = { env, fetch: fetchImpl, accessToken: token, registrationId: REG };
     await handleClaudeCodeJudgmentHook({ hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: repo }, options);
     const moved = await handleClaudeCodeJudgmentHook(
       { hook_event_name: 'PostToolUse', session_id: 's1', prompt_id: 'p1', cwd: elsewhere, tool_name: 'Bash', tool_input: {}, tool_response: {} },
@@ -178,11 +186,11 @@ describe('handleClaudeCodeJudgmentHook', () => {
     const { home, repo, env } = await setup(null);
     const config = join(home, 'elsewhere', 'hook.json');
     await mkdir(join(home, 'elsewhere'));
-    await writeFile(config, JSON.stringify({ schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, origin: 'https://other.example.net' }));
+    await writeFile(config, JSON.stringify({ schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, origin: 'https://other.example.net', registration: REGISTRATION }));
     const { fetchImpl, sent } = host();
     await handleClaudeCodeJudgmentHook(
       { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: repo },
-      { env, fetch: fetchImpl, accessToken: token, configPath: config },
+      { env, fetch: fetchImpl, accessToken: token, registrationId: REG, configPath: config },
     );
     expect(sent.map((request) => request.url)).toEqual(['https://other.example.net/host/judgment/hook']);
   });
@@ -192,7 +200,7 @@ describe('handleClaudeCodeJudgmentHook', () => {
     const { fetchImpl, sent } = host();
     await handleClaudeCodeJudgmentHook(
       { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: home },
-      { env, fetch: fetchImpl, accessToken: token },
+      { env, fetch: fetchImpl, accessToken: token, registrationId: REG },
     );
     expect(sent).toEqual([]);
   });
@@ -202,17 +210,17 @@ describe('handleClaudeCodeJudgmentHook', () => {
     const { fetchImpl, sent } = host();
     await handleClaudeCodeJudgmentHook(
       { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: repo },
-      { env, fetch: fetchImpl, accessToken: token },
+      { env, fetch: fetchImpl, accessToken: token, registrationId: REG },
     );
     await handleClaudeCodeJudgmentHook(
       { hook_event_name: 'PostToolUse', session_id: 's1', prompt_id: 'p1', cwd: repo, tool_name: 'Read',
         tool_input: { file_path: '/secret/file' }, tool_response: { content: 'file body' } },
-      { env, fetch: fetchImpl, accessToken: token },
+      { env, fetch: fetchImpl, accessToken: token, registrationId: REG },
     );
     expect(sent).toHaveLength(2);
     expect(JSON.stringify(sent[1].body)).not.toContain('file body');
     expect(JSON.stringify(sent[1].body)).not.toContain('/secret/file');
-    expect(sent[1].body).toMatchObject({ turn_id: 'p1', tool_response: { success: true } });
+    expect(sent[1].body).toMatchObject({ turn_id: namespacedId('p1', { registration: REGISTRATION }), tool_response: { success: true } });
   });
 
   it('turns a Host repair request at Stop into a notice instead of blocking', async () => {
@@ -227,11 +235,11 @@ describe('handleClaudeCodeJudgmentHook', () => {
     }));
     await handleClaudeCodeJudgmentHook(
       { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: repo },
-      { env, fetch: fetchImpl, accessToken: token },
+      { env, fetch: fetchImpl, accessToken: token, registrationId: REG },
     );
     const output = await handleClaudeCodeJudgmentHook(
       { hook_event_name: 'Stop', session_id: 's1', prompt_id: 'p1', cwd: repo },
-      { env, fetch: fetchImpl, accessToken: token },
+      { env, fetch: fetchImpl, accessToken: token, registrationId: REG },
     );
     expect(output).not.toHaveProperty('decision');
     expect(String(output.systemMessage)).toContain('r-0123456789abcdef');
@@ -242,12 +250,12 @@ describe('handleClaudeCodeJudgmentHook', () => {
     const { fetchImpl, sent } = host(() => ({ status: 400, body: { error: 'judgment_project_unresolved' } }));
     const output = await handleClaudeCodeJudgmentHook(
       { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: repo },
-      { env, fetch: fetchImpl, accessToken: token },
+      { env, fetch: fetchImpl, accessToken: token, registrationId: REG },
     );
     expect(String(output.systemMessage)).toContain('judgment_hook_http_400_judgment_project_unresolved');
     await handleClaudeCodeJudgmentHook(
       { hook_event_name: 'Stop', session_id: 's1', prompt_id: 'p1', cwd: repo },
-      { env, fetch: fetchImpl, accessToken: token },
+      { env, fetch: fetchImpl, accessToken: token, registrationId: REG },
     );
     expect(sent).toHaveLength(1);
   });
@@ -257,7 +265,7 @@ describe('handleClaudeCodeJudgmentHook', () => {
     const { fetchImpl, sent } = host();
     const output = await handleClaudeCodeJudgmentHook(
       { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: repo },
-      { env, fetch: fetchImpl, accessToken: async () => { throw new BrainbaseLoginError('login_missing'); } },
+      { env, fetch: fetchImpl, registrationId: REG, accessToken: async () => { throw new BrainbaseLoginError('login_missing'); } },
     );
     expect(String(output.systemMessage)).toContain('judgment_hook_login_missing');
     expect(sent).toEqual([]);
@@ -268,7 +276,7 @@ describe('handleClaudeCodeJudgmentHook', () => {
     const { fetchImpl, sent } = host();
     const output = await handleClaudeCodeJudgmentHook(
       { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: repo },
-      { env, fetch: fetchImpl, accessToken: token },
+      { env, fetch: fetchImpl, accessToken: token, registrationId: REG },
     );
     expect(String(output.systemMessage)).toContain('judgment_hook_transport_unsafe');
     expect(sent).toEqual([]);
@@ -279,11 +287,11 @@ describe('handleClaudeCodeJudgmentHook', () => {
     const { fetchImpl, sent } = host();
     await handleClaudeCodeJudgmentHook(
       { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: repo },
-      { env: { ...env, BRAINBASE_CLAUDE_JUDGMENT_HOOK: 'disabled' }, fetch: fetchImpl, accessToken: token },
+      { env: { ...env, BRAINBASE_CLAUDE_JUDGMENT_HOOK: 'disabled' }, fetch: fetchImpl, accessToken: token, registrationId: REG },
     );
     await handleClaudeCodeJudgmentHook(
       { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: repo, agent_id: 'sub' },
-      { env, fetch: fetchImpl, accessToken: token },
+      { env, fetch: fetchImpl, accessToken: token, registrationId: REG },
     );
     expect(sent).toEqual([]);
   });
@@ -294,7 +302,7 @@ describe('handleClaudeCodeJudgmentHook', () => {
     for (let index = 0; index < 2; index += 1) {
       await handleClaudeCodeJudgmentHook(
         { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: repo },
-        { env, fetch: fetchImpl, accessToken: token },
+        { env, fetch: fetchImpl, accessToken: token, registrationId: REG },
       );
     }
     expect(sent).toHaveLength(1);
@@ -324,11 +332,11 @@ describe('repository identity', () => {
     const env = { HOME: root } as NodeJS.ProcessEnv;
     await mkdir(join(root, '.brainbase'));
     await writeFile(join(root, '.brainbase', 'claude-code-judgment-hook.json'), JSON.stringify({
-      schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, origin: 'https://mcp.example.net',
+      schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, origin: 'https://mcp.example.net', registration: REGISTRATION,
     }));
     await handleClaudeCodeJudgmentHook(
       { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: root },
-      { env, fetch: fetchImpl, accessToken: token },
+      { env, fetch: fetchImpl, accessToken: token, registrationId: REG },
     );
     expect(sent).toEqual([]);
   });
@@ -353,7 +361,7 @@ describe('forwardedToolPayload', () => {
 
 describe('registerClaudeCodeJudgmentHooks', () => {
   const configPath = '/home/me/.brainbase/claude-code-judgment-hook.json';
-  const command = claudeCodeHookCommand('/usr/bin/node', '/pkg/dist/cli.js', configPath);
+  const command = claudeCodeHookCommand('/usr/bin/node', '/pkg/dist/cli.js', configPath, REG);
 
   it('adds one registration per event, keeps other hooks, and is idempotent', () => {
     const other = { hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo bye' }] }] }, model: 'x' };
@@ -379,7 +387,7 @@ describe('registerClaudeCodeJudgmentHooks', () => {
   it('leaves wrappers, look-alikes and registrations of another config file alone', () => {
     const wrapper = { type: 'command', command: `/opt/audit/wrap.sh ${command}` };
     const mention = { type: 'command', command: 'echo judgment:claude-code-hook --config x' };
-    const otherConfig = { type: 'command', command: claudeCodeHookCommand('/usr/bin/node', '/pkg/dist/cli.js', '/elsewhere/hook.json') };
+    const otherConfig = { type: 'command', command: claudeCodeHookCommand('/usr/bin/node', '/pkg/dist/cli.js', '/elsewhere/hook.json', REG) };
     const settings = { hooks: { Stop: [{ hooks: [wrapper, mention, otherConfig] }] } };
     expect(installedHookConfigPath(wrapper)).toBeNull();
     expect(installedHookConfigPath(mention)).toBeNull();
@@ -394,9 +402,9 @@ describe('registerClaudeCodeJudgmentHooks', () => {
     const script = join(dir, 'print args.mjs');
     await writeFile(script, 'process.stdout.write(JSON.stringify(process.argv.slice(2)));\n');
     const tricky = join(dir, "it's $(touch pwned) `id` & \"q\".json");
-    const quoted = claudeCodeHookCommand(process.execPath, script, tricky);
+    const quoted = claudeCodeHookCommand(process.execPath, script, tricky, REG);
     expect(JSON.parse(execFileSync('/bin/sh', ['-c', quoted], { encoding: 'utf8' })))
-      .toEqual(['judgment:claude-code-hook', '--config', tricky]);
+      .toEqual(['judgment:claude-code-hook', '--config', tricky, '--registration', REG]);
     expect(installedHookConfigPath({ type: 'command', command: quoted })).toBe(tricky);
     await expect(readFile(join(dir, 'pwned'))).rejects.toMatchObject({ code: 'ENOENT' });
   });
@@ -426,10 +434,13 @@ describe('judgment:install --target claude-code', () => {
     const written = JSON.parse(await readFile(settings, 'utf8'));
     expect(written.permissions).toEqual({ allow: ['Read'] });
     expect(installedHookConfigPath(written.hooks.UserPromptSubmit[0].hooks[0])).toBe(config);
-    expect(JSON.parse(await readFile(config, 'utf8'))).toEqual({
+    const savedConfig = JSON.parse(await readFile(config, 'utf8'));
+    expect(savedConfig).toEqual({
       schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, origin: 'https://mcp.example.net',
       repositories: ['github.com/acme/growin-app', 'github.com/acme/growin-api'],
+      registration: { id: expect.stringMatching(/^[a-f0-9]{32}$/u), settings: await realpath(settings) },
     });
+    expect(written.hooks.UserPromptSubmit[0].hooks[0].command).toContain(`'--registration' '${savedConfig.registration.id}'`);
 
     const removed = capture();
     expect(await runCli(['judgment:install', '--target', 'claude-code', '--remove', '--settings', settings, '--config', config], removed.io)).toBe(0);

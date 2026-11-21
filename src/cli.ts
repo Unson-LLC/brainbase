@@ -11,8 +11,9 @@ import {
   renderRegistrationResult,
   selectLocalMemories
 } from './personal-memory-handover.js';
+import { randomBytes } from 'node:crypto';
 import { constants, realpathSync } from 'node:fs';
-import { access, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { access, chmod, lstat, mkdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initializePersonalOs, loadPersonalOs, migrateCanonicalGraph, mutatePersonalOs } from './ssot.js';
@@ -72,6 +73,7 @@ import {
   handleClaudeCodeJudgmentHook,
   hasInstalledClaudeCodeHooks,
   isClaudeCodeHookConfigFile,
+  readClaudeCodeHookConfig,
   normalizeRepositoryEntry,
   registerClaudeCodeJudgmentHooks,
   type ClaudeCodeHookConfig
@@ -285,7 +287,11 @@ async function judgmentClaudeCodeHook(parsed: ParsedArgs, io: CliIo): Promise<nu
     const payload: unknown = JSON.parse(input || '{}');
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('judgment_hook_payload_invalid');
     const configPath = first(parsed, 'config');
-    output = await handleClaudeCodeJudgmentHook(payload as Record<string, unknown>, configPath ? { configPath } : {});
+    const registrationId = first(parsed, 'registration');
+    output = await handleClaudeCodeJudgmentHook(payload as Record<string, unknown>, {
+      ...(configPath ? { configPath } : {}),
+      ...(registrationId ? { registrationId } : {}),
+    });
   } catch (error) {
     const message = error instanceof Error && /^judgment_[a-z0-9_]{1,120}$/u.test(error.message)
       ? error.message : 'judgment_hook_failed';
@@ -312,6 +318,7 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
   }
   const remove = parsed.flags.has('remove');
   const dryRun = parsed.flags.has('dry-run');
+  const registrationId = randomBytes(16).toString('hex');
   let config: ClaudeCodeHookConfig | undefined;
   if (!remove) {
     const origin = first(parsed, 'origin');
@@ -338,7 +345,8 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
       schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA,
       origin: normalizeServerUrl(origin),
       ...(projectCode ? { project_code: projectCode } : {}),
-      ...(repositories.length > 0 ? { repositories: [...new Set(repositories)] } : {})
+      ...(repositories.length > 0 ? { repositories: [...new Set(repositories)] } : {}),
+      registration: { id: registrationId, settings: settingsReal }
     };
   }
   let settings: Record<string, unknown> = {};
@@ -360,33 +368,43 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
   if (!remove && configExists && !configOwned) {
     throw new Error(`judgment:install --config ${configPath} exists and is not a brainbase hook config; choose another path`);
   }
+  // A hook config belongs to the one settings file that registered it. Another
+  // settings file reusing it would redirect or, on removal, stop that
+  // registration's hooks.
+  const existingConfig = configOwned ? readClaudeCodeHookConfig(configPath) : null;
+  const registeredElsewhere = configOwned && (existingConfig
+    ? canonicalPath(existingConfig.registration.settings) !== settingsReal
+    : !hasInstalledClaudeCodeHooks(settings, configPath));
+  if (!remove && registeredElsewhere) {
+    throw new Error(`judgment:install --config ${configPath} is used by ${existingConfig?.registration.settings ?? 'another registration'}; choose another --config for ${settingsPath}`);
+  }
   if (remove && !hasInstalledClaudeCodeHooks(settings, configPath)) {
     throw new Error(`judgment:install --remove found no registration for ${configPath} in ${settingsPath}; nothing was changed`);
   }
   const cliPath = fileURLToPath(new URL('./cli.js', import.meta.url));
-  const command = claudeCodeHookCommand(process.execPath, cliPath, configPath);
+  const command = claudeCodeHookCommand(process.execPath, cliPath, configPath, registrationId);
   const next = registerClaudeCodeJudgmentHooks(settings, { command, configPath, remove });
   if (dryRun) {
     write(io, `${JSON.stringify({ settingsPath, settings: next, configPath, config: config ?? null }, null, 2)}\n`);
     return 0;
   }
-  await mkdir(dirname(settingsPath), { recursive: true });
-  const temporary = `${settingsPath}.${process.pid}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 });
-  await rename(temporary, settingsPath);
   if (remove) {
-    if (configOwned) await rm(configPath, { force: true });
+    await replaceFileFollowingLinks(settingsPath, `${JSON.stringify(next, null, 2)}\n`, 0o600);
+    if (configOwned && !registeredElsewhere) await rm(configPath, { force: true });
     write(io, [
       `Claude Codeの判断フックを外しました（${settingsPath}）。`,
       ...(configExists && !configOwned ? [`${configPath} は判断フックの設定ではないため、残しました。`] : []),
+      ...(registeredElsewhere ? [`${configPath} は ${existingConfig?.registration.settings ?? '別の登録'} の登録が使っているため、残しました。`] : []),
       ''
     ].join('\n'));
     return 0;
   }
+  // The config goes first: if writing the settings then fails, the new
+  // registration is not active, and an earlier one (whose command carries the
+  // old registration id) sends nothing rather than to the new destination.
   await mkdir(dirname(configPath), { recursive: true, mode: 0o700 });
-  const configTemporary = `${configPath}.${process.pid}.tmp`;
-  await writeFile(configTemporary, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
-  await rename(configTemporary, configPath);
+  await replaceFileFollowingLinks(configPath, `${JSON.stringify(config, null, 2)}\n`, 0o600);
+  await replaceFileFollowingLinks(settingsPath, `${JSON.stringify(next, null, 2)}\n`, 0o600);
   write(io, [
     `Claude Codeの判断フックを登録しました（${settingsPath}）。`,
     `送り先: ${config!.origin}`,
@@ -467,6 +485,34 @@ export async function readHookStdin(input: AsyncIterable<string | Uint8Array>, m
 
 // The real path of a file, or of its nearest existing parent joined with the
 // rest, so two spellings of one file (symlinks, `..`) compare equal.
+/**
+ * Replaces the file at `path` atomically. When `path` is a symbolic link, the
+ * file it points to is replaced and the link stays; a link to nothing is
+ * refused. A file that exists keeps its mode; a new one gets `mode`.
+ */
+async function replaceFileFollowingLinks(path: string, content: string, mode: number): Promise<void> {
+  let target = resolve(path);
+  let targetMode = mode;
+  try {
+    target = await realpath(target);
+    targetMode = (await stat(target)).mode & 0o777;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error;
+    const link = await lstat(target).catch(() => null);
+    if (link?.isSymbolicLink()) throw new Error(`${path} is a symbolic link to a missing file; nothing was changed`);
+    await mkdir(dirname(target), { recursive: true });
+  }
+  const temporary = `${target}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
+  try {
+    await writeFile(temporary, content, { mode: targetMode, flag: 'wx' });
+    await chmod(temporary, targetMode);
+    await rename(temporary, target);
+  } catch (error) {
+    await rm(temporary, { force: true });
+    throw error;
+  }
+}
+
 function canonicalPath(path: string): string {
   const absolute = resolve(path);
   try {
