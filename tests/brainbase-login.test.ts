@@ -391,7 +391,7 @@ describe('login CLI', () => {
     const out = capture();
     expect(await runCli(['logout', '--credentials', path], out.io)).toBe(0);
     expect(await readCredentials(path)).toBeNull();
-    expect(await removeCredentials(path)).toBe(false);
+    expect(await removeCredentials(path)).toMatchObject({ existed: false, durable: true });
 
     const after = capture();
     expect(await runCli(['login:status', '--credentials', path], after.io)).toBe(1);

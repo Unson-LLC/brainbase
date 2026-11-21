@@ -173,7 +173,7 @@ describe('renewal under the lock', () => {
     const path = await credentialsFile();
     await writeCredentials(path, login());
     const fresh = jwt(NOW / 1000 + 3600);
-    let logout: Promise<boolean> | undefined;
+    let logout: Promise<{ existed: boolean; durable: boolean }> | undefined;
     const fetchImpl = (async (input: string | URL) => {
       if (String(input).endsWith('/api/csrf-token')) return new Response('{}', { status: 404 });
       logout = removeCredentials(path);
@@ -181,7 +181,7 @@ describe('renewal under the lock', () => {
       return new Response(JSON.stringify({ token: fresh, refresh_token: 'refresh-2' }), { status: 200 });
     }) as typeof fetch;
     expect(await getAccessToken({ credentialsPath: path, fetch: fetchImpl, now: () => NOW })).toMatchObject({ token: fresh });
-    expect(await logout).toBe(true);
+    expect(await logout).toMatchObject({ existed: true });
     expect(await readCredentials(path)).toBeNull();
   });
 

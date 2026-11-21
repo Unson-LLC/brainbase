@@ -65,7 +65,7 @@ import { applyCanonicalWrites, buildCanonicalEdge } from './canonical-edge-build
 import { defaultJudgmentJournalRoot } from './judgment-value-proof-review.js';
 import { createWorldExtension, readWorldVocabulary } from './world-extension.js';
 import { createLocalWebHost, LOCAL_WEB_DEFAULT_PORT } from './local-web-host.js';
-import { defaultCredentialsPath, loginWithDeviceCode, normalizeServerUrl, readCredentials, removeCredentials } from './brainbase-login.js';
+import { BrainbaseLoginError, defaultCredentialsPath, loginWithDeviceCode, normalizeServerUrl, readCredentials, removeCredentials } from './brainbase-login.js';
 import {
   CLAUDE_CODE_HOOK_CONFIG_SCHEMA,
   claudeCodeHookCommand,
@@ -465,8 +465,20 @@ async function loginStatus(parsed: ParsedArgs, io: CliIo): Promise<number> {
 
 async function logout(parsed: ParsedArgs, io: CliIo): Promise<number> {
   const credentialsPath = credentialsPathOf(parsed);
-  const existed = await removeCredentials(credentialsPath);
-  write(io, existed ? `この端末のログインを消しました（${credentialsPath}）。\n` : 'ログインはありませんでした。\n');
+  let removed;
+  try {
+    removed = await removeCredentials(credentialsPath);
+  } catch (error) {
+    if (error instanceof BrainbaseLoginError) throw error; // login_busy and the like say what to do.
+    // The file may be gone in memory but not on disk: do not report a logout.
+    const code = (error as NodeJS.ErrnoException)?.code ?? 'error';
+    writeError(io, `ログインを消したことを、ディスクに書き切れませんでした（${code}）。brainbase logout をやり直してください。\n`);
+    return 1;
+  }
+  write(io, removed.existed ? `この端末のログインを消しました（${credentialsPath}）。\n` : 'ログインはありませんでした。\n');
+  if (!removed.durable) {
+    writeError(io, 'この環境ではディレクトリをディスクに書き切れないため、電源が落ちると消したログインが戻ることがあります。\n');
+  }
   return 0;
 }
 
