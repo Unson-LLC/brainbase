@@ -25,11 +25,13 @@ brainbase logout         # removes the saved login from this machine
 - `refresh_token`: present when the server issues one.
 - `expires_at`: taken from the token's `exp`, or from `expires_in`.
 
-The file is written to a temporary file, flushed to disk, renamed, and the directory is flushed too. The receipt goes to the server only after that.
+The file is written to a temporary file, flushed to disk, renamed, and the directory is flushed too. A directory created for the file is also flushed in its parent. The receipt goes to the server only after all of that succeeded. An I/O error while flushing fails the login with `login_save_failed` and sends no receipt. On a platform or file system that cannot flush directories (Windows, some network file systems), the login is kept but no receipt is sent; the server then lets the code expire on its own.
 
 `getAccessToken` returns the stored token while it has more than a minute left. Otherwise it calls `POST /api/auth/refresh`. A login without a refresh token is used until it actually expires.
 
-Login, logout and the write-back of a renewal take a lock file next to the credentials (`credentials.json.lock`). A renewal writes back only when the file still holds the same login (same `login_id` and server). If a logout or another login happened while the renewal was in flight, nothing is written and the call fails with `login_changed`. When two processes renew the same login at once and one loses, it uses the token the other stored. A token from a different login is never handed out.
+Login, logout and renewal take a lock file next to the credentials (`credentials.json.lock`). A renewal holds it from its request to its write-back. A logout or another login started meanwhile waits for the renewal and then wins. A second renewal waits too, then uses the token the first one stored without calling the server. Under the lock, a renewal goes ahead only when the file still holds the same login (same `login_id` and server); otherwise it fails with `login_changed`. A token from a different login is never handed out.
+
+The lock file holds a random id of its holder. The holder touches it every 2 seconds while it works. Another process takes the lock over only when it was not touched for 10 seconds (its holder died). Only the holder removes the lock. Right before replacing the credentials file, a write checks the lock still carries its id; if not, it writes nothing and fails with `login_lock_lost`. A waiter gives up after 20 seconds with `login_busy`.
 
 ## Server contract
 
@@ -42,4 +44,4 @@ Only HTTPS servers are accepted, plus HTTP on localhost for local development.
 
 ## Errors
 
-Failures carry a `login_*` code: `login_missing`, `login_expired` (run `brainbase login` again), `login_refresh_unavailable` (retry later), `login_denied`, `login_timeout`, `login_device_flow_unavailable`, `login_server_transport_unsafe`, `login_credentials_invalid`, `login_changed` (run the command again), `login_busy` (another process holds the lock; retry).
+Failures carry a `login_*` code: `login_missing`, `login_expired` (run `brainbase login` again), `login_refresh_unavailable` (retry later), `login_denied`, `login_timeout`, `login_device_flow_unavailable`, `login_server_transport_unsafe`, `login_credentials_invalid`, `login_changed` (run the command again), `login_busy` (another process holds the lock; retry), `login_lock_lost` (another process took the lock over; run the command again), `login_save_failed` (the login could not be flushed to disk; run `brainbase login` again).

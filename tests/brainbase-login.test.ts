@@ -219,34 +219,8 @@ describe('getAccessToken', () => {
       .rejects.toMatchObject({ code: 'login_refresh_unavailable' });
   });
 
-  it('does not bring back a login that was logged out while the renewal was in flight', async () => {
-    const path = await saved({ expires_at: new Date(NOW - 1000).toISOString() });
-    const fresh = jwt(NOW / 1000 + 3600);
-    const fetchImpl = (async () => {
-      await removeCredentials(path);
-      return new Response(JSON.stringify({ token: fresh, refresh_token: 'refresh-2' }), { status: 200 });
-    }) as typeof fetch;
-    await expect(getAccessToken({ credentialsPath: path, fetch: fetchImpl, now: () => NOW }))
-      .rejects.toMatchObject({ code: 'login_changed' });
-    expect(await readCredentials(path)).toBeNull();
-  });
-
-  it('does not overwrite another login made while the renewal was in flight, nor hand out its token', async () => {
-    const path = await saved({ expires_at: new Date(NOW - 1000).toISOString() });
-    const other: BrainbaseCredentials = {
-      schema_version: CREDENTIALS_SCHEMA_VERSION, login_id: 'login-2', server_url: 'https://api.example.net',
-      access_token: 'other-person', refresh_token: 'refresh-x', expires_at: new Date(NOW + 3600_000).toISOString(),
-    };
-    const fetchImpl = (async () => {
-      await writeCredentials(path, other);
-      return new Response(JSON.stringify({ token: jwt(NOW / 1000 + 3600), refresh_token: 'refresh-2' }), { status: 200 });
-    }) as typeof fetch;
-    await expect(getAccessToken({ credentialsPath: path, fetch: fetchImpl, now: () => NOW }))
-      .rejects.toMatchObject({ code: 'login_changed' });
-    expect(await readCredentials(path)).toEqual(other);
-  });
-
-  it('after a failed renewal, ignores a fresh token that belongs to another login', async () => {
+  // Concurrent logout, login and renewal are in brainbase-login-lock.test.ts.
+  it('after a failed renewal, does not hand out a token that belongs to another login', async () => {
     const path = await saved({ expires_at: new Date(NOW - 1000).toISOString() });
     const fetchImpl = (async () => {
       await writeCredentials(path, {
@@ -272,19 +246,6 @@ describe('getAccessToken', () => {
     expect(await getAccessToken({ credentialsPath: path, now: () => NOW })).toMatchObject({ token: 'old-access' });
     await expect(getAccessToken({ credentialsPath: path, now: () => NOW + 31_000 }))
       .rejects.toMatchObject({ code: 'login_expired' });
-  });
-
-  it('uses a token another process stored while this one failed to renew', async () => {
-    const path = await saved({ expires_at: new Date(NOW - 1000).toISOString() });
-    const fetchImpl = (async () => {
-      await writeCredentials(path, {
-        schema_version: CREDENTIALS_SCHEMA_VERSION, login_id: 'login-1', server_url: 'https://api.example.net',
-        access_token: 'other-process', refresh_token: 'refresh-2', expires_at: new Date(NOW + 3600_000).toISOString(),
-      });
-      return new Response(JSON.stringify({ error: 'Refresh failed' }), { status: 401 });
-    }) as typeof fetch;
-    expect(await getAccessToken({ credentialsPath: path, fetch: fetchImpl, now: () => NOW }))
-      .toEqual({ token: 'other-process', serverUrl: 'https://api.example.net' });
   });
 
   it('fails with login_missing when nobody logged in, and on an unusable file', async () => {

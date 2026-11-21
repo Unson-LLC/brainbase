@@ -9,7 +9,7 @@
 // default server: the person names their own server once at login.
 
 import { randomBytes } from 'node:crypto';
-import { mkdir, open, readFile, rename, rm, stat } from 'node:fs/promises';
+import { link, mkdir, open, readFile, rename, rm, stat, utimes } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -66,8 +66,11 @@ export class BrainbaseLoginError extends Error {
 
 const REQUEST_TIMEOUT_MS = 15_000;
 const DEFAULT_REFRESH_SKEW_MS = 60_000;
-const LOCK_WAIT_MS = 5_000;
+// A renewal holds the lock across its request, so a waiter waits longer than
+// one request can take.
+const LOCK_WAIT_MS = REQUEST_TIMEOUT_MS + 5_000;
 const LOCK_STALE_MS = 10_000;
+const LOCK_HEARTBEAT_MS = 2_000;
 
 export function defaultCredentialsPath(env: NodeJS.ProcessEnv = process.env): string {
   const configured = env.BRAINBASE_CREDENTIALS_FILE?.trim();
@@ -183,12 +186,63 @@ export function newLoginId(): string {
 }
 
 /**
- * Writes the file so that it survives a crash once this returns: the data and
- * the rename are flushed to disk. A new file is 0600, a new directory 0700.
+ * Fsync on a directory: true once it is flushed, false on a platform or file
+ * system that cannot flush directories. Any other failure is an I/O error and
+ * is thrown.
  */
-export async function writeCredentials(path: string, credentials: BrainbaseCredentials): Promise<void> {
+async function syncDirectory(directory: string): Promise<boolean> {
+  if (process.platform === 'win32') return false; // Directories cannot be opened for fsync there.
+  const handle = await open(directory, 'r');
+  try {
+    await handle.sync();
+    return true;
+  } catch (error) {
+    if (DIRECTORY_SYNC_UNSUPPORTED.has(String((error as NodeJS.ErrnoException)?.code))) return false;
+    throw error;
+  } finally {
+    await handle.close();
+  }
+}
+
+const DIRECTORY_SYNC_UNSUPPORTED = new Set(['EINVAL', 'ENOTSUP', 'EOPNOTSUPP']);
+
+/**
+ * Creates the directory (0700) when it is missing. A new directory only
+ * survives a crash once the directory holding it is flushed, so every
+ * directory created here is flushed in its parent, from the top down.
+ * Returns false when some directory could not be flushed.
+ */
+async function ensureDirectory(directory: string): Promise<boolean> {
+  const firstCreated = await mkdir(directory, { recursive: true, mode: 0o700 });
+  if (!firstCreated) return true;
+  const chain: string[] = [];
+  for (let current = directory; ; current = dirname(current)) {
+    chain.unshift(current);
+    if (current === firstCreated || dirname(current) === current) break;
+  }
+  let durable = await syncDirectory(dirname(firstCreated));
+  for (const created of chain) durable = (await syncDirectory(created)) && durable;
+  return durable;
+}
+
+export interface WriteCredentialsOptions {
+  /** The lock this write runs under; checked to be still held right before the file is replaced. */
+  lock?: CredentialsLock;
+}
+
+/**
+ * Writes the file atomically: data and rename are flushed to disk before this
+ * returns. A new file is 0600, a new directory 0700. `durable` is false when
+ * the platform could not flush a directory, so the rename may not survive a
+ * crash; a real I/O error is thrown instead.
+ */
+export async function writeCredentials(
+  path: string,
+  credentials: BrainbaseCredentials,
+  options: WriteCredentialsOptions = {},
+): Promise<{ durable: boolean }> {
   const directory = dirname(path);
-  await mkdir(directory, { recursive: true, mode: 0o700 });
+  const directoryDurable = await ensureDirectory(directory);
   const temporary = `${path}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
   const handle = await open(temporary, 'wx', 0o600);
   try {
@@ -198,63 +252,143 @@ export async function writeCredentials(path: string, credentials: BrainbaseCrede
   } finally {
     await handle.close();
   }
-  await rename(temporary, path);
-  await syncDirectory(directory);
+  try {
+    if (options.lock) await options.lock.assertHeld();
+    await rename(temporary, path);
+  } catch (error) {
+    await rm(temporary, { force: true });
+    throw error;
+  }
+  const renameDurable = await syncDirectory(directory);
+  return { durable: directoryDurable && renameDurable && (options.lock?.directoryDurable ?? true) };
 }
 
-async function syncDirectory(directory: string): Promise<void> {
-  let handle;
+export interface CredentialsLock {
+  /** Fails with `login_lock_lost` when the lock file no longer carries this holder's id. */
+  assertHeld(): Promise<void>;
+  /** False when the credentials directory was created but could not be flushed. */
+  readonly directoryDurable: boolean;
+}
+
+export interface LockTiming {
+  /** A lock whose file was not touched for this long belongs to a process that died. */
+  staleMs: number;
+  /** How often the holder touches the lock file while it works. */
+  heartbeatMs: number;
+  /** How long to wait for another holder before failing with `login_busy`. */
+  waitMs: number;
+}
+
+const DEFAULT_LOCK_TIMING: LockTiming = { staleMs: LOCK_STALE_MS, heartbeatMs: LOCK_HEARTBEAT_MS, waitMs: LOCK_WAIT_MS };
+
+async function readLockOwner(path: string): Promise<string | null> {
   try {
-    handle = await open(directory, 'r');
-  } catch {
-    return; // Some platforms cannot open a directory; the rename stands.
+    return await readFile(path, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+/**
+ * Removes the lock file only when it carries `owner`. The file is first moved
+ * aside, so it cannot change between the check and the removal; a file that
+ * turns out to belong to someone else is linked back (link never overwrites).
+ */
+async function removeLockIfOwner(lockPath: string, owner: string): Promise<void> {
+  const aside = `${lockPath}.${randomBytes(4).toString('hex')}.release`;
+  try {
+    await rename(lockPath, aside);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return;
+    throw error;
   }
   try {
-    await handle.sync();
-  } catch {
-    // Same as above: fsync on a directory is not supported everywhere.
+    if ((await readLockOwner(aside)) !== owner) {
+      await link(aside, lockPath).catch((error: NodeJS.ErrnoException) => {
+        if (error?.code !== 'EEXIST') throw error;
+      });
+    }
   } finally {
-    await handle.close();
+    await rm(aside, { force: true });
   }
 }
 
 /**
  * Serialises changes to the credentials file between processes on this
- * machine: login, logout and the write-back of a renewal. A lock older than
- * LOCK_STALE_MS belongs to a process that died and is taken over.
+ * machine: login, logout, and a renewal from its request to its write-back.
+ * The lock file carries a random id of its holder. The holder touches it every
+ * `heartbeatMs` while it works, so a lock is only taken over when its holder
+ * stopped touching it for `staleMs` (the process died). Only the holder
+ * removes the lock, and a write under the lock checks it is still held.
  */
-export async function withCredentialsLock<T>(path: string, task: () => Promise<T>): Promise<T> {
-  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+export async function withCredentialsLock<T>(
+  path: string,
+  task: (lock: CredentialsLock) => Promise<T>,
+  timing: Partial<LockTiming> = {},
+): Promise<T> {
+  const { staleMs, heartbeatMs, waitMs } = { ...DEFAULT_LOCK_TIMING, ...timing };
+  const directoryDurable = await ensureDirectory(dirname(path));
   const lockPath = `${path}.lock`;
+  const owner = randomBytes(16).toString('hex');
   const started = Date.now();
   for (;;) {
+    let handle;
     try {
-      const handle = await open(lockPath, 'wx', 0o600);
-      await handle.close();
-      break;
+      handle = await open(lockPath, 'wx', 0o600);
     } catch (error) {
       if ((error as NodeJS.ErrnoException)?.code !== 'EEXIST') throw error;
-      const age = await stat(lockPath).then((info) => Date.now() - info.mtimeMs, () => 0);
-      if (age > LOCK_STALE_MS) {
-        await rm(lockPath, { force: true });
+      const [holder, age] = await Promise.all([
+        readLockOwner(lockPath),
+        stat(lockPath).then((info) => Date.now() - info.mtimeMs, () => 0),
+      ]);
+      if (holder !== null && age > staleMs) {
+        await removeLockIfOwner(lockPath, holder);
         continue;
       }
-      if (Date.now() - started > LOCK_WAIT_MS) {
+      if (Date.now() - started > waitMs) {
         throw new BrainbaseLoginError('login_busy', 'Another brainbase process is changing the saved login. Try again.');
       }
       await defaultSleep(25);
+      continue;
     }
+    try {
+      await handle.writeFile(owner, 'utf8');
+    } finally {
+      await handle.close();
+    }
+    break;
   }
+  const lock: CredentialsLock = {
+    directoryDurable,
+    async assertHeld() {
+      if ((await readLockOwner(lockPath)) !== owner) {
+        throw new BrainbaseLoginError('login_lock_lost', 'Another brainbase process took over the saved login. Run the command again.');
+      }
+    },
+  };
+  let touching = Promise.resolve();
+  const heartbeat = setInterval(() => {
+    touching = touching.then(async () => {
+      if ((await readLockOwner(lockPath).catch(() => null)) !== owner) return;
+      const now = new Date();
+      await utimes(lockPath, now, now).catch(() => undefined);
+    });
+  }, heartbeatMs);
+  heartbeat.unref?.();
   try {
-    return await task();
+    return await task(lock);
   } finally {
-    await rm(lockPath, { force: true });
+    clearInterval(heartbeat);
+    await touching;
+    await removeLockIfOwner(lockPath, owner);
   }
 }
 
 export async function removeCredentials(path = defaultCredentialsPath()): Promise<boolean> {
-  return withCredentialsLock(path, async () => {
+  return withCredentialsLock(path, async (lock) => {
     const existed = (await readCredentials(path).catch(() => ({}))) !== null;
+    await lock.assertHeld();
     await rm(path, { force: true });
     return existed;
   });
@@ -349,11 +483,18 @@ export async function loginWithDeviceCode(options: LoginOptions): Promise<Brainb
       ...(typeof refreshToken === 'string' && refreshToken ? { refresh_token: refreshToken } : {}),
       expires_at: expiryIso(accessToken, poll.json?.expires_in, now()),
     };
-    // The file is on disk (flushed) before the receipt lets the server forget
-    // the token.
-    await withCredentialsLock(credentialsPath, () => writeCredentials(credentialsPath, credentials));
+    // The receipt lets the server forget the token, so it goes out only once
+    // the file is known to be on disk. Where a directory cannot be flushed,
+    // no receipt is sent and the code expires on its own.
+    let saved;
+    try {
+      saved = await withCredentialsLock(credentialsPath, (lock) => writeCredentials(credentialsPath, credentials, { lock }));
+    } catch (error) {
+      if (error instanceof BrainbaseLoginError) throw error;
+      throw new BrainbaseLoginError('login_save_failed', `Could not save the login to ${credentialsPath} (${(error as NodeJS.ErrnoException)?.code ?? 'error'}). Run brainbase login again.`);
+    }
     const receiptToken = poll.json?.receipt_token;
-    if (typeof receiptToken === 'string' && receiptToken) {
+    if (saved.durable && typeof receiptToken === 'string' && receiptToken) {
       // Tells the server the token is stored, so it stops handing it out.
       // A lost receipt only leaves the code to expire on its own.
       await postJson(fetchImpl, `${serverUrl}/api/auth/device/received`, {
@@ -366,12 +507,10 @@ export async function loginWithDeviceCode(options: LoginOptions): Promise<Brainb
   throw new BrainbaseLoginError('login_timeout', 'The login was not approved in time. Run brainbase login again.');
 }
 
-async function refreshCredentials(
+async function requestRenewal(
   credentials: BrainbaseCredentials & { refresh_token: string },
-  credentialsPath: string,
   fetchImpl: FetchLike,
   now: () => number,
-  skew: number,
 ): Promise<BrainbaseCredentials> {
   let result;
   try {
@@ -389,27 +528,12 @@ async function refreshCredentials(
     throw new BrainbaseLoginError('login_expired', 'The saved login can no longer be renewed. Run brainbase login again.');
   }
   const nextRefresh = result.json?.refresh_token;
-  const next: BrainbaseCredentials = {
+  return {
     ...credentials,
     access_token: token,
     ...(typeof nextRefresh === 'string' && nextRefresh ? { refresh_token: nextRefresh } : {}),
     expires_at: expiryIso(token, result.json?.expires_in, now()),
   };
-  // Write back only over the login this renewal started from. The file may
-  // have been removed by a logout, replaced by another login, or renewed by
-  // another process while the request was in flight.
-  return withCredentialsLock(credentialsPath, async () => {
-    const latest = await readCredentials(credentialsPath).catch(() => null);
-    if (!latest || !sameLogin(latest, credentials)) {
-      throw new BrainbaseLoginError('login_changed', 'The saved login changed while it was being renewed. Run the command again.');
-    }
-    if (latest.refresh_token !== credentials.refresh_token) {
-      if (isFresh(latest, now(), skew)) return latest;
-      // The other process stored an older-looking token; ours is newer.
-    }
-    await writeCredentials(credentialsPath, next);
-    return next;
-  });
 }
 
 function sameLogin(a: BrainbaseCredentials, b: BrainbaseCredentials): boolean {
@@ -420,9 +544,21 @@ function isFresh(credentials: BrainbaseCredentials, now: number, skew: number): 
   return Date.parse(credentials.expires_at) - skew > now;
 }
 
+function usableWithoutRenewal(credentials: BrainbaseCredentials, now: number): { token: string; serverUrl: string } {
+  // Nothing can renew it, so it is used until it actually expires.
+  if (Date.parse(credentials.expires_at) > now) {
+    return { token: credentials.access_token, serverUrl: credentials.server_url };
+  }
+  throw new BrainbaseLoginError('login_expired', 'The saved login has expired. Run brainbase login again.');
+}
+
 /**
  * The person token for this machine, renewed first when it is about to expire.
  * Fails with a `login_*` code when there is no usable login.
+ *
+ * A renewal holds the credentials lock from its request to its write-back, so
+ * two renewals never race on a rotating refresh token, and a logout or another
+ * login waits for it and then wins.
  */
 export async function getAccessToken(options: AccessTokenOptions = {}): Promise<{ token: string; serverUrl: string }> {
   const credentialsPath = options.credentialsPath ?? defaultCredentialsPath();
@@ -436,27 +572,18 @@ export async function getAccessToken(options: AccessTokenOptions = {}): Promise<
   if (isFresh(credentials, now(), skew)) {
     return { token: credentials.access_token, serverUrl: credentials.server_url };
   }
-  if (!credentials.refresh_token) {
-    // Nothing can renew it, so it is used until it actually expires.
-    if (Date.parse(credentials.expires_at) > now()) {
-      return { token: credentials.access_token, serverUrl: credentials.server_url };
-    }
-    throw new BrainbaseLoginError('login_expired', 'The saved login has expired. Run brainbase login again.');
-  }
-  try {
-    const next = await refreshCredentials(
-      credentials as BrainbaseCredentials & { refresh_token: string }, credentialsPath, fetchImpl, now, skew,
-    );
-    return { token: next.access_token, serverUrl: next.server_url };
-  } catch (error) {
-    // Two processes may renew at once and the server may rotate the refresh
-    // token. When another process already stored a fresh token for the same
-    // login, use it. A token from a different login is never handed out here.
+  if (!credentials.refresh_token) return usableWithoutRenewal(credentials, now());
+  return withCredentialsLock(credentialsPath, async (lock) => {
+    // Read again under the lock: another process may have renewed, logged out
+    // or logged in as someone else while this one waited.
     const latest = await readCredentials(credentialsPath).catch(() => null);
-    if (latest && sameLogin(latest, credentials) && latest.access_token !== credentials.access_token
-      && isFresh(latest, now(), skew)) {
-      return { token: latest.access_token, serverUrl: latest.server_url };
+    if (!latest || !sameLogin(latest, credentials)) {
+      throw new BrainbaseLoginError('login_changed', 'The saved login changed while it was being renewed. Run the command again.');
     }
-    throw error;
-  }
+    if (isFresh(latest, now(), skew)) return { token: latest.access_token, serverUrl: latest.server_url };
+    if (!latest.refresh_token) return usableWithoutRenewal(latest, now());
+    const next = await requestRenewal(latest as BrainbaseCredentials & { refresh_token: string }, fetchImpl, now);
+    await writeCredentials(credentialsPath, next, { lock });
+    return { token: next.access_token, serverUrl: next.server_url };
+  });
 }
