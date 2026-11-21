@@ -18,7 +18,7 @@
 // remote), or from the person's only project.
 
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { getAccessToken, type AccessTokenOptions } from './brainbase-login.js';
@@ -34,7 +34,7 @@ export interface ClaudeCodeHookConfig {
   /**
    * Repositories to audit, as `host/owner/name` of the origin remote
    * (lowercase), e.g. `github.com/example-org/app`. Omit to audit every git
-   * repository.
+   * repository; an empty list audits none.
    */
   repositories?: string[];
 }
@@ -74,6 +74,13 @@ interface TurnState {
   recent_prompt_ids: string[];
   /** The repository the turn was opened in; later events must match it. */
   repository?: string | null;
+  /**
+   * The checkout the turn was opened in (its shared git directory), for a
+   * repository without an origin remote; later events must match it.
+   */
+  checkout?: string | null;
+  /** Where the turn's events go; a config that changes mid-turn stops them. */
+  destination?: string;
 }
 
 function warning(text: string): ClaudeCodeHookOutput {
@@ -112,8 +119,20 @@ export function readClaudeCodeHookConfig(path: string): ClaudeCodeHookConfig | n
     schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA,
     origin: value.origin,
     ...(typeof value.project_code === 'string' && value.project_code ? { project_code: value.project_code } : {}),
-    ...(repositories && repositories.length > 0 ? { repositories } : {}),
+    // An empty list stays empty: it audits no repository, it never means all.
+    ...(repositories ? { repositories } : {}),
   };
+}
+
+/** True when the file holds JSON with this hook config's schema (it was written by the installer). */
+export function isClaudeCodeHookConfigFile(path: string): boolean {
+  try {
+    const parsed = JSON.parse(readFileSync(path, 'utf8')) as { schema_version?: unknown } | null;
+    return !!parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      && parsed.schema_version === CLAUDE_CODE_HOOK_CONFIG_SCHEMA;
+  } catch {
+    return false;
+  }
 }
 
 const REPOSITORY_IDENTITY = /^[a-z0-9][a-z0-9.-]*(?::[0-9]+)?(?:\/[a-z0-9._~-]+){2,}$/u;
@@ -168,6 +187,35 @@ export function gitCommonDir(repoRoot: string): string | null {
   }
 }
 
+/**
+ * One value of a git config line: quotes removed, backslash escapes read, and
+ * a `#` or `;` comment outside quotes dropped, as git does.
+ */
+function gitConfigValue(raw: string): string {
+  let value = '';
+  let quoted = false;
+  for (let index = 0; index < raw.length; index += 1) {
+    const char = raw[index];
+    if (char === '\\' && index + 1 < raw.length) {
+      const next = raw[index + 1];
+      value += next === 'n' ? '\n' : next === 't' ? '\t' : next;
+      index += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (!quoted && (char === '#' || char === ';')) {
+      break;
+    } else {
+      value += char;
+    }
+  }
+  return value.trim();
+}
+
+/**
+ * The first `remote.origin.url` of the repository's own config file. Section
+ * and key names are case-insensitive, the subsection name is not. Includes and
+ * `insteadOf` rewrites are not followed; such an origin is not recognised.
+ */
 function originRepositoryUrl(commonDir: string): string | null {
   let text: string;
   try {
@@ -177,13 +225,18 @@ function originRepositoryUrl(commonDir: string): string | null {
   }
   let inOrigin = false;
   for (const line of text.split(/\r?\n/u)) {
-    const section = /^\s*\[(.+)\]\s*$/u.exec(line);
+    const section = /^\s*\[\s*([A-Za-z0-9.-]+)(?:\s+"((?:[^"\\]|\\.)*)")?\s*\](.*)$/u.exec(line);
+    let rest = line;
     if (section) {
-      inOrigin = /^remote\s+"origin"$/u.test(section[1].trim());
-      continue;
+      const name = section[1].toLowerCase();
+      inOrigin = (name === 'remote' && section[2] === 'origin') || (section[2] === undefined && name === 'remote.origin');
+      rest = section[3];
     }
-    const url = inOrigin ? /^\s*url\s*=\s*(.+?)\s*$/u.exec(line) : null;
-    if (url) return url[1];
+    const entry = inOrigin ? /^\s*([A-Za-z][A-Za-z0-9-]*)\s*=\s*(.*)$/u.exec(rest) : null;
+    if (entry && entry[1].toLowerCase() === 'url') {
+      const url = gitConfigValue(entry[2]);
+      if (url) return url;
+    }
   }
   return null;
 }
@@ -228,24 +281,48 @@ interface RepositoryScope {
   /** A git checkout was found. */
   inGit: boolean;
   repository: string | null;
+  /** Real path of the checkout's shared git directory; null outside git. */
+  checkout: string | null;
 }
 
 function eventRepository(payload: ClaudeCodeHookPayload): RepositoryScope {
   const cwd = typeof payload.cwd === 'string' && payload.cwd ? payload.cwd : process.cwd();
   const root = findGitRoot(cwd);
-  return { inGit: root !== null, repository: root ? repositoryIdentity(root) : null };
+  if (!root) return { inGit: false, repository: null, checkout: null };
+  const commonDir = gitCommonDir(root);
+  let checkout: string | null = null;
+  try {
+    checkout = commonDir ? realpathSync(commonDir) : null;
+  } catch {
+    checkout = null;
+  }
+  return { inGit: true, repository: repositoryIdentity(root), checkout };
 }
 
 function isAuditedRepository(scope: RepositoryScope, config: ClaudeCodeHookConfig): boolean {
   if (!scope.inGit) return false;
-  if (!config.repositories || config.repositories.length === 0) return true;
+  if (!config.repositories) return true;
   return scope.repository !== null && config.repositories.includes(scope.repository);
 }
 
 // A later event belongs to the turn only when it runs in the repository the
-// turn was opened in. The turn's repository, not the event's, is sent.
+// turn was opened in: the same host/owner/name, or, for a repository without
+// one, the same checkout. Outside git nothing belongs to a turn. The turn's
+// repository, not the event's, is sent.
 function sameScope(state: TurnState, scope: RepositoryScope): boolean {
-  return (state.repository ?? null) === scope.repository;
+  if (!scope.inGit) return false;
+  if (typeof state.repository === 'string') return state.repository === scope.repository;
+  return scope.repository === null && typeof state.checkout === 'string' && state.checkout === scope.checkout;
+}
+
+// Where events go: the config file, the Host origin and the project. A turn
+// keeps the destination it was opened with.
+function destinationOf(context: Context): string {
+  return JSON.stringify([context.configPath, context.config.origin, context.config.project_code ?? null]);
+}
+
+function sameDestination(state: TurnState, context: Context): boolean {
+  return state.destination === destinationOf(context);
 }
 
 // ---- Turn state ----
@@ -258,14 +335,24 @@ function sha256(text: string): string {
   return createHash('sha256').update(text).digest('hex');
 }
 
-function statePath(env: NodeJS.ProcessEnv, sessionId: string): string {
-  return join(turnDirectory(env), `${sha256(sessionId)}.json`);
+// Turns are kept per session and per hook config, so two registered configs
+// (two Hosts) never share a turn.
+function stateKey(sessionId: string, configPath: string): string {
+  return sha256(`${sessionId}\n${configPath}`);
+}
+
+function turnKey(payload: ClaudeCodeHookPayload, context: Context): string {
+  return stateKey(String(payload.session_id), context.configPath);
+}
+
+function statePath(env: NodeJS.ProcessEnv, key: string): string {
+  return join(turnDirectory(env), `${key}.json`);
 }
 
 // Present while an input Claude Code screened during this prompt's turn may
 // still run as a turn of its own (see unannouncedTurn).
 function screeningPath(env: NodeJS.ProcessEnv, sessionId: string, promptId: string): string {
-  return join(turnDirectory(env), `${sha256(sessionId)}.screened-${sha256(promptId).slice(0, 32)}`);
+  return join(turnDirectory(env), `${sessionId}.screened-${sha256(promptId).slice(0, 32)}`);
 }
 
 function noteScreening(env: NodeJS.ProcessEnv, sessionId: string, promptId: string): void {
@@ -321,6 +408,8 @@ interface Context {
   fetch: typeof fetch;
   accessToken: () => Promise<string>;
   scope: RepositoryScope;
+  /** Absolute path of the hook config this run read. */
+  configPath: string;
 }
 
 async function forward(
@@ -443,8 +532,8 @@ function safeReason(error: unknown): string {
 
 // ---- Event handlers ----
 
-function currentTurn(payload: ClaudeCodeHookPayload, env: NodeJS.ProcessEnv): TurnState | null {
-  const state = readState(env, String(payload.session_id));
+function currentTurn(payload: ClaudeCodeHookPayload, context: Context): TurnState | null {
+  const state = readState(context.env, turnKey(payload, context));
   if (!state) return null;
   const promptId = promptIdOf(payload);
   if (promptId && typeof state.prompt_id === 'string' && state.prompt_id !== promptId) return null;
@@ -458,7 +547,7 @@ function currentTurn(payload: ClaudeCodeHookPayload, env: NodeJS.ProcessEnv): Tu
 // person is told once.
 function unannouncedTurn(payload: ClaudeCodeHookPayload, context: Context): ClaudeCodeHookOutput {
   const { env } = context;
-  const sessionId = String(payload.session_id);
+  const sessionId = turnKey(payload, context);
   const promptId = promptIdOf(payload);
   const previous = readState(env, sessionId);
   if (!promptId || typeof previous?.prompt_id !== 'string' || previous.prompt_id === promptId) return {};
@@ -489,6 +578,8 @@ function unannouncedTurn(payload: ClaudeCodeHookPayload, context: Context): Clau
       stop_blocks: 0,
       recent_prompt_ids: recentPrompts(previous),
       repository: context.scope.repository,
+      checkout: context.scope.checkout,
+      destination: destinationOf(context),
     });
   } catch {
     return told;
@@ -499,7 +590,7 @@ function unannouncedTurn(payload: ClaudeCodeHookPayload, context: Context): Clau
 
 async function handleUserPromptSubmit(payload: ClaudeCodeHookPayload, context: Context): Promise<ClaudeCodeHookOutput> {
   const { env } = context;
-  const sessionId = String(payload.session_id);
+  const sessionId = turnKey(payload, context);
   const promptId = promptIdOf(payload);
   const previous = readState(env, sessionId);
   // Claude Code fires UserPromptSubmit again with the running turn's prompt_id
@@ -519,6 +610,8 @@ async function handleUserPromptSubmit(payload: ClaudeCodeHookPayload, context: C
     stop_blocks: 0,
     recent_prompt_ids: recentPrompts(previous),
     repository: context.scope.repository,
+    checkout: context.scope.checkout,
+    destination: destinationOf(context),
   };
   if (!isAuditedRepository(context.scope, context.config)) {
     writeState(env, sessionId, { ...state, start_status: 'out_of_scope' });
@@ -535,9 +628,9 @@ async function handleUserPromptSubmit(payload: ClaudeCodeHookPayload, context: C
 }
 
 async function handlePostToolUse(payload: ClaudeCodeHookPayload, context: Context, eventName: string): Promise<ClaudeCodeHookOutput> {
-  const state = currentTurn(payload, context.env);
+  const state = currentTurn(payload, context);
   if (!state) return unannouncedTurn(payload, context);
-  if (state.start_status !== 'started' || !sameScope(state, context.scope)) return {};
+  if (state.start_status !== 'started' || !sameScope(state, context.scope) || !sameDestination(state, context)) return {};
   try {
     return documentedOutput(
       await forward({ ...forwardedToolPayload(payload), turn_id: state.turn_id }, context, state.repository ?? null),
@@ -568,9 +661,9 @@ function preToolUseOutput(output: Record<string, unknown>): ClaudeCodeHookOutput
 
 async function handlePreToolUse(payload: ClaudeCodeHookPayload, context: Context): Promise<ClaudeCodeHookOutput> {
   if (typeof payload.tool_name !== 'string' || !PRE_TOOL_USE_TOOLS.has(payload.tool_name)) return {};
-  const state = currentTurn(payload, context.env);
+  const state = currentTurn(payload, context);
   if (!state) return unannouncedTurn(payload, context);
-  if (state.start_status !== 'started' || !sameScope(state, context.scope)) return {};
+  if (state.start_status !== 'started' || !sameScope(state, context.scope) || !sameDestination(state, context)) return {};
   try {
     return preToolUseOutput(await forward({ ...payload, turn_id: state.turn_id }, context, state.repository ?? null));
   } catch (error) {
@@ -579,11 +672,14 @@ async function handlePreToolUse(payload: ClaudeCodeHookPayload, context: Context
 }
 
 async function handleStop(payload: ClaudeCodeHookPayload, context: Context): Promise<ClaudeCodeHookOutput> {
-  const state = currentTurn(payload, context.env);
+  const state = currentTurn(payload, context);
   if (!state) return unannouncedTurn(payload, context);
   if (state.start_status !== 'started') return {};
   if (!sameScope(state, context.scope)) {
     return warning('ターンの途中で別のリポジトリに移ったため、回答を送らずに監査未完了のまま終了します（judgment_turn_repository_changed）。');
+  }
+  if (!sameDestination(state, context)) {
+    return warning('ターンの途中で判断フックの送り先が変わったため、回答を送らずに監査未完了のまま終了します（judgment_turn_destination_changed）。');
   }
   const blocks = Number.isSafeInteger(state.stop_blocks) ? state.stop_blocks : 0;
   let output: ClaudeCodeHookOutput;
@@ -598,7 +694,7 @@ async function handleStop(payload: ClaudeCodeHookPayload, context: Context): Pro
   if (output.decision !== 'block') return output;
   // The person has already read the answer when Stop runs. Sending the repair
   // request back would print the same answer twice, so it is shown as a notice.
-  writeState(context.env, String(payload.session_id), { ...state, stop_blocks: blocks + 1 });
+  writeState(context.env, turnKey(payload, context), { ...state, stop_blocks: blocks + 1 });
   const repairId = /r-[a-f0-9]{16}/u.exec(typeof output.reason === 'string' ? output.reason : '')?.[0];
   const notice = warning(`回答は差し戻しません。監査は未完了のまま終了します${repairId ? `（${repairId}）` : ''}。`).systemMessage;
   return { systemMessage: [output.systemMessage, notice].filter(Boolean).join('\n') };
@@ -612,7 +708,8 @@ export async function handleClaudeCodeJudgmentHook(
   const env = options.env ?? process.env;
   try {
     if (env.BRAINBASE_CLAUDE_JUDGMENT_HOOK === 'disabled') return {};
-    const config = readClaudeCodeHookConfig(options.configPath ?? defaultClaudeCodeHookConfigPath(env));
+    const configPath = resolve(options.configPath ?? defaultClaudeCodeHookConfigPath(env));
+    const config = readClaudeCodeHookConfig(configPath);
     // Not installed for this person, or removed: forward nothing.
     if (!config) return {};
     const eventName = payload.hook_event_name;
@@ -626,6 +723,7 @@ export async function handleClaudeCodeJudgmentHook(
       accessToken: options.accessToken
         ?? (async () => (await getAccessToken({ fetch: options.fetch, ...options.credentials })).token),
       scope: eventRepository(payload),
+      configPath,
     };
     if (eventName === 'UserPromptSubmit') return await handleUserPromptSubmit(payload, context);
     if (eventName === 'PreToolUse') return await handlePreToolUse(payload, context);
@@ -730,6 +828,18 @@ function withoutInstalledHooks(hooks: unknown, configPath: string): Record<strin
     if (kept.length > 0) result[event] = kept;
   }
   return result;
+}
+
+/** True when the settings hold a registration this installer wrote for `configPath`. */
+export function hasInstalledClaudeCodeHooks(settings: Record<string, unknown>, configPath: string): boolean {
+  for (const groups of Object.values((settings.hooks ?? {}) as Record<string, unknown>)) {
+    if (!Array.isArray(groups)) continue;
+    for (const group of groups) {
+      const inner = (group as { hooks?: unknown })?.hooks;
+      if (Array.isArray(inner) && inner.some((hook) => installedHookConfigPath(hook) === configPath)) return true;
+    }
+  }
+  return false;
 }
 
 /**

@@ -12,7 +12,7 @@ import {
   selectLocalMemories
 } from './personal-memory-handover.js';
 import { constants, realpathSync } from 'node:fs';
-import { access, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initializePersonalOs, loadPersonalOs, migrateCanonicalGraph, mutatePersonalOs } from './ssot.js';
@@ -70,6 +70,8 @@ import {
   claudeCodeHookCommand,
   defaultClaudeCodeHookConfigPath,
   handleClaudeCodeJudgmentHook,
+  hasInstalledClaudeCodeHooks,
+  isClaudeCodeHookConfigFile,
   normalizeRepositoryEntry,
   registerClaudeCodeJudgmentHooks,
   type ClaudeCodeHookConfig
@@ -316,7 +318,8 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
     if (!origin) throw new Error('judgment:install --target claude-code requires --origin <hosted MCP URL>');
     const projectCode = first(parsed, 'project')?.trim();
     if (projectCode && !HOOK_PROJECT_CODE_PATTERN.test(projectCode)) throw new Error('judgment:install --project must match [a-z0-9][a-z0-9._-]{0,63}');
-    const repositories = (parsed.values.get('repositories') ?? [])
+    const repositoryValues = parsed.values.get('repositories');
+    const repositories = (repositoryValues ?? [])
       .flatMap((value) => value.split(',')).map((name) => name.trim()).filter(Boolean)
       .map((name) => {
         const normalized = normalizeRepositoryEntry(name);
@@ -325,6 +328,12 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
         }
         return normalized;
       });
+    // An empty list would read as "no limit". Leaving the option out audits
+    // every repository; an empty value is refused instead of widening to that.
+    // `--repositories ''` arrives as a bare flag.
+    if ((repositoryValues !== undefined || parsed.flags.has('repositories')) && repositories.length === 0) {
+      throw new Error('judgment:install --repositories needs at least one host/owner/name; leave the option out to audit every repository');
+    }
     config = {
       schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA,
       origin: normalizeServerUrl(origin),
@@ -342,6 +351,18 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
   } catch (error) {
     if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error;
   }
+  // The installer only overwrites or removes a config file it wrote itself.
+  const configExists = await stat(configPath).then(() => true, (error: NodeJS.ErrnoException) => {
+    if (error?.code === 'ENOENT') return false;
+    throw error;
+  });
+  const configOwned = configExists && isClaudeCodeHookConfigFile(configPath);
+  if (!remove && configExists && !configOwned) {
+    throw new Error(`judgment:install --config ${configPath} exists and is not a brainbase hook config; choose another path`);
+  }
+  if (remove && !hasInstalledClaudeCodeHooks(settings, configPath)) {
+    throw new Error(`judgment:install --remove found no registration for ${configPath} in ${settingsPath}; nothing was changed`);
+  }
   const cliPath = fileURLToPath(new URL('./cli.js', import.meta.url));
   const command = claudeCodeHookCommand(process.execPath, cliPath, configPath);
   const next = registerClaudeCodeJudgmentHooks(settings, { command, configPath, remove });
@@ -354,12 +375,18 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
   await writeFile(temporary, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 });
   await rename(temporary, settingsPath);
   if (remove) {
-    await rm(configPath, { force: true });
-    write(io, `Claude Codeの判断フックを外しました（${settingsPath}）。\n`);
+    if (configOwned) await rm(configPath, { force: true });
+    write(io, [
+      `Claude Codeの判断フックを外しました（${settingsPath}）。`,
+      ...(configExists && !configOwned ? [`${configPath} は判断フックの設定ではないため、残しました。`] : []),
+      ''
+    ].join('\n'));
     return 0;
   }
   await mkdir(dirname(configPath), { recursive: true, mode: 0o700 });
-  await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
+  const configTemporary = `${configPath}.${process.pid}.tmp`;
+  await writeFile(configTemporary, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
+  await rename(configTemporary, configPath);
   write(io, [
     `Claude Codeの判断フックを登録しました（${settingsPath}）。`,
     `送り先: ${config!.origin}`,
