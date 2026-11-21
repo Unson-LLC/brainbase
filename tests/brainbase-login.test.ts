@@ -241,6 +241,18 @@ describe('getAccessToken', () => {
     expect(await readCredentials(path)).not.toBeNull();
   });
 
+  it('reports a retryable failure when a 2xx renewal answer is cut off before its body is read', async () => {
+    const path = await saved({ expires_at: new Date(NOW - 1000).toISOString() });
+    const fetchImpl = (async (input: string | URL) => {
+      if (String(input).endsWith('/api/csrf-token')) return new Response('{}', { status: 404 });
+      const body = new ReadableStream({ start(controller) { controller.error(new Error('socket hang up')); } });
+      return new Response(body, { status: 200 });
+    }) as typeof fetch;
+    await expect(getAccessToken({ credentialsPath: path, fetch: fetchImpl, now: () => NOW }))
+      .rejects.toMatchObject({ code: 'login_refresh_unavailable' });
+    expect(await readCredentials(path)).toMatchObject({ refresh_token: 'refresh-1' });
+  });
+
   // Concurrent logout, login and renewal are in brainbase-login-lock.test.ts.
   it('after a failed renewal, does not hand out a token that belongs to another login', async () => {
     const path = await saved({ expires_at: new Date(NOW - 1000).toISOString() });

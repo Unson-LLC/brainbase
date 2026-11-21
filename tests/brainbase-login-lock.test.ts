@@ -248,3 +248,20 @@ describe('a lock whose process id was reused', () => {
       .rejects.toMatchObject({ code: 'login_busy' });
   });
 });
+
+describe('on Windows, where the start of a process is not recorded', () => {
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
+  afterEach(() => { Object.defineProperty(process, 'platform', platform); });
+
+  it('keeps a lock whose process runs and says how to clear it if nothing does', async () => {
+    Object.defineProperty(process, 'platform', { ...platform, value: 'win32' });
+    const path = await credentialsFile();
+    const lockPath = `${path}.lock`;
+    // A live process id without a recorded start: it may be the holder or a reuse.
+    await writeFile(lockPath, lockFile(process.ppid));
+    const failure = await withCredentialsLock(path, async () => 'ran', { waitMs: 300 }).catch((error) => error);
+    expect(failure).toMatchObject({ code: 'login_busy' });
+    expect(failure.message).toContain(lockPath);
+    expect(failure.message).toMatch(/Windows/u);
+  });
+});

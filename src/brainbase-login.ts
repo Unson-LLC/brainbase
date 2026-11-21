@@ -106,12 +106,24 @@ function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-type JsonResult = { status: number; ok: boolean; json: Record<string, unknown> | null };
+type JsonResult = {
+  status: number;
+  ok: boolean;
+  json: Record<string, unknown> | null;
+  /** The connection broke before the whole body was read. */
+  bodyLost?: true;
+};
 
 async function readJson(response: Response): Promise<JsonResult> {
+  let text: string;
+  try {
+    text = await response.text();
+  } catch {
+    return { status: response.status, ok: response.ok, json: null, bodyLost: true };
+  }
   let json: Record<string, unknown> | null = null;
   try {
-    const parsed: unknown = JSON.parse(await response.text());
+    const parsed: unknown = JSON.parse(text);
     json = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
   } catch {
     json = null;
@@ -360,7 +372,8 @@ const execFileAsync = promisify(execFile);
  * An identity of the start of process `pid`, so that a process id the system
  * has handed to another process since is told apart from the holder. On Linux
  * it is the boot id and the start time in clock ticks from /proc; elsewhere the
- * start time `ps` reports. Null when it cannot be read.
+ * start time `ps` reports. Null when it cannot be read, and always on Windows:
+ * a lock there is only taken over when its process id runs no process.
  */
 async function processStart(pid: number): Promise<string | null> {
   if (process.platform === 'linux') {
@@ -454,10 +467,35 @@ async function createExclusive(path: string, content: string): Promise<boolean> 
     await link(temporary, path);
     return true;
   } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code === 'EEXIST') return false;
+    const code = (error as NodeJS.ErrnoException)?.code;
+    if (code === 'EEXIST') return false;
+    if (code && NO_HARD_LINK_CODES.has(code)) throw storageUnsupported(dirname(path), code);
     throw error;
   } finally {
     await rm(temporary, { force: true });
+  }
+}
+
+/** What link() answers on a file system without hard links (exFAT, FAT32, some network shares). */
+const NO_HARD_LINK_CODES = new Set(['EPERM', 'ENOTSUP', 'EOPNOTSUPP', 'ENOSYS', 'EXDEV']);
+
+function storageUnsupported(directory: string, code: string): BrainbaseLoginError {
+  return new BrainbaseLoginError('login_storage_unsupported',
+    `The saved login needs a folder on a file system with hard links (such as APFS, ext4 or NTFS); ${directory} does not offer them (${code}). `
+    + 'Pass --credentials with a path on such a file system, or leave it out to use the default under your home folder. Nothing was changed.');
+}
+
+/**
+ * Fails with `login_storage_unsupported` when the folder of `path` cannot hold
+ * the lock, before anything is asked of the server or of the person.
+ */
+export async function checkCredentialsStorage(path: string): Promise<void> {
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  const probe = `${await physicalPath(path)}.probe-${randomBytes(6).toString('hex')}`;
+  try {
+    await createExclusive(probe, '');
+  } finally {
+    await rm(probe, { force: true });
   }
 }
 
@@ -497,6 +535,20 @@ async function removeAbandoned(path: string, observed: string, unreadableStaleMs
   }
 }
 
+function busy(lockPath: string, holder: string): BrainbaseLoginError {
+  const record = parseLockRecord(holder);
+  if (record && record.host !== hostname()) {
+    return new BrainbaseLoginError('login_busy', `The saved login is locked from another machine (${record.host}). If nothing runs there, remove ${lockPath}.`);
+  }
+  if (record && record.start === undefined && process.platform === 'win32') {
+    // Windows does not let this tell a crashed holder whose process id was
+    // given to another program from a holder that still runs, so it waits.
+    return new BrainbaseLoginError('login_busy',
+      `Another brainbase process may be changing the saved login. On Windows, a lock left by a brainbase process that stopped cannot be told apart from a running one. If no brainbase command is running, remove ${lockPath} and try again.`);
+  }
+  return new BrainbaseLoginError('login_busy', 'Another brainbase process is changing the saved login. Try again.');
+}
+
 /**
  * Serialises changes to the credentials file between processes on this
  * machine: login, logout, and a renewal from its request to its write-back.
@@ -522,12 +574,7 @@ export async function withCredentialsLock<T>(
     if (holder === null) continue; // Released meanwhile.
     if (await isAbandoned(lockPath, holder, unreadableStaleMs)
       && await removeAbandoned(lockPath, holder, unreadableStaleMs)) continue;
-    if (Date.now() - started > waitMs) {
-      const host = holder ? parseLockRecord(holder)?.host : undefined;
-      throw new BrainbaseLoginError('login_busy', host && host !== hostname()
-        ? `The saved login is locked from another machine (${host}). If nothing runs there, remove ${lockPath}.`
-        : 'Another brainbase process is changing the saved login. Try again.');
-    }
+    if (Date.now() - started > waitMs) throw busy(lockPath, holder);
     await defaultSleep(25);
   }
   const lock: CredentialsLock = {
@@ -586,6 +633,8 @@ export async function loginWithDeviceCode(options: LoginOptions): Promise<Brainb
   const serverUrl = normalizeServerUrl(options.serverUrl);
   const credentialsPath = options.credentialsPath ?? defaultCredentialsPath();
   const codeVerifier = randomBytes(32).toString('base64url');
+  // A folder that cannot hold the lock would only fail after the approval.
+  await checkCredentialsStorage(credentialsPath);
 
   let start;
   try {
@@ -712,7 +761,8 @@ async function requestRenewal(
   if (!result.ok || typeof token !== 'string' || !token) {
     // Overload and server errors say nothing about the refresh token: the saved
     // login stays and a later try may succeed.
-    if (result.status === 429 || result.status >= 500 || isCsrfRefusal(result)) {
+    // An answer cut off in transit is no refusal either.
+    if (result.status === 429 || result.status >= 500 || isCsrfRefusal(result) || result.bodyLost) {
       throw new BrainbaseLoginError('login_refresh_unavailable', 'The server could not renew the login right now. Try again.');
     }
     throw new BrainbaseLoginError('login_expired', 'The saved login can no longer be renewed. Run brainbase login again.');
