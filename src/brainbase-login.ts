@@ -11,7 +11,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { link, mkdir, open, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir, hostname } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 export const CREDENTIALS_SCHEMA_VERSION = 'brainbase-credentials-v1';
 
@@ -66,10 +66,11 @@ export class BrainbaseLoginError extends Error {
 
 const REQUEST_TIMEOUT_MS = 15_000;
 const DEFAULT_REFRESH_SKEW_MS = 60_000;
-// A renewal holds the lock across its request, so a waiter waits longer than
-// one request can take.
-// A renewal makes two requests under the lock (CSRF token, then refresh).
-const LOCK_WAIT_MS = 2 * REQUEST_TIMEOUT_MS + 5_000;
+// A renewal holds the lock across its requests, so a waiter waits longer than
+// they can take: a CSRF token and the refresh, asked once more when another
+// API instance refuses the CSRF token, so up to four requests.
+const RENEWAL_MAX_REQUESTS = 4;
+const LOCK_WAIT_MS = RENEWAL_MAX_REQUESTS * REQUEST_TIMEOUT_MS + 5_000;
 const LOCK_UNREADABLE_STALE_MS = 10_000;
 
 export function defaultCredentialsPath(env: NodeJS.ProcessEnv = process.env): string {
@@ -261,7 +262,9 @@ async function syncDirectoryChain(directory: string): Promise<boolean> {
   if (process.platform === 'win32') return false; // Directories cannot be opened for fsync there.
   const uid = process.getuid?.();
   let durable = true;
-  for (let current = directory; ; current = dirname(current)) {
+  // A relative path ends at '.', whose dirname is '.' again: walk the real,
+  // absolute chain so the directories above the working directory are flushed too.
+  for (let current = resolve(directory); ; current = dirname(current)) {
     try {
       durable = (await syncDirectory(current)) && durable;
     } catch (error) {
@@ -477,12 +480,29 @@ export async function withCredentialsLock<T>(
   }
 }
 
-export async function removeCredentials(path = defaultCredentialsPath()): Promise<boolean> {
+export interface RemoveCredentialsResult {
+  /** A saved login was there. */
+  existed: boolean;
+  /**
+   * The removal is flushed to disk. False only where the platform cannot
+   * flush a directory; a real I/O error is thrown instead.
+   */
+  durable: boolean;
+}
+
+/**
+ * Removes the saved login and flushes the directory that held it, under the
+ * lock, before this returns. Without the flush, a power loss right after a
+ * logout could bring the old login back. The directory is flushed even when
+ * no file was there, since an earlier logout may have stopped before its flush.
+ */
+export async function removeCredentials(path = defaultCredentialsPath()): Promise<RemoveCredentialsResult> {
   return withCredentialsLock(path, async (lock) => {
     const existed = (await readCredentials(path).catch(() => ({}))) !== null;
     await lock.assertHeld();
     await rm(path, { force: true });
-    return existed;
+    const durable = await syncDirectory(dirname(resolve(path)));
+    return { existed, durable };
   });
 }
 
