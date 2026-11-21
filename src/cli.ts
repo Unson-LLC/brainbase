@@ -11,9 +11,10 @@ import {
   renderRegistrationResult,
   selectLocalMemories
 } from './personal-memory-handover.js';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { constants, realpathSync } from 'node:fs';
 import { access, chmod, lstat, mkdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initializePersonalOs, loadPersonalOs, migrateCanonicalGraph, mutatePersonalOs } from './ssot.js';
@@ -65,9 +66,10 @@ import { applyCanonicalWrites, buildCanonicalEdge } from './canonical-edge-build
 import { defaultJudgmentJournalRoot } from './judgment-value-proof-review.js';
 import { createWorldExtension, readWorldVocabulary } from './world-extension.js';
 import { createLocalWebHost, LOCAL_WEB_DEFAULT_PORT } from './local-web-host.js';
-import { BrainbaseLoginError, defaultCredentialsPath, loginWithDeviceCode, normalizeServerUrl, readCredentials, removeCredentials } from './brainbase-login.js';
+import { BrainbaseLoginError, defaultCredentialsPath, loginWithDeviceCode, normalizeServerUrl, readCredentials, removeCredentials, withCredentialsLock } from './brainbase-login.js';
 import {
   CLAUDE_CODE_HOOK_CONFIG_SCHEMA,
+  canonicalFilePath,
   claudeCodeHookCommand,
   defaultClaudeCodeHookConfigPath,
   handleClaudeCodeJudgmentHook,
@@ -308,12 +310,12 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
     ?? join(process.env.CLAUDE_CONFIG_DIR || join(process.env.HOME || '', '.claude'), 'settings.json'));
   // Absolute, because the registered command carries it to every hook run.
   const configPath = resolve(first(parsed, 'config') ?? defaultClaudeCodeHookConfigPath());
-  const settingsReal = canonicalPath(settingsPath);
-  const configReal = canonicalPath(configPath);
+  const settingsReal = canonicalFilePath(settingsPath);
+  const configReal = canonicalFilePath(configPath);
   if (settingsReal === configReal) {
     throw new Error('judgment:install --settings and --config must be different files');
   }
-  if (configReal === canonicalPath(resolve(defaultCredentialsPath()))) {
+  if (configReal === canonicalFilePath(resolve(defaultCredentialsPath()))) {
     throw new Error('judgment:install --config must not be the brainbase login file');
   }
   const remove = parsed.flags.has('remove');
@@ -349,6 +351,51 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
       registration: { id: registrationId, settings: settingsReal }
     };
   }
+  const cliPath = fileURLToPath(new URL('./cli.js', import.meta.url));
+  const command = claudeCodeHookCommand(process.execPath, cliPath, configPath, registrationId);
+  const run = () => applyClaudeCodeRegistration({ settingsPath, settingsReal, configPath, config, command, remove, dryRun }, io);
+  // A preview writes nothing, so it takes no lock.
+  return dryRun ? await run() : await withInstallLocks([settingsReal, configReal], run);
+}
+
+/**
+ * Runs `task` holding one lock per file, so that two installs touching the
+ * same Claude Code settings or the same hook config run one after the other:
+ * each reads, checks ownership and writes both files under the locks. The
+ * locks are taken in one order (sorted real paths), so two installs never wait
+ * on each other. They live in the brainbase home, keyed by the real path, and
+ * follow the rules of the saved-login lock: a lock is only taken over when its
+ * holder no longer runs.
+ */
+async function withInstallLocks<T>(files: string[], task: () => Promise<T>): Promise<T> {
+  const lockDir = join(process.env.HOME || homedir(), '.brainbase', 'var', 'install-locks');
+  const keys = [...new Set(files)].sort().map((file) => join(lockDir, createHash('sha256').update(file).digest('hex').slice(0, 32)));
+  const hold = async (index: number): Promise<T> => {
+    if (index === keys.length) return await task();
+    try {
+      return await withCredentialsLock(keys[index], () => hold(index + 1));
+    } catch (error) {
+      if (error instanceof BrainbaseLoginError && error.code === 'login_busy') {
+        throw new Error(`Another judgment:install is changing ${files.join(' or ')}. Try again.`);
+      }
+      throw error;
+    }
+  };
+  return await hold(0);
+}
+
+interface ClaudeCodeRegistrationPlan {
+  settingsPath: string;
+  settingsReal: string;
+  configPath: string;
+  config: ClaudeCodeHookConfig | undefined;
+  command: string;
+  remove: boolean;
+  dryRun: boolean;
+}
+
+async function applyClaudeCodeRegistration(plan: ClaudeCodeRegistrationPlan, io: CliIo): Promise<number> {
+  const { settingsPath, settingsReal, configPath, config, command, remove, dryRun } = plan;
   let settings: Record<string, unknown> = {};
   try {
     const parsedSettings: unknown = JSON.parse(await readFile(settingsPath, 'utf8'));
@@ -360,10 +407,11 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
     if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error;
   }
   // The installer only overwrites or removes a config file it wrote itself.
-  const configExists = await stat(configPath).then(() => true, (error: NodeJS.ErrnoException) => {
-    if (error?.code === 'ENOENT') return false;
+  const previousConfig = await readFile(configPath, 'utf8').then((text) => text, (error: NodeJS.ErrnoException) => {
+    if (error?.code === 'ENOENT') return null;
     throw error;
   });
+  const configExists = previousConfig !== null;
   const configOwned = configExists && isClaudeCodeHookConfigFile(configPath);
   if (!remove && configExists && !configOwned) {
     throw new Error(`judgment:install --config ${configPath} exists and is not a brainbase hook config; choose another path`);
@@ -373,7 +421,7 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
   // registration's hooks.
   const existingConfig = configOwned ? readClaudeCodeHookConfig(configPath) : null;
   const registeredElsewhere = configOwned && (existingConfig
-    ? canonicalPath(existingConfig.registration.settings) !== settingsReal
+    ? canonicalFilePath(existingConfig.registration.settings) !== settingsReal
     : !hasInstalledClaudeCodeHooks(settings, configPath));
   if (!remove && registeredElsewhere) {
     throw new Error(`judgment:install --config ${configPath} is used by ${existingConfig?.registration.settings ?? 'another registration'}; choose another --config for ${settingsPath}`);
@@ -381,30 +429,45 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
   if (remove && !hasInstalledClaudeCodeHooks(settings, configPath)) {
     throw new Error(`judgment:install --remove found no registration for ${configPath} in ${settingsPath}; nothing was changed`);
   }
-  const cliPath = fileURLToPath(new URL('./cli.js', import.meta.url));
-  const command = claudeCodeHookCommand(process.execPath, cliPath, configPath, registrationId);
-  const next = registerClaudeCodeJudgmentHooks(settings, { command, configPath, remove });
+  const removedIds = new Set<string>();
+  const next = registerClaudeCodeJudgmentHooks(settings, { command, configPath, remove, removedIds });
   if (dryRun) {
     write(io, `${JSON.stringify({ settingsPath, settings: next, configPath, config: config ?? null }, null, 2)}\n`);
     return 0;
   }
   if (remove) {
     await replaceFileFollowingLinks(settingsPath, `${JSON.stringify(next, null, 2)}\n`, 0o600);
-    if (configOwned && !registeredElsewhere) await rm(configPath, { force: true });
+    // The config is deleted only when the registration it now carries was one
+    // of the commands just taken out; otherwise a command elsewhere still uses it.
+    const currentElsewhere = !!existingConfig && !removedIds.has(existingConfig.registration.id);
+    if (configOwned && !registeredElsewhere && !currentElsewhere) await rm(configPath, { force: true });
     write(io, [
       `Claude Codeの判断フックを外しました（${settingsPath}）。`,
       ...(configExists && !configOwned ? [`${configPath} は判断フックの設定ではないため、残しました。`] : []),
       ...(registeredElsewhere ? [`${configPath} は ${existingConfig?.registration.settings ?? '別の登録'} の登録が使っているため、残しました。`] : []),
+      ...(!registeredElsewhere && currentElsewhere ? [`${configPath} は外した登録とは別の、いまの登録が使っているため、残しました。`] : []),
       ''
     ].join('\n'));
     return 0;
   }
-  // The config goes first: if writing the settings then fails, the new
+  // The config goes first: while the settings are not yet written, the new
   // registration is not active, and an earlier one (whose command carries the
   // old registration id) sends nothing rather than to the new destination.
+  // When writing the settings fails, the earlier config is put back, so the
+  // earlier registration keeps auditing where it did.
   await mkdir(dirname(configPath), { recursive: true, mode: 0o700 });
   await replaceFileFollowingLinks(configPath, `${JSON.stringify(config, null, 2)}\n`, 0o600);
-  await replaceFileFollowingLinks(settingsPath, `${JSON.stringify(next, null, 2)}\n`, 0o600);
+  try {
+    await replaceFileFollowingLinks(settingsPath, `${JSON.stringify(next, null, 2)}\n`, 0o600);
+  } catch (error) {
+    try {
+      if (previousConfig === null) await rm(configPath, { force: true });
+      else await replaceFileFollowingLinks(configPath, previousConfig, 0o600);
+    } catch {
+      throw new Error(`${error instanceof Error ? error.message : String(error)}; ${configPath} could not be put back, run judgment:install again`);
+    }
+    throw error;
+  }
   write(io, [
     `Claude Codeの判断フックを登録しました（${settingsPath}）。`,
     `送り先: ${config!.origin}`,
@@ -522,17 +585,6 @@ async function replaceFileFollowingLinks(path: string, content: string, mode: nu
   } catch (error) {
     await rm(temporary, { force: true });
     throw error;
-  }
-}
-
-function canonicalPath(path: string): string {
-  const absolute = resolve(path);
-  try {
-    return realpathSync(absolute);
-  } catch {
-    const parent = dirname(absolute);
-    if (parent === absolute) return absolute;
-    return join(canonicalPath(parent), absolute.slice(parent.length).replace(/^[/\\]+/u, ''));
   }
 }
 

@@ -4,8 +4,8 @@
 // for UserPromptSubmit, PreToolUse, PostToolUse, PostToolUseFailure and Stop.
 // Claude Code's hook input has no turn_id, so the adapter keeps one per prompt.
 // It forwards each event to the hosted MCP's `/host/judgment/hook` with the
-// person token from `brainbase login`, and returns only documented Claude Code
-// hook fields.
+// person token from `brainbase login`, and returns only a notice for the person
+// and context for the model (and, for a knowledge lookup, the Host's denial).
 //
 // The hook is fail-open: the judgment plane audits, it does not authorize.
 // Nothing here exits 2 or blocks a Stop, on its own error or on the Host's
@@ -71,7 +71,6 @@ const TIMEOUT_MS: Record<string, number> = {
 // The Host reserves and checks a knowledge lookup attempt before it runs and
 // records it only against that reservation. No other tool waits on the Host.
 export const PRE_TOOL_USE_TOOLS = new Set(['mcp__brainbase__brainbase_knowledge_lookup']);
-const OUTPUT_FIELDS = ['continue', 'suppressOutput', 'stopReason', 'decision', 'reason', 'systemMessage', 'hookSpecificOutput'];
 const WARNING_PREFIX = '⚠️ Brainbase判断フック:';
 const TURN_SCHEMA = 'brainbase-claude-judgment-turn-v1';
 
@@ -518,18 +517,19 @@ async function forward(
   return output as Record<string, unknown>;
 }
 
-// Only documented Claude Code hook fields leave this adapter. The Host's
-// PostToolUse branch names its context PostToolUse even for a failure event.
+// The judgment plane audits; it never stops, blocks or rewrites. So only a
+// notice for the person and, where Claude Code takes it, context for the model
+// leave this adapter: never `continue`, `stopReason`, `decision`, `reason`,
+// `suppressOutput` or a permission or input change, whatever the Host answers.
+// Stop takes no context. The Host's PostToolUse branch names its context
+// PostToolUse even for a failure event, so the event name is set here.
 function documentedOutput(output: Record<string, unknown>, eventName: string): ClaudeCodeHookOutput {
-  const result: ClaudeCodeHookOutput = {};
-  for (const field of OUTPUT_FIELDS) {
-    if (output[field] !== undefined) result[field] = output[field];
-  }
-  const specific = result.hookSpecificOutput;
-  if (specific && typeof specific === 'object' && !Array.isArray(specific)) {
-    result.hookSpecificOutput = { ...specific, hookEventName: eventName };
-  } else {
-    delete result.hookSpecificOutput;
+  const result: ClaudeCodeHookOutput = typeof output.systemMessage === 'string' && output.systemMessage
+    ? { systemMessage: output.systemMessage } : {};
+  const specific = output.hookSpecificOutput as Record<string, unknown> | undefined;
+  if (eventName !== 'Stop' && specific && typeof specific === 'object' && !Array.isArray(specific)
+    && typeof specific.additionalContext === 'string') {
+    result.hookSpecificOutput = { hookEventName: eventName, additionalContext: specific.additionalContext };
   }
   return result;
 }
@@ -675,7 +675,8 @@ async function handleUserPromptSubmit(payload: ClaudeCodeHookPayload, context: C
 async function handlePostToolUse(payload: ClaudeCodeHookPayload, context: Context, eventName: string): Promise<ClaudeCodeHookOutput> {
   const state = currentTurn(payload, context);
   if (!state) return unannouncedTurn(payload, context);
-  if (state.start_status !== 'started' || !sameScope(state, context.scope) || !sameDestination(state, context)) return {};
+  if (state.start_status !== 'started' || !sameScope(state, context.scope) || !sameDestination(state, context)
+    || !isAuditedRepository(context.scope, context.config)) return {};
   try {
     return documentedOutput(
       await forward({ ...forwardedToolPayload(payload), turn_id: state.turn_id }, context, state.repository ?? null),
@@ -708,7 +709,8 @@ async function handlePreToolUse(payload: ClaudeCodeHookPayload, context: Context
   if (typeof payload.tool_name !== 'string' || !PRE_TOOL_USE_TOOLS.has(payload.tool_name)) return {};
   const state = currentTurn(payload, context);
   if (!state) return unannouncedTurn(payload, context);
-  if (state.start_status !== 'started' || !sameScope(state, context.scope) || !sameDestination(state, context)) return {};
+  if (state.start_status !== 'started' || !sameScope(state, context.scope) || !sameDestination(state, context)
+    || !isAuditedRepository(context.scope, context.config)) return {};
   try {
     return preToolUseOutput(await forward({ ...payload, turn_id: state.turn_id }, context, state.repository ?? null));
   } catch (error) {
@@ -726,21 +728,24 @@ async function handleStop(payload: ClaudeCodeHookPayload, context: Context): Pro
   if (!sameDestination(state, context)) {
     return warning('ターンの途中で判断フックの送り先が変わったため、回答を送らずに監査未完了のまま終了します（judgment_turn_destination_changed）。');
   }
+  // The config is read again for every event: a repository taken off the list
+  // mid-turn sends nothing more, though the destination stays the same.
+  if (!isAuditedRepository(context.scope, context.config)) {
+    return warning('ターンの途中でこのリポジトリが監査の対象から外れたため、回答を送らずに終了します（judgment_turn_repository_unaudited）。');
+  }
   const blocks = Number.isSafeInteger(state.stop_blocks) ? state.stop_blocks : 0;
-  let output: ClaudeCodeHookOutput;
+  let raw: Record<string, unknown>;
   try {
-    output = documentedOutput(
-      await forward({ ...payload, turn_id: state.turn_id, stop_hook_active: blocks > 0 }, context, state.repository ?? null),
-      'Stop',
-    );
+    raw = await forward({ ...payload, turn_id: state.turn_id, stop_hook_active: blocks > 0 }, context, state.repository ?? null);
   } catch (error) {
     return warning(`回答の照合に失敗したため、監査未完了のまま終了します（${safeReason(error)}）。`);
   }
-  if (output.decision !== 'block') return output;
+  const output = documentedOutput(raw, 'Stop');
+  if (raw.decision !== 'block') return output;
   // The person has already read the answer when Stop runs. Sending the repair
   // request back would print the same answer twice, so it is shown as a notice.
   writeState(context.env, turnKey(payload, context), { ...state, stop_blocks: blocks + 1 });
-  const repairId = /r-[a-f0-9]{16}/u.exec(typeof output.reason === 'string' ? output.reason : '')?.[0];
+  const repairId = /r-[a-f0-9]{16}/u.exec(typeof raw.reason === 'string' ? raw.reason : '')?.[0];
   const notice = warning(`回答は差し戻しません。監査は未完了のまま終了します${repairId ? `（${repairId}）` : ''}。`).systemMessage;
   return { systemMessage: [output.systemMessage, notice].filter(Boolean).join('\n') };
 }
@@ -835,16 +840,44 @@ function singleQuotedWords(command: string): string[] | null {
 }
 
 /**
- * The config path of a registration this installer wrote, or null for any
- * other hook (a wrapper, or another hook that only mentions the command).
+ * The config path and registration id of a registration this installer
+ * wrote, or null for any other hook (a wrapper, or another hook that only
+ * mentions the command).
  */
-export function installedHookConfigPath(hook: unknown): string | null {
+export function installedHookRegistration(hook: unknown): { configPath: string; registrationId: string } | null {
   const value = hook as { type?: unknown; command?: unknown } | null;
   if (!value || value.type !== 'command' || typeof value.command !== 'string') return null;
   const words = singleQuotedWords(value.command);
   if (!words || words.length !== 7 || words[2] !== CLAUDE_CODE_HOOK_COMMAND || words[3] !== '--config'
-    || words[5] !== '--registration' || !REGISTRATION_ID.test(words[6])) return null;
-  return words[4] || null;
+    || words[5] !== '--registration' || !REGISTRATION_ID.test(words[6]) || !words[4]) return null;
+  return { configPath: words[4], registrationId: words[6] };
+}
+
+/** The config path of a registration this installer wrote, or null. */
+export function installedHookConfigPath(hook: unknown): string | null {
+  return installedHookRegistration(hook)?.configPath ?? null;
+}
+
+/**
+ * One name for a file however it is reached: the real path, with links in
+ * every existing directory followed. For a file that does not exist yet, its
+ * nearest existing directory is resolved and the rest appended.
+ */
+export function canonicalFilePath(path: string): string {
+  const absolute = resolve(path);
+  try {
+    return realpathSync(absolute);
+  } catch {
+    const parent = dirname(absolute);
+    if (parent === absolute) return absolute;
+    return join(canonicalFilePath(parent), absolute.slice(parent.length).replace(/^[/\\]+/u, ''));
+  }
+}
+
+// A registered command names the config by the path it was installed with.
+// Two paths to one file (a linked directory) are one registration.
+function sameConfigFile(registered: string, configPath: string): boolean {
+  return registered === configPath || canonicalFilePath(registered) === canonicalFilePath(configPath);
 }
 
 // Timeouts (seconds) outlast the adapter's own HTTP deadlines.
@@ -861,7 +894,7 @@ const REGISTRATIONS: Array<{ event: string; matcher?: string; timeout: number; s
   { event: 'Stop', timeout: 60, statusMessage: 'brainbase judgment answer check' },
 ];
 
-function withoutInstalledHooks(hooks: unknown, configPath: string): Record<string, unknown> {
+function withoutInstalledHooks(hooks: unknown, configPath: string, removedIds?: Set<string>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [event, groups] of Object.entries((hooks ?? {}) as Record<string, unknown>)) {
     if (!Array.isArray(groups)) {
@@ -875,7 +908,12 @@ function withoutInstalledHooks(hooks: unknown, configPath: string): Record<strin
         kept.push(group);
         continue;
       }
-      const remaining = inner.filter((hook) => installedHookConfigPath(hook) !== configPath);
+      const remaining = inner.filter((hook) => {
+        const registration = installedHookRegistration(hook);
+        if (!registration || !sameConfigFile(registration.configPath, configPath)) return true;
+        removedIds?.add(registration.registrationId);
+        return false;
+      });
       if (remaining.length === inner.length) kept.push(group);
       else if (remaining.length > 0) kept.push({ ...(group as object), hooks: remaining });
     }
@@ -890,7 +928,10 @@ export function hasInstalledClaudeCodeHooks(settings: Record<string, unknown>, c
     if (!Array.isArray(groups)) continue;
     for (const group of groups) {
       const inner = (group as { hooks?: unknown })?.hooks;
-      if (Array.isArray(inner) && inner.some((hook) => installedHookConfigPath(hook) === configPath)) return true;
+      if (Array.isArray(inner) && inner.some((hook) => {
+        const registered = installedHookConfigPath(hook);
+        return registered !== null && sameConfigFile(registered, configPath);
+      })) return true;
     }
   }
   return false;
@@ -899,13 +940,16 @@ export function hasInstalledClaudeCodeHooks(settings: Record<string, unknown>, c
 /**
  * Claude Code settings with exactly one registration per event for
  * `configPath`, or none with `remove`. Only registrations this installer wrote
- * for the same config file are replaced; every other hook and setting is kept.
+ * for the same config file (by any path to it) are replaced; every other hook
+ * and setting is kept. The registration ids of the replaced commands are added
+ * to `removedIds`.
  */
 export function registerClaudeCodeJudgmentHooks(
   settings: Record<string, unknown>,
-  { command, configPath, remove = false }: { command: string; configPath: string; remove?: boolean },
+  { command, configPath, remove = false, removedIds }:
+    { command: string; configPath: string; remove?: boolean; removedIds?: Set<string> },
 ): Record<string, unknown> {
-  const hooks = withoutInstalledHooks(settings.hooks, configPath);
+  const hooks = withoutInstalledHooks(settings.hooks, configPath, removedIds);
   if (!remove) {
     for (const { event, matcher, timeout, statusMessage } of REGISTRATIONS) {
       const group = { ...(matcher ? { matcher } : {}), hooks: [{ type: 'command', command, timeout, statusMessage }] };

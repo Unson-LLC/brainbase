@@ -267,7 +267,7 @@ describe('one hook config belongs to one registration', () => {
     expect([a.session_id, b.session_id]).not.toContain('s1');
   });
 
-  it('when writing the settings fails, the earlier registration sends nothing rather than to the new destination', async () => {
+  it('when writing the settings fails, the earlier registration keeps its own destination, never the new one', async () => {
     const dir = await tempDir();
     const settings = join(dir, 'claude', 'settings.json');
     const config = join(dir, 'hook.json');
@@ -283,7 +283,7 @@ describe('one hook config belongs to one registration', () => {
     const { fetchImpl, sent } = host();
     await handleClaudeCodeJudgmentHook(submit(repo),
       { env: { HOME: dir }, fetch: fetchImpl, accessToken: token, configPath: config, registrationId: oldId });
-    expect(sent).toEqual([]);
+    expect(sent.map((request) => request.url)).toEqual(['https://a.example.net/host/judgment/hook']);
   });
 });
 
