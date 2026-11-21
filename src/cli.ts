@@ -12,7 +12,7 @@ import {
   selectLocalMemories
 } from './personal-memory-handover.js';
 import { constants, realpathSync } from 'node:fs';
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initializePersonalOs, loadPersonalOs, migrateCanonicalGraph, mutatePersonalOs } from './ssot.js';
@@ -64,7 +64,15 @@ import { applyCanonicalWrites, buildCanonicalEdge } from './canonical-edge-build
 import { defaultJudgmentJournalRoot } from './judgment-value-proof-review.js';
 import { createWorldExtension, readWorldVocabulary } from './world-extension.js';
 import { createLocalWebHost, LOCAL_WEB_DEFAULT_PORT } from './local-web-host.js';
-import { defaultCredentialsPath, loginWithDeviceCode, readCredentials, removeCredentials } from './brainbase-login.js';
+import { defaultCredentialsPath, loginWithDeviceCode, normalizeServerUrl, readCredentials, removeCredentials } from './brainbase-login.js';
+import {
+  CLAUDE_CODE_HOOK_COMMAND,
+  CLAUDE_CODE_HOOK_CONFIG_SCHEMA,
+  defaultClaudeCodeHookConfigPath,
+  handleClaudeCodeJudgmentHook,
+  registerClaudeCodeJudgmentHooks,
+  type ClaudeCodeHookConfig
+} from './claude-code-judgment-hook.js';
 import type { CanonicalEntity, DecisionRecord, PersonalKgEntry, PersonalOs, RelationshipRecord } from './types.js';
 
 interface CliIo {
@@ -163,6 +171,8 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
         return await judgmentHook(parsed, io);
       case 'judgment:install':
         return await judgmentInstall(parsed, io);
+      case 'judgment:claude-code-hook':
+        return await judgmentClaudeCodeHook(io);
       case 'login':
         return await login(parsed, io);
       case 'login:status':
@@ -224,7 +234,8 @@ async function judgmentHook(parsed: ParsedArgs, io: CliIo): Promise<number> {
 
 async function judgmentInstall(parsed: ParsedArgs, io: CliIo): Promise<number> {
   const target = first(parsed, 'target');
-  if (target !== 'codex') throw new Error('judgment:install currently requires --target codex');
+  if (target === 'claude-code') return await judgmentInstallClaudeCode(parsed, io);
+  if (target !== 'codex') throw new Error('judgment:install requires --target codex|claude-code');
   const cliPath = fileURLToPath(new URL('./cli.js', import.meta.url));
   const autonomy = judgmentAutonomyOptions(parsed);
   const hookArguments = [
@@ -258,6 +269,91 @@ async function judgmentInstall(parsed: ParsedArgs, io: CliIo): Promise<number> {
   await mkdir(dirname(outputPath), { recursive: true });
   await writeConfigSnippet(outputPath, payload);
   write(io, `Wrote Codex Judgment Host config snippet to ${outputPath}\n`);
+  return 0;
+}
+
+const CLAUDE_CODE_HOOK_MAX_INPUT_BYTES = 16 * 1024 * 1024;
+
+async function judgmentClaudeCodeHook(io: CliIo): Promise<number> {
+  // Fail-open: whatever happens, Claude Code gets a valid hook answer and exit 0.
+  let output: Record<string, unknown>;
+  try {
+    const input = await readHookStdin(io.stdin ?? process.stdin);
+    if (Buffer.byteLength(input) > CLAUDE_CODE_HOOK_MAX_INPUT_BYTES) throw new Error('judgment_hook_payload_too_large');
+    const payload: unknown = JSON.parse(input || '{}');
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('judgment_hook_payload_invalid');
+    output = await handleClaudeCodeJudgmentHook(payload as Record<string, unknown>);
+  } catch (error) {
+    const message = error instanceof Error && /^judgment_[a-z0-9_]{1,120}$/u.test(error.message)
+      ? error.message : 'judgment_hook_failed';
+    output = { systemMessage: `⚠️ Brainbase判断フック: 判断フックの処理に失敗しました（${message}）。判断監査なしで続行します。` };
+  }
+  write(io, `${JSON.stringify(output)}\n`);
+  return 0;
+}
+
+const HOOK_PROJECT_CODE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/u;
+
+async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const settingsPath = first(parsed, 'settings')
+    ?? join(process.env.CLAUDE_CONFIG_DIR || join(process.env.HOME || '', '.claude'), 'settings.json');
+  const configPath = first(parsed, 'config') ?? defaultClaudeCodeHookConfigPath();
+  const remove = parsed.flags.has('remove');
+  const dryRun = parsed.flags.has('dry-run');
+  let config: ClaudeCodeHookConfig | undefined;
+  if (!remove) {
+    const origin = first(parsed, 'origin');
+    if (!origin) throw new Error('judgment:install --target claude-code requires --origin <hosted MCP URL>');
+    const projectCode = first(parsed, 'project')?.trim();
+    if (projectCode && !HOOK_PROJECT_CODE_PATTERN.test(projectCode)) throw new Error('judgment:install --project must match [a-z0-9][a-z0-9._-]{0,63}');
+    const repositories = (parsed.values.get('repositories') ?? [])
+      .flatMap((value) => value.split(',')).map((name) => name.trim()).filter(Boolean);
+    config = {
+      schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA,
+      origin: normalizeServerUrl(origin),
+      ...(projectCode ? { project_code: projectCode } : {}),
+      ...(repositories.length > 0 ? { repositories: [...new Set(repositories)] } : {})
+    };
+  }
+  let settings: Record<string, unknown> = {};
+  try {
+    const parsedSettings: unknown = JSON.parse(await readFile(settingsPath, 'utf8'));
+    if (!parsedSettings || typeof parsedSettings !== 'object' || Array.isArray(parsedSettings)) {
+      throw new Error(`Claude Code settings is not a JSON object: ${settingsPath}`);
+    }
+    settings = parsedSettings as Record<string, unknown>;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error;
+  }
+  const cliPath = fileURLToPath(new URL('./cli.js', import.meta.url));
+  const command = [process.execPath, cliPath, CLAUDE_CODE_HOOK_COMMAND].map((argument) => JSON.stringify(argument)).join(' ');
+  const next = registerClaudeCodeJudgmentHooks(settings, { command, remove });
+  if (dryRun) {
+    write(io, `${JSON.stringify({ settingsPath, settings: next, configPath, config: config ?? null }, null, 2)}\n`);
+    return 0;
+  }
+  await mkdir(dirname(settingsPath), { recursive: true });
+  const temporary = `${settingsPath}.${process.pid}.tmp`;
+  await writeFile(temporary, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 });
+  await rename(temporary, settingsPath);
+  if (remove) {
+    await rm(configPath, { force: true });
+    write(io, `Claude Codeの判断フックを外しました（${settingsPath}）。\n`);
+    return 0;
+  }
+  await mkdir(dirname(configPath), { recursive: true, mode: 0o700 });
+  await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
+  write(io, [
+    `Claude Codeの判断フックを登録しました（${settingsPath}）。`,
+    `送り先: ${config!.origin}`,
+    `project: ${config!.project_code ?? 'Hostが決める'}`,
+    `対象のリポジトリ: ${config!.repositories?.join(', ') ?? 'すべて'}`,
+    ...(await readCredentials(defaultCredentialsPath()).catch(() => null)
+      ? []
+      : ['まだログインしていません。brainbase login --server <API のURL> を実行してください。']),
+    'Claude Codeを起動し直すと有効になります。',
+    ''
+  ].join('\n'));
   return 0;
 }
 
@@ -1408,6 +1504,8 @@ function usage(): string {
   brainbase memory:register --id id [--id id...] [--dir path] [--write] [--format text|json]
   brainbase ontology:migrate [--dir path] [--write --expected-input-digest digest]
   brainbase judgment:install --target codex [--autonomy-mode off|canary|on] [--autonomy-project code] [--dry-run] [--output path]
+  brainbase judgment:install --target claude-code --origin url [--project code] [--repositories name,name] [--settings path] [--config path] [--dry-run] [--remove]
+  brainbase judgment:claude-code-hook
   brainbase judgment:hook [--autonomy-mode off|canary|on] [--autonomy-project code]
   brainbase login --server url [--credentials path]
   brainbase login:status [--credentials path]
