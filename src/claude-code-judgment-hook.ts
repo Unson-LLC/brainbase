@@ -14,12 +14,13 @@
 // The person does not export variables. `judgment:install --target claude-code`
 // writes the origin, and optionally the project and audited repositories, to
 // the hook config file. When no project is configured, the Host chooses it
-// from the repository name this adapter sends, or from the person's only project.
+// from the repository this adapter sends (host/owner/name of the origin
+// remote), or from the person's only project.
 
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { basename, dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { getAccessToken, type AccessTokenOptions } from './brainbase-login.js';
 
 export const CLAUDE_CODE_HOOK_CONFIG_SCHEMA = 'brainbase-claude-code-judgment-hook-v1';
@@ -30,7 +31,11 @@ export interface ClaudeCodeHookConfig {
   origin: string;
   /** Sent as x-brainbase-project-code. Omit to let the Host decide. */
   project_code?: string;
-  /** Origin repository names to audit. Omit to audit every git repository. */
+  /**
+   * Repositories to audit, as `host/owner/name` of the origin remote
+   * (lowercase), e.g. `github.com/example-org/app`. Omit to audit every git
+   * repository.
+   */
   repositories?: string[];
 }
 
@@ -43,6 +48,8 @@ export interface ClaudeCodeHookOptions {
   /** Overrides how the person token is obtained (tests). */
   accessToken?: () => Promise<string>;
   credentials?: AccessTokenOptions;
+  /** The hook config file; the installer passes it as `--config`. */
+  configPath?: string;
 }
 
 const HOOK_PATH = '/host/judgment/hook';
@@ -65,6 +72,8 @@ interface TurnState {
   start_status: 'failed' | 'started' | 'unannounced' | 'out_of_scope';
   stop_blocks: number;
   recent_prompt_ids: string[];
+  /** The repository the turn was opened in; later events must match it. */
+  repository?: string | null;
 }
 
 function warning(text: string): ClaudeCodeHookOutput {
@@ -88,30 +97,56 @@ export function readClaudeCodeHookConfig(path: string): ClaudeCodeHookConfig | n
   }
   const value = parsed as Partial<ClaudeCodeHookConfig> | null;
   if (!value || value.schema_version !== CLAUDE_CODE_HOOK_CONFIG_SCHEMA || typeof value.origin !== 'string') return null;
+  let repositories: string[] | undefined;
+  if (value.repositories !== undefined) {
+    // A list that cannot be read must not widen into "audit everything".
+    if (!Array.isArray(value.repositories)) return null;
+    repositories = [];
+    for (const entry of value.repositories) {
+      const normalized = typeof entry === 'string' ? normalizeRepositoryEntry(entry) : null;
+      if (!normalized) return null;
+      repositories.push(normalized);
+    }
+  }
   return {
     schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA,
     origin: value.origin,
     ...(typeof value.project_code === 'string' && value.project_code ? { project_code: value.project_code } : {}),
-    ...(Array.isArray(value.repositories)
-      ? { repositories: value.repositories.filter((name): name is string => typeof name === 'string' && name.length > 0) }
-      : {}),
+    ...(repositories && repositories.length > 0 ? { repositories } : {}),
   };
+}
+
+const REPOSITORY_IDENTITY = /^[a-z0-9][a-z0-9.-]*(?::[0-9]+)?(?:\/[a-z0-9._~-]+){2,}$/u;
+
+/**
+ * A repository named in the config: `host/owner/name`, lowercase. A bare name
+ * or `owner/name` is refused, because it would also match a repository of the
+ * same name under another owner or host.
+ */
+export function normalizeRepositoryEntry(entry: string): string | null {
+  const value = entry.trim().toLowerCase().replace(/\.git$/u, '').replace(/\/+$/u, '');
+  return REPOSITORY_IDENTITY.test(value) ? value : null;
 }
 
 // ---- Repository identity, read from git files without starting git ----
 
-/** The nearest directory at or above `start` that holds a `.git` entry. */
+function isGitMetadata(dotGit: string): boolean {
+  try {
+    if (statSync(dotGit).isDirectory()) return statSync(join(dotGit, 'HEAD')).isFile();
+    return /^gitdir:\s*\S/u.test(readFileSync(dotGit, 'utf8'));
+  } catch {
+    return false;
+  }
+}
+
+/** The nearest directory at or above `start` with valid git metadata. */
 export function findGitRoot(start: string): string | null {
   let current = resolve(start);
   for (;;) {
-    try {
-      statSync(join(current, '.git'));
-      return current;
-    } catch {
-      const parent = dirname(current);
-      if (parent === current) return null;
-      current = parent;
-    }
+    if (isGitMetadata(join(current, '.git'))) return current;
+    const parent = dirname(current);
+    if (parent === current) return null;
+    current = parent;
   }
 }
 
@@ -154,28 +189,63 @@ function originRepositoryUrl(commonDir: string): string | null {
 }
 
 /**
- * The repository a checkout works for: the origin repository's name, so every
- * worktree of one repository has the same name. Without an origin, the main
- * checkout's directory name.
+ * `host/owner/name` of a git remote URL, lowercase, or null when the URL has
+ * no host or no owner. Accepts https/ssh/git URLs and scp-like `user@host:path`.
  */
-export function repositoryName(repoRoot: string): string {
+export function repositoryIdentityFromUrl(remote: string): string | null {
+  const value = remote.trim();
+  let host: string;
+  let path: string;
+  const scp = /^(?:[^@/\s]+@)?([^:/\s]+):(?!\/\/)(.+)$/u.exec(value);
+  if (scp && !/^[a-z][a-z0-9+.-]*:\/\//iu.test(value)) {
+    [, host, path] = scp;
+  } else {
+    let url: URL;
+    try {
+      url = new URL(value);
+    } catch {
+      return null;
+    }
+    if (!url.hostname) return null;
+    host = url.port ? `${url.hostname}:${url.port}` : url.hostname;
+    path = decodeURIComponent(url.pathname);
+  }
+  return normalizeRepositoryEntry(`${host}/${path.replace(/^\/+/u, '')}`);
+}
+
+/**
+ * The repository a checkout works for: `host/owner/name` of its origin
+ * remote, the same for every worktree of one repository. Null without an
+ * origin remote whose URL names a host and an owner.
+ */
+export function repositoryIdentity(repoRoot: string): string | null {
   const commonDir = gitCommonDir(repoRoot);
   const url = commonDir ? originRepositoryUrl(commonDir) : null;
-  const origin = url ? url.replace(/\/+$/u, '').split(/[/:]/u).pop()?.replace(/\.git$/u, '') : undefined;
-  if (origin) return origin;
-  const mainRoot = commonDir && basename(commonDir) === '.git' ? dirname(commonDir) : repoRoot;
-  return basename(mainRoot).replace(/\.git$/u, '');
+  return url ? repositoryIdentityFromUrl(url) : null;
 }
 
-function turnRepository(payload: ClaudeCodeHookPayload): string | null {
+interface RepositoryScope {
+  /** A git checkout was found. */
+  inGit: boolean;
+  repository: string | null;
+}
+
+function eventRepository(payload: ClaudeCodeHookPayload): RepositoryScope {
   const cwd = typeof payload.cwd === 'string' && payload.cwd ? payload.cwd : process.cwd();
   const root = findGitRoot(cwd);
-  return root ? repositoryName(root) : null;
+  return { inGit: root !== null, repository: root ? repositoryIdentity(root) : null };
 }
 
-function isAuditedRepository(repository: string | null, config: ClaudeCodeHookConfig): boolean {
-  if (!repository) return false;
-  return !config.repositories || config.repositories.length === 0 || config.repositories.includes(repository);
+function isAuditedRepository(scope: RepositoryScope, config: ClaudeCodeHookConfig): boolean {
+  if (!scope.inGit) return false;
+  if (!config.repositories || config.repositories.length === 0) return true;
+  return scope.repository !== null && config.repositories.includes(scope.repository);
+}
+
+// A later event belongs to the turn only when it runs in the repository the
+// turn was opened in. The turn's repository, not the event's, is sent.
+function sameScope(state: TurnState, scope: RepositoryScope): boolean {
+  return (state.repository ?? null) === scope.repository;
 }
 
 // ---- Turn state ----
@@ -250,10 +320,14 @@ interface Context {
   config: ClaudeCodeHookConfig;
   fetch: typeof fetch;
   accessToken: () => Promise<string>;
-  repository: string | null;
+  scope: RepositoryScope;
 }
 
-async function forward(payload: ClaudeCodeHookPayload, context: Context): Promise<Record<string, unknown>> {
+async function forward(
+  payload: ClaudeCodeHookPayload,
+  context: Context,
+  repository: string | null,
+): Promise<Record<string, unknown>> {
   let endpoint: URL;
   try {
     endpoint = new URL(HOOK_PATH, context.config.origin);
@@ -279,7 +353,7 @@ async function forward(payload: ClaudeCodeHookPayload, context: Context): Promis
         authorization: `Bearer ${token}`,
         'x-brainbase-judgment-host': 'claude-code',
         ...(context.config.project_code ? { 'x-brainbase-project-code': context.config.project_code } : {}),
-        ...(context.repository ? { 'x-brainbase-repository': context.repository } : {}),
+        ...(repository ? { 'x-brainbase-repository': repository } : {}),
       },
       body: JSON.stringify(payload),
       redirect: 'error',
@@ -389,7 +463,7 @@ function unannouncedTurn(payload: ClaudeCodeHookPayload, context: Context): Clau
   const previous = readState(env, sessionId);
   if (!promptId || typeof previous?.prompt_id !== 'string' || previous.prompt_id === promptId) return {};
   if (recentPrompts(previous).includes(promptId)) return {};
-  const audited = isAuditedRepository(context.repository, context.config);
+  const audited = isAuditedRepository(context.scope, context.config);
   // Only one event takes the note: several processes can each unlink the same
   // file, but only one rename of it succeeds.
   const note = screeningPath(env, sessionId, previous.prompt_id);
@@ -414,6 +488,7 @@ function unannouncedTurn(payload: ClaudeCodeHookPayload, context: Context): Clau
       start_status: audited ? 'unannounced' : 'out_of_scope',
       stop_blocks: 0,
       recent_prompt_ids: recentPrompts(previous),
+      repository: context.scope.repository,
     });
   } catch {
     return told;
@@ -443,14 +518,15 @@ async function handleUserPromptSubmit(payload: ClaudeCodeHookPayload, context: C
     start_status: 'failed',
     stop_blocks: 0,
     recent_prompt_ids: recentPrompts(previous),
+    repository: context.scope.repository,
   };
-  if (!isAuditedRepository(context.repository, context.config)) {
+  if (!isAuditedRepository(context.scope, context.config)) {
     writeState(env, sessionId, { ...state, start_status: 'out_of_scope' });
     return {};
   }
   writeState(env, sessionId, state);
   try {
-    const output = await forward({ ...payload, turn_id: state.turn_id }, context);
+    const output = await forward({ ...payload, turn_id: state.turn_id }, context, state.repository ?? null);
     writeState(env, sessionId, { ...state, start_status: 'started' });
     return documentedOutput(output, 'UserPromptSubmit');
   } catch (error) {
@@ -461,9 +537,12 @@ async function handleUserPromptSubmit(payload: ClaudeCodeHookPayload, context: C
 async function handlePostToolUse(payload: ClaudeCodeHookPayload, context: Context, eventName: string): Promise<ClaudeCodeHookOutput> {
   const state = currentTurn(payload, context.env);
   if (!state) return unannouncedTurn(payload, context);
-  if (state.start_status !== 'started') return {};
+  if (state.start_status !== 'started' || !sameScope(state, context.scope)) return {};
   try {
-    return documentedOutput(await forward({ ...forwardedToolPayload(payload), turn_id: state.turn_id }, context), eventName);
+    return documentedOutput(
+      await forward({ ...forwardedToolPayload(payload), turn_id: state.turn_id }, context, state.repository ?? null),
+      eventName,
+    );
   } catch (error) {
     return warning(`監査記録に失敗しました（${safeReason(error)}）。作業は続行します。`);
   }
@@ -491,9 +570,9 @@ async function handlePreToolUse(payload: ClaudeCodeHookPayload, context: Context
   if (typeof payload.tool_name !== 'string' || !PRE_TOOL_USE_TOOLS.has(payload.tool_name)) return {};
   const state = currentTurn(payload, context.env);
   if (!state) return unannouncedTurn(payload, context);
-  if (state.start_status !== 'started') return {};
+  if (state.start_status !== 'started' || !sameScope(state, context.scope)) return {};
   try {
-    return preToolUseOutput(await forward({ ...payload, turn_id: state.turn_id }, context));
+    return preToolUseOutput(await forward({ ...payload, turn_id: state.turn_id }, context, state.repository ?? null));
   } catch (error) {
     return warning(`知識取得の試行を判断ハーネスへ予約できませんでした（${safeReason(error)}）。この試行は記録されません。`);
   }
@@ -503,11 +582,14 @@ async function handleStop(payload: ClaudeCodeHookPayload, context: Context): Pro
   const state = currentTurn(payload, context.env);
   if (!state) return unannouncedTurn(payload, context);
   if (state.start_status !== 'started') return {};
+  if (!sameScope(state, context.scope)) {
+    return warning('ターンの途中で別のリポジトリに移ったため、回答を送らずに監査未完了のまま終了します（judgment_turn_repository_changed）。');
+  }
   const blocks = Number.isSafeInteger(state.stop_blocks) ? state.stop_blocks : 0;
   let output: ClaudeCodeHookOutput;
   try {
     output = documentedOutput(
-      await forward({ ...payload, turn_id: state.turn_id, stop_hook_active: blocks > 0 }, context),
+      await forward({ ...payload, turn_id: state.turn_id, stop_hook_active: blocks > 0 }, context, state.repository ?? null),
       'Stop',
     );
   } catch (error) {
@@ -530,7 +612,7 @@ export async function handleClaudeCodeJudgmentHook(
   const env = options.env ?? process.env;
   try {
     if (env.BRAINBASE_CLAUDE_JUDGMENT_HOOK === 'disabled') return {};
-    const config = readClaudeCodeHookConfig(defaultClaudeCodeHookConfigPath(env));
+    const config = readClaudeCodeHookConfig(options.configPath ?? defaultClaudeCodeHookConfigPath(env));
     // Not installed for this person, or removed: forward nothing.
     if (!config) return {};
     const eventName = payload.hook_event_name;
@@ -543,7 +625,7 @@ export async function handleClaudeCodeJudgmentHook(
       fetch: options.fetch ?? fetch,
       accessToken: options.accessToken
         ?? (async () => (await getAccessToken({ fetch: options.fetch, ...options.credentials })).token),
-      repository: turnRepository(payload),
+      scope: eventRepository(payload),
     };
     if (eventName === 'UserPromptSubmit') return await handleUserPromptSubmit(payload, context);
     if (eventName === 'PreToolUse') return await handlePreToolUse(payload, context);
@@ -561,6 +643,58 @@ export async function handleClaudeCodeJudgmentHook(
 
 export const CLAUDE_CODE_HOOK_COMMAND = 'judgment:claude-code-hook';
 
+/** One argument quoted for a POSIX shell (Claude Code runs hook commands with sh). */
+export function shellQuote(argument: string): string {
+  return `'${argument.replace(/'/gu, `'\\''`)}'`;
+}
+
+/**
+ * The command the installer registers: node, the CLI, the hook command and
+ * the config file, each quoted for the shell.
+ */
+export function claudeCodeHookCommand(nodePath: string, cliPath: string, configPath: string): string {
+  return [nodePath, cliPath, CLAUDE_CODE_HOOK_COMMAND, '--config', configPath].map(shellQuote).join(' ');
+}
+
+/** The arguments of a command made only of single-quoted words, or null. */
+function singleQuotedWords(command: string): string[] | null {
+  const words: string[] = [];
+  let index = 0;
+  while (index < command.length) {
+    if (command[index] !== "'") return null;
+    let word = '';
+    for (;;) {
+      const close = command.indexOf("'", index + 1);
+      if (close < 0) return null;
+      word += command.slice(index + 1, close);
+      index = close + 1;
+      if (command.startsWith("\\''", index)) {
+        word += "'";
+        index += 2; // continue with the reopening quote
+        continue;
+      }
+      break;
+    }
+    words.push(word);
+    if (index === command.length) break;
+    if (command[index] !== ' ') return null;
+    index += 1;
+  }
+  return words;
+}
+
+/**
+ * The config path of a registration this installer wrote, or null for any
+ * other hook (a wrapper, or another hook that only mentions the command).
+ */
+export function installedHookConfigPath(hook: unknown): string | null {
+  const value = hook as { type?: unknown; command?: unknown } | null;
+  if (!value || value.type !== 'command' || typeof value.command !== 'string') return null;
+  const words = singleQuotedWords(value.command);
+  if (!words || words.length !== 5 || words[2] !== CLAUDE_CODE_HOOK_COMMAND || words[3] !== '--config') return null;
+  return words[4] || null;
+}
+
 // Timeouts (seconds) outlast the adapter's own HTTP deadlines.
 const REGISTRATIONS: Array<{ event: string; matcher?: string; timeout: number; statusMessage: string }> = [
   { event: 'UserPromptSubmit', timeout: 60, statusMessage: 'brainbase judgment' },
@@ -575,12 +709,7 @@ const REGISTRATIONS: Array<{ event: string; matcher?: string; timeout: number; s
   { event: 'Stop', timeout: 60, statusMessage: 'brainbase judgment answer check' },
 ];
 
-function isJudgmentHook(hook: unknown): boolean {
-  const command = (hook as { command?: unknown })?.command;
-  return typeof command === 'string' && command.includes(CLAUDE_CODE_HOOK_COMMAND);
-}
-
-function withoutJudgmentHooks(hooks: unknown): Record<string, unknown> {
+function withoutInstalledHooks(hooks: unknown, configPath: string): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [event, groups] of Object.entries((hooks ?? {}) as Record<string, unknown>)) {
     if (!Array.isArray(groups)) {
@@ -594,8 +723,9 @@ function withoutJudgmentHooks(hooks: unknown): Record<string, unknown> {
         kept.push(group);
         continue;
       }
-      const remaining = inner.filter((hook) => !isJudgmentHook(hook));
-      if (remaining.length > 0) kept.push({ ...(group as object), hooks: remaining });
+      const remaining = inner.filter((hook) => installedHookConfigPath(hook) !== configPath);
+      if (remaining.length === inner.length) kept.push(group);
+      else if (remaining.length > 0) kept.push({ ...(group as object), hooks: remaining });
     }
     if (kept.length > 0) result[event] = kept;
   }
@@ -603,14 +733,15 @@ function withoutJudgmentHooks(hooks: unknown): Record<string, unknown> {
 }
 
 /**
- * Claude Code settings with exactly one judgment registration per event, or
- * none with `remove`. Other hooks and settings are kept as they are.
+ * Claude Code settings with exactly one registration per event for
+ * `configPath`, or none with `remove`. Only registrations this installer wrote
+ * for the same config file are replaced; every other hook and setting is kept.
  */
 export function registerClaudeCodeJudgmentHooks(
   settings: Record<string, unknown>,
-  { command, remove = false }: { command: string; remove?: boolean },
+  { command, configPath, remove = false }: { command: string; configPath: string; remove?: boolean },
 ): Record<string, unknown> {
-  const hooks = withoutJudgmentHooks(settings.hooks);
+  const hooks = withoutInstalledHooks(settings.hooks, configPath);
   if (!remove) {
     for (const { event, matcher, timeout, statusMessage } of REGISTRATIONS) {
       const group = { ...(matcher ? { matcher } : {}), hooks: [{ type: 'command', command, timeout, statusMessage }] };

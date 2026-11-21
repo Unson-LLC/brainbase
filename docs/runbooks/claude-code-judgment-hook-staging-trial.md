@@ -42,7 +42,11 @@
    brainbase judgment:install --target claude-code --origin <MCP>
    ```
 
-   projectが2つ以上ある人は`--project <project>`を足します。特定のリポジトリだけを記録したいときは`--repositories <名前>,<名前>`を足します。足さなければ、gitのリポジトリの中で動くClaude Codeのターンはすべて記録されます。先に`--dry-run`をつけると、書き込む内容だけを表示します。
+   projectが2つ以上ある人は`--project <project>`を足します。特定のリポジトリだけを記録したいときは`--repositories github.com/<owner>/<名前>`を足します。複数ならカンマで区切ります。名前だけや`<owner>/<名前>`では登録できません。同じ名前の別のリポジトリまで記録しないためです。足さなければ、gitのリポジトリの中で動くClaude Codeのターンはすべて記録されます。先に`--dry-run`をつけると、書き込む内容だけを表示します。
+
+   Hostに送るリポジトリ名も`github.com/<owner>/<名前>`の形です（originのURLから作り、小文字にそろえます）。ターンの途中で別のリポジトリに移ると、そのあとの記録は送りません。
+
+   設定ファイルを既定の場所以外に置くときは`--config <パス>`を足します。Claude Codeに登録するコマンドにも、そのパスが入ります。`--settings`と同じファイルは指定できません。
 
 5. Claude Codeを起動し直す。変数はexportしない。
 6. 記録したいリポジトリの中で、Claude Codeに1つ依頼を送り、答えが出るまで待つ。
@@ -58,6 +62,7 @@ Claude Codeの画面に`⚠️ Brainbase判断フック:`で始まる警告が�
 - `judgment_hook_http_403_project_not_authorized`: 指定したprojectに権限がない。運用する側にprojectと権限を確かめてもらう。
 - `judgment_hook_http_503_judgment_project_lookup_failed`: Hostのリポジトリ対応の検索に失敗した。何も記録されていない。もう一度依頼を送る。
 - `judgment_hook_unreachable`、`judgment_hook_timeout`: `<MCP>`に届かない。URLとネットワークを確かめる。
+- `judgment_turn_repository_changed`: ターンの途中で別のリポジトリに移った。回答は送っていない。次の依頼は元のリポジトリで送る。
 
 ## やめるとき
 
@@ -66,7 +71,7 @@ brainbase judgment:install --target claude-code --remove
 brainbase logout
 ```
 
-1つ目はClaude Codeの設定から判断フックだけを外し、フックの設定ファイルを消します。ほかのフックと設定は残ります。2つ目は、この端末に保存したログインを消します。
+1つ目はClaude Codeの設定から判断フックだけを外し、フックの設定ファイルを消します。外すのは、このコマンドが同じ設定ファイルで登録したものだけです。`--config`をつけて登録したときは、外すときも同じ`--config`をつけます。ほかのフックと設定は残ります。2つ目は、この端末に保存したログインを消します。
 
 一時的に止めたいだけなら、`BRAINBASE_CLAUDE_JUDGMENT_HOOK=disabled`をつけてClaude Codeを起動します。
 

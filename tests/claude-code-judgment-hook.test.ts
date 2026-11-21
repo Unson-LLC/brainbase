@@ -1,4 +1,5 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Readable } from 'node:stream';
@@ -7,12 +8,15 @@ import {
   CLAUDE_CODE_HOOK_CONFIG_SCHEMA,
   forwardedToolPayload,
   handleClaudeCodeJudgmentHook,
+  claudeCodeHookCommand,
+  installedHookConfigPath,
   registerClaudeCodeJudgmentHooks,
-  repositoryName,
+  repositoryIdentity,
+  repositoryIdentityFromUrl,
   type ClaudeCodeHookConfig,
 } from '../src/claude-code-judgment-hook.js';
 import { BrainbaseLoginError } from '../src/brainbase-login.js';
-import { runCli } from '../src/cli.js';
+import { readHookStdin, runCli } from '../src/cli.js';
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -28,6 +32,7 @@ async function tempDir(): Promise<string> {
 async function checkout(root: string, name: string, origin?: string): Promise<string> {
   const dir = join(root, name);
   await mkdir(join(dir, '.git'), { recursive: true });
+  await writeFile(join(dir, '.git', 'HEAD'), 'ref: refs/heads/main\n');
   await writeFile(join(dir, '.git', 'config'), origin ? `[core]\n\tbare = false\n[remote "origin"]\n\turl = ${origin}\n` : '[core]\n');
   await mkdir(join(dir, 'src'), { recursive: true });
   return dir;
@@ -93,7 +98,7 @@ describe('handleClaudeCodeJudgmentHook', () => {
       'content-type': 'application/json',
       authorization: 'Bearer person-jwt',
       'x-brainbase-judgment-host': 'claude-code',
-      'x-brainbase-repository': 'growin-app',
+      'x-brainbase-repository': 'github.com/acme/growin-app',
     });
     expect(sent[0].body).toMatchObject({ hook_event_name: 'UserPromptSubmit', session_id: 's1', turn_id: 'p1' });
   });
@@ -109,7 +114,7 @@ describe('handleClaudeCodeJudgmentHook', () => {
   });
 
   it('audits only the configured repositories', async () => {
-    const { repo, env } = await setup({ repositories: ['other-repo'] });
+    const { repo, env } = await setup({ repositories: ['github.com/acme/other-repo'] });
     const { fetchImpl, sent } = host();
     const submit = await handleClaudeCodeJudgmentHook(
       { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: repo },
@@ -121,6 +126,65 @@ describe('handleClaudeCodeJudgmentHook', () => {
     );
     expect([submit, post]).toEqual([{}, {}]);
     expect(sent).toEqual([]);
+  });
+
+  it('does not audit a repository of the same name under another owner', async () => {
+    const { repo, env } = await setup({ repositories: ['github.com/someone-else/growin-app'] });
+    const { fetchImpl, sent } = host();
+    await handleClaudeCodeJudgmentHook(
+      { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: repo },
+      { env, fetch: fetchImpl, accessToken: token },
+    );
+    expect(sent).toEqual([]);
+  });
+
+  it('forwards nothing when the repository list holds a bare name, instead of auditing everything', async () => {
+    const { repo, env } = await setup({ repositories: ['growin-app'] });
+    const { fetchImpl, sent } = host();
+    await handleClaudeCodeJudgmentHook(
+      { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: repo },
+      { env, fetch: fetchImpl, accessToken: token },
+    );
+    expect(sent).toEqual([]);
+  });
+
+  it('keeps later events in the repository the turn was opened in', async () => {
+    const { home, repo, env } = await setup({ repositories: ['github.com/acme/growin-app'] });
+    const elsewhere = await checkout(home, 'private', 'git@github.com:acme/private-notes.git');
+    const { fetchImpl, sent } = host();
+    const options = { env, fetch: fetchImpl, accessToken: token };
+    await handleClaudeCodeJudgmentHook({ hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: repo }, options);
+    const moved = await handleClaudeCodeJudgmentHook(
+      { hook_event_name: 'PostToolUse', session_id: 's1', prompt_id: 'p1', cwd: elsewhere, tool_name: 'Bash', tool_input: {}, tool_response: {} },
+      options,
+    );
+    const stop = await handleClaudeCodeJudgmentHook(
+      { hook_event_name: 'Stop', session_id: 's1', prompt_id: 'p1', cwd: elsewhere, last_assistant_message: 'secret answer' },
+      options,
+    );
+    expect(moved).toEqual({});
+    expect(String(stop.systemMessage)).toContain('judgment_turn_repository_changed');
+    expect(sent.map((request) => request.body.hook_event_name)).toEqual(['UserPromptSubmit']);
+
+    await handleClaudeCodeJudgmentHook(
+      { hook_event_name: 'PostToolUse', session_id: 's1', prompt_id: 'p1', cwd: join(repo, 'src'), tool_name: 'Bash', tool_input: {}, tool_response: {} },
+      options,
+    );
+    expect(sent).toHaveLength(2);
+    expect(sent[1].headers['x-brainbase-repository']).toBe('github.com/acme/growin-app');
+  });
+
+  it('reads the config file it is given instead of the default one', async () => {
+    const { home, repo, env } = await setup(null);
+    const config = join(home, 'elsewhere', 'hook.json');
+    await mkdir(join(home, 'elsewhere'));
+    await writeFile(config, JSON.stringify({ schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, origin: 'https://other.example.net' }));
+    const { fetchImpl, sent } = host();
+    await handleClaudeCodeJudgmentHook(
+      { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: repo },
+      { env, fetch: fetchImpl, accessToken: token, configPath: config },
+    );
+    expect(sent.map((request) => request.url)).toEqual(['https://other.example.net/host/judgment/hook']);
   });
 
   it('does not audit a directory outside git', async () => {
@@ -238,10 +302,43 @@ describe('handleClaudeCodeJudgmentHook', () => {
 });
 
 describe('repository identity', () => {
-  it('uses the origin repository name, and the directory without an origin', async () => {
+  it('is host/owner/name of the origin remote, and null without one', async () => {
     const root = await tempDir();
-    expect(repositoryName(await checkout(root, 'a', 'https://github.com/acme/app.git'))).toBe('app');
-    expect(repositoryName(await checkout(root, 'local-only'))).toBe('local-only');
+    expect(repositoryIdentity(await checkout(root, 'a', 'https://github.com/Acme/App.git'))).toBe('github.com/acme/app');
+    expect(repositoryIdentity(await checkout(root, 'local-only'))).toBeNull();
+  });
+
+  it('reads https, ssh and scp-like remotes alike, and tells owners and hosts apart', () => {
+    expect(repositoryIdentityFromUrl('git@github.com:acme/app.git')).toBe('github.com/acme/app');
+    expect(repositoryIdentityFromUrl('ssh://git@github.com/acme/app.git')).toBe('github.com/acme/app');
+    expect(repositoryIdentityFromUrl('https://token@github.com/acme/app/')).toBe('github.com/acme/app');
+    expect(repositoryIdentityFromUrl('git@gitlab.example.com:group/sub/app.git')).toBe('gitlab.example.com/group/sub/app');
+    expect(repositoryIdentityFromUrl('git@github.com:other/app.git')).not.toBe(repositoryIdentityFromUrl('git@github.com:acme/app.git'));
+    expect(repositoryIdentityFromUrl('/srv/git/app.git')).toBeNull();
+  });
+
+  it('does not take an empty .git entry for a repository', async () => {
+    const root = await tempDir();
+    await mkdir(join(root, '.git'));
+    const { fetchImpl, sent } = host();
+    const env = { HOME: root } as NodeJS.ProcessEnv;
+    await mkdir(join(root, '.brainbase'));
+    await writeFile(join(root, '.brainbase', 'claude-code-judgment-hook.json'), JSON.stringify({
+      schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, origin: 'https://mcp.example.net',
+    }));
+    await handleClaudeCodeJudgmentHook(
+      { hook_event_name: 'UserPromptSubmit', session_id: 's1', prompt_id: 'p1', cwd: root },
+      { env, fetch: fetchImpl, accessToken: token },
+    );
+    expect(sent).toEqual([]);
+  });
+});
+
+describe('readHookStdin', () => {
+  it('keeps a multibyte character that is split across chunks', async () => {
+    const bytes = Buffer.from(JSON.stringify({ prompt: '日本語の監査' }), 'utf8');
+    const chunks = Array.from({ length: bytes.length }, (_, index) => bytes.subarray(index, index + 1));
+    expect(JSON.parse(await readHookStdin(Readable.from(chunks)))).toEqual({ prompt: '日本語の監査' });
   });
 });
 
@@ -255,12 +352,13 @@ describe('forwardedToolPayload', () => {
 });
 
 describe('registerClaudeCodeJudgmentHooks', () => {
-  const command = '"/usr/bin/node" "/pkg/dist/cli.js" judgment:claude-code-hook';
+  const configPath = '/home/me/.brainbase/claude-code-judgment-hook.json';
+  const command = claudeCodeHookCommand('/usr/bin/node', '/pkg/dist/cli.js', configPath);
 
   it('adds one registration per event, keeps other hooks, and is idempotent', () => {
     const other = { hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo bye' }] }] }, model: 'x' };
-    const once = registerClaudeCodeJudgmentHooks(other, { command });
-    const twice = registerClaudeCodeJudgmentHooks(once, { command });
+    const once = registerClaudeCodeJudgmentHooks(other, { command, configPath });
+    const twice = registerClaudeCodeJudgmentHooks(once, { command, configPath });
     expect(twice).toEqual(once);
     const hooks = once.hooks as Record<string, Array<{ hooks: Array<{ command: string }> }>>;
     expect(Object.keys(hooks).sort()).toEqual(['PostToolUse', 'PostToolUseFailure', 'PreToolUse', 'Stop', 'UserPromptSubmit']);
@@ -271,9 +369,36 @@ describe('registerClaudeCodeJudgmentHooks', () => {
 
   it('removes only the judgment registrations', () => {
     const other = { hooks: { Stop: [{ hooks: [{ type: 'command', command: 'echo bye' }] }] } };
-    const removed = registerClaudeCodeJudgmentHooks(registerClaudeCodeJudgmentHooks(other, { command }), { command, remove: true });
+    const removed = registerClaudeCodeJudgmentHooks(
+      registerClaudeCodeJudgmentHooks(other, { command, configPath }), { command, configPath, remove: true },
+    );
     expect(removed).toEqual(other);
-    expect(registerClaudeCodeJudgmentHooks({}, { command, remove: true })).toEqual({});
+    expect(registerClaudeCodeJudgmentHooks({}, { command, configPath, remove: true })).toEqual({});
+  });
+
+  it('leaves wrappers, look-alikes and registrations of another config file alone', () => {
+    const wrapper = { type: 'command', command: `/opt/audit/wrap.sh ${command}` };
+    const mention = { type: 'command', command: 'echo judgment:claude-code-hook --config x' };
+    const otherConfig = { type: 'command', command: claudeCodeHookCommand('/usr/bin/node', '/pkg/dist/cli.js', '/elsewhere/hook.json') };
+    const settings = { hooks: { Stop: [{ hooks: [wrapper, mention, otherConfig] }] } };
+    expect(installedHookConfigPath(wrapper)).toBeNull();
+    expect(installedHookConfigPath(mention)).toBeNull();
+    const removed = registerClaudeCodeJudgmentHooks(
+      registerClaudeCodeJudgmentHooks(settings, { command, configPath }), { command, configPath, remove: true },
+    );
+    expect(removed).toEqual(settings);
+  });
+
+  it('quotes every argument so the shell passes paths through unchanged', async () => {
+    const dir = await tempDir();
+    const script = join(dir, 'print args.mjs');
+    await writeFile(script, 'process.stdout.write(JSON.stringify(process.argv.slice(2)));\n');
+    const tricky = join(dir, "it's $(touch pwned) `id` & \"q\".json");
+    const quoted = claudeCodeHookCommand(process.execPath, script, tricky);
+    expect(JSON.parse(execFileSync('/bin/sh', ['-c', quoted], { encoding: 'utf8' })))
+      .toEqual(['judgment:claude-code-hook', '--config', tricky]);
+    expect(installedHookConfigPath({ type: 'command', command: quoted })).toBe(tricky);
+    await expect(readFile(join(dir, 'pwned'))).rejects.toMatchObject({ code: 'ENOENT' });
   });
 });
 
@@ -296,19 +421,43 @@ describe('judgment:install --target claude-code', () => {
     const out = capture();
     expect(await runCli([
       'judgment:install', '--target', 'claude-code', '--origin', 'https://mcp.example.net/mcp',
-      '--repositories', 'growin-app,growin-api', '--settings', settings, '--config', config,
+      '--repositories', 'github.com/Acme/growin-app,github.com/acme/growin-api', '--settings', settings, '--config', config,
     ], out.io)).toBe(0);
     const written = JSON.parse(await readFile(settings, 'utf8'));
     expect(written.permissions).toEqual({ allow: ['Read'] });
-    expect(written.hooks.UserPromptSubmit[0].hooks[0].command).toContain('judgment:claude-code-hook');
+    expect(installedHookConfigPath(written.hooks.UserPromptSubmit[0].hooks[0])).toBe(config);
     expect(JSON.parse(await readFile(config, 'utf8'))).toEqual({
-      schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, origin: 'https://mcp.example.net', repositories: ['growin-app', 'growin-api'],
+      schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA, origin: 'https://mcp.example.net',
+      repositories: ['github.com/acme/growin-app', 'github.com/acme/growin-api'],
     });
 
     const removed = capture();
     expect(await runCli(['judgment:install', '--target', 'claude-code', '--remove', '--settings', settings, '--config', config], removed.io)).toBe(0);
     expect(JSON.parse(await readFile(settings, 'utf8'))).toEqual({ permissions: { allow: ['Read'] } });
     await expect(readFile(config, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('refuses settings and config that are the same file, also through a symlink, and a bare repository name', async () => {
+    const dir = await tempDir();
+    const settings = join(dir, 'claude', 'settings.json');
+    await mkdir(join(dir, 'claude'));
+    const original = JSON.stringify({ permissions: { allow: ['Read'] } });
+    await writeFile(settings, original);
+    await symlink(join(dir, 'claude'), join(dir, 'alias'));
+    for (const config of [settings, join(dir, 'alias', 'settings.json'), join(dir, 'claude', '..', 'claude', 'settings.json')]) {
+      for (const extra of [[], ['--remove']]) {
+        const out = capture();
+        expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'https://mcp.example.net',
+          '--settings', settings, '--config', config, ...extra], out.io)).toBe(1);
+        expect(out.stderr()).toContain('different files');
+      }
+    }
+    expect(await readFile(settings, 'utf8')).toBe(original);
+
+    const bare = capture();
+    expect(await runCli(['judgment:install', '--target', 'claude-code', '--origin', 'https://mcp.example.net',
+      '--repositories', 'growin-app', '--settings', settings, '--config', join(dir, 'hook.json')], bare.io)).toBe(1);
+    expect(bare.stderr()).toContain('host/owner/name');
   });
 
   it('previews without writing on --dry-run and refuses a missing or unsafe origin', async () => {

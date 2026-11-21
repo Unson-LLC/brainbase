@@ -66,10 +66,11 @@ import { createWorldExtension, readWorldVocabulary } from './world-extension.js'
 import { createLocalWebHost, LOCAL_WEB_DEFAULT_PORT } from './local-web-host.js';
 import { defaultCredentialsPath, loginWithDeviceCode, normalizeServerUrl, readCredentials, removeCredentials } from './brainbase-login.js';
 import {
-  CLAUDE_CODE_HOOK_COMMAND,
   CLAUDE_CODE_HOOK_CONFIG_SCHEMA,
+  claudeCodeHookCommand,
   defaultClaudeCodeHookConfigPath,
   handleClaudeCodeJudgmentHook,
+  normalizeRepositoryEntry,
   registerClaudeCodeJudgmentHooks,
   type ClaudeCodeHookConfig
 } from './claude-code-judgment-hook.js';
@@ -172,7 +173,7 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
       case 'judgment:install':
         return await judgmentInstall(parsed, io);
       case 'judgment:claude-code-hook':
-        return await judgmentClaudeCodeHook(io);
+        return await judgmentClaudeCodeHook(parsed, io);
       case 'login':
         return await login(parsed, io);
       case 'login:status':
@@ -274,15 +275,15 @@ async function judgmentInstall(parsed: ParsedArgs, io: CliIo): Promise<number> {
 
 const CLAUDE_CODE_HOOK_MAX_INPUT_BYTES = 16 * 1024 * 1024;
 
-async function judgmentClaudeCodeHook(io: CliIo): Promise<number> {
+async function judgmentClaudeCodeHook(parsed: ParsedArgs, io: CliIo): Promise<number> {
   // Fail-open: whatever happens, Claude Code gets a valid hook answer and exit 0.
   let output: Record<string, unknown>;
   try {
-    const input = await readHookStdin(io.stdin ?? process.stdin);
-    if (Buffer.byteLength(input) > CLAUDE_CODE_HOOK_MAX_INPUT_BYTES) throw new Error('judgment_hook_payload_too_large');
+    const input = await readHookStdin(io.stdin ?? process.stdin, CLAUDE_CODE_HOOK_MAX_INPUT_BYTES);
     const payload: unknown = JSON.parse(input || '{}');
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('judgment_hook_payload_invalid');
-    output = await handleClaudeCodeJudgmentHook(payload as Record<string, unknown>);
+    const configPath = first(parsed, 'config');
+    output = await handleClaudeCodeJudgmentHook(payload as Record<string, unknown>, configPath ? { configPath } : {});
   } catch (error) {
     const message = error instanceof Error && /^judgment_[a-z0-9_]{1,120}$/u.test(error.message)
       ? error.message : 'judgment_hook_failed';
@@ -295,9 +296,18 @@ async function judgmentClaudeCodeHook(io: CliIo): Promise<number> {
 const HOOK_PROJECT_CODE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/u;
 
 async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise<number> {
-  const settingsPath = first(parsed, 'settings')
-    ?? join(process.env.CLAUDE_CONFIG_DIR || join(process.env.HOME || '', '.claude'), 'settings.json');
-  const configPath = first(parsed, 'config') ?? defaultClaudeCodeHookConfigPath();
+  const settingsPath = resolve(first(parsed, 'settings')
+    ?? join(process.env.CLAUDE_CONFIG_DIR || join(process.env.HOME || '', '.claude'), 'settings.json'));
+  // Absolute, because the registered command carries it to every hook run.
+  const configPath = resolve(first(parsed, 'config') ?? defaultClaudeCodeHookConfigPath());
+  const settingsReal = canonicalPath(settingsPath);
+  const configReal = canonicalPath(configPath);
+  if (settingsReal === configReal) {
+    throw new Error('judgment:install --settings and --config must be different files');
+  }
+  if (configReal === canonicalPath(resolve(defaultCredentialsPath()))) {
+    throw new Error('judgment:install --config must not be the brainbase login file');
+  }
   const remove = parsed.flags.has('remove');
   const dryRun = parsed.flags.has('dry-run');
   let config: ClaudeCodeHookConfig | undefined;
@@ -307,7 +317,14 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
     const projectCode = first(parsed, 'project')?.trim();
     if (projectCode && !HOOK_PROJECT_CODE_PATTERN.test(projectCode)) throw new Error('judgment:install --project must match [a-z0-9][a-z0-9._-]{0,63}');
     const repositories = (parsed.values.get('repositories') ?? [])
-      .flatMap((value) => value.split(',')).map((name) => name.trim()).filter(Boolean);
+      .flatMap((value) => value.split(',')).map((name) => name.trim()).filter(Boolean)
+      .map((name) => {
+        const normalized = normalizeRepositoryEntry(name);
+        if (!normalized) {
+          throw new Error(`judgment:install --repositories needs host/owner/name, e.g. github.com/example-org/app (got ${name})`);
+        }
+        return normalized;
+      });
     config = {
       schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA,
       origin: normalizeServerUrl(origin),
@@ -326,8 +343,8 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
     if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error;
   }
   const cliPath = fileURLToPath(new URL('./cli.js', import.meta.url));
-  const command = [process.execPath, cliPath, CLAUDE_CODE_HOOK_COMMAND].map((argument) => JSON.stringify(argument)).join(' ');
-  const next = registerClaudeCodeJudgmentHooks(settings, { command, remove });
+  const command = claudeCodeHookCommand(process.execPath, cliPath, configPath);
+  const next = registerClaudeCodeJudgmentHooks(settings, { command, configPath, remove });
   if (dryRun) {
     write(io, `${JSON.stringify({ settingsPath, settings: next, configPath, config: config ?? null }, null, 2)}\n`);
     return 0;
@@ -408,10 +425,30 @@ async function logout(parsed: ParsedArgs, io: CliIo): Promise<number> {
   return 0;
 }
 
-async function readHookStdin(input: AsyncIterable<string | Uint8Array>): Promise<string> {
-  let text = '';
-  for await (const chunk of input) text += typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8');
-  return text;
+// Bytes are joined before decoding, so a character split across chunks stays intact.
+export async function readHookStdin(input: AsyncIterable<string | Uint8Array>, maxBytes = Number.POSITIVE_INFINITY): Promise<string> {
+  const chunks: Buffer[] = [];
+  let bytes = 0;
+  for await (const chunk of input) {
+    const buffer = typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : Buffer.from(chunk);
+    bytes += buffer.length;
+    if (bytes > maxBytes) throw new Error('judgment_hook_payload_too_large');
+    chunks.push(buffer);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+// The real path of a file, or of its nearest existing parent joined with the
+// rest, so two spellings of one file (symlinks, `..`) compare equal.
+function canonicalPath(path: string): string {
+  const absolute = resolve(path);
+  try {
+    return realpathSync(absolute);
+  } catch {
+    const parent = dirname(absolute);
+    if (parent === absolute) return absolute;
+    return join(canonicalPath(parent), absolute.slice(parent.length).replace(/^[/\\]+/u, ''));
+  }
 }
 
 function textOrJsonFormat(parsed: ParsedArgs, command: string): 'text' | 'json' {
@@ -1505,7 +1542,7 @@ function usage(): string {
   brainbase ontology:migrate [--dir path] [--write --expected-input-digest digest]
   brainbase judgment:install --target codex [--autonomy-mode off|canary|on] [--autonomy-project code] [--dry-run] [--output path]
   brainbase judgment:install --target claude-code --origin url [--project code] [--repositories name,name] [--settings path] [--config path] [--dry-run] [--remove]
-  brainbase judgment:claude-code-hook
+  brainbase judgment:claude-code-hook [--config path]
   brainbase judgment:hook [--autonomy-mode off|canary|on] [--autonomy-project code]
   brainbase login --server url [--credentials path]
   brainbase login:status [--credentials path]
