@@ -64,6 +64,7 @@ import { applyCanonicalWrites, buildCanonicalEdge } from './canonical-edge-build
 import { defaultJudgmentJournalRoot } from './judgment-value-proof-review.js';
 import { createWorldExtension, readWorldVocabulary } from './world-extension.js';
 import { createLocalWebHost, LOCAL_WEB_DEFAULT_PORT } from './local-web-host.js';
+import { defaultCredentialsPath, loginWithDeviceCode, readCredentials, removeCredentials } from './brainbase-login.js';
 import type { CanonicalEntity, DecisionRecord, PersonalKgEntry, PersonalOs, RelationshipRecord } from './types.js';
 
 interface CliIo {
@@ -162,6 +163,12 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
         return await judgmentHook(parsed, io);
       case 'judgment:install':
         return await judgmentInstall(parsed, io);
+      case 'login':
+        return await login(parsed, io);
+      case 'login:status':
+        return await loginStatus(parsed, io);
+      case 'logout':
+        return await logout(parsed, io);
       case 'doctor':
         return await doctor(parsed, io);
       case 'web:serve':
@@ -251,6 +258,57 @@ async function judgmentInstall(parsed: ParsedArgs, io: CliIo): Promise<number> {
   await mkdir(dirname(outputPath), { recursive: true });
   await writeConfigSnippet(outputPath, payload);
   write(io, `Wrote Codex Judgment Host config snippet to ${outputPath}\n`);
+  return 0;
+}
+
+function credentialsPathOf(parsed: ParsedArgs): string {
+  return first(parsed, 'credentials') ?? defaultCredentialsPath();
+}
+
+async function login(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const credentialsPath = credentialsPathOf(parsed);
+  const serverUrl = first(parsed, 'server') ?? (await readCredentials(credentialsPath).catch(() => null))?.server_url;
+  if (!serverUrl) throw new Error('login requires --server <url> (your Brainbase API URL)');
+  const credentials = await loginWithDeviceCode({
+    serverUrl,
+    credentialsPath,
+    onPrompt: (prompt) => {
+      write(io, [
+        'ブラウザで次の URL を開き、ログインして承認してください。',
+        `  URL: ${prompt.verificationUriComplete ?? prompt.verificationUri}`,
+        ...(prompt.userCode ? [`  コード: ${prompt.userCode}`] : []),
+        `  期限: ${Math.round(prompt.expiresInSeconds / 60)} 分`,
+        '承認を待っています...',
+        ''
+      ].join('\n'));
+    }
+  });
+  write(io, `ログインしました（${credentials.server_url}）。保存先: ${credentialsPath}\n`);
+  return 0;
+}
+
+async function loginStatus(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const credentialsPath = credentialsPathOf(parsed);
+  const credentials = await readCredentials(credentialsPath);
+  if (!credentials) {
+    write(io, 'ログインしていません。brainbase login --server <url> を実行してください。\n');
+    return 1;
+  }
+  const expired = Date.parse(credentials.expires_at) <= Date.now();
+  write(io, [
+    `サーバー: ${credentials.server_url}`,
+    `token の期限: ${credentials.expires_at}${expired ? '（切れています）' : ''}`,
+    `自動の更新: ${credentials.refresh_token ? 'できる' : 'できない（期限が来たら brainbase login をやり直す）'}`,
+    `保存先: ${credentialsPath}`,
+    ''
+  ].join('\n'));
+  return 0;
+}
+
+async function logout(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const credentialsPath = credentialsPathOf(parsed);
+  const existed = await removeCredentials(credentialsPath);
+  write(io, existed ? `この端末のログインを消しました（${credentialsPath}）。\n` : 'ログインはありませんでした。\n');
   return 0;
 }
 
@@ -1351,6 +1409,9 @@ function usage(): string {
   brainbase ontology:migrate [--dir path] [--write --expected-input-digest digest]
   brainbase judgment:install --target codex [--autonomy-mode off|canary|on] [--autonomy-project code] [--dry-run] [--output path]
   brainbase judgment:hook [--autonomy-mode off|canary|on] [--autonomy-project code]
+  brainbase login --server url [--credentials path]
+  brainbase login:status [--credentials path]
+  brainbase logout [--credentials path]
   brainbase doctor [--dir path] [--judgment-hooks path]
   brainbase web:serve [--dir path] [--journal path] [--port n] [--world [--world-vocabulary file]]
   brainbase review:serve [--dir path] [--journal path] [--port n]  （web:serveの別名）
