@@ -461,6 +461,83 @@ describe('login CLI', () => {
     }
   });
 
+  describe('an option written as --opt=value', () => {
+    let savedEnv: string | undefined;
+    afterEach(() => {
+      if (savedEnv === undefined) delete process.env.BRAINBASE_CREDENTIALS_FILE;
+      else process.env.BRAINBASE_CREDENTIALS_FILE = savedEnv;
+    });
+
+    for (const argv of [
+      ['logout', '--credentials=/tmp/other-brainbase-credentials.json'],
+      ['logout', '--credentials='],
+      ['logout', '--credentials=/tmp/other-brainbase-credentials.json', 'extra'],
+      ['login:status', '--credentials=/tmp/other-brainbase-credentials.json'],
+      ['login', '--credentials=/tmp/other-brainbase-credentials.json', '--server', 'https://api.example.net'],
+      ['login', '--server=https://api.example.net'],
+    ]) {
+      it(`refuses ${JSON.stringify(argv)} and leaves the default login alone`, async () => {
+        const path = await credentialsFile();
+        savedEnv = process.env.BRAINBASE_CREDENTIALS_FILE;
+        process.env.BRAINBASE_CREDENTIALS_FILE = path;
+        await writeCredentials(path, {
+          schema_version: CREDENTIALS_SCHEMA_VERSION, login_id: 'login-default', server_url: 'https://api.example.net',
+          access_token: 'fake-access', refresh_token: 'fake-refresh', expires_at: '2099-01-01T00:00:00.000Z',
+        });
+        const out = capture();
+        expect(await runCli(argv, out.io)).toBe(1);
+        expect(out.stderr()).toMatch(/--(credentials|server)=… の形は使えません/);
+        expect(out.stdout()).toBe('');
+        expect(await readCredentials(path)).toMatchObject({ login_id: 'login-default' });
+      });
+    }
+  });
+
+  describe('a saved-login path that names a folder', () => {
+    async function savedFile(): Promise<string> {
+      const path = await credentialsFile();
+      await writeCredentials(path, {
+        schema_version: CREDENTIALS_SCHEMA_VERSION, login_id: 'login-kept', server_url: 'https://api.example.net',
+        access_token: 'fake-access', refresh_token: 'fake-refresh', expires_at: '2099-01-01T00:00:00.000Z',
+      });
+      return path;
+    }
+
+    for (const suffix of ['/', '/.', '/..']) {
+      it(`logout --credentials <file>${suffix} keeps the file and touches nothing`, async () => {
+        const path = await savedFile();
+        const out = capture();
+        expect(await runCli(['logout', '--credentials', `${path}${suffix}`], out.io)).toBe(1);
+        expect(out.stderr()).toContain('must name a file');
+        expect(await readCredentials(path)).toMatchObject({ login_id: 'login-kept' });
+        await expect(stat(`${path}.lock`)).rejects.toMatchObject({ code: 'ENOENT' });
+      });
+    }
+
+    it('login:status and login refuse it before any network access', async () => {
+      const path = await savedFile();
+      for (const argv of [
+        ['login:status', '--credentials', `${path}/`],
+        ['login', '--credentials', `${path}/`, '--server', 'https://api.example.net'],
+      ]) {
+        const out = capture();
+        expect(await runCli(argv, out.io)).toBe(1);
+        expect(out.stderr()).toContain('must name a file');
+      }
+      expect(await readCredentials(path)).toMatchObject({ login_id: 'login-kept' });
+    });
+
+    it('the library refuses it too', async () => {
+      const path = await savedFile();
+      await expect(removeCredentials(`${path}/`)).rejects.toMatchObject({ code: 'login_credentials_path_invalid' });
+      await expect(writeCredentials(`${path}/`, {
+        schema_version: CREDENTIALS_SCHEMA_VERSION, login_id: 'login-other', server_url: 'https://api.example.net',
+        access_token: 'fake-access-2', refresh_token: 'fake-refresh-2', expires_at: '2099-01-01T00:00:00.000Z',
+      })).rejects.toMatchObject({ code: 'login_credentials_path_invalid' });
+      expect(await readCredentials(path)).toMatchObject({ login_id: 'login-kept' });
+    });
+  });
+
   it('refuses an unsafe server before sending anything', async () => {
     const path = await credentialsFile();
     const out = capture();

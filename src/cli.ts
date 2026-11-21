@@ -66,7 +66,7 @@ import { applyCanonicalWrites, buildCanonicalEdge } from './canonical-edge-build
 import { defaultJudgmentJournalRoot } from './judgment-value-proof-review.js';
 import { createWorldExtension, readWorldVocabulary } from './world-extension.js';
 import { createLocalWebHost, LOCAL_WEB_DEFAULT_PORT } from './local-web-host.js';
-import { BrainbaseLoginError, defaultCredentialsPath, loginWithDeviceCode, normalizeServerUrl, readCredentials, removeCredentials, withCredentialsLock } from './brainbase-login.js';
+import { assertCredentialsFilePath, BrainbaseLoginError, defaultCredentialsPath, loginWithDeviceCode, normalizeServerUrl, readCredentials, removeCredentials, withCredentialsLock } from './brainbase-login.js';
 import {
   CLAUDE_CODE_HOOK_CONFIG_SCHEMA,
   canonicalFilePath,
@@ -307,10 +307,12 @@ async function judgmentClaudeCodeHook(parsed: ParsedArgs, io: CliIo): Promise<nu
 const HOOK_PROJECT_CODE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/u;
 
 async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise<number> {
-  const settingsPath = resolve(first(parsed, 'settings')
+  // `--opt=value` or a bare `--opt` would otherwise fall back to the default
+  // settings or config, and --remove would edit a file the user did not name.
+  const settingsPath = resolve(explicitValue(parsed, 'settings', '--settings <path>')
     ?? join(process.env.CLAUDE_CONFIG_DIR || join(process.env.HOME || '', '.claude'), 'settings.json'));
   // Absolute, because the registered command carries it to every hook run.
-  const configPath = resolve(first(parsed, 'config') ?? defaultClaudeCodeHookConfigPath());
+  const configPath = resolve(explicitValue(parsed, 'config', '--config <path>') ?? defaultClaudeCodeHookConfigPath());
   const settingsReal = canonicalFilePath(settingsPath);
   const configReal = canonicalFilePath(configPath);
   if (settingsReal === configReal) {
@@ -324,7 +326,7 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
   const registrationId = randomBytes(16).toString('hex');
   let config: ClaudeCodeHookConfig | undefined;
   if (!remove) {
-    const origin = first(parsed, 'origin');
+    const origin = explicitValue(parsed, 'origin', '--origin <hosted MCP URL>');
     if (!origin) throw new Error('judgment:install --target claude-code requires --origin <hosted MCP URL>');
     const projectCode = first(parsed, 'project')?.trim();
     if (projectCode && !HOOK_PROJECT_CODE_PATTERN.test(projectCode)) throw new Error('judgment:install --project must match [a-z0-9][a-z0-9._-]{0,63}');
@@ -346,7 +348,7 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
     }
     // The hook sends only the login made to this API, so a later login to
     // another environment never reaches this Host.
-    const loginServer = first(parsed, 'server')
+    const loginServer = explicitValue(parsed, 'server', '--server <API URL>')
       ?? (await readCredentials(defaultCredentialsPath()).catch(() => null))?.server_url;
     if (!loginServer) {
       throw new Error('judgment:install --target claude-code requires --server <API URL> (the server you log in to with brainbase login), or a saved login');
@@ -515,11 +517,19 @@ async function applyClaudeCodeRegistration(plan: ClaudeCodeRegistrationPlan, io:
  */
 function explicitValue(parsed: ParsedArgs, key: string, hint: string): string | undefined {
   if (parsed.flags.has(key)) throw new Error(`--${key} には値が要ります（${hint}）。何も変えずに止めました。`);
+  // parseArgs keeps `--opt=value` whole as the key `opt=value`, so the option
+  // would look absent and the default would be used. Refuse that spelling.
+  const prefix = `${key}=`;
+  if ([...parsed.flags, ...parsed.values.keys()].some((name) => name.startsWith(prefix))) {
+    throw new Error(`--${key}=… の形は使えません。${hint} のように空白で区切ってください。何も変えずに止めました。`);
+  }
   return first(parsed, key);
 }
 
 function credentialsPathOf(parsed: ParsedArgs): string {
-  return explicitValue(parsed, 'credentials', '--credentials <path>') ?? defaultCredentialsPath();
+  const path = explicitValue(parsed, 'credentials', '--credentials <path>') ?? defaultCredentialsPath();
+  assertCredentialsFilePath(path);
+  return path;
 }
 
 async function login(parsed: ParsedArgs, io: CliIo): Promise<number> {
