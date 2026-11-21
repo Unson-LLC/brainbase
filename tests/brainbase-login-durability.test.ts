@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // Directory fsync is made to fail on demand, to check that the receipt (which
 // makes the server stop handing out the token) only goes out once the saved
 // login is known to be on disk.
-const syncFailure: { code?: string; fileCode?: string; synced: string[] } = { synced: [] };
+const syncFailure: { code?: string; fileCode?: string; linkCode?: string; synced: string[] } = { synced: [] };
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>();
@@ -42,10 +42,15 @@ vi.mock('node:fs/promises', async (importOriginal) => {
       },
     });
   };
-  return { ...actual, open, default: { ...actual, open } };
+  // Hard links fail on demand, as on a file system without them (exFAT, FAT32).
+  const link = async (...args: Parameters<typeof actual.link>) => {
+    if (syncFailure.linkCode) throw Object.assign(new Error(`${syncFailure.linkCode}: link`), { code: syncFailure.linkCode });
+    return actual.link(...args);
+  };
+  return { ...actual, open, link, default: { ...actual, open, link } };
 });
 
-const { loginWithDeviceCode, readCredentials, removeCredentials, writeCredentials } = await import('../src/brainbase-login.js');
+const { getAccessToken, loginWithDeviceCode, readCredentials, removeCredentials, writeCredentials } = await import('../src/brainbase-login.js');
 const { runCli } = await import('../src/cli.js');
 
 const dirs: string[] = [];
@@ -54,6 +59,7 @@ afterEach(async () => {
   process.chdir(startCwd);
   syncFailure.code = undefined;
   syncFailure.fileCode = undefined;
+  syncFailure.linkCode = undefined;
   syncFailure.synced = [];
   await Promise.all(dirs.splice(0).map((dir) => realFs.rm(dir, { recursive: true, force: true })));
 });
@@ -285,5 +291,25 @@ describe('a failed save leaves no copy of the login behind', () => {
     syncFailure.fileCode = 'EIO';
     await expect(writeCredentials(path, SAVED as never)).rejects.toMatchObject({ code: 'EIO' });
     expect(await realFs.readdir(root)).toEqual([]);
+  });
+});
+
+describe('a save location without hard links', () => {
+  it.each(['EPERM', 'ENOTSUP', 'EOPNOTSUPP', 'ENOSYS'])('stops before the browser approval and names the requirement (%s)', async (code) => {
+    syncFailure.linkCode = code;
+    const { calls, result } = await run();
+    await expect(result).rejects.toMatchObject({ code: 'login_storage_unsupported', message: expect.stringMatching(/hard links/u) });
+    expect(calls).toEqual([]);
+  });
+
+  it('reports the same requirement on logout and renewal, not a raw file system error', async () => {
+    const root = await newRoot();
+    const path = join(root, 'credentials.json');
+    await writeCredentials(path, { ...SAVED, schema_version: 'brainbase-credentials-v1', refresh_token: 'refresh-1', expires_at: new Date(NOW - 1000).toISOString() } as never);
+    syncFailure.linkCode = 'EPERM';
+    await expect(removeCredentials(path)).rejects.toMatchObject({ code: 'login_storage_unsupported' });
+    await expect(getAccessToken({ credentialsPath: path, now: () => NOW, fetch: (async () => { throw new Error('not called'); }) as typeof fetch }))
+      .rejects.toMatchObject({ code: 'login_storage_unsupported' });
+    expect(await readCredentials(path)).not.toBeNull();
   });
 });
