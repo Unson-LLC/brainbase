@@ -28,7 +28,8 @@ async function tempDir(): Promise<string> {
 
 async function checkout(root: string, name: string, configText: string): Promise<string> {
   const dir = join(root, name);
-  await mkdir(join(dir, '.git'), { recursive: true });
+  await mkdir(join(dir, '.git', 'objects'), { recursive: true });
+  await mkdir(join(dir, '.git', 'refs'), { recursive: true });
   await writeFile(join(dir, '.git', 'HEAD'), 'ref: refs/heads/main\n');
   await writeFile(join(dir, '.git', 'config'), configText);
   await mkdir(join(dir, 'src'), { recursive: true });

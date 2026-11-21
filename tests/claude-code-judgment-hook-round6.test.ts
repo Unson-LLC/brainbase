@@ -26,7 +26,8 @@ async function tempDir(): Promise<string> {
 
 async function checkout(root: string, name: string, url: string): Promise<string> {
   const dir = join(root, name);
-  await mkdir(join(dir, '.git'), { recursive: true });
+  await mkdir(join(dir, '.git', 'objects'), { recursive: true });
+  await mkdir(join(dir, '.git', 'refs'), { recursive: true });
   await writeFile(join(dir, '.git', 'HEAD'), 'ref: refs/heads/main\n');
   await writeFile(join(dir, '.git', 'config'), `[remote "origin"]\n\turl = ${url}\n`);
   return dir;
@@ -180,7 +181,7 @@ describe('installs from different homes', () => {
       }
       // Released when this returns; the install then goes on.
       void running;
-    });
+    }, { suffix: '.brainbase-install.lock' });
     await expect.poll(() => finished, { timeout: 5000 }).toBe(true);
     expect(JSON.parse(await readFile(settings, 'utf8')).hooks).toBeDefined();
   });

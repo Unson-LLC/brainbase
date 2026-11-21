@@ -354,6 +354,8 @@ export interface LockTiming {
   unreadableStaleMs: number;
   /** How long to wait for another holder before failing with `login_busy`. */
   waitMs: number;
+  /** Appended to the real path of the locked file to name the lock (default `.lock`). */
+  suffix?: string;
 }
 
 const DEFAULT_LOCK_TIMING: LockTiming = { unreadableStaleMs: LOCK_UNREADABLE_STALE_MS, waitMs: LOCK_WAIT_MS };
@@ -562,10 +564,10 @@ export async function withCredentialsLock<T>(
   task: (lock: CredentialsLock) => Promise<T>,
   timing: Partial<LockTiming> = {},
 ): Promise<T> {
-  const { unreadableStaleMs, waitMs } = { ...DEFAULT_LOCK_TIMING, ...timing };
+  const { unreadableStaleMs, waitMs, suffix = '.lock' } = { ...DEFAULT_LOCK_TIMING, ...timing };
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   // Every spelling of the same file takes the same lock.
-  const lockPath = `${await physicalPath(path)}.lock`;
+  const lockPath = `${await physicalPath(path)}${suffix}`;
   const owner = randomBytes(16).toString('hex');
   const record = await lockRecord(owner);
   const started = Date.now();

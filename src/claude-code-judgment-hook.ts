@@ -17,6 +17,7 @@
 // from the repository this adapter sends (host/owner/name of the origin
 // remote), or from the person's only project.
 
+import { spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -238,58 +239,30 @@ export function gitCommonDir(repoRoot: string): string | null {
   }
 }
 
-/**
- * One value of a git config line: quotes removed, backslash escapes read, and
- * a `#` or `;` comment outside quotes dropped, as git does.
- */
-function gitConfigValue(raw: string): string {
-  let value = '';
-  let quoted = false;
-  for (let index = 0; index < raw.length; index += 1) {
-    const char = raw[index];
-    if (char === '\\' && index + 1 < raw.length) {
-      const next = raw[index + 1];
-      value += next === 'n' ? '\n' : next === 't' ? '\t' : next;
-      index += 1;
-    } else if (char === '"') {
-      quoted = !quoted;
-    } else if (!quoted && (char === '#' || char === ';')) {
-      break;
-    } else {
-      value += char;
-    }
-  }
-  return value.trim();
-}
+type OriginLookup = { status: 'found'; url: string } | { status: 'none' } | { status: 'unresolved' };
+
+// Variables that would point git at another repository than the checkout.
+const GIT_LOCATION_VARIABLES = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE', 'GIT_NAMESPACE'];
 
 /**
- * The first `remote.origin.url` of the repository's own config file. Section
- * and key names are case-insensitive, the subsection name is not. Includes and
- * `insteadOf` rewrites are not followed; such an origin is not recognised.
+ * The URL git itself uses for the `origin` remote, asked from git: includes,
+ * `insteadOf` rewrites and the global and system config apply as for a fetch.
+ * `none` when the checkout has no origin remote; `unresolved` when git could
+ * not answer (not installed, refused the checkout, timed out), so nothing can
+ * be said about the repository.
  */
-function originRepositoryUrl(commonDir: string): string | null {
-  let text: string;
-  try {
-    text = readFileSync(join(commonDir, 'config'), 'utf8');
-  } catch {
-    return null;
-  }
-  let inOrigin = false;
-  for (const line of text.split(/\r?\n/u)) {
-    const section = /^\s*\[\s*([A-Za-z0-9.-]+)(?:\s+"((?:[^"\\]|\\.)*)")?\s*\](.*)$/u.exec(line);
-    let rest = line;
-    if (section) {
-      const name = section[1].toLowerCase();
-      inOrigin = (name === 'remote' && section[2] === 'origin') || (section[2] === undefined && name === 'remote.origin');
-      rest = section[3];
-    }
-    const entry = inOrigin ? /^\s*([A-Za-z][A-Za-z0-9-]*)\s*=\s*(.*)$/u.exec(rest) : null;
-    if (entry && entry[1].toLowerCase() === 'url') {
-      const url = gitConfigValue(entry[2]);
-      if (url) return url;
-    }
-  }
-  return null;
+function originLookup(repoRoot: string, env: NodeJS.ProcessEnv): OriginLookup {
+  const childEnv: NodeJS.ProcessEnv = { ...env, PATH: env.PATH ?? process.env.PATH, GIT_TERMINAL_PROMPT: '0' };
+  for (const name of GIT_LOCATION_VARIABLES) delete childEnv[name];
+  const result = spawnSync('git', ['-C', repoRoot, 'remote', 'get-url', 'origin'], {
+    env: childEnv, encoding: 'utf8', timeout: 5_000, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true,
+  });
+  if (result.error || result.status === null) return { status: 'unresolved' };
+  const url = result.stdout.trim();
+  if (result.status === 0 && url && !url.includes('\n')) return { status: 'found', url };
+  // `git remote get-url` exits with 2 for a remote that does not exist.
+  if (result.status === 2 && /No such remote/iu.test(result.stderr)) return { status: 'none' };
+  return { status: 'unresolved' };
 }
 
 /**
@@ -322,10 +295,9 @@ export function repositoryIdentityFromUrl(remote: string): string | null {
  * remote, the same for every worktree of one repository. Null without an
  * origin remote whose URL names a host and an owner.
  */
-export function repositoryIdentity(repoRoot: string): string | null {
-  const commonDir = gitCommonDir(repoRoot);
-  const url = commonDir ? originRepositoryUrl(commonDir) : null;
-  return url ? repositoryIdentityFromUrl(url) : null;
+export function repositoryIdentity(repoRoot: string, env: NodeJS.ProcessEnv = process.env): string | null {
+  const origin = originLookup(repoRoot, env);
+  return origin.status === 'found' ? repositoryIdentityFromUrl(origin.url) : null;
 }
 
 interface RepositoryScope {
@@ -334,9 +306,11 @@ interface RepositoryScope {
   repository: string | null;
   /** Real path of the checkout's shared git directory; null outside git. */
   checkout: string | null;
+  /** In git, but git could not tell the origin: nothing is sent for it. */
+  unresolved?: boolean;
 }
 
-function eventRepository(payload: ClaudeCodeHookPayload): RepositoryScope {
+function eventRepository(payload: ClaudeCodeHookPayload, env: NodeJS.ProcessEnv): RepositoryScope {
   const cwd = typeof payload.cwd === 'string' && payload.cwd ? payload.cwd : process.cwd();
   const root = findGitRoot(cwd);
   if (!root) return { inGit: false, repository: null, checkout: null };
@@ -347,11 +321,13 @@ function eventRepository(payload: ClaudeCodeHookPayload): RepositoryScope {
   } catch {
     checkout = null;
   }
-  return { inGit: true, repository: repositoryIdentity(root), checkout };
+  const origin = originLookup(root, env);
+  if (origin.status === 'unresolved') return { inGit: true, repository: null, checkout, unresolved: true };
+  return { inGit: true, repository: origin.status === 'found' ? repositoryIdentityFromUrl(origin.url) : null, checkout };
 }
 
 function isAuditedRepository(scope: RepositoryScope, config: ClaudeCodeHookConfig): boolean {
-  if (!scope.inGit) return false;
+  if (!scope.inGit || scope.unresolved) return false;
   if (!config.repositories) return true;
   return scope.repository !== null && config.repositories.includes(scope.repository);
 }
@@ -680,7 +656,9 @@ async function handleUserPromptSubmit(payload: ClaudeCodeHookPayload, context: C
   };
   if (!isAuditedRepository(context.scope, context.config)) {
     writeState(env, sessionId, { ...state, start_status: 'out_of_scope' });
-    return {};
+    return context.scope.unresolved
+      ? warning('git からこのリポジトリの origin を確かめられなかったため、判断監査なしで続行します（judgment_repository_unresolved）。git が入っているか、このフォルダーを git が扱えるかを確かめてください。')
+      : {};
   }
   writeState(env, sessionId, state);
   try {
@@ -806,7 +784,7 @@ export async function handleClaudeCodeJudgmentHook(
         }
         return login.token;
       }),
-      scope: eventRepository(payload),
+      scope: eventRepository(payload, env),
       configPath,
     };
     if (eventName === 'UserPromptSubmit') return await handleUserPromptSubmit(payload, context);
@@ -965,6 +943,18 @@ export function hasInstalledClaudeCodeHooks(settings: Record<string, unknown>, c
 }
 
 /**
+ * The hook groups one registration adds to Claude Code settings, one per
+ * event. A preview shows these, not the settings they go into, which may hold
+ * secrets (`env`, `apiKeyHelper`, other hooks' commands).
+ */
+export function claudeCodeJudgmentHookGroups(command: string): Array<{ event: string; group: Record<string, unknown> }> {
+  return REGISTRATIONS.map(({ event, matcher, timeout, statusMessage }) => ({
+    event,
+    group: { ...(matcher ? { matcher } : {}), hooks: [{ type: 'command', command, timeout, statusMessage }] },
+  }));
+}
+
+/**
  * Claude Code settings with exactly one registration per event for
  * `configPath`, or none with `remove`. Only registrations this installer wrote
  * for the same config file (by any path to it) are replaced; every other hook
@@ -978,8 +968,7 @@ export function registerClaudeCodeJudgmentHooks(
 ): Record<string, unknown> {
   const hooks = withoutInstalledHooks(settings.hooks, configPath, removedIds);
   if (!remove) {
-    for (const { event, matcher, timeout, statusMessage } of REGISTRATIONS) {
-      const group = { ...(matcher ? { matcher } : {}), hooks: [{ type: 'command', command, timeout, statusMessage }] };
+    for (const { event, group } of claudeCodeJudgmentHookGroups(command)) {
       hooks[event] = [...((hooks[event] as unknown[] | undefined) ?? []), group];
     }
   }

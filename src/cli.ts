@@ -71,6 +71,7 @@ import {
   CLAUDE_CODE_HOOK_CONFIG_SCHEMA,
   canonicalFilePath,
   claudeCodeHookCommand,
+  claudeCodeJudgmentHookGroups,
   defaultClaudeCodeHookConfigPath,
   handleClaudeCodeJudgmentHook,
   hasInstalledClaudeCodeHooks,
@@ -371,20 +372,27 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
  * same Claude Code settings or the same hook config run one after the other:
  * each reads, checks ownership and writes both files under the locks. The
  * locks are taken in one order (sorted real paths), so two installs never wait
- * on each other. Each lock sits next to the real file (`<real path>.lock`),
+ * on each other. Each lock sits next to the real file
+ * (`<real path>.brainbase-install.lock`),
  * so installs run with different homes still share it. They follow the rules
  * of the saved-login lock: a lock is only taken over when its holder no
  * longer runs.
  */
+// Install locks sit next to settings files that other tools also keep files
+// beside. They get a name of their own, and a file there that is not a lock
+// record this code wrote is never removed: the install waits and says which
+// file to check instead.
+const INSTALL_LOCK = { suffix: '.brainbase-install.lock', unreadableStaleMs: Number.POSITIVE_INFINITY } as const;
+
 async function withInstallLocks<T>(files: string[], task: () => Promise<T>): Promise<T> {
   const keys = [...new Set(files)].sort();
   const hold = async (index: number): Promise<T> => {
     if (index === keys.length) return await task();
     try {
-      return await withCredentialsLock(keys[index], () => hold(index + 1));
+      return await withCredentialsLock(keys[index], () => hold(index + 1), INSTALL_LOCK);
     } catch (error) {
       if (error instanceof BrainbaseLoginError && error.code === 'login_busy') {
-        throw new Error(`Another judgment:install is changing ${files.join(' or ')}. Try again.`);
+        throw new Error(`Another judgment:install is changing ${files.join(' or ')}. Try again. If no judgment:install runs, remove ${keys[index]}${INSTALL_LOCK.suffix}.`);
       }
       throw error;
     }
@@ -441,7 +449,13 @@ async function applyClaudeCodeRegistration(plan: ClaudeCodeRegistrationPlan, io:
   const removedIds = new Set<string>();
   const next = registerClaudeCodeJudgmentHooks(settings, { command, configPath, remove, removedIds });
   if (dryRun) {
-    write(io, `${JSON.stringify({ settingsPath, settings: next, configPath, config: config ?? null }, null, 2)}\n`);
+    // Only the change: the settings around it may hold secrets.
+    write(io, `${JSON.stringify({
+      settingsPath,
+      configPath,
+      config: config ?? null,
+      hooks: { add: remove ? [] : claudeCodeJudgmentHookGroups(command), remove_registration_ids: [...removedIds] },
+    }, null, 2)}\n`);
     return 0;
   }
   if (remove) {
