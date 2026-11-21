@@ -202,3 +202,49 @@ describe('renewal under the lock', () => {
     expect(await readCredentials(path)).toEqual(other);
   });
 });
+
+describe('a lock whose process id was reused', () => {
+  it('records the start of the holding process in the lock', async () => {
+    const path = await credentialsFile();
+    await withCredentialsLock(path, async () => {
+      const record = JSON.parse(await readFile(`${path}.lock`, 'utf8'));
+      expect(record).toMatchObject({ pid: process.pid, host: hostname() });
+      expect(typeof record.start).toBe('string');
+      expect(record.start.length).toBeGreaterThan(0);
+    });
+  });
+
+  it('takes over a lock whose process id now belongs to another, long-running process', async () => {
+    const path = await credentialsFile();
+    const lockPath = `${path}.lock`;
+    // process.ppid runs for the whole test, but it is not the process that took the lock.
+    await writeFile(lockPath, JSON.stringify({ owner: 'crashed', pid: process.ppid, host: hostname(), start: 'an-earlier-process' }));
+    expect(await withCredentialsLock(path, async () => 'ran', { waitMs: 2000 })).toBe('ran');
+  });
+
+  it('takes over a takeover lock whose process id was reused', async () => {
+    const path = await credentialsFile();
+    const lockPath = `${path}.lock`;
+    await writeFile(lockPath, lockFile(deadPid()));
+    const { createHash } = await import('node:crypto');
+    const observed = await readFile(lockPath, 'utf8');
+    const guard = `${lockPath}.takeover-${createHash('sha256').update(observed).digest('hex').slice(0, 16)}`;
+    await writeFile(guard, JSON.stringify({ owner: 'crashed', pid: process.ppid, host: hostname(), start: 'an-earlier-process' }));
+    expect(await withCredentialsLock(path, async () => 'ran', { waitMs: 2000 })).toBe('ran');
+  });
+
+  it('keeps the lock of the same process when its start matches', async () => {
+    const path = await credentialsFile();
+    const lockPath = `${path}.lock`;
+    await withCredentialsLock(path, async () => {
+      const own = await readFile(lockPath, 'utf8');
+      const parent = JSON.parse(own);
+      // Same process, recorded again under another owner id: still alive and the same process.
+      await writeFile(`${lockPath}.copy`, JSON.stringify({ ...parent, owner: 'other' }));
+    });
+    const copy = JSON.parse(await readFile(`${lockPath}.copy`, 'utf8'));
+    await writeFile(lockPath, JSON.stringify(copy));
+    await expect(withCredentialsLock(path, async () => 'ran', { waitMs: 300 }))
+      .rejects.toMatchObject({ code: 'login_busy' });
+  });
+});

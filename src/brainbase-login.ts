@@ -9,9 +9,11 @@
 // default server: the person names their own server once at login.
 
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { link, mkdir, open, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { link, mkdir, open, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir, hostname } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join } from 'node:path';
+import { promisify } from 'node:util';
 
 export const CREDENTIALS_SCHEMA_VERSION = 'brainbase-credentials-v1';
 
@@ -262,9 +264,9 @@ async function syncDirectoryChain(directory: string): Promise<boolean> {
   if (process.platform === 'win32') return false; // Directories cannot be opened for fsync there.
   const uid = process.getuid?.();
   let durable = true;
-  // A relative path ends at '.', whose dirname is '.' again: walk the real,
-  // absolute chain so the directories above the working directory are flushed too.
-  for (let current = resolve(directory); ; current = dirname(current)) {
+  // Callers pass the physical directory (see physicalPath), so each dirname()
+  // is the real parent: no '.', no '..', no symbolic link left to resolve.
+  for (let current = directory; ; current = dirname(current)) {
     try {
       durable = (await syncDirectory(current)) && durable;
     } catch (error) {
@@ -275,6 +277,16 @@ async function syncDirectoryChain(directory: string): Promise<boolean> {
     if ((await stat(current)).uid !== uid) break;
   }
   return durable;
+}
+
+/**
+ * The path the OS actually uses for `path`, with its directory resolved to
+ * the real one: symbolic links followed and '.' and '..' applied the way the
+ * OS applies them (a string resolve() would drop `link/..` instead). Changes
+ * and flushes then go to the same directory. The directory must exist.
+ */
+async function physicalPath(path: string): Promise<string> {
+  return join(await realpath(dirname(path)), basename(path));
 }
 
 export interface WriteCredentialsOptions {
@@ -294,21 +306,23 @@ export async function writeCredentials(
   credentials: BrainbaseCredentials,
   options: WriteCredentialsOptions = {},
 ): Promise<{ durable: boolean }> {
-  const directory = dirname(path);
-  await mkdir(directory, { recursive: true, mode: 0o700 });
-  const temporary = `${path}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  const target = await physicalPath(path);
+  const directory = dirname(target);
+  const temporary = `${target}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
   const handle = await open(temporary, 'wx', 0o600);
   try {
-    await handle.writeFile(`${JSON.stringify(credentials, null, 2)}\n`, 'utf8');
-    await handle.chmod(0o600);
-    await handle.sync();
-  } finally {
-    await handle.close();
-  }
-  try {
+    try {
+      await handle.writeFile(`${JSON.stringify(credentials, null, 2)}\n`, 'utf8');
+      await handle.chmod(0o600);
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
     if (options.lock) await options.lock.assertHeld();
-    await rename(temporary, path);
+    await rename(temporary, target);
   } catch (error) {
+    // No copy of the login is left behind when the save fails.
     await rm(temporary, { force: true });
     throw error;
   }
@@ -332,7 +346,49 @@ export interface LockTiming {
 
 const DEFAULT_LOCK_TIMING: LockTiming = { unreadableStaleMs: LOCK_UNREADABLE_STALE_MS, waitMs: LOCK_WAIT_MS };
 
-interface LockRecord { owner: string; pid: number; host: string }
+interface LockRecord {
+  owner: string;
+  pid: number;
+  host: string;
+  /** When the holding process started (see processStart); absent in older locks. */
+  start?: string;
+}
+
+const execFileAsync = promisify(execFile);
+
+/**
+ * An identity of the start of process `pid`, so that a process id the system
+ * has handed to another process since is told apart from the holder. On Linux
+ * it is the boot id and the start time in clock ticks from /proc; elsewhere the
+ * start time `ps` reports. Null when it cannot be read.
+ */
+async function processStart(pid: number): Promise<string | null> {
+  if (process.platform === 'linux') {
+    try {
+      const stat = await readFile(`/proc/${pid}/stat`, 'utf8');
+      // Field 22 (starttime); the fields after the ')' that closes comm start at field 3.
+      const ticks = stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19];
+      const boot = (await readFile('/proc/sys/kernel/random/boot_id', 'utf8')).trim();
+      return ticks ? `linux:${boot}:${ticks}` : null;
+    } catch {
+      return null;
+    }
+  }
+  if (process.platform === 'win32') return null;
+  try {
+    const { stdout } = await execFileAsync('ps', ['-o', 'lstart=', '-p', String(pid)], {
+      timeout: 5000,
+      // Fixed locale and zone, so every process prints the same start the same way.
+      env: { ...process.env, LC_ALL: 'C', TZ: 'UTC' },
+    });
+    const value = stdout.trim();
+    return value ? `ps:${value}` : null;
+  } catch {
+    return null;
+  }
+}
+
+let ownStart: Promise<string | null> | undefined;
 
 async function readRaw(path: string): Promise<string | null> {
   try {
@@ -346,7 +402,8 @@ async function readRaw(path: string): Promise<string | null> {
 function parseLockRecord(raw: string): LockRecord | null {
   try {
     const value = JSON.parse(raw) as Partial<LockRecord> | null;
-    if (value && typeof value.owner === 'string' && Number.isInteger(value.pid) && typeof value.host === 'string') {
+    if (value && typeof value.owner === 'string' && Number.isInteger(value.pid) && typeof value.host === 'string'
+      && (value.start === undefined || typeof value.start === 'string')) {
       return value as LockRecord;
     }
   } catch {
@@ -365,10 +422,12 @@ function processAlive(pid: number): boolean {
 }
 
 /**
- * True only when the holder is known to be gone: a process on this machine
- * that no longer runs. A live holder never loses its lock, however long it
- * works, so nothing has to be re-checked between a check and a write. A lock
- * held from another machine is never taken over.
+ * True only when the holder is known to be gone: on this machine, its process
+ * id runs no process, or runs one that started at another time than the one
+ * recorded (the id was reused, for instance after a crash and a reboot). A
+ * live holder never loses its lock, however long it works, so nothing has to
+ * be re-checked between a check and a write. A lock held from another machine
+ * is never taken over, nor one whose start cannot be read and compared.
  */
 async function isAbandoned(path: string, raw: string, unreadableStaleMs: number): Promise<boolean> {
   const record = parseLockRecord(raw);
@@ -376,7 +435,11 @@ async function isAbandoned(path: string, raw: string, unreadableStaleMs: number)
     const age = await stat(path).then((info) => Date.now() - info.mtimeMs, () => 0);
     return age > unreadableStaleMs;
   }
-  return record.host === hostname() && !processAlive(record.pid);
+  if (record.host !== hostname()) return false;
+  if (!processAlive(record.pid)) return true;
+  if (record.start === undefined) return false;
+  const current = await processStart(record.pid);
+  return current !== null && current !== record.start;
 }
 
 /**
@@ -398,8 +461,10 @@ async function createExclusive(path: string, content: string): Promise<boolean> 
   }
 }
 
-function lockRecord(owner: string): string {
-  return JSON.stringify({ owner, pid: process.pid, host: hostname() } satisfies LockRecord);
+async function lockRecord(owner: string): Promise<string> {
+  ownStart ??= processStart(process.pid);
+  const start = await ownStart;
+  return JSON.stringify({ owner, pid: process.pid, host: hostname(), ...(start ? { start } : {}) } satisfies LockRecord);
 }
 
 /**
@@ -414,7 +479,7 @@ function lockRecord(owner: string): string {
 async function removeAbandoned(path: string, observed: string, unreadableStaleMs: number): Promise<boolean> {
   const guard = `${path}.takeover-${createHash('sha256').update(observed).digest('hex').slice(0, 16)}`;
   const owner = randomBytes(16).toString('hex');
-  if (!(await createExclusive(guard, lockRecord(owner)))) {
+  if (!(await createExclusive(guard, await lockRecord(owner)))) {
     const guardRaw = await readRaw(guard);
     if (guardRaw !== null && await isAbandoned(guard, guardRaw, unreadableStaleMs)) {
       await removeAbandoned(guard, guardRaw, unreadableStaleMs);
@@ -447,9 +512,10 @@ export async function withCredentialsLock<T>(
 ): Promise<T> {
   const { unreadableStaleMs, waitMs } = { ...DEFAULT_LOCK_TIMING, ...timing };
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  const lockPath = `${path}.lock`;
+  // Every spelling of the same file takes the same lock.
+  const lockPath = `${await physicalPath(path)}.lock`;
   const owner = randomBytes(16).toString('hex');
-  const record = lockRecord(owner);
+  const record = await lockRecord(owner);
   const started = Date.now();
   while (!(await createExclusive(lockPath, record))) {
     const holder = await readRaw(lockPath);
@@ -499,9 +565,11 @@ export interface RemoveCredentialsResult {
 export async function removeCredentials(path = defaultCredentialsPath()): Promise<RemoveCredentialsResult> {
   return withCredentialsLock(path, async (lock) => {
     const existed = (await readCredentials(path).catch(() => ({}))) !== null;
+    // Remove and flush in the same, real directory (the lock made it exist).
+    const target = await physicalPath(path);
     await lock.assertHeld();
-    await rm(path, { force: true });
-    const durable = await syncDirectory(dirname(resolve(path)));
+    await rm(target, { force: true });
+    const durable = await syncDirectory(dirname(target));
     return { existed, durable };
   });
 }
@@ -642,7 +710,9 @@ async function requestRenewal(
   if (isCsrfRefusal(result)) result = await refresh();
   const token = result.json?.token ?? result.json?.access_token;
   if (!result.ok || typeof token !== 'string' || !token) {
-    if (result.status === 503 || isCsrfRefusal(result)) {
+    // Overload and server errors say nothing about the refresh token: the saved
+    // login stays and a later try may succeed.
+    if (result.status === 429 || result.status >= 500 || isCsrfRefusal(result)) {
       throw new BrainbaseLoginError('login_refresh_unavailable', 'The server could not renew the login right now. Try again.');
     }
     throw new BrainbaseLoginError('login_expired', 'The saved login can no longer be renewed. Run brainbase login again.');

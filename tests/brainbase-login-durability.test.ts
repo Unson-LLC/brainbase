@@ -6,15 +6,26 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // Directory fsync is made to fail on demand, to check that the receipt (which
 // makes the server stop handing out the token) only goes out once the saved
 // login is known to be on disk.
-const syncFailure: { code?: string; synced: string[] } = { synced: [] };
+const syncFailure: { code?: string; fileCode?: string; synced: string[] } = { synced: [] };
 
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>();
   const open = async (...args: Parameters<typeof actual.open>) => {
     const handle = await actual.open(...args);
     const info = await handle.stat();
-    if (!info.isDirectory()) return handle;
     const path = String(args[0]);
+    if (!info.isDirectory()) {
+      if (!syncFailure.fileCode) return handle;
+      return new Proxy(handle, {
+        get(target, key, receiver) {
+          if (key === 'sync') {
+            return async () => { throw Object.assign(new Error(`${syncFailure.fileCode}: file fsync`), { code: syncFailure.fileCode }); };
+          }
+          const value = Reflect.get(target, key, receiver);
+          return typeof value === 'function' ? value.bind(target) : value;
+        },
+      });
+    }
     return new Proxy(handle, {
       get(target, key, receiver) {
         if (key === 'sync') {
@@ -42,6 +53,7 @@ const startCwd = process.cwd();
 afterEach(async () => {
   process.chdir(startCwd);
   syncFailure.code = undefined;
+  syncFailure.fileCode = undefined;
   syncFailure.synced = [];
   await Promise.all(dirs.splice(0).map((dir) => realFs.rm(dir, { recursive: true, force: true })));
 });
@@ -231,5 +243,47 @@ describe('logout is durable before it reports success', () => {
     const out = capture();
     expect(await runCli(['logout', '--credentials', path], out.io as never)).toBe(0);
     expect(out.stderr()).toContain('電源が落ちると');
+  });
+});
+
+describe('a save path through a symbolic link and ..', () => {
+  // root/link -> root/real/sub, so the OS resolves root/link/../x to root/real/x,
+  // while a string resolve() would drop link/.. and land on root/x. root/x exists
+  // too, so flushing the wrong directory would quietly succeed.
+  async function layout() {
+    const root = await realFs.realpath(await newRoot());
+    await realFs.mkdir(join(root, 'real', 'sub'), { recursive: true });
+    await realFs.mkdir(join(root, 'x'));
+    await realFs.symlink(join(root, 'real', 'sub'), join(root, 'link'));
+    const path = `${root}/link/../x/credentials.json`;
+    return { root, path, physical: join(root, 'real', 'x'), decoy: join(root, 'x') };
+  }
+
+  it('saves into the directory the OS resolves, and flushes that directory', async () => {
+    const { path, physical, decoy } = await layout();
+    expect(await writeCredentials(path, SAVED as never)).toEqual({ durable: true });
+    expect(await realFs.readdir(physical)).toEqual(['credentials.json']);
+    expect(syncFailure.synced).toContain(physical);
+    expect(syncFailure.synced).not.toContain(decoy);
+  });
+
+  it('logout flushes the directory the file was removed from', async () => {
+    const { path, physical, decoy } = await layout();
+    await writeCredentials(path, SAVED as never);
+    syncFailure.synced = [];
+    expect(await removeCredentials(path)).toEqual({ existed: true, durable: true });
+    expect(await realFs.readdir(physical)).toEqual([]);
+    expect(syncFailure.synced).toContain(physical);
+    expect(syncFailure.synced).not.toContain(decoy);
+  });
+});
+
+describe('a failed save leaves no copy of the login behind', () => {
+  it('removes the temporary file when flushing it fails', async () => {
+    const root = await newRoot();
+    const path = join(root, 'credentials.json');
+    syncFailure.fileCode = 'EIO';
+    await expect(writeCredentials(path, SAVED as never)).rejects.toMatchObject({ code: 'EIO' });
+    expect(await realFs.readdir(root)).toEqual([]);
   });
 });
