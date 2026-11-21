@@ -671,15 +671,17 @@ describe('person JWT Claude Code judgment Hook on a hosted MCP', () => {
 
   it('prefers the explicit project code over the host repository mapping', async () => {
     const calls: unknown[] = [];
+    let lookups = 0;
     const result = await handleRemoteJudgmentHookRequest(hostedRequest({
       projectCode: 'second-project', trustedPrincipal: twoProjects, repository: 'acme/app',
-      resolveProjectCode: () => { throw new Error('must not resolve'); },
+      resolveProjectCode: () => { lookups += 1; return 'trial-project'; },
       dispatch: async (_payload: unknown, code: string | undefined) => {
         calls.push(code);
         return { output: {}, receiptId: 'trial-route', routeResolutionSha256: 'a'.repeat(64) };
       },
     }));
     expect(result?.status).toBe(200);
+    expect(lookups).toBe(0);
     expect(calls).toEqual(['second-project']);
   });
 
@@ -708,9 +710,21 @@ describe('person JWT Claude Code judgment Hook on a hosted MCP', () => {
     expect(result).toEqual({ status: 403, body: { error: 'project_not_authorized' } });
   });
 
+  for (const resolveProjectCode of [
+    () => { throw new Error('lookup down'); },
+    async () => { throw new Error('lookup down'); },
+  ]) {
+    it(`records nothing and asks for a retry when the mapping lookup fails (${resolveProjectCode.constructor.name})`, async () => {
+      const result = await handleRemoteJudgmentHookRequest(hostedRequest({
+        projectCode: undefined, repository: 'acme/app', resolveProjectCode,
+        dispatch: async () => { throw new Error('must not dispatch'); },
+      }));
+      expect(result).toEqual({ status: 503, body: { error: 'judgment_project_lookup_failed' } });
+    });
+  }
+
   for (const [label, overrides] of [
     ['no mapping', { resolveProjectCode: () => undefined }],
-    ['a failing mapping', { resolveProjectCode: () => { throw new Error('lookup down'); } }],
     ['an unusable repository key', { repository: '../etc', resolveProjectCode: () => { throw new Error('must not resolve'); } }],
   ] as const) {
     it(`falls back to the single project with ${label}`, async () => {

@@ -151,22 +151,31 @@ function safeCauseReasonCode(error: unknown): string | undefined {
 
 const REPOSITORY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$/;
 
+type HostedProjectResolution =
+  | { kind: 'resolved'; projectCode: string }
+  | { kind: 'unresolved' }
+  | { kind: 'lookup_failed' };
+
 async function resolveHostedProjectCode(
   request: RemoteJudgmentHookRequest,
   principal: RemoteJudgmentHookPrincipal,
-): Promise<string | undefined> {
+): Promise<HostedProjectResolution> {
   const repository = request.repository?.trim();
   if (repository && REPOSITORY_PATTERN.test(repository) && request.resolveProjectCode) {
     let mapped: string | undefined;
     try {
       mapped = await request.resolveProjectCode({ repository, principal });
     } catch {
-      mapped = undefined;
+      // A failed lookup is not "no mapping": the repository may belong to a
+      // project outside the person's scope. Record nothing; the caller retries.
+      return { kind: 'lookup_failed' };
     }
-    if (typeof mapped === 'string' && mapped) return mapped;
+    if (typeof mapped === 'string' && mapped) return { kind: 'resolved', projectCode: mapped };
   }
   const projects = [...new Set(principal.projectCodes)];
-  return projects.length === 1 ? projects[0] : undefined;
+  return projects.length === 1
+    ? { kind: 'resolved', projectCode: projects[0] }
+    : { kind: 'unresolved' };
 }
 
 export async function handleRemoteJudgmentHookRequest(
@@ -224,10 +233,14 @@ export async function handleRemoteJudgmentHookRequest(
     // A person's Claude Code need not name the project. The Host decides it:
     // its own repository mapping first, then the person's only project. When
     // neither decides, nothing is recorded and the caller is told why.
-    projectCode = await resolveHostedProjectCode(request, request.trustedPrincipal);
-    if (projectCode === undefined) {
+    const resolution = await resolveHostedProjectCode(request, request.trustedPrincipal);
+    if (resolution.kind === 'lookup_failed') {
+      return { status: 503, body: { error: 'judgment_project_lookup_failed' } };
+    }
+    if (resolution.kind === 'unresolved') {
       return { status: 400, body: { error: 'judgment_project_unresolved' } };
     }
+    projectCode = resolution.projectCode;
   }
   if ((requiresProjectScope || projectCode !== undefined)
     && (!projectCode || !PROJECT_CODE_PATTERN.test(projectCode))) {
