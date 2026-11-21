@@ -12,7 +12,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { link, mkdir, open, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir, hostname } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, join, sep } from 'node:path';
 import { promisify } from 'node:util';
 
 export const CREDENTIALS_SCHEMA_VERSION = 'brainbase-credentials-v1';
@@ -203,6 +203,7 @@ function expiryIso(token: string, expiresInSeconds: unknown, now: number): strin
 }
 
 export async function readCredentials(path = defaultCredentialsPath()): Promise<BrainbaseCredentials | null> {
+  assertCredentialsFilePath(path);
   let text: string;
   try {
     text = await readFile(path, 'utf8');
@@ -298,7 +299,22 @@ async function syncDirectoryChain(directory: string): Promise<boolean> {
  * and flushes then go to the same directory. The directory must exist.
  */
 async function physicalPath(path: string): Promise<string> {
+  assertCredentialsFilePath(path);
   return join(await realpath(dirname(path)), basename(path));
+}
+
+/**
+ * The saved login is a file, so its path must name one. `dir/` or `dir/.`
+ * would otherwise lose its last part in dirname()/basename() and point at a
+ * different file (logout would delete `dir`'s neighbour). Refused before any
+ * lock or file is touched.
+ */
+export function assertCredentialsFilePath(path: string): void {
+  const name = basename(path);
+  if (!path || path.endsWith('/') || path.endsWith(sep) || name === '' || name === '.' || name === '..') {
+    throw new BrainbaseLoginError('login_credentials_path_invalid',
+      `The saved-login path must name a file, not a folder: ${JSON.stringify(path)}. Nothing was changed.`);
+  }
 }
 
 export interface WriteCredentialsOptions {
@@ -318,6 +334,7 @@ export async function writeCredentials(
   credentials: BrainbaseCredentials,
   options: WriteCredentialsOptions = {},
 ): Promise<{ durable: boolean }> {
+  assertCredentialsFilePath(path);
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   const target = await physicalPath(path);
   const directory = dirname(target);
@@ -490,6 +507,7 @@ function storageUnsupported(directory: string, code: string): BrainbaseLoginErro
  * the lock, before anything is asked of the server or of the person.
  */
 export async function checkCredentialsStorage(path: string): Promise<void> {
+  assertCredentialsFilePath(path);
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   const probe = `${await physicalPath(path)}.probe-${randomBytes(6).toString('hex')}`;
   try {
@@ -562,6 +580,7 @@ export async function withCredentialsLock<T>(
   task: (lock: CredentialsLock) => Promise<T>,
   timing: Partial<LockTiming> = {},
 ): Promise<T> {
+  assertCredentialsFilePath(path);
   const { unreadableStaleMs, waitMs } = { ...DEFAULT_LOCK_TIMING, ...timing };
   await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   // Every spelling of the same file takes the same lock.
@@ -610,6 +629,7 @@ export interface RemoveCredentialsResult {
  * no file was there, since an earlier logout may have stopped before its flush.
  */
 export async function removeCredentials(path = defaultCredentialsPath()): Promise<RemoveCredentialsResult> {
+  assertCredentialsFilePath(path);
   return withCredentialsLock(path, async (lock) => {
     const existed = (await readCredentials(path).catch(() => ({}))) !== null;
     // Remove and flush in the same, real directory (the lock made it exist).

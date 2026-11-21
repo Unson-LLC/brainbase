@@ -64,7 +64,7 @@ import { applyCanonicalWrites, buildCanonicalEdge } from './canonical-edge-build
 import { defaultJudgmentJournalRoot } from './judgment-value-proof-review.js';
 import { createWorldExtension, readWorldVocabulary } from './world-extension.js';
 import { createLocalWebHost, LOCAL_WEB_DEFAULT_PORT } from './local-web-host.js';
-import { BrainbaseLoginError, defaultCredentialsPath, loginWithDeviceCode, readCredentials, removeCredentials } from './brainbase-login.js';
+import { assertCredentialsFilePath, BrainbaseLoginError, defaultCredentialsPath, loginWithDeviceCode, readCredentials, removeCredentials } from './brainbase-login.js';
 import type { CanonicalEntity, DecisionRecord, PersonalKgEntry, PersonalOs, RelationshipRecord } from './types.js';
 
 interface CliIo {
@@ -269,11 +269,19 @@ async function judgmentInstall(parsed: ParsedArgs, io: CliIo): Promise<number> {
  */
 function explicitValue(parsed: ParsedArgs, key: string, hint: string): string | undefined {
   if (parsed.flags.has(key)) throw new Error(`--${key} には値が要ります（${hint}）。何も変えずに止めました。`);
+  // parseArgs keeps `--opt=value` whole as the key `opt=value`, so the option
+  // would look absent and the default would be used. Refuse that spelling.
+  const prefix = `${key}=`;
+  if ([...parsed.flags, ...parsed.values.keys()].some((name) => name.startsWith(prefix))) {
+    throw new Error(`--${key}=… の形は使えません。${hint} のように空白で区切ってください。何も変えずに止めました。`);
+  }
   return first(parsed, key);
 }
 
 function credentialsPathOf(parsed: ParsedArgs): string {
-  return explicitValue(parsed, 'credentials', '--credentials <path>') ?? defaultCredentialsPath();
+  const path = explicitValue(parsed, 'credentials', '--credentials <path>') ?? defaultCredentialsPath();
+  assertCredentialsFilePath(path);
+  return path;
 }
 
 async function login(parsed: ParsedArgs, io: CliIo): Promise<number> {
