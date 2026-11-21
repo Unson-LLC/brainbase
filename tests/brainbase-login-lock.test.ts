@@ -1,6 +1,7 @@
 import { mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { hostname, tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   CREDENTIALS_SCHEMA_VERSION,
@@ -26,6 +27,21 @@ async function credentialsFile(): Promise<string> {
 const NOW = Date.parse('2026-11-21T03:00:00Z');
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** The process id of a process that has already exited. */
+function deadPid(): number {
+  const child = spawnSync(process.execPath, ['-e', '']);
+  return child.pid!;
+}
+
+function lockFile(pid: number, host = hostname()): string {
+  return JSON.stringify({ owner: `holder-${pid}`, pid, host });
+}
+
+async function makeOld(path: string): Promise<void> {
+  const old = new Date(Date.now() - 3600_000);
+  await utimes(path, old, old);
+}
+
 function jwt(expSeconds: number): string {
   const part = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
   return `${part({ alg: 'HS256', typ: 'JWT' })}.${part({ sub: 'person-1', exp: expSeconds })}.signature`;
@@ -40,18 +56,14 @@ function login(overrides: Partial<BrainbaseCredentials> = {}): BrainbaseCredenti
 }
 
 describe('withCredentialsLock', () => {
-  it('keeps the lock while the holder is still working, even past the stale age', async () => {
+  it('keeps the lock while the holder is still working, however old the file looks', async () => {
     const path = await credentialsFile();
     const lockPath = `${path}.lock`;
-    const timing = { staleMs: 150, heartbeatMs: 20, waitMs: 3000 };
+    const timing = { unreadableStaleMs: 50, waitMs: 3000 };
     const order: string[] = [];
     let second: Promise<void> | undefined;
     await withCredentialsLock(path, async () => {
-      // Looks abandoned: the last touch was an hour ago. The holder's heartbeat
-      // must refresh it before anyone treats it as stale.
-      const old = new Date(Date.now() - 3600_000);
-      await utimes(lockPath, old, old);
-      await delay(80);
+      await makeOld(lockPath);
       second = withCredentialsLock(path, async () => { order.push('second'); }, timing);
       await delay(400);
       order.push('first-done');
@@ -60,14 +72,61 @@ describe('withCredentialsLock', () => {
     expect(order).toEqual(['first-done', 'second']);
   });
 
+  it('never takes over the lock of a process that still runs', async () => {
+    const path = await credentialsFile();
+    const lockPath = `${path}.lock`;
+    await writeFile(lockPath, lockFile(process.ppid));
+    await makeOld(lockPath);
+    await expect(withCredentialsLock(path, async () => 'ran', { unreadableStaleMs: 50, waitMs: 300 }))
+      .rejects.toMatchObject({ code: 'login_busy' });
+    expect(await readFile(lockPath, 'utf8')).toBe(lockFile(process.ppid));
+  });
+
+  it('never takes over a lock held from another machine, and says where it is held', async () => {
+    const path = await credentialsFile();
+    const lockPath = `${path}.lock`;
+    await writeFile(lockPath, lockFile(deadPid(), 'other-machine.example'));
+    await makeOld(lockPath);
+    await expect(withCredentialsLock(path, async () => 'ran', { waitMs: 300 }))
+      .rejects.toMatchObject({ code: 'login_busy', message: expect.stringContaining('other-machine.example') });
+  });
+
   it('takes over a lock left by a process that died', async () => {
     const path = await credentialsFile();
     const lockPath = `${path}.lock`;
-    await writeFile(lockPath, 'dead-process');
-    const old = new Date(Date.now() - 3600_000);
-    await utimes(lockPath, old, old);
-    expect(await withCredentialsLock(path, async () => 'ran', { staleMs: 150, heartbeatMs: 20, waitMs: 2000 })).toBe('ran');
+    await writeFile(lockPath, lockFile(deadPid()));
+    expect(await withCredentialsLock(path, async () => 'ran', { waitMs: 2000 })).toBe('ran');
     await expect(readFile(lockPath, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('when many take over the same dead lock at once, one holds it at a time', async () => {
+    for (let round = 0; round < 5; round += 1) {
+      const path = await credentialsFile();
+      await writeFile(`${path}.lock`, lockFile(deadPid()));
+      await makeOld(`${path}.lock`);
+      let active = 0;
+      let most = 0;
+      await Promise.all(Array.from({ length: 8 }, () => withCredentialsLock(path, async () => {
+        active += 1;
+        most = Math.max(most, active);
+        await delay(15);
+        active -= 1;
+      }, { unreadableStaleMs: 0, waitMs: 5000 })));
+      expect(most).toBe(1);
+    }
+  });
+
+  it('a takeover left half-done by a process that died does not block the next one', async () => {
+    const path = await credentialsFile();
+    const lockPath = `${path}.lock`;
+    await writeFile(lockPath, lockFile(deadPid()));
+    // A taker that died while holding the takeover lock for that same file.
+    const { createHash } = await import('node:crypto');
+    const observed = await readFile(lockPath, 'utf8');
+    const guard = `${lockPath}.takeover-${createHash('sha256').update(observed).digest('hex').slice(0, 16)}`;
+    await writeFile(guard, lockFile(deadPid()));
+    expect(await withCredentialsLock(path, async () => 'ran', { waitMs: 2000 })).toBe('ran');
+    await expect(readFile(guard, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('releases only its own lock, and refuses to write once the lock is no longer its own', async () => {
@@ -115,7 +174,8 @@ describe('renewal under the lock', () => {
     await writeCredentials(path, login());
     const fresh = jwt(NOW / 1000 + 3600);
     let logout: Promise<boolean> | undefined;
-    const fetchImpl = (async () => {
+    const fetchImpl = (async (input: string | URL) => {
+      if (String(input).endsWith('/api/csrf-token')) return new Response('{}', { status: 404 });
       logout = removeCredentials(path);
       await delay(50);
       return new Response(JSON.stringify({ token: fresh, refresh_token: 'refresh-2' }), { status: 200 });
@@ -131,7 +191,8 @@ describe('renewal under the lock', () => {
     const other = login({ login_id: 'login-2', access_token: 'other-person', refresh_token: 'refresh-x',
       expires_at: new Date(NOW + 3600_000).toISOString() });
     let second: Promise<unknown> | undefined;
-    const fetchImpl = (async () => {
+    const fetchImpl = (async (input: string | URL) => {
+      if (String(input).endsWith('/api/csrf-token')) return new Response('{}', { status: 404 });
       second = withCredentialsLock(path, (lock) => writeCredentials(path, other, { lock }));
       await delay(50);
       return new Response(JSON.stringify({ token: jwt(NOW / 1000 + 3600), refresh_token: 'refresh-2' }), { status: 200 });

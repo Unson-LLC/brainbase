@@ -8,9 +8,9 @@
 // verifies it through the API treats it as that person. Nothing here carries a
 // default server: the person names their own server once at login.
 
-import { randomBytes } from 'node:crypto';
-import { link, mkdir, open, readFile, rename, rm, stat, utimes } from 'node:fs/promises';
-import { homedir } from 'node:os';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { link, mkdir, open, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { homedir, hostname } from 'node:os';
 import { dirname, join } from 'node:path';
 
 export const CREDENTIALS_SCHEMA_VERSION = 'brainbase-credentials-v1';
@@ -68,9 +68,9 @@ const REQUEST_TIMEOUT_MS = 15_000;
 const DEFAULT_REFRESH_SKEW_MS = 60_000;
 // A renewal holds the lock across its request, so a waiter waits longer than
 // one request can take.
-const LOCK_WAIT_MS = REQUEST_TIMEOUT_MS + 5_000;
-const LOCK_STALE_MS = 10_000;
-const LOCK_HEARTBEAT_MS = 2_000;
+// A renewal makes two requests under the lock (CSRF token, then refresh).
+const LOCK_WAIT_MS = 2 * REQUEST_TIMEOUT_MS + 5_000;
+const LOCK_UNREADABLE_STALE_MS = 10_000;
 
 export function defaultCredentialsPath(env: NodeJS.ProcessEnv = process.env): string {
   const configured = env.BRAINBASE_CREDENTIALS_FILE?.trim();
@@ -103,18 +103,9 @@ function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function postJson(
-  fetchImpl: FetchLike,
-  url: string,
-  body: Record<string, unknown>,
-): Promise<{ status: number; ok: boolean; json: Record<string, unknown> | null }> {
-  const response = await fetchImpl(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-    redirect: 'error',
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
+type JsonResult = { status: number; ok: boolean; json: Record<string, unknown> | null };
+
+async function readJson(response: Response): Promise<JsonResult> {
   let json: Record<string, unknown> | null = null;
   try {
     const parsed: unknown = JSON.parse(await response.text());
@@ -123,6 +114,55 @@ async function postJson(
     json = null;
   }
   return { status: response.status, ok: response.ok, json };
+}
+
+async function postJson(
+  fetchImpl: FetchLike,
+  url: string,
+  body: Record<string, unknown>,
+  headers: Record<string, string> = {},
+): Promise<JsonResult> {
+  const response = await fetchImpl(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', ...headers },
+    body: JSON.stringify(body),
+    redirect: 'error',
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  return readJson(response);
+}
+
+/**
+ * The Brainbase API checks a CSRF token on every POST outside the device-flow
+ * paths, `/api/auth/refresh` included. It hands one out at
+ * `GET /api/csrf-token` for the `x-session-id` sent with it, and expects both
+ * back as `x-session-id` and `x-csrf-token` (the same steps as the
+ * organization client). A server without that endpoint (404) gets no headers.
+ */
+async function csrfHeaders(fetchImpl: FetchLike, serverUrl: string): Promise<Record<string, string>> {
+  const sessionId = `brainbase-login-${randomUUID()}`;
+  let result: JsonResult;
+  try {
+    result = await readJson(await fetchImpl(`${serverUrl}/api/csrf-token`, {
+      method: 'GET',
+      headers: { 'x-session-id': sessionId },
+      redirect: 'error',
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    }));
+  } catch {
+    throw new BrainbaseLoginError('login_refresh_unreachable', `Cannot reach ${serverUrl} to renew the login.`);
+  }
+  if (result.status === 404) return {};
+  const token = result.json?.token;
+  if (!result.ok || typeof token !== 'string' || !token) {
+    throw new BrainbaseLoginError('login_refresh_unavailable', 'The server could not renew the login right now. Try again.');
+  }
+  return { 'x-session-id': sessionId, 'x-csrf-token': token };
+}
+
+function isCsrfRefusal(result: JsonResult): boolean {
+  const message = result.json?.message;
+  return result.status === 403 && typeof message === 'string' && /csrf/iu.test(message);
 }
 
 /** The `exp` claim of a JWT, read without verifying it (the server verifies). */
@@ -206,22 +246,31 @@ async function syncDirectory(directory: string): Promise<boolean> {
 
 const DIRECTORY_SYNC_UNSUPPORTED = new Set(['EINVAL', 'ENOTSUP', 'EOPNOTSUPP']);
 
+const DIRECTORY_OPEN_REFUSED = new Set(['EACCES', 'EPERM']);
+
 /**
- * Creates the directory (0700) when it is missing. A new directory only
- * survives a crash once the directory holding it is flushed, so every
- * directory created here is flushed in its parent, from the top down.
- * Returns false when some directory could not be flushed.
+ * Flushes `directory` and the directories above it that hold an entry of this
+ * user's: walking up, it flushes each directory, and stops after the first one
+ * that this user does not own (that one holds the entry of the topmost
+ * directory the user may have created). It does not matter who created a
+ * directory or when: one made by another process a moment ago, or left by a
+ * save whose flush failed, is flushed again. Returns false when some
+ * directory could not be flushed.
  */
-async function ensureDirectory(directory: string): Promise<boolean> {
-  const firstCreated = await mkdir(directory, { recursive: true, mode: 0o700 });
-  if (!firstCreated) return true;
-  const chain: string[] = [];
+async function syncDirectoryChain(directory: string): Promise<boolean> {
+  if (process.platform === 'win32') return false; // Directories cannot be opened for fsync there.
+  const uid = process.getuid?.();
+  let durable = true;
   for (let current = directory; ; current = dirname(current)) {
-    chain.unshift(current);
-    if (current === firstCreated || dirname(current) === current) break;
+    try {
+      durable = (await syncDirectory(current)) && durable;
+    } catch (error) {
+      if (!DIRECTORY_OPEN_REFUSED.has(String((error as NodeJS.ErrnoException)?.code))) throw error;
+      durable = false;
+    }
+    if (dirname(current) === current || uid === undefined) break;
+    if ((await stat(current)).uid !== uid) break;
   }
-  let durable = await syncDirectory(dirname(firstCreated));
-  for (const created of chain) durable = (await syncDirectory(created)) && durable;
   return durable;
 }
 
@@ -231,9 +280,10 @@ export interface WriteCredentialsOptions {
 }
 
 /**
- * Writes the file atomically: data and rename are flushed to disk before this
+ * Writes the file atomically: data and rename are flushed to disk, and so are
+ * the directories above it that hold this user's entries, before this
  * returns. A new file is 0600, a new directory 0700. `durable` is false when
- * the platform could not flush a directory, so the rename may not survive a
+ * the platform could not flush a directory, so the file may not survive a
  * crash; a real I/O error is thrown instead.
  */
 export async function writeCredentials(
@@ -242,7 +292,7 @@ export async function writeCredentials(
   options: WriteCredentialsOptions = {},
 ): Promise<{ durable: boolean }> {
   const directory = dirname(path);
-  const directoryDurable = await ensureDirectory(directory);
+  await mkdir(directory, { recursive: true, mode: 0o700 });
   const temporary = `${path}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
   const handle = await open(temporary, 'wx', 0o600);
   try {
@@ -259,29 +309,29 @@ export async function writeCredentials(
     await rm(temporary, { force: true });
     throw error;
   }
-  const renameDurable = await syncDirectory(directory);
-  return { durable: directoryDurable && renameDurable && (options.lock?.directoryDurable ?? true) };
+  return { durable: await syncDirectoryChain(directory) };
 }
 
 export interface CredentialsLock {
   /** Fails with `login_lock_lost` when the lock file no longer carries this holder's id. */
   assertHeld(): Promise<void>;
-  /** False when the credentials directory was created but could not be flushed. */
-  readonly directoryDurable: boolean;
 }
 
 export interface LockTiming {
-  /** A lock whose file was not touched for this long belongs to a process that died. */
-  staleMs: number;
-  /** How often the holder touches the lock file while it works. */
-  heartbeatMs: number;
+  /**
+   * A lock file that is not a lock record (nothing this code writes) is
+   * removed once it is this old.
+   */
+  unreadableStaleMs: number;
   /** How long to wait for another holder before failing with `login_busy`. */
   waitMs: number;
 }
 
-const DEFAULT_LOCK_TIMING: LockTiming = { staleMs: LOCK_STALE_MS, heartbeatMs: LOCK_HEARTBEAT_MS, waitMs: LOCK_WAIT_MS };
+const DEFAULT_LOCK_TIMING: LockTiming = { unreadableStaleMs: LOCK_UNREADABLE_STALE_MS, waitMs: LOCK_WAIT_MS };
 
-async function readLockOwner(path: string): Promise<string | null> {
+interface LockRecord { owner: string; pid: number; host: string }
+
+async function readRaw(path: string): Promise<string | null> {
   try {
     return await readFile(path, 'utf8');
   } catch (error) {
@@ -290,98 +340,140 @@ async function readLockOwner(path: string): Promise<string | null> {
   }
 }
 
-/**
- * Removes the lock file only when it carries `owner`. The file is first moved
- * aside, so it cannot change between the check and the removal; a file that
- * turns out to belong to someone else is linked back (link never overwrites).
- */
-async function removeLockIfOwner(lockPath: string, owner: string): Promise<void> {
-  const aside = `${lockPath}.${randomBytes(4).toString('hex')}.release`;
+function parseLockRecord(raw: string): LockRecord | null {
   try {
-    await rename(lockPath, aside);
+    const value = JSON.parse(raw) as Partial<LockRecord> | null;
+    if (value && typeof value.owner === 'string' && Number.isInteger(value.pid) && typeof value.host === 'string') {
+      return value as LockRecord;
+    }
+  } catch {
+    // not a lock record
+  }
+  return null;
+}
+
+function processAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
   } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return;
+    return (error as NodeJS.ErrnoException)?.code === 'EPERM';
+  }
+}
+
+/**
+ * True only when the holder is known to be gone: a process on this machine
+ * that no longer runs. A live holder never loses its lock, however long it
+ * works, so nothing has to be re-checked between a check and a write. A lock
+ * held from another machine is never taken over.
+ */
+async function isAbandoned(path: string, raw: string, unreadableStaleMs: number): Promise<boolean> {
+  const record = parseLockRecord(raw);
+  if (!record) {
+    const age = await stat(path).then((info) => Date.now() - info.mtimeMs, () => 0);
+    return age > unreadableStaleMs;
+  }
+  return record.host === hostname() && !processAlive(record.pid);
+}
+
+/**
+ * Creates `path` holding `content`, only when it does not exist yet. The
+ * content is written first and linked into place, so the file is never seen
+ * empty. Returns false when the file already exists.
+ */
+async function createExclusive(path: string, content: string): Promise<boolean> {
+  const temporary = `${path}.${randomBytes(6).toString('hex')}.new`;
+  await writeFile(temporary, content, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+  try {
+    await link(temporary, path);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'EEXIST') return false;
     throw error;
+  } finally {
+    await rm(temporary, { force: true });
+  }
+}
+
+function lockRecord(owner: string): string {
+  return JSON.stringify({ owner, pid: process.pid, host: hostname() } satisfies LockRecord);
+}
+
+/**
+ * Removes the lock at `path`, which was seen holding `observed` from a holder
+ * that is gone. Every process that wants to remove that same lock first takes
+ * a takeover lock named after what it saw; only the one holding it reads the
+ * file again and removes it, and only when it still holds `observed`. Nobody
+ * else changes the file meanwhile: its holder is gone, a new lock cannot be
+ * created while it exists, and the other takers wait for the takeover lock.
+ * A takeover lock left by a taker that died is removed the same way.
+ */
+async function removeAbandoned(path: string, observed: string, unreadableStaleMs: number): Promise<boolean> {
+  const guard = `${path}.takeover-${createHash('sha256').update(observed).digest('hex').slice(0, 16)}`;
+  const owner = randomBytes(16).toString('hex');
+  if (!(await createExclusive(guard, lockRecord(owner)))) {
+    const guardRaw = await readRaw(guard);
+    if (guardRaw !== null && await isAbandoned(guard, guardRaw, unreadableStaleMs)) {
+      await removeAbandoned(guard, guardRaw, unreadableStaleMs);
+    }
+    return false; // Another process is taking it over; the caller looks again.
   }
   try {
-    if ((await readLockOwner(aside)) !== owner) {
-      await link(aside, lockPath).catch((error: NodeJS.ErrnoException) => {
-        if (error?.code !== 'EEXIST') throw error;
-      });
+    const current = await readRaw(path);
+    if (current === observed && await isAbandoned(path, current, unreadableStaleMs)) {
+      await rm(path, { force: true });
     }
+    return true;
   } finally {
-    await rm(aside, { force: true });
+    if (parseLockRecord((await readRaw(guard)) ?? '')?.owner === owner) await rm(guard, { force: true });
   }
 }
 
 /**
  * Serialises changes to the credentials file between processes on this
  * machine: login, logout, and a renewal from its request to its write-back.
- * The lock file carries a random id of its holder. The holder touches it every
- * `heartbeatMs` while it works, so a lock is only taken over when its holder
- * stopped touching it for `staleMs` (the process died). Only the holder
- * removes the lock, and a write under the lock checks it is still held.
+ * The lock file holds the holder's random id, process id and host name. It is
+ * held until the holder removes it: another process only removes it when the
+ * holder's process no longer runs, so the lock covers every read, write and
+ * removal of the credentials file done under it.
  */
 export async function withCredentialsLock<T>(
   path: string,
   task: (lock: CredentialsLock) => Promise<T>,
   timing: Partial<LockTiming> = {},
 ): Promise<T> {
-  const { staleMs, heartbeatMs, waitMs } = { ...DEFAULT_LOCK_TIMING, ...timing };
-  const directoryDurable = await ensureDirectory(dirname(path));
+  const { unreadableStaleMs, waitMs } = { ...DEFAULT_LOCK_TIMING, ...timing };
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   const lockPath = `${path}.lock`;
   const owner = randomBytes(16).toString('hex');
+  const record = lockRecord(owner);
   const started = Date.now();
-  for (;;) {
-    let handle;
-    try {
-      handle = await open(lockPath, 'wx', 0o600);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException)?.code !== 'EEXIST') throw error;
-      const [holder, age] = await Promise.all([
-        readLockOwner(lockPath),
-        stat(lockPath).then((info) => Date.now() - info.mtimeMs, () => 0),
-      ]);
-      if (holder !== null && age > staleMs) {
-        await removeLockIfOwner(lockPath, holder);
-        continue;
-      }
-      if (Date.now() - started > waitMs) {
-        throw new BrainbaseLoginError('login_busy', 'Another brainbase process is changing the saved login. Try again.');
-      }
-      await defaultSleep(25);
-      continue;
+  while (!(await createExclusive(lockPath, record))) {
+    const holder = await readRaw(lockPath);
+    if (holder === null) continue; // Released meanwhile.
+    if (await isAbandoned(lockPath, holder, unreadableStaleMs)
+      && await removeAbandoned(lockPath, holder, unreadableStaleMs)) continue;
+    if (Date.now() - started > waitMs) {
+      const host = holder ? parseLockRecord(holder)?.host : undefined;
+      throw new BrainbaseLoginError('login_busy', host && host !== hostname()
+        ? `The saved login is locked from another machine (${host}). If nothing runs there, remove ${lockPath}.`
+        : 'Another brainbase process is changing the saved login. Try again.');
     }
-    try {
-      await handle.writeFile(owner, 'utf8');
-    } finally {
-      await handle.close();
-    }
-    break;
+    await defaultSleep(25);
   }
   const lock: CredentialsLock = {
-    directoryDurable,
     async assertHeld() {
-      if ((await readLockOwner(lockPath)) !== owner) {
+      if ((await readRaw(lockPath)) !== record) {
         throw new BrainbaseLoginError('login_lock_lost', 'Another brainbase process took over the saved login. Run the command again.');
       }
     },
   };
-  let touching = Promise.resolve();
-  const heartbeat = setInterval(() => {
-    touching = touching.then(async () => {
-      if ((await readLockOwner(lockPath).catch(() => null)) !== owner) return;
-      const now = new Date();
-      await utimes(lockPath, now, now).catch(() => undefined);
-    });
-  }, heartbeatMs);
-  heartbeat.unref?.();
   try {
     return await task(lock);
   } finally {
-    clearInterval(heartbeat);
-    await touching;
-    await removeLockIfOwner(lockPath, owner);
+    // Nobody else removes a lock whose holder runs, so this is still ours
+    // unless something outside brainbase replaced it.
+    if ((await readRaw(lockPath).catch(() => null)) === record) await rm(lockPath, { force: true });
   }
 }
 
@@ -437,6 +529,7 @@ export async function loginWithDeviceCode(options: LoginOptions): Promise<Brainb
   const deadline = now() + expiresInSeconds * 1000;
   while (now() < deadline) {
     await sleep(intervalMs);
+    if (now() >= deadline) break; // A longer wait (slow_down) may have run past the code's expiry.
     let poll;
     try {
       poll = await postJson(fetchImpl, `${serverUrl}/api/auth/device/token`, {
@@ -512,17 +605,24 @@ async function requestRenewal(
   fetchImpl: FetchLike,
   now: () => number,
 ): Promise<BrainbaseCredentials> {
-  let result;
-  try {
-    result = await postJson(fetchImpl, `${credentials.server_url}/api/auth/refresh`, {
-      refresh_token: credentials.refresh_token,
-    });
-  } catch {
-    throw new BrainbaseLoginError('login_refresh_unreachable', `Cannot reach ${credentials.server_url} to renew the login.`);
-  }
+  const refresh = async () => {
+    const headers = await csrfHeaders(fetchImpl, credentials.server_url);
+    try {
+      return await postJson(fetchImpl, `${credentials.server_url}/api/auth/refresh`, {
+        refresh_token: credentials.refresh_token,
+      }, headers);
+    } catch {
+      throw new BrainbaseLoginError('login_refresh_unreachable', `Cannot reach ${credentials.server_url} to renew the login.`);
+    }
+  };
+  let result = await refresh();
+  // The API keeps CSRF tokens in each server process, so a token handed out
+  // by one instance can be refused by another. That says nothing about the
+  // refresh token: ask once more, and otherwise report a retryable failure.
+  if (isCsrfRefusal(result)) result = await refresh();
   const token = result.json?.token ?? result.json?.access_token;
   if (!result.ok || typeof token !== 'string' || !token) {
-    if (result.status === 503) {
+    if (result.status === 503 || isCsrfRefusal(result)) {
       throw new BrainbaseLoginError('login_refresh_unavailable', 'The server could not renew the login right now. Try again.');
     }
     throw new BrainbaseLoginError('login_expired', 'The saved login can no longer be renewed. Run brainbase login again.');
