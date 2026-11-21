@@ -233,6 +233,14 @@ describe('getAccessToken', () => {
       .rejects.toMatchObject({ code: 'login_refresh_unavailable' });
   });
 
+  it.each([500, 502, 504, 429])('reports a retryable failure, not an expired login, on a %s from the server', async (status) => {
+    const path = await saved({ expires_at: new Date(NOW - 1000).toISOString() });
+    const { fetchImpl } = fakeServer({ '/api/auth/refresh': [{ status, body: { error: 'temporary' } }] });
+    await expect(getAccessToken({ credentialsPath: path, fetch: fetchImpl, now: () => NOW }))
+      .rejects.toMatchObject({ code: 'login_refresh_unavailable' });
+    expect(await readCredentials(path)).not.toBeNull();
+  });
+
   // Concurrent logout, login and renewal are in brainbase-login-lock.test.ts.
   it('after a failed renewal, does not hand out a token that belongs to another login', async () => {
     const path = await saved({ expires_at: new Date(NOW - 1000).toISOString() });
