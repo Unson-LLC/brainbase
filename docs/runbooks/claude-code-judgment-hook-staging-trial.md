@@ -48,6 +48,10 @@
 
    Hostに送るリポジトリ名も`github.com/<owner>/<名前>`の形です（originのURLから作ります）。originのURLは、`git remote get-url origin`と同じくgitに聞きます。`insteadOf`による書き換えも、gitの全体の設定も効きます。gitが入っていないときや、gitがこのフォルダーを扱えないときは、何も送らずに`judgment_repository_unresolved`の警告を出します。ホスト名は大文字と小文字を区別しません。パスは、`github.com`では区別せず小文字にそろえ、ほかのホストでは区別します。自前のGitサーバーでは、`--repositories`にoriginと同じ大文字・小文字で書きます。ターンの途中で別のリポジトリに移ると、そのあとの記録は送りません。ターンの途中で`--repositories`からそのリポジトリを外したときも、そのあとの記録と回答は送りません（設定は記録のたびに読み直します）。originのないリポジトリでは、ターンを始めたチェックアウトの中だけを同じターンとして扱います。gitの外での記録は送りません。
 
+   ポート番号つきのURL（`ssh://git@git.example.com:2222/...`など）や、パスに`~`を含むリポジトリは、Hostがリポジトリとprojectの対応表で引けません。`--project`をつけずに登録したときは、そのリポジトリの記録を送らず、`judgment_repository_unmappable`の警告を出します。本人の所属先のprojectに、違うprojectの記録が入らないようにするためです。そのリポジトリも記録したいときは、`--project <project>`つきで登録します。
+
+   ターンの途中で`brainbase login`をし直すと（別のアカウントでも、同じ人でも）、そのターンの残りの記録と回答は送りません。ターンを始めたときのログインで送るためです。tokenの自動更新では、ログインは変わりません。
+
    設定ファイルを既定の場所以外に置くときは`--config <パス>`を足します。Claude Codeに登録するコマンドにも、そのパスが入ります。`--settings`と同じファイルは指定できません。判断フックの設定ではないファイルがすでにあるパスも、指定できません。上書きしないためです。
 
    1つのフックの設定ファイルは、1つのClaude Codeの設定（`--settings`）の登録にだけ使えます。別の`--settings`で登録した`--config`を指定すると、何も変えずに失敗します。登録するたびに新しい登録のidを作り、設定ファイルと登録するコマンドの両方に書きます。idの合わない古いコマンド（コピーした設定など）は、何も送らずに警告を出します。同じ設定ファイルを別のパス（リンクしたディレクトリなど）で指定しても、同じファイルとして扱います。登録し直すと前のコマンドを置き換え、どちらのパスで外しても同じ登録が外れます。
@@ -77,6 +81,8 @@ Claude Codeの画面に`⚠️ Brainbase判断フック:`で始まる警告が�
 - `judgment_hook_http_503_judgment_project_lookup_failed`: Hostのリポジトリ対応の検索に失敗した。何も記録されていない。もう一度依頼を送る。
 - `judgment_hook_unreachable`、`judgment_hook_timeout`: `<MCP>`に届かない。URLとネットワークを確かめる。
 - `judgment_turn_repository_changed`: ターンの途中で別のリポジトリに移った。回答は送っていない。次の依頼は元のリポジトリで送る。
+- `judgment_repository_unmappable`: ポート番号つきのURLなど、Hostがprojectを引けない形のリポジトリ。手順4を`--project <project>`つきでやり直す。
+- `judgment_turn_login_changed`: ターンの途中でログインし直した。そのターンの残りは送っていない。次の依頼から新しいログインで送る。
 - `judgment_turn_destination_changed`: ターンの途中で設定ファイルの送り先かprojectが変わった。回答は送っていない。次の依頼から新しい送り先に送る。
 
 ## やめるとき

@@ -22,7 +22,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync, readFileSync, realpathSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { getAccessToken, type AccessTokenOptions } from './brainbase-login.js';
+import { getAccessTokenOfLogin, type AccessTokenOptions } from './brainbase-login.js';
 
 export const CLAUDE_CODE_HOOK_CONFIG_SCHEMA = 'brainbase-claude-code-judgment-hook-v1';
 
@@ -61,8 +61,11 @@ export type ClaudeCodeHookOutput = Record<string, unknown>;
 export interface ClaudeCodeHookOptions {
   env?: NodeJS.ProcessEnv;
   fetch?: typeof fetch;
-  /** Overrides how the person token is obtained (tests). */
-  accessToken?: () => Promise<string>;
+  /**
+   * Overrides how the person token is obtained (tests). A bare string has no
+   * login id; a turn opened with one only continues with another bare string.
+   */
+  accessToken?: () => Promise<string | PersonToken>;
   credentials?: AccessTokenOptions;
   /** The hook config file; the installer passes it as `--config`. */
   configPath?: string;
@@ -98,6 +101,11 @@ interface TurnState {
   checkout?: string | null;
   /** Where the turn's events go; a config that changes mid-turn stops them. */
   destination?: string;
+  /**
+   * The saved login (its login_id, kept across renewals) the turn's first
+   * event was sent with. A login as someone else mid-turn stops the turn.
+   */
+  login?: string | null;
 }
 
 function warning(text: string): ClaudeCodeHookOutput {
@@ -429,11 +437,17 @@ function bearerTransportSafe(url: URL): boolean {
     || (url.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname));
 }
 
+export interface PersonToken {
+  token: string;
+  /** The saved login's login_id; the same across renewals of one login. */
+  loginId: string | null;
+}
+
 interface Context {
   env: NodeJS.ProcessEnv;
   config: ClaudeCodeHookConfig;
   fetch: typeof fetch;
-  accessToken: () => Promise<string>;
+  accessToken: () => Promise<string | PersonToken>;
   scope: RepositoryScope;
   /** Absolute path of the hook config this run read. */
   configPath: string;
@@ -444,11 +458,35 @@ export function namespacedId(id: string, config: Pick<ClaudeCodeHookConfig, 'reg
   return `${id}.bb-${sha256(`brainbase-claude-code-registration\n${config.registration.id}`).slice(0, 16)}`;
 }
 
+// The Host looks a repository up in its project mapping only in this form
+// (REPOSITORY_PATTERN of the Host's remote-judgment-hook-http). Any other
+// identifier is passed over there, and the Host falls back to the person's
+// only project.
+const HOST_MAPPABLE_REPOSITORY = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$/u;
+
+/**
+ * Whether the Host can choose the project for this repository from its
+ * mapping. Without --project, a repository it cannot look up (a host with a
+ * port, a `~` in the path, a very long name) is not sent at all.
+ */
+export function hostCanMapRepository(repository: string | null, config: Pick<ClaudeCodeHookConfig, 'project_code'>): boolean {
+  if (config.project_code || repository === null) return true;
+  return HOST_MAPPABLE_REPOSITORY.test(repository);
+}
+
+/**
+ * The login a turn is pinned to: undefined opens the turn (any login), a
+ * string or null must match the login that sends the event.
+ */
+type LoginPin = { expected?: string | null; used?: string | null };
+
 async function forward(
   payload: ClaudeCodeHookPayload,
   context: Context,
   repository: string | null,
+  login: LoginPin = {},
 ): Promise<Record<string, unknown>> {
+  if (!hostCanMapRepository(repository, context.config)) throw new Error('judgment_repository_unmappable');
   let endpoint: URL;
   try {
     endpoint = new URL(HOOK_PATH, context.config.origin);
@@ -457,13 +495,20 @@ async function forward(
   }
   if (!bearerTransportSafe(endpoint)) throw new Error('judgment_hook_transport_unsafe');
   let token: string;
+  let loginId: string | null;
   try {
-    token = await context.accessToken();
+    const obtained = await context.accessToken();
+    token = typeof obtained === 'string' ? obtained : obtained.token;
+    loginId = typeof obtained === 'string' ? null : obtained.loginId;
   } catch (error) {
     const code = (error as { code?: unknown })?.code;
     throw new Error(typeof code === 'string' && /^login_[a-z_]{1,60}$/u.test(code)
       ? `judgment_hook_${code}` : 'judgment_hook_login_unavailable');
   }
+  // Logged in again (as someone else, or the same person anew) since the turn
+  // began: the turn's events are not sent with the new login.
+  if (login.expected !== undefined && login.expected !== loginId) throw new Error('judgment_turn_login_changed');
+  login.used = loginId;
   const eventName = String(payload.hook_event_name);
   // Claude Code's session and turn ids are the same for every registration
   // that sees the event. The Host keys a turn by them, so each registration
@@ -660,14 +705,25 @@ async function handleUserPromptSubmit(payload: ClaudeCodeHookPayload, context: C
       ? warning('git からこのリポジトリの origin を確かめられなかったため、判断監査なしで続行します（judgment_repository_unresolved）。git が入っているか、このフォルダーを git が扱えるかを確かめてください。')
       : {};
   }
+  if (!hostCanMapRepository(context.scope.repository, context.config)) {
+    writeState(env, sessionId, { ...state, start_status: 'out_of_scope' });
+    return warning(`このリポジトリ（${context.scope.repository}）は判断ハーネスがプロジェクトを選べない形式のため、判断監査なしで続行します（judgment_repository_unmappable）。judgment:install に --project を付けて登録し直してください。`);
+  }
   writeState(env, sessionId, state);
   try {
-    const output = await forward({ ...payload, turn_id: state.turn_id }, context, state.repository ?? null);
-    writeState(env, sessionId, { ...state, start_status: 'started' });
+    const login: LoginPin = {};
+    const output = await forward({ ...payload, turn_id: state.turn_id }, context, state.repository ?? null, login);
+    writeState(env, sessionId, { ...state, start_status: 'started', login: login.used ?? null });
     return documentedOutput(output, 'UserPromptSubmit');
   } catch (error) {
     return warning(`判断ハーネスに接続できないため、このターンは判断監査なしで続行します（${safeReason(error)}）。`);
   }
+}
+
+// A started turn always has its login recorded; a state without one (written
+// before logins were pinned) matches no login, so nothing more is sent.
+function turnLogin(state: TurnState): LoginPin {
+  return { expected: typeof state.login === 'string' || state.login === null ? state.login : '\u0000unrecorded' };
 }
 
 async function handlePostToolUse(payload: ClaudeCodeHookPayload, context: Context, eventName: string): Promise<ClaudeCodeHookOutput> {
@@ -677,7 +733,7 @@ async function handlePostToolUse(payload: ClaudeCodeHookPayload, context: Contex
     || !isAuditedRepository(context.scope, context.config)) return {};
   try {
     return documentedOutput(
-      await forward({ ...forwardedToolPayload(payload), turn_id: state.turn_id }, context, state.repository ?? null),
+      await forward({ ...forwardedToolPayload(payload), turn_id: state.turn_id }, context, state.repository ?? null, turnLogin(state)),
       eventName,
     );
   } catch (error) {
@@ -710,7 +766,7 @@ async function handlePreToolUse(payload: ClaudeCodeHookPayload, context: Context
   if (state.start_status !== 'started' || !sameScope(state, context.scope) || !sameDestination(state, context)
     || !isAuditedRepository(context.scope, context.config)) return {};
   try {
-    return preToolUseOutput(await forward({ ...payload, turn_id: state.turn_id }, context, state.repository ?? null));
+    return preToolUseOutput(await forward({ ...payload, turn_id: state.turn_id }, context, state.repository ?? null, turnLogin(state)));
   } catch (error) {
     return warning(`知識取得の試行を判断ハーネスへ予約できませんでした（${safeReason(error)}）。この試行は記録されません。`);
   }
@@ -734,7 +790,7 @@ async function handleStop(payload: ClaudeCodeHookPayload, context: Context): Pro
   const blocks = Number.isSafeInteger(state.stop_blocks) ? state.stop_blocks : 0;
   let raw: Record<string, unknown>;
   try {
-    raw = await forward({ ...payload, turn_id: state.turn_id, stop_hook_active: blocks > 0 }, context, state.repository ?? null);
+    raw = await forward({ ...payload, turn_id: state.turn_id, stop_hook_active: blocks > 0 }, context, state.repository ?? null, turnLogin(state));
   } catch (error) {
     return warning(`回答の照合に失敗したため、監査未完了のまま終了します（${safeReason(error)}）。`);
   }
@@ -776,13 +832,13 @@ export async function handleClaudeCodeJudgmentHook(
       config,
       fetch: options.fetch ?? fetch,
       accessToken: options.accessToken ?? (async () => {
-        const login = await getAccessToken({ fetch: options.fetch, ...options.credentials });
+        const login = await getAccessTokenOfLogin({ fetch: options.fetch, ...options.credentials });
         // A login to another environment (production instead of staging, say)
         // must not reach this Host.
         if (login.serverUrl !== config.login_server) {
           throw Object.assign(new Error('login_origin_mismatch'), { code: 'login_origin_mismatch' });
         }
-        return login.token;
+        return { token: login.token, loginId: login.loginId };
       }),
       scope: eventRepository(payload, env),
       configPath,
