@@ -446,7 +446,7 @@ async function ensureAncillaryDirectories(dataDir: string): Promise<void> {
 /**
  * Callers in this process that wait for the same lock directory, in arrival order.
  * The directory lock still guards other processes. Without this queue, callers in
- * one process (for example the parallel checks in execution-authority) polled the
+ * one process (for example parallel checks against the same data directory) polled the
  * directory lock every retry interval, so each one waited longer than the holder
  * worked, and the polling added file operations while the holder was still writing.
  */

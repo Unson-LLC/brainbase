@@ -1,5 +1,7 @@
 # Member invitation kernel implementation
 
+> **2026-11-20 移設**: 招待の本体と受け口は brainbase-organization の `packages/server-parts/organization-member-invites`（`kernel.js`・`http.js`、保存先 `postgres-repository.js` の隣）へ移した（Unson-LLC/brainbase-organization#1473）。招待はテナント・役割・認可・メンバーの付与・監査を持つ組織の管理で、OSSの境界に合わないため。OSSの `./organization-member-invite` と `./organization-member-invite-http` は外した。以下は移す前の記録。
+
 Implements the ports in [the invitation specification](./organization-member-invite-v1.md).
 This is a reusable kernel and an opt-in HTTP handler, not a mounted organization
 service or a released invitation feature. No existing route or login behavior changes.

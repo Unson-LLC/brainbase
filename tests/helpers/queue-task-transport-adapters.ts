@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -15,7 +16,20 @@ import {
     type QueueTaskContractAdapter,
     type QueueTaskContractConnectOptions,
 } from '../../src/testing/queue-task-tools-contract.js';
+function stdioServerArgs(): string[] {
+    const compiledEntry = path.resolve('tests/fixtures/queue-task-stdio-server.mjs');
+    const distDeps = [
+        path.resolve('dist/testing/queue-task-reference-backend.js'),
+        path.resolve('dist/queue-task-tools.js'),
+        path.resolve('dist/mcp-runtime.js'),
+    ];
+    if (existsSync(compiledEntry) && distDeps.every((entry) => existsSync(entry))) {
+        return [compiledEntry];
+    }
+    return ['--import', 'tsx', path.resolve('tests/fixtures/queue-task-stdio-server.ts')];
+}
 export function createStdioQueueAdapter(): QueueTaskContractAdapter {
+    const serverArgs = stdioServerArgs();
     return {
         transport: 'stdio',
         async connect(options) {
@@ -24,7 +38,7 @@ export function createStdioQueueAdapter(): QueueTaskContractAdapter {
             const client = new Client({ name: 'queue-test', version: '0.0.0' });
             const transport = new StdioClientTransport({
                 command: process.execPath,
-                args: ['--import', 'tsx', path.resolve('tests/fixtures/queue-task-stdio-server.ts')],
+                args: serverArgs,
                 env: {
                     PATH: process.env.PATH!,
                     QUEUE_FIXTURE_SEED: JSON.stringify(options),

@@ -11,6 +11,8 @@ external_dependencies: []
 
 # 信頼済みの組織コンテキストから実行開始と意図の読出しを安全に呼び出す
 
+> **2026-11-20 移設**: 実行の意図の本体（`ExecutionAuthorityService`）とHTTPの受け口は brainbase-organization の `packages/company-os`（`execution-authority.js`・`execution-authority-http.js`。保存先はPostgreSQL）へ移した。OSSの `./execution-authority` と `./execution-authority-http` は削除済み。この文書は移設前の記録として残す。
+
 ## 利用者成果
 
 組織側のHTTPホストとして、認証・テナント解決・変更元検証を済ませた要求だけを、同じテナントの実行権限サービスへ渡したい。実行開始は現在の権限・承認・制約・予約の再検証と既存の冪等性を保ち、実行意図の読出しは現在のread権限を通したい。
