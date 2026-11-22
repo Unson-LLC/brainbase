@@ -203,8 +203,25 @@ function expiryIso(token: string, expiresInSeconds: unknown, now: number): strin
 }
 
 export async function readCredentials(path = defaultCredentialsPath()): Promise<BrainbaseCredentials | null> {
-  const text = await readCredentialsText(path) ?? await readAfterSave(path);
+  const text = await readCredentialsText(path) ?? await readAfterSave(path) ?? await readAfterInterrupted(path);
   return text === null ? null : parseCredentials(text, path);
+}
+
+/**
+ * A save that stopped after moving the saved login aside leaves no file at
+ * the path. Nothing would ever put it back if reads only looked at the path,
+ * so when such a file is there, the lock is taken (which rolls the save back,
+ * see finishInterrupted) and the path is read again under it.
+ */
+async function readAfterInterrupted(path: string): Promise<string | null> {
+  let target: string;
+  try {
+    target = await physicalPath(path);
+  } catch {
+    return null;
+  }
+  if (await isFree(replacingPath(target))) return null;
+  return withCredentialsLock(path, (lock) => readCredentialsText(path, lock.target));
 }
 
 /** How long a read without the lock waits for a save in progress to put its file in place. */
@@ -506,7 +523,10 @@ async function placeCredentials(temporary: string, target: string, path: string,
     await rm(temporary, { force: true });
     return;
   }
-  const aside = `${target}.${process.pid}.${randomBytes(4).toString('hex')}.replacing`;
+  const aside = replacingPath(target);
+  // A file left there would be replaced by the move below: finishInterrupted
+  // runs whenever the lock is taken, so only a file it had to keep is there.
+  await assertAsideFree(aside, path);
   try {
     await rename(target, aside);
   } catch (error) {
@@ -557,6 +577,123 @@ async function putBack(aside: string, target: string, path: string): Promise<voi
     throw new BrainbaseLoginError('login_changed',
       `Another program changed ${JSON.stringify(path)} while the login was being saved, and its file could not be put back. It was kept as ${JSON.stringify(aside)}. The login was not saved.`);
   }
+}
+
+/**
+ * Where a save puts the checked login while it links the new one in, and
+ * where a logout puts it before deleting it. The names are fixed, not random,
+ * so a save or logout that stopped half way (the process was killed, the
+ * machine lost power) leaves its file where the next holder of the lock looks
+ * (see finishInterrupted). Only the holder of the lock uses them.
+ */
+function replacingPath(target: string): string {
+  return `${target}.replacing`;
+}
+
+function removingPath(target: string): string {
+  return `${target}.removing`;
+}
+
+/** Fails with `login_changed` when a file is at `aside`, so moving a login there never replaces it. */
+async function assertAsideFree(aside: string, path: string): Promise<void> {
+  try {
+    await lstat(aside);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return;
+    throw error;
+  }
+  throw new BrainbaseLoginError('login_changed',
+    `A file that is no saved brainbase login is at ${JSON.stringify(aside)}, where brainbase keeps a login while saving or logging out. It was left as it is and nothing was changed for ${JSON.stringify(path)}. Check that file, move it away, and run the command again.`);
+}
+
+/** What the lock holder found left by a save or logout that stopped half way. */
+export interface InterruptedWork {
+  /** A logout had moved the saved login aside: it was deleted now. */
+  logoutFinished: boolean;
+  /** A save had moved the saved login aside and placed nothing: it was put back. */
+  saveRolledBack: boolean;
+}
+
+type AsideKind = 'login' | 'other-file' | 'other' | 'missing';
+
+/**
+ * What is at `aside`: a regular file holding a saved brainbase login, another
+ * regular file, something that is no regular file (a link, a folder), or
+ * nothing. It is read without following a link (see readRegularFile).
+ */
+async function asideKind(aside: string): Promise<AsideKind> {
+  let info;
+  try {
+    info = await lstat(aside);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return 'missing';
+    throw error;
+  }
+  if (!info.isFile()) return 'other';
+  try {
+    return (await savedLoginKey(aside, aside)) === null ? 'missing' : 'login';
+  } catch {
+    return 'other-file';
+  }
+}
+
+/** True when nothing is at `target`; a link or any other entry there counts as something. */
+async function isFree(target: string): Promise<boolean> {
+  try {
+    await lstat(target);
+    return false;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return true;
+    throw error;
+  }
+}
+
+/**
+ * Brings back a consistent state after a save or logout that stopped half way.
+ * Runs under the lock, right after it is taken, so it is never in the way of a
+ * save or logout that is still running.
+ *
+ * - A logout's login left at `.removing`: the logout is finished by deleting
+ *   it, so a retried logout leaves no token on the machine.
+ * - A save's login left at `.replacing` with nothing at the path: the save
+ *   stopped before its new file was linked in, so the old login is linked back
+ *   and keeps working. With a file at the path, the save had placed its new
+ *   file: the old login is deleted.
+ * - A file there that is no saved brainbase login (put back half way, or by
+ *   another program) is only ever linked back into an empty path, never
+ *   deleted. Anything that is no regular file is left as it is. Either one
+ *   left there makes the next save or logout fail (see assertAsideFree)
+ *   instead of replacing it.
+ */
+async function finishInterrupted(target: string): Promise<InterruptedWork> {
+  const done: InterruptedWork = { logoutFinished: false, saveRolledBack: false };
+  let changed = false;
+  for (const [aside, kind] of [[removingPath(target), 'logout'], [replacingPath(target), 'save']] as const) {
+    const found = await asideKind(aside);
+    if (found === 'missing' || found === 'other') continue;
+    if (found === 'login' && kind === 'logout') {
+      await rm(aside, { force: true });
+      done.logoutFinished = true;
+      changed = true;
+      continue;
+    }
+    if (await isFree(target)) {
+      try {
+        await link(aside, target);
+        if (kind === 'save' && found === 'login') done.saveRolledBack = true;
+      } catch (error) {
+        // Created meanwhile by another program: that file stays.
+        if ((error as NodeJS.ErrnoException)?.code !== 'EEXIST') throw error;
+        if (found !== 'login') continue;
+      }
+    } else if (found !== 'login') {
+      continue; // Kept: no file that is not ours is deleted.
+    }
+    await rm(aside, { force: true });
+    changed = true;
+  }
+  if (changed) await syncDirectory(dirname(target));
+  return done;
 }
 
 /**
@@ -687,6 +824,11 @@ export interface CredentialsLock {
   readonly target: string;
   /** lock.target with the folder that held it when the lock was taken. */
   readonly destination: CredentialsDestination;
+  /**
+   * What a save or logout that stopped half way had left, and was finished or
+   * rolled back right after this lock was taken (see finishInterrupted).
+   */
+  readonly interrupted: InterruptedWork;
   /**
    * Fails with `login_lock_lost` when the lock file no longer carries this
    * holder's id, and with `login_changed` when the path the lock was taken for
@@ -983,9 +1125,24 @@ export async function withCredentialsLock<T>(
     if (Date.now() - started > waitMs) throw busy(lockPath, holder);
     await defaultSleep(25);
   }
+  const release = async () => {
+    // Nobody else removes a lock whose holder runs, so this is still ours
+    // unless something outside brainbase replaced it.
+    if ((await readRaw(lockPath).catch(() => null)) === record) await rm(lockPath, { force: true });
+  };
+  let interrupted: InterruptedWork;
+  try {
+    // Whoever takes the lock next finishes (or rolls back) a save or logout
+    // that stopped half way, before anything else reads or writes the login.
+    interrupted = await finishInterrupted(target);
+  } catch (error) {
+    await release();
+    throw error;
+  }
   const lock: CredentialsLock = {
     target,
     destination,
+    interrupted,
     async assertHeld() {
       if ((await readRaw(lockPath)) !== record) {
         throw new BrainbaseLoginError('login_lock_lost', 'Another brainbase process took over the saved login. Run the command again.');
@@ -1003,9 +1160,7 @@ export async function withCredentialsLock<T>(
   try {
     return await task(lock);
   } finally {
-    // Nobody else removes a lock whose holder runs, so this is still ours
-    // unless something outside brainbase replaced it.
-    if ((await readRaw(lockPath).catch(() => null)) === record) await rm(lockPath, { force: true });
+    await release();
   }
 }
 
@@ -1078,7 +1233,8 @@ export function loginKeyOf(credentials: BrainbaseCredentials): SavedLoginKey {
  * device, inode, size and mtime.)
  */
 async function removeCheckedFile(target: string, path: string, checked: FileIdentity): Promise<void> {
-  const aside = `${target}.${process.pid}.${randomBytes(4).toString('hex')}.removing`;
+  const aside = removingPath(target);
+  await assertAsideFree(aside, path);
   try {
     await rename(target, aside);
   } catch (error) {
@@ -1126,7 +1282,9 @@ export async function removeCredentials(path = defaultCredentialsPath()): Promis
     // creates meanwhile stays. The folder is still flushed (see above).
     if (identity !== null) await removeCheckedFile(target, path, identity);
     const durable = await syncDirectory(dirname(target));
-    return { existed: identity !== null, durable };
+    // A logout that stopped half way was finished when the lock was taken:
+    // its login was there and is gone now.
+    return { existed: identity !== null || lock.interrupted.logoutFinished, durable };
   });
 }
 
