@@ -16,7 +16,7 @@ const adapterFor = (transport: string) =>
 const recordedTranscripts = new Map<string, QueueTaskContractTranscript>();
 describe.each(['stdio', 'http'] as const)('queue task tools over %s', (transport) => {
     for (const name of QUEUE_TASK_CONTRACT_SCENARIO_NAMES)
-        it(
+        it.concurrent(
             name,
             async () => {
                 const transcript = await runQueueTaskContractScenario(name, adapterFor(transport), assert);

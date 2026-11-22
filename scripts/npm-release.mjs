@@ -390,12 +390,12 @@ export async function validateRelease(
 ) {
   execute('npm', ['run', 'build'], root);
   // Shared self-hosted runners execute several jobs at once. Cap validation at
-  // four thread workers with bounded scheduling headroom; dist/ was just built
+  // six thread workers with bounded scheduling headroom; dist/ was just built
   // above so consumer smoke tests skip redundant rebuilds.
   const previousSkipBuild = process.env.BRAINBASE_TEST_SKIP_BUILD;
   process.env.BRAINBASE_TEST_SKIP_BUILD = '1';
   try {
-    execute('npm', ['test', '--', '--maxWorkers=4', '--testTimeout=30000', '--hookTimeout=30000'], root);
+    execute('npm', ['test', '--', '--maxWorkers=6', '--testTimeout=30000', '--hookTimeout=30000'], root);
   } finally {
     if (previousSkipBuild === undefined) delete process.env.BRAINBASE_TEST_SKIP_BUILD;
     else process.env.BRAINBASE_TEST_SKIP_BUILD = previousSkipBuild;

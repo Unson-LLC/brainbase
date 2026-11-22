@@ -1,9 +1,9 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   assertPublishedMetadata,
@@ -227,19 +227,41 @@ describe('serialized publication context', () => {
   });
 });
 
+let cachedReleaseTemplate: Promise<{ root: string; sha: string }> | undefined;
+
+afterAll(async () => {
+  if (!cachedReleaseTemplate) return;
+  const template = await cachedReleaseTemplate;
+  cachedReleaseTemplate = undefined;
+  await rm(template.root, { recursive: true, force: true });
+});
+
+function getReleaseTemplate(): Promise<{ root: string; sha: string }> {
+  if (!cachedReleaseTemplate) {
+    cachedReleaseTemplate = (async () => {
+      const root = await mkdtemp(path.join(tmpdir(), 'brainbase-npm-release-template-'));
+      await writeFile(path.join(root, 'package.json'), JSON.stringify({
+        name: '@unson/brainbase-mcp',
+        version: '0.1.0'
+      }));
+      execFileSync('git', ['init', '-q'], { cwd: root });
+      execFileSync('git', ['config', 'user.email', 'release-test@example.com'], { cwd: root });
+      execFileSync('git', ['config', 'user.name', 'Release Test'], { cwd: root });
+      execFileSync('git', ['add', 'package.json'], { cwd: root });
+      execFileSync('git', ['commit', '-qm', 'fixture'], { cwd: root });
+      const sha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim();
+      return { root, sha };
+    })();
+  }
+  return cachedReleaseTemplate;
+}
+
 async function releaseRoot() {
+  const template = await getReleaseTemplate();
   const root = await mkdtemp(path.join(tmpdir(), 'brainbase-npm-release-'));
   temporaryRoots.push(root);
-  await writeFile(path.join(root, 'package.json'), JSON.stringify({
-    name: '@unson/brainbase-mcp',
-    version: '0.1.0'
-  }));
-  execFileSync('git', ['init', '-q'], { cwd: root });
-  execFileSync('git', ['config', 'user.email', 'release-test@example.com'], { cwd: root });
-  execFileSync('git', ['config', 'user.name', 'Release Test'], { cwd: root });
-  execFileSync('git', ['add', 'package.json'], { cwd: root });
-  execFileSync('git', ['commit', '-qm', 'fixture'], { cwd: root });
-  return { root, sha: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim() };
+  await cp(template.root, root, { recursive: true });
+  return { root, sha: template.sha };
 }
 
 async function bumpedReleaseRoot() {
@@ -818,7 +840,7 @@ describe('npm release CLI', () => {
       'git merge-base --is-ancestor ' + sha + ' trusted/develop',
       'git status --porcelain=v1 --untracked-files=all',
       'npm run build',
-      'npm test -- --maxWorkers=4 --testTimeout=30000 --hookTimeout=30000',
+      'npm test -- --maxWorkers=6 --testTimeout=30000 --hookTimeout=30000',
       'npm audit --omit=dev',
       'git status --porcelain=v1 --untracked-files=all'
     ]);
