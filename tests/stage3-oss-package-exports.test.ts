@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -129,7 +129,15 @@ describe('Stage 3 common contract package exports', () => {
         expect(typeof (await importExport(manifest, './entity-indexer')).buildIndex).toBe('function');
         const isolatedRoot = await mkdtemp(path.join(os.tmpdir(), 'brainbase-indexer-'));
         try {
-            const packed = JSON.parse(execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts', '--offline', '--cache', path.join(isolatedRoot, 'cache')], { cwd: root, encoding: 'utf8' }));
+            // npm 10 (bundled with Node 22) runs the `prepare` lifecycle (= full `npm run build`)
+            // from pacote's DirFetcher even with --ignore-scripts; npm 11 honours the flag.
+            // That rebuild took ~9s of this test, rewrote dist/ under concurrently running
+            // tests, and exceeded the 30s timeout on loaded CI runners. `--script-shell true`
+            // turns that lifecycle into a no-op so the pack list is read from the dist/ the
+            // CI build step already produced, without changing which files are packed.
+            const distEntryMtime = (await stat(path.join(root, 'dist/entity-indexer.js'))).mtimeMs;
+            const packed = JSON.parse(execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts', '--script-shell', 'true', '--offline', '--cache', path.join(isolatedRoot, 'cache')], { cwd: root, encoding: 'utf8' }));
+            expect((await stat(path.join(root, 'dist/entity-indexer.js'))).mtimeMs).toBe(distEntryMtime);
             const files = packed[0].files.map((file: { path: string }) => file.path);
             expect(files).toContain('dist/entity-indexer.js');
             expect(files).toContain('dist/entity-indexer.d.ts');

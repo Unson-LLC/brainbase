@@ -34,10 +34,11 @@ jobs:
         ports:
           - 5432/tcp
         options: >-
+          --tmpfs /var/lib/postgresql/data
           --health-cmd pg_isready
-          --health-interval 10s
+          --health-interval 1s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 20
     strategy:
       fail-fast: false
       matrix:
@@ -59,25 +60,59 @@ jobs:
           node-version: ${{ matrix.node_version }}
 
       - name: Install dependencies
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund --prefer-offline
 
       - name: Build and typecheck package
+        if: ${{ matrix.suite != 'complete' }}
         run: npm run build
 
       # EVO-X2 shares one machine between several runner slots. Vitest's
       # default worker count follows the machine's cores, so concurrent jobs
-      # oversubscribe it and unrelated tests hit the 5s timeout.
-      - name: Run complete package suite on Node 22
+      # oversubscribe it. Now that formal-release-validate-linux no longer runs
+      # a duplicate full suite on PRs, six thread workers with /dev/shm TMPDIR,
+      # LPT scheduling, stateless module reuse, and 30s limits keep the suite
+      # fast and stable. Running git-commit-consumer-smoke (which clones HEAD and
+      # builds in isolation, never touching dist/) in parallel with build + the
+      # remaining 271 files overlaps its runtime with build + tests.
+      - name: Build and run complete package suite on Node 22
         if: ${{ matrix.suite == 'complete' }}
         env:
+          BRAINBASE_TEST_SKIP_BUILD: '1'
           CANONICAL_TASK_PG_TEST_ADMIN_URL: postgresql://postgres:local-ci-test-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgres
           CANONICAL_TASK_PG_TEST_URL: postgresql://postgres:local-ci-test-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgres
           CANONICAL_TASK_PG_TEST_REQUIRED: '1'
-        run: npm test -- --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000
+        run: |
+          set -o pipefail
+          git_smoke_log="$RUNNER_TEMP/git-commit-consumer-smoke.log"
+          npx vitest run tests/git-commit-consumer-smoke.integration.test.ts --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000 >"$git_smoke_log" 2>&1 &
+          git_smoke_pid=$!
+          cleanup_git_smoke() {
+            if kill -0 "$git_smoke_pid" 2>/dev/null; then
+              kill "$git_smoke_pid" 2>/dev/null || true
+              wait "$git_smoke_pid" 2>/dev/null || true
+            fi
+          }
+          trap cleanup_git_smoke EXIT
+
+          main_status=0
+          npm run build || main_status=$?
+          if [ "$main_status" -eq 0 ]; then
+            npm test -- --exclude tests/git-commit-consumer-smoke.integration.test.ts --maxWorkers=6 --testTimeout=30000 --hookTimeout=30000 || main_status=$?
+          fi
+
+          git_smoke_status=0
+          wait "$git_smoke_pid" || git_smoke_status=$?
+          trap - EXIT
+          echo "=== git-commit-consumer-smoke output ==="
+          cat "$git_smoke_log"
+          if [ "$main_status" -ne 0 ]; then exit "$main_status"; fi
+          exit "$git_smoke_status"
 
       - name: Run representative integration suite on Node 20
         if: ${{ matrix.suite == 'representative' }}
-        run: npm run test:integration -- --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000
+        env:
+          BRAINBASE_TEST_SKIP_BUILD: '1'
+        run: npm run test:integration -- --maxWorkers=6 --testTimeout=30000 --hookTimeout=30000
 
       - name: Run routine runtime regression tests on Node 20
         if: ${{ matrix.suite == 'representative' }}
@@ -90,7 +125,7 @@ jobs:
             echo '## Package CI failure/cancellation summary'
             echo
             echo '- Protection: Node 22 complete package validation and Node 20 representative integration validation.'
-            echo '- Reproduce: `npm ci --ignore-scripts && npm run build && npm test -- --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000` (Node 22), or `npm ci --ignore-scripts && npm run build && npm run test:integration -- --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000 && npx vitest run tests/stage3c-runtime.test.ts --maxWorkers=1` (Node 20).'
+            echo '- Reproduce: `npm ci --ignore-scripts && npm run build && npm test -- --maxWorkers=6 --testTimeout=30000 --hookTimeout=30000` (Node 22), or `npm ci --ignore-scripts && npm run build && npm run test:integration -- --maxWorkers=6 --testTimeout=30000 --hookTimeout=30000 && npx vitest run tests/stage3c-runtime.test.ts --maxWorkers=1` (Node 20).'
             echo '- Expected: package changes pass the build and required suite; docs-only changes use the docs workflow.'
             echo '- Unknown: inspect the failed step and runner log; this workflow has no release or deployment side effect.'
           } >> "$GITHUB_STEP_SUMMARY"
@@ -134,19 +169,32 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Install release dependencies
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund --prefer-offline
 
+      # build-and-test (22, complete) already executes the complete Vitest suite
+      # (including PostgreSQL integration tests) on the same pull request. Avoid
+      # running the full suite twice concurrently on the shared EVO-X2 runner while
+      # still validating immutable HEAD, clean checkout, build, production audit,
+      # tarball creation/hashing, and isolated consumer smoke. npm-publish.yml does
+      # not pass --skip-tests and always runs the complete suite before publishing.
       - name: Run formal release validation without publication credentials
         env:
           RELEASE_SHA: ${{ steps.target.outputs.sha }}
           RELEASE_VERSION: ${{ steps.target.outputs.version }}
           TRUSTED_REF: ${{ steps.target.outputs.trusted_ref }}
-        run: >-
-          npm run release:validate --
-          --version "$RELEASE_VERSION"
-          --sha "$RELEASE_SHA"
-          --trusted-ref "$TRUSTED_REF"
-          --proof-file "$RUNNER_TEMP/npm-release-validation.json"
+        run: |
+          shm_tmp=""
+          if [ -d /dev/shm ] && [ -w /dev/shm ]; then
+            shm_tmp=$(mktemp -d /dev/shm/brainbase-release-validate-XXXXXX)
+            trap 'rm -rf "$shm_tmp"' EXIT
+            export TMPDIR="$shm_tmp"
+          fi
+          npm run release:validate -- \
+            --version "$RELEASE_VERSION" \
+            --sha "$RELEASE_SHA" \
+            --trusted-ref "$TRUSTED_REF" \
+            --proof-file "$RUNNER_TEMP/npm-release-validation.json" \
+            --skip-tests
 
       - name: Upload formal release proof and artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

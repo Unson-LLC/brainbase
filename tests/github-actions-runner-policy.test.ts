@@ -128,9 +128,9 @@ describe('public CI self-hosted runner policy', () => {
 
   it('AC-008 caps the Vitest workers so concurrent EVO-X2 jobs do not time out', async () => {
     const workflow = await readRepoFile('.github/workflows/test.yml');
-    const runs = workflow.match(/^[ \t]*run: npm (?:test|run test:integration)\b.*$/gmu) ?? [];
+    const runs = workflow.match(/^[ \t]*(?:run: )?npm (?:test|run test:integration)\b.*$/gmu) ?? [];
     expect(runs).toHaveLength(2);
-    for (const line of runs) expect(line).toMatch(/ -- --maxWorkers=1 --testTimeout=30000 --hookTimeout=30000$/u);
+    for (const line of runs) expect(line).toMatch(/--maxWorkers=6 --testTimeout=30000 --hookTimeout=30000(?:\s*\|\|\s*main_status=\$\?)?$/u);
   });
 
   it('AC-005 keeps secrets out of job env and on the steps that use them', async () => {

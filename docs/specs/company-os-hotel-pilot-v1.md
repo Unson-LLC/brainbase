@@ -21,7 +21,7 @@
 - 候補／snapshot／選択: `createProblemCandidateStore({ dataDir, foundationStore, evidenceAccessProvider })`、`saveJudgmentProblemSnapshot`／`loadJudgmentProblemSnapshot`、`createProblemSelection`、`createProblemSelectionRecordStore({ root: dataDir })`、`evaluateProblemSelectionWithComposition`。
 - 評価／Receipt: `createCompanyOsEvaluationStore({ dataDir, foundation, outcomeCase, snapshotReferenceProvider })` と `createFoundationDefinitionLoadPort(foundationStore)`。Receiptは `createCompanyOsReceiptAdapter({ dataDir, sourcePorts })` と `createOutcomeCaseReceiptSourcePort(outcomeCase)` を使い、canonical source state、owner refs、conditionsをOutcomeCase wrapperから検証する。
 - 学習: `createFoundationLearningTargetPort({ foundationStore })`、`createCompanyOsLearningEvaluationPort(evaluationStore)`、`createCompanyOsLearningAdoptionStore({ dataDir, evaluation, target, runReceipt, now })`。採用済みtargetのrevisionを次runの入力とReceiptへ明示する。
-- 待機／実行境界: `DurableWaitStore({ dataDir, clock, problemSnapshot })` と `createCompanyOsImpactReviewDurableWaitPort`、`createResourceReservationProblemSnapshotPort`／`ResourceReservationService`、`ExecutionAuthorityService`。reservationのsnapshot portは、ロック取得前に保存済みsnapshotを正本ローダーで読んで参照を検証し、ロック中はその読取済み参照を厳密照合する。reservationとauthorityは同一snapshotの検証後にだけfixture effect portへ進む。
+- 待機／実行境界: `DurableWaitStore({ dataDir, clock, problemSnapshot })` と `createCompanyOsImpactReviewDurableWaitPort`、副作用なしの予約fixtureと実行の境界のfixture。予約と実行の意図の本体は組織版へ移した（2026-11-17・2026-11-20）ため、このpilotは実行の境界で確かめること（現在の検査をすべて通してから開始する、予約のrevisionの柵と一度だけの開始印、検査の拒否で作用に進まない）だけをテストの中のfixtureで確かめる。reservationとauthorityは同一snapshotの検証後にだけfixture effect portへ進む。
 
 ## 固定する一周
 
