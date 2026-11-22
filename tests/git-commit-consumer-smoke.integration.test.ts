@@ -36,13 +36,16 @@ describe('exact git commit consumer contract', () => {
     }));
 
     const dependency = `git+${pathToFileURL(repositoryRoot).href}#${sha}`;
-    execFileSync('npm', ['install', '--save-exact', `@unson/brainbase-mcp@${dependency}`], {
+    execFileSync('npm', ['install', '--save-exact', '--prefer-offline', '--no-audit', '--no-fund', `@unson/brainbase-mcp@${dependency}`], {
       cwd: consumerRoot,
       encoding: 'utf8',
       env: {
         ...process.env,
         NPM_CONFIG_AUDIT: 'false',
-        NPM_CONFIG_FUND: 'false'
+        NPM_CONFIG_FUND: 'false',
+        NPM_CONFIG_PREFER_OFFLINE: 'true',
+        NPM_CONFIG_PROGRESS: 'false',
+        NPM_CONFIG_UPDATE_NOTIFIER: 'false'
       }
     });
 

@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitest/config';
+import { LptSequencer } from './tests/helpers/lpt-sequencer.mjs';
 
 // CI runs on one self-hosted machine that several repositories share. Under that load,
 // ordinary tests took up to 14s and setup hooks over 10s, so the Vitest defaults failed
@@ -11,6 +12,12 @@ export function sharedRunnerTimeouts(env) {
 export default defineConfig({
   test: {
     ...sharedRunnerTimeouts(process.env),
+    // Threads avoid per-worker process-fork overhead and share memory more efficiently
+    // on the multi-runner self-hosted CI host while keeping full module isolation.
+    pool: 'threads',
+    sequence: {
+      sequencer: LptSequencer,
+    },
     // Puts fixture-heavy tests' throwaway data on memory-backed /dev/shm when it
     // exists, so they do not wait on a disk that other CI jobs are writing to.
     globalSetup: ['./tests/helpers/fixture-root.global-setup.mjs'],

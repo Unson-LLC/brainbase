@@ -143,11 +143,12 @@ async function pathExists(file) {
   }
 }
 
-async function stagePackageForPacking(root, stagingDirectory, { includeGenerated = true } = {}) {
+async function stagePackageForPacking(root, stagingDirectory, { includeGenerated = true, gitHead = undefined } = {}) {
   const manifest = await currentPackage(root);
   const packageRoot = path.join(stagingDirectory, 'pack-input');
   const files = includeGenerated ? manifest.files ?? [] : (manifest.files ?? []).filter((entry) => entry !== 'dist');
   const stagedManifest = { ...manifest, files };
+  if (gitHead !== undefined) stagedManifest.gitHead = gitHead;
   if (stagedManifest.scripts) {
     stagedManifest.scripts = { ...stagedManifest.scripts };
     // npm may run prepare while packing a local directory even when
@@ -328,30 +329,16 @@ function packedResult(output, expectedVersion) {
 export async function createReleaseArtifact(root, artifactDirectory, expectedVersion, expectedSha, execute = run) {
   const stagingDirectory = await mkdtemp(path.join(artifactDirectory, '.brainbase-npm-pack-'));
   try {
-    const { packageRoot: packInputRoot } = await stagePackageForPacking(root, stagingDirectory);
-    const initial = packedResult(execute(
-      'npm',
-      ['pack', packInputRoot, '--ignore-scripts', '--json', '--pack-destination', stagingDirectory],
-      root
-    ), expectedVersion);
-    const initialTarball = path.resolve(stagingDirectory, initial.filename);
-    execute('tar', ['-xzf', initialTarball, '-C', stagingDirectory], root);
-
-    const stagedPackageRoot = path.join(stagingDirectory, 'package');
-    const stagedManifestPath = path.join(stagedPackageRoot, 'package.json');
-    const stagedManifest = JSON.parse(await readFile(stagedManifestPath, 'utf8'));
+    const { packageRoot: packInputRoot, manifest: stagedManifest } = await stagePackageForPacking(root, stagingDirectory, {
+      gitHead: expectedSha
+    });
     if (stagedManifest.name !== EXPECTED_PACKAGE_NAME || stagedManifest.version !== expectedVersion) {
       throw new Error('packed manifest does not match the expected Brainbase package identity');
     }
-    stagedManifest.gitHead = expectedSha;
-    // npm 10 runs prepare even with --ignore-scripts. This artifact is already
-    // built and intentionally excludes the source needed by that script.
-    if (stagedManifest.scripts) delete stagedManifest.scripts.prepare;
-    await writeFile(stagedManifestPath, `${JSON.stringify(stagedManifest, null, 2)}\n`);
 
     const final = packedResult(execute(
       'npm',
-      ['pack', stagedPackageRoot, '--ignore-scripts', '--json', '--pack-destination', artifactDirectory],
+      ['pack', packInputRoot, '--ignore-scripts', '--json', '--pack-destination', artifactDirectory],
       root
     ), expectedVersion);
     const tarballPath = path.resolve(artifactDirectory, final.filename);
@@ -359,10 +346,7 @@ export async function createReleaseArtifact(root, artifactDirectory, expectedVer
       throw new Error('npm pack returned an artifact outside the validation directory');
     }
 
-    const inspectionDirectory = path.join(stagingDirectory, 'inspection');
-    await mkdir(inspectionDirectory);
-    execute('tar', ['-xzf', tarballPath, '-C', inspectionDirectory], root);
-    const finalManifest = JSON.parse(await readFile(path.join(inspectionDirectory, 'package', 'package.json'), 'utf8'));
+    const finalManifest = JSON.parse(execute('tar', ['-xOf', tarballPath, 'package/package.json'], root));
     if (finalManifest.name !== EXPECTED_PACKAGE_NAME || finalManifest.version !== expectedVersion || finalManifest.gitHead !== expectedSha) {
       throw new Error('release tarball manifest is not bound to the expected package, version, and git HEAD');
     }
@@ -406,8 +390,16 @@ export async function validateRelease(
 ) {
   execute('npm', ['run', 'build'], root);
   // Shared self-hosted runners execute several jobs at once. Cap validation at
-  // two workers and allow bounded scheduling headroom for tests/cleanup.
-  execute('npm', ['test', '--', '--maxWorkers=2', '--testTimeout=30000', '--hookTimeout=30000'], root);
+  // four thread workers with bounded scheduling headroom; dist/ was just built
+  // above so consumer smoke tests skip redundant rebuilds.
+  const previousSkipBuild = process.env.BRAINBASE_TEST_SKIP_BUILD;
+  process.env.BRAINBASE_TEST_SKIP_BUILD = '1';
+  try {
+    execute('npm', ['test', '--', '--maxWorkers=4', '--testTimeout=30000', '--hookTimeout=30000'], root);
+  } finally {
+    if (previousSkipBuild === undefined) delete process.env.BRAINBASE_TEST_SKIP_BUILD;
+    else process.env.BRAINBASE_TEST_SKIP_BUILD = previousSkipBuild;
+  }
   execute('npm', ['audit', '--omit=dev'], root);
   const artifactDirectory = path.resolve(path.dirname(proofFile));
   const artifact = await createArtifact(root, artifactDirectory, expectedVersion, expectedSha, execute);

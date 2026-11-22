@@ -35,9 +35,9 @@ jobs:
           - 5432/tcp
         options: >-
           --health-cmd pg_isready
-          --health-interval 10s
+          --health-interval 1s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 20
     strategy:
       fail-fast: false
       matrix:
@@ -59,27 +59,30 @@ jobs:
           node-version: ${{ matrix.node_version }}
 
       - name: Install dependencies
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund --prefer-offline
 
       - name: Build and typecheck package
         run: npm run build
 
       # EVO-X2 shares one machine between several runner slots. Vitest's
       # default worker count follows the machine's cores, so concurrent jobs
-      # oversubscribe it and unrelated tests hit the 5s timeout. Two workers
-      # with 30s limits: one worker (2026-11-14, #961) made the suite take
-      # about 470s instead of 125-190s without a visible drop in failures.
+      # oversubscribe it. With threads pool, /dev/shm TMPDIR, LPT scheduling,
+      # and no redundant nested builds inside tests, four workers with 30s
+      # limits stay stable while cutting complete suite runtime sharply.
       - name: Run complete package suite on Node 22
         if: ${{ matrix.suite == 'complete' }}
         env:
+          BRAINBASE_TEST_SKIP_BUILD: '1'
           CANONICAL_TASK_PG_TEST_ADMIN_URL: postgresql://postgres:local-ci-test-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgres
           CANONICAL_TASK_PG_TEST_URL: postgresql://postgres:local-ci-test-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgres
           CANONICAL_TASK_PG_TEST_REQUIRED: '1'
-        run: npm test -- --maxWorkers=2 --testTimeout=30000 --hookTimeout=30000
+        run: npm test -- --maxWorkers=4 --testTimeout=30000 --hookTimeout=30000
 
       - name: Run representative integration suite on Node 20
         if: ${{ matrix.suite == 'representative' }}
-        run: npm run test:integration -- --maxWorkers=2 --testTimeout=30000 --hookTimeout=30000
+        env:
+          BRAINBASE_TEST_SKIP_BUILD: '1'
+        run: npm run test:integration -- --maxWorkers=4 --testTimeout=30000 --hookTimeout=30000
 
       - name: Run routine runtime regression tests on Node 20
         if: ${{ matrix.suite == 'representative' }}
@@ -92,7 +95,7 @@ jobs:
             echo '## Package CI failure/cancellation summary'
             echo
             echo '- Protection: Node 22 complete package validation and Node 20 representative integration validation.'
-            echo '- Reproduce: `npm ci --ignore-scripts && npm run build && npm test -- --maxWorkers=2 --testTimeout=30000 --hookTimeout=30000` (Node 22), or `npm ci --ignore-scripts && npm run build && npm run test:integration -- --maxWorkers=2 --testTimeout=30000 --hookTimeout=30000 && npx vitest run tests/stage3c-runtime.test.ts --maxWorkers=1` (Node 20).'
+            echo '- Reproduce: `npm ci --ignore-scripts && npm run build && npm test -- --maxWorkers=4 --testTimeout=30000 --hookTimeout=30000` (Node 22), or `npm ci --ignore-scripts && npm run build && npm run test:integration -- --maxWorkers=4 --testTimeout=30000 --hookTimeout=30000 && npx vitest run tests/stage3c-runtime.test.ts --maxWorkers=1` (Node 20).'
             echo '- Expected: package changes pass the build and required suite; docs-only changes use the docs workflow.'
             echo '- Unknown: inspect the failed step and runner log; this workflow has no release or deployment side effect.'
           } >> "$GITHUB_STEP_SUMMARY"
@@ -136,7 +139,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Install release dependencies
-        run: npm ci --ignore-scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund --prefer-offline
 
       - name: Run formal release validation without publication credentials
         env:

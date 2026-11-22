@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createReleaseArtifact } from '../scripts/npm-release.mjs';
+import { ensureBuiltPackage } from './helpers/consumer-build-guard.js';
 
 const NPM_CONSUMER_SMOKE_TIMEOUT_MS = 180_000;
 const temporaryRoots: string[] = [];
@@ -35,7 +36,7 @@ describe('npm tarball consumer smoke', () => {
       encoding: 'utf8',
       env: environment
     });
-    execute('npm', ['run', 'build']);
+    ensureBuiltPackage(root, execute);
     const sha = execute('git', ['rev-parse', 'HEAD']).trim();
     const version = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')).version;
     const artifact = await createReleaseArtifact(root, artifactRoot, version, sha, execute);
