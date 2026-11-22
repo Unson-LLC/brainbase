@@ -40,12 +40,6 @@ import { createProblemCandidateStore } from '../src/problem-candidates.js';
 import { createProblemSelection, createProblemSelectionRecordStore, evaluateProblemSelectionWithComposition } from '../src/problem-selection.js';
 import type { JudgmentDAGCompositionDefinition, JudgmentDAGProblemSnapshotReference } from '../src/judgment-dag-composition.js';
 import type { JudgmentDAGJSONValue } from '../src/judgment-dag-runner.js';
-import {
-  ExecutionAuthorityService,
-  type ExecutionCheckRequest,
-  type ExecutionReservationMarkRequest,
-  type ExecutionReservationPort,
-} from '../src/execution-authority.js';
 import { DurableWaitStore } from '../src/durable-waits.js';
 import {
   CompanyOsImpactReviewCoordinator,
@@ -326,6 +320,75 @@ function pilotSnapshot(input: {
     read_policy: acl,
     execution_permission: 'none',
     created_at: '2026-04-01T00:00:00.000Z',
+  };
+}
+
+// The execution authority lives in brainbase-organization. This fixture keeps
+// only what the pilot checks at the execution boundary: every current check is
+// verified before the start, a reservation fence is marked once, and a revoked
+// check stops the run before any effect.
+type FixtureCheckKind = 'authority' | 'approval' | 'constraint' | 'reservation';
+type FixtureCheckStatus = 'approved' | 'revoked' | 'expired' | 'unknown';
+interface FixtureExecutionInput {
+  operationId: string;
+  tenantId: string;
+  principal: string;
+  scopeId: string;
+  runId: string;
+  reservationId: string;
+  approvalId: string;
+  authorityRef: string;
+  constraintRefs: string[];
+  problem: { problem_snapshot_id: string; problem_id: string; revision: string };
+}
+interface ExecutionCheckRequest extends FixtureExecutionInput {
+  check: FixtureCheckKind;
+  phase: 'initial' | 'final';
+  expectedRevision?: string;
+}
+interface FixtureCheckResult {
+  status: FixtureCheckStatus;
+  revision: string | null;
+  fencingToken?: string;
+  expiresAt?: string;
+  evidence?: unknown;
+}
+interface ExecutionReservationMarkRequest extends FixtureExecutionInput {
+  expectedRevision: string;
+}
+interface ExecutionReservationPort {
+  verify(input: ExecutionCheckRequest): Promise<FixtureCheckResult> | FixtureCheckResult;
+  markStarted(input: ExecutionReservationMarkRequest): Promise<{ status: 'started' | 'unknown' }> | { status: 'started' | 'unknown' };
+}
+
+class FixtureExecutionError extends Error {
+  constructor(readonly code: string) {
+    super(code);
+  }
+}
+
+function createFixtureExecutionGate(options: {
+  check: (input: ExecutionCheckRequest) => Promise<FixtureCheckResult> | FixtureCheckResult;
+  reservation: ExecutionReservationPort;
+  effect: () => { status: 'started' | 'unknown' };
+}) {
+  const checks: FixtureCheckKind[] = ['authority', 'approval', 'constraint', 'reservation'];
+  const verify = (input: ExecutionCheckRequest) => input.check === 'reservation' ? options.reservation.verify(input) : options.check(input);
+  return {
+    async start(input: FixtureExecutionInput) {
+      const revisions = new Map<FixtureCheckKind, string | null>();
+      for (const phase of ['initial', 'final'] as const) {
+        for (const check of checks) {
+          const expectedRevision = phase === 'final' ? revisions.get(check) ?? undefined : undefined;
+          const result = await verify({ ...input, check, phase, ...(expectedRevision === undefined ? {} : { expectedRevision }) });
+          if (result.status !== 'approved') throw new FixtureExecutionError(`${check}_${result.status}`);
+          revisions.set(check, result.revision);
+        }
+      }
+      const mark = await options.reservation.markStarted({ ...input, expectedRevision: revisions.get('reservation') ?? '' });
+      if (mark.status !== 'started') throw new FixtureExecutionError('reservation_unknown');
+      return { effect: options.effect(), intent: { problem: input.problem } };
+    },
   };
 }
 
@@ -1015,26 +1078,13 @@ describe('company OS hotel pilot', () => {
         evidence: { source: 'hotel-pilot-sideeffect-free-fixture', permission: authorityFixture.permission },
       };
     };
-    const authority = new ExecutionAuthorityService({
-      dataDir,
-      authority: { verify: check },
-      approval: { verify: check },
-      constraint: { verify: check },
+    const authority = createFixtureExecutionGate({
+      check,
       reservation: reservationPort,
-      readAccess: {
-        verify: ({ tenantId: currentTenantId, principal, scopeId }) => currentTenantId === tenantId
-          && principal === ownerId
-          && scopeId === hotelId
-          ? { status: 'approved' as const, revision: 'read-1' }
-          : { status: 'revoked' as const, revision: 'read-fixture-denied' },
+      effect: () => {
+        fixtureEffectCalls += 1;
+        return { status: 'started' as const };
       },
-      effect: {
-        start: () => {
-          fixtureEffectCalls += 1;
-          return { status: 'started' as const };
-        },
-      },
-      clock: () => new Date('2026-05-02T02:00:00.000Z'),
     });
     const execution = await authority.start({
       operationId: 'execution-hotel-pilot-v1',
