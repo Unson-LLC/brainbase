@@ -40,8 +40,6 @@ import { createProblemCandidateStore } from '../src/problem-candidates.js';
 import { createProblemSelection, createProblemSelectionRecordStore, evaluateProblemSelectionWithComposition } from '../src/problem-selection.js';
 import type { JudgmentDAGCompositionDefinition, JudgmentDAGProblemSnapshotReference } from '../src/judgment-dag-composition.js';
 import type { JudgmentDAGJSONValue } from '../src/judgment-dag-runner.js';
-import { createResourceReservationExecutionPort, ExecutionAuthorityService, type ExecutionCheckRequest } from '../src/execution-authority.js';
-import { createResourceReservationProblemSnapshotPort, ResourceReservationService } from '../src/resource-reservations.js';
 import { DurableWaitStore } from '../src/durable-waits.js';
 import {
   CompanyOsImpactReviewCoordinator,
@@ -322,6 +320,75 @@ function pilotSnapshot(input: {
     read_policy: acl,
     execution_permission: 'none',
     created_at: '2026-04-01T00:00:00.000Z',
+  };
+}
+
+// The execution authority lives in brainbase-organization. This fixture keeps
+// only what the pilot checks at the execution boundary: every current check is
+// verified before the start, a reservation fence is marked once, and a revoked
+// check stops the run before any effect.
+type FixtureCheckKind = 'authority' | 'approval' | 'constraint' | 'reservation';
+type FixtureCheckStatus = 'approved' | 'revoked' | 'expired' | 'unknown';
+interface FixtureExecutionInput {
+  operationId: string;
+  tenantId: string;
+  principal: string;
+  scopeId: string;
+  runId: string;
+  reservationId: string;
+  approvalId: string;
+  authorityRef: string;
+  constraintRefs: string[];
+  problem: { problem_snapshot_id: string; problem_id: string; revision: string };
+}
+interface ExecutionCheckRequest extends FixtureExecutionInput {
+  check: FixtureCheckKind;
+  phase: 'initial' | 'final';
+  expectedRevision?: string;
+}
+interface FixtureCheckResult {
+  status: FixtureCheckStatus;
+  revision: string | null;
+  fencingToken?: string;
+  expiresAt?: string;
+  evidence?: unknown;
+}
+interface ExecutionReservationMarkRequest extends FixtureExecutionInput {
+  expectedRevision: string;
+}
+interface ExecutionReservationPort {
+  verify(input: ExecutionCheckRequest): Promise<FixtureCheckResult> | FixtureCheckResult;
+  markStarted(input: ExecutionReservationMarkRequest): Promise<{ status: 'started' | 'unknown' }> | { status: 'started' | 'unknown' };
+}
+
+class FixtureExecutionError extends Error {
+  constructor(readonly code: string) {
+    super(code);
+  }
+}
+
+function createFixtureExecutionGate(options: {
+  check: (input: ExecutionCheckRequest) => Promise<FixtureCheckResult> | FixtureCheckResult;
+  reservation: ExecutionReservationPort;
+  effect: () => { status: 'started' | 'unknown' };
+}) {
+  const checks: FixtureCheckKind[] = ['authority', 'approval', 'constraint', 'reservation'];
+  const verify = (input: ExecutionCheckRequest) => input.check === 'reservation' ? options.reservation.verify(input) : options.check(input);
+  return {
+    async start(input: FixtureExecutionInput) {
+      const revisions = new Map<FixtureCheckKind, string | null>();
+      for (const phase of ['initial', 'final'] as const) {
+        for (const check of checks) {
+          const expectedRevision = phase === 'final' ? revisions.get(check) ?? undefined : undefined;
+          const result = await verify({ ...input, check, phase, ...(expectedRevision === undefined ? {} : { expectedRevision }) });
+          if (result.status !== 'approved') throw new FixtureExecutionError(`${check}_${result.status}`);
+          revisions.set(check, result.revision);
+        }
+      }
+      const mark = await options.reservation.markStarted({ ...input, expectedRevision: revisions.get('reservation') ?? '' });
+      if (mark.status !== 'started') throw new FixtureExecutionError('reservation_unknown');
+      return { effect: options.effect(), intent: { problem: input.problem } };
+    },
   };
 }
 
@@ -935,70 +1002,28 @@ describe('company OS hotel pilot', () => {
     let reservationProblemV2: typeof reservationProblem | undefined;
     let impactWaitStoreForExecution: DurableWaitStore | undefined;
     let currentImpactWaitId: string | undefined;
-    const storedSnapshotReferences = new Map<string, JudgmentProblemReference>();
-    const reservationReferenceProvider: JudgmentProblemReferenceProvider = {
-      resolve: async ({ reference, context: referenceContext }) => {
-        if (referenceContext.principal !== ownerId) return { status: 'unauthorized' as const };
-        const stored = storedSnapshotReferences.get(`${reference.kind}/${reference.id}/${reference.revision}`);
-        if (stored === undefined) return { status: 'missing' as const };
-        if (
-          stored.digest !== reference.digest
-          || stored.scope.type !== reference.scope.type
-          || stored.scope.id !== reference.scope.id
-          || stored.valid_from !== reference.valid_from
-          || stored.valid_to !== reference.valid_to
-        ) return { status: 'unresolved' as const };
-        return { status: 'resolved' as const, digest: stored.digest };
-      },
+    // The reservation store lives in brainbase-organization. This fixture keeps
+    // only the execution port contract: a reserved, not-yet-started entry gives
+    // a revision fence, and marking it started consumes that fence once.
+    const fixtureReservations = new Map<string, { approvalId: string; started: boolean }>();
+    const reserveFixture = (reservationId: string, approvalId: string) => {
+      fixtureReservations.set(reservationId, { approvalId, started: false });
+      return { reservationId, approvalId };
     };
-    // Reservation mutations already hold the SSOT lock. Read and validate the
-    // canonical snapshot before entering that transaction, then expose the
-    // immutable record through the lock-safe verifier port.
-    const reservationSnapshotPort = createResourceReservationProblemSnapshotPort({
-      root: dataDir,
-      load: async ({ root, snapshot_id, access, reference_resolution }) => {
-        const loaded = await loadJudgmentProblemSnapshot({
-          root,
-          snapshot_id,
-          access,
-          reference_resolution,
-          referenceProvider: reservationReferenceProvider,
-        });
-        return {
-          snapshot_version: loaded.snapshot_version,
-          problem_id: loaded.problem_id,
-          revision: loaded.revision,
-          owner_scope: loaded.owner_scope,
-          execution_permission: loaded.execution_permission,
-        };
+    const reservationPort: ExecutionReservationPort = {
+      verify: (input) => {
+        const entry = fixtureReservations.get(input.reservationId);
+        if (!entry || entry.approvalId !== input.approvalId) return { status: 'revoked' as const, revision: 'missing' };
+        const revision = `${input.reservationId}:1`;
+        if (entry.started) return { status: 'unknown' as const, revision };
+        return { status: 'approved' as const, revision, fencingToken: `reservation:${revision}`, expiresAt: '2026-05-04T00:00:00.000Z' };
       },
-    });
-    const reservation = new ResourceReservationService({
-      dataDir,
-      authorization: {
-        authorize: (request) => ({
-          status: 'approved' as const,
-          approvalId: request.runId === 'run-hotel-pilot-v2' ? 'approval-hotel-pilot-v2' : 'approval-hotel-pilot-v1',
-          expiresAt: '2026-05-04T00:00:00.000Z',
-          evidence: { source: 'hotel-pilot-sideeffect-free-fixture' },
-        }),
+      markStarted: (input: ExecutionReservationMarkRequest) => {
+        const entry = fixtureReservations.get(input.reservationId);
+        if (!entry || entry.started || input.expectedRevision !== `${input.reservationId}:1`) return { status: 'unknown' as const };
+        entry.started = true;
+        return { status: 'started' as const };
       },
-      problemSnapshot: reservationSnapshotPort,
-      capacity: { read: () => 2 },
-      clock: () => new Date('2026-05-02T02:00:00.000Z'),
-    });
-    await reservation.initialize();
-    const reservationRequest = {
-      operationId: 'operation-hotel-pilot-v1',
-      tenantId,
-      principal: ownerId,
-      scopeId: hotelId,
-      resourceId: 'resource-hotel-pilot-fixture',
-      period: { startsAt: '2026-05-02T03:00:00.000Z', endsAt: '2026-05-02T04:00:00.000Z' },
-      amount: 1,
-      unit: 'run',
-      runId: 'run-hotel-pilot-v1',
-      problem: reservationProblem,
     };
     const reservationSnapshotRead = await loadJudgmentProblemSnapshot({
       root: dataDir,
@@ -1008,16 +1033,8 @@ describe('company OS hotel pilot', () => {
       referenceProvider,
     });
     expect(reservationSnapshotRead.problem_id).toBe(snapshot.problem_id);
-    for (const reference of reservationSnapshotRead.references) {
-      storedSnapshotReferences.set(`${reference.kind}/${reference.id}/${reference.revision}`, reference);
-    }
-    expect(await reservationSnapshotPort.verify({ tenantId, principal: ownerId, scopeId: hotelId, reference: reservationProblem })).toBe(true);
-    const approvedReservation = await reservation.approve(reservationRequest);
-    const reservedReservation = await reservation.reserve({
-      ...reservationRequest,
-      operationId: 'operation-hotel-pilot-v1-reserve',
-      approvalId: approvedReservation.reservation.approval.approvalId,
-    });
+    expect(reservationSnapshotRead.revision).toBe(reservationProblem.revision);
+    const reservedReservation = reserveFixture('reservation-hotel-pilot-v1', 'approval-hotel-pilot-v1');
     let fixtureEffectCalls = 0;
     const authorityFixture = {
       id: 'authority-hotel-pilot',
@@ -1061,26 +1078,13 @@ describe('company OS hotel pilot', () => {
         evidence: { source: 'hotel-pilot-sideeffect-free-fixture', permission: authorityFixture.permission },
       };
     };
-    const authority = new ExecutionAuthorityService({
-      dataDir,
-      authority: { verify: check },
-      approval: { verify: check },
-      constraint: { verify: check },
-      reservation: createResourceReservationExecutionPort({ service: reservation }),
-      readAccess: {
-        verify: ({ tenantId: currentTenantId, principal, scopeId }) => currentTenantId === tenantId
-          && principal === ownerId
-          && scopeId === hotelId
-          ? { status: 'approved' as const, revision: 'read-1' }
-          : { status: 'revoked' as const, revision: 'read-fixture-denied' },
+    const authority = createFixtureExecutionGate({
+      check,
+      reservation: reservationPort,
+      effect: () => {
+        fixtureEffectCalls += 1;
+        return { status: 'started' as const };
       },
-      effect: {
-        start: () => {
-          fixtureEffectCalls += 1;
-          return { status: 'started' as const };
-        },
-      },
-      clock: () => new Date('2026-05-02T02:00:00.000Z'),
     });
     const execution = await authority.start({
       operationId: 'execution-hotel-pilot-v1',
@@ -1088,14 +1092,13 @@ describe('company OS hotel pilot', () => {
       principal: ownerId,
       scopeId: hotelId,
       runId: 'run-hotel-pilot-v1',
-      reservationId: reservedReservation.reservation.reservationId,
-      approvalId: reservedReservation.reservation.approval.approvalId,
+      reservationId: reservedReservation.reservationId,
+      approvalId: reservedReservation.approvalId,
       authorityRef: 'authority-hotel-pilot',
       constraintRefs: [constraint.id],
       problem: reservationProblem,
     });
-    const reservationLedger = await reservation.readLedger({ tenantId, principal: ownerId, scopeId: hotelId });
-    expect(reservationLedger.reservations[0]?.state).toBe('reserved');
+    expect(fixtureReservations.get('reservation-hotel-pilot-v1')?.started).toBe(true);
     expect(execution.effect.status).toBe('started');
     expect(execution.intent.problem).toEqual(reservationProblem);
     expect(fixtureEffectCalls).toBe(1);
@@ -1160,8 +1163,8 @@ describe('company OS hotel pilot', () => {
       principal: ownerId,
       scopeId: hotelId,
       runId: 'run-hotel-pilot-v1',
-      reservationId: reservedReservation.reservation.reservationId,
-      approvalId: reservedReservation.reservation.approval.approvalId,
+      reservationId: reservedReservation.reservationId,
+      approvalId: reservedReservation.approvalId,
       authorityRef: authorityFixture.id,
       constraintRefs: [constraint.id],
       problem: reservationProblem,
@@ -1180,36 +1183,16 @@ describe('company OS hotel pilot', () => {
       reference_resolution: 'current',
       referenceProvider,
     });
-    for (const reference of reservationSnapshotV2Read.references) {
-      storedSnapshotReferences.set(`${reference.kind}/${reference.id}/${reference.revision}`, reference);
-    }
-    expect(await reservationSnapshotPort.verify({ tenantId, principal: ownerId, scopeId: hotelId, reference: reservationProblemV2 })).toBe(true);
-    const reservationRequestV2 = {
-      operationId: 'operation-hotel-pilot-v2',
-      tenantId,
-      principal: ownerId,
-      scopeId: hotelId,
-      resourceId: 'resource-hotel-pilot-fixture',
-      period: { startsAt: '2026-05-03T03:00:00.000Z', endsAt: '2026-05-03T04:00:00.000Z' },
-      amount: 1,
-      unit: 'run',
-      runId: 'run-hotel-pilot-v2',
-      problem: reservationProblemV2,
-    };
-    const approvedReservationV2 = await reservation.approve(reservationRequestV2);
-    const reservedReservationV2 = await reservation.reserve({
-      ...reservationRequestV2,
-      operationId: 'operation-hotel-pilot-v2-reserve',
-      approvalId: approvedReservationV2.reservation.approval.approvalId,
-    });
+    expect(reservationSnapshotV2Read.revision).toBe(reservationProblemV2.revision);
+    const reservedReservationV2 = reserveFixture('reservation-hotel-pilot-v2', 'approval-hotel-pilot-v2');
     const executionV2 = await authority.start({
       operationId: 'execution-hotel-pilot-v2',
       tenantId,
       principal: ownerId,
       scopeId: hotelId,
       runId: 'run-hotel-pilot-v2',
-      reservationId: reservedReservationV2.reservation.reservationId,
-      approvalId: reservedReservationV2.reservation.approval.approvalId,
+      reservationId: reservedReservationV2.reservationId,
+      approvalId: reservedReservationV2.approvalId,
       authorityRef: authorityFixture.id,
       constraintRefs: [constraint.id],
       problem: reservationProblemV2,

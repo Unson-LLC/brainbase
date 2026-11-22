@@ -109,6 +109,76 @@ export interface DurableWaitHistoryEntry {
   readonly responsible?: DurableWaitResponsible;
 }
 
+export interface DurableWaitTransitionRule {
+  /** States the action may start from. Empty only for `create`, which has no record yet. */
+  readonly from: readonly DurableWaitState[];
+  readonly to: readonly DurableWaitState[];
+}
+
+function transitionRule(from: readonly DurableWaitState[], to: readonly DurableWaitState[]): DurableWaitTransitionRule {
+  return Object.freeze({ from: Object.freeze([...from]), to: Object.freeze([...to]) });
+}
+
+/**
+ * The wait state machine, written down once. Every state write goes through
+ * `transitionWait`, which refuses a step this table does not list.
+ *
+ * - `resumed`, `effect_confirmed`, `failed` and `cancelled` have no way out.
+ * - No action moves a wait to `failed` or `cancelled`; they stay in the type
+ *   and are still read from a stored ledger.
+ * - `claim` from `claimed` is only reachable for a record that is `claimed`
+ *   without a claim, which normal operation never writes. It is kept so a
+ *   hand-edited ledger does not become stuck.
+ */
+export const DURABLE_WAIT_TRANSITIONS: Readonly<Record<DurableWaitHistoryAction, DurableWaitTransitionRule>> = Object.freeze({
+  create: transitionRule([], ['waiting']),
+  claim: transitionRule(['waiting', 'claimed'], ['claimed']),
+  handoff: transitionRule(['claimed'], ['claimed']),
+  resume: transitionRule(['claimed'], ['resumed']),
+  premise_changed: transitionRule(['waiting', 'claimed', 'handoff_required'], ['handoff_required']),
+  effect_unknown: transitionRule(['waiting', 'claimed', 'handoff_required', 'reconciliation_wait'], ['reconciliation_wait']),
+  effect_reconciled: transitionRule(['reconciliation_wait'], ['effect_confirmed', 'waiting', 'reconciliation_wait'])
+});
+
+export interface DurableWaitTransitionStep {
+  readonly action: Exclude<DurableWaitHistoryAction, 'create'>;
+  readonly to: DurableWaitState;
+  readonly at: string;
+  readonly principal: string;
+  readonly detail?: string;
+  readonly responsible?: DurableWaitResponsible;
+}
+
+/**
+ * The only writer of a wait's state after `create`. State, update time and the
+ * history entry come from the same step, so they cannot disagree.
+ */
+export function transitionWait(
+  record: DurableWaitRecord,
+  step: DurableWaitTransitionStep,
+  changes: Partial<Omit<DurableWaitRecord, 'state' | 'updated_at' | 'history'>> = {}
+): DurableWaitRecord {
+  const rule = DURABLE_WAIT_TRANSITIONS[step.action];
+  if (rule === undefined || !rule.from.includes(record.state) || !rule.to.includes(step.to)) {
+    throw new DurableWaitError('state_conflict', `Wait ${record.wait_id} cannot ${step.action} from ${record.state} to ${step.to}`, record.wait_id);
+  }
+  return {
+    ...record,
+    ...changes,
+    state: step.to,
+    updated_at: step.at,
+    history: [...record.history, {
+      action: step.action,
+      occurred_at: step.at,
+      principal: step.principal,
+      from_state: record.state,
+      to_state: step.to,
+      ...(step.detail === undefined ? {} : { detail: step.detail }),
+      ...(step.responsible === undefined ? {} : { responsible: step.responsible })
+    }]
+  };
+}
+
 export interface DurableWaitReconciliation {
   readonly reason: string;
   readonly recorded_at: string;
@@ -638,19 +708,13 @@ export class DurableWaitStore {
         }
         const claim = makeClaim(normalized, this.nowFromMillis(normalized.nowMs), normalized.leaseMs);
         const now = this.timestamp(normalized.nowMs);
-        const updated = updateRecord(record, {
-          state: 'claimed',
-          claim,
-          updated_at: now,
-          history: appendHistory(record, {
-            action: 'claim',
-            occurred_at: now,
-            principal: normalized.principal,
-            from_state: record.state,
-            to_state: 'claimed',
-            detail: normalized.trigger === 'event' ? `event:${normalized.event_type ?? ''}` : normalized.trigger
-          })
-        });
+        const updated = transitionWait(record, {
+          action: 'claim',
+          to: 'claimed',
+          at: now,
+          principal: normalized.principal,
+          detail: normalized.trigger === 'event' ? `event:${normalized.event_type ?? ''}` : normalized.trigger
+        }, { claim });
         replaceWait(ledger, updated);
         return {
           next: current,
@@ -691,21 +755,14 @@ export class DurableWaitStore {
         claimed_by: normalized.responsible.principal,
         claimed_at: now
       };
-      const updated = updateRecord(record, {
-        state: 'claimed',
-        claim,
-        responsible: normalized.responsible,
-        updated_at: now,
-        history: appendHistory(record, {
-          action: 'handoff',
-          occurred_at: now,
-          principal: normalized.principal,
-          from_state: record.state,
-          to_state: 'claimed',
-          detail: normalized.reason,
-          responsible: normalized.responsible
-        })
-      });
+      const updated = transitionWait(record, {
+        action: 'handoff',
+        to: 'claimed',
+        at: now,
+        principal: normalized.principal,
+        detail: normalized.reason,
+        responsible: normalized.responsible
+      }, { claim, responsible: normalized.responsible });
       replaceWait(ledger, updated);
       return { next: current, sidecarContent: serializeLedger(ledger), result: freezeClone(updated) };
     });
@@ -751,18 +808,12 @@ export class DurableWaitStore {
         run_ref: record.run_ref,
         recorded_at: now
       };
-      const updated = updateRecord(record, {
-        state: 'resumed',
-        resume_receipt: receipt,
-        updated_at: now,
-        history: appendHistory(record, {
-          action: 'resume',
-          occurred_at: now,
-          principal: normalized.principal,
-          from_state: record.state,
-          to_state: 'resumed'
-        })
-      });
+      const updated = transitionWait(record, {
+        action: 'resume',
+        to: 'resumed',
+        at: now,
+        principal: normalized.principal
+      }, { resume_receipt: receipt });
       replaceWait(ledger, updated);
       return { next: current, sidecarContent: serializeLedger(ledger), result: freezeClone(receipt) };
     });
@@ -786,20 +837,16 @@ export class DurableWaitStore {
         throw new DurableWaitError('state_conflict', `Wait ${record.wait_id} is ${record.state}`, record.wait_id);
       }
       const now = this.now().toISOString();
-      const updated = updateRecord(record, {
-        state: 'handoff_required',
+      const updated = transitionWait(record, {
+        action: 'premise_changed',
+        to: 'handoff_required',
+        at: now,
+        principal: normalized.principal,
+        detail: normalized.reason,
+        responsible: normalized.responsible
+      }, {
         next_problem: normalized.new_problem_snapshot,
-        ...(normalized.responsible === undefined ? {} : { responsible: normalized.responsible }),
-        updated_at: now,
-        history: appendHistory(record, {
-          action: 'premise_changed',
-          occurred_at: now,
-          principal: normalized.principal,
-          from_state: record.state,
-          to_state: 'handoff_required',
-          detail: normalized.reason,
-          ...(normalized.responsible === undefined ? {} : { responsible: normalized.responsible })
-        })
+        ...(normalized.responsible === undefined ? {} : { responsible: normalized.responsible })
       });
       replaceWait(ledger, updated);
       return { next: current, sidecarContent: serializeLedger(ledger), result: freezeClone(updated) };
@@ -846,20 +893,16 @@ export class DurableWaitStore {
       }
       const now = this.now().toISOString();
       const responsible = normalized.responsible ?? record.responsible;
-      const updated = updateRecord(record, {
-        state: 'reconciliation_wait',
+      const updated = transitionWait(record, {
+        action: 'effect_unknown',
+        to: 'reconciliation_wait',
+        at: now,
+        principal: normalized.principal,
+        detail: `${normalized.reason}:${externalOperationId}`,
+        responsible
+      }, {
         responsible,
-        reconciliation: { reason: normalized.reason, recorded_at: now, responsible, external_operation_id: externalOperationId, claim_id: record.claim.claim_id, binding_status: bindingVerified ? 'verified' : 'unverified' },
-        updated_at: now,
-        history: appendHistory(record, {
-          action: 'effect_unknown',
-          occurred_at: now,
-          principal: normalized.principal,
-          from_state: record.state,
-          to_state: 'reconciliation_wait',
-          detail: `${normalized.reason}:${externalOperationId}`,
-          responsible
-        })
+        reconciliation: { reason: normalized.reason, recorded_at: now, responsible, external_operation_id: externalOperationId, claim_id: record.claim.claim_id, binding_status: bindingVerified ? 'verified' : 'unverified' }
       });
       replaceWait(ledger, updated);
       return { next: current, sidecarContent: serializeLedger(ledger), result: freezeClone(updated) };
@@ -881,20 +924,16 @@ export class DurableWaitStore {
       }
       const now = this.now().toISOString();
       const responsible = normalized.responsible ?? record.responsible;
-      const updated = updateRecord(record, {
-        state: 'reconciliation_wait',
+      const updated = transitionWait(record, {
+        action: 'effect_unknown',
+        to: 'reconciliation_wait',
+        at: now,
+        principal: normalized.principal,
+        detail: normalized.reason,
+        responsible
+      }, {
         responsible,
-        reconciliation: { reason: normalized.reason, recorded_at: now, responsible },
-        updated_at: now,
-        history: appendHistory(record, {
-          action: 'effect_unknown',
-          occurred_at: now,
-          principal: normalized.principal,
-          from_state: record.state,
-          to_state: 'reconciliation_wait',
-          detail: normalized.reason,
-          responsible
-        })
+        reconciliation: { reason: normalized.reason, recorded_at: now, responsible }
       });
       replaceWait(ledger, updated);
       return { next: current, sidecarContent: serializeLedger(ledger), result: freezeClone(updated) };
@@ -968,15 +1007,10 @@ export class DurableWaitStore {
         claim_id: binding.claim_id
       };
       const state: DurableWaitState = outcome === 'performed' ? 'effect_confirmed' : outcome === 'not_performed' ? 'waiting' : 'reconciliation_wait';
-      const updated = updateRecord(record, {
-        state,
-        updated_at: now,
-        reconciliation_receipts: [...(record.reconciliation_receipts ?? []), receipt],
-        history: appendHistory(record, {
-          action: 'effect_reconciled', occurred_at: now, principal: normalized.principal,
-          from_state: 'reconciliation_wait', to_state: state, detail: `${outcome}:${normalized.external_operation_id}`
-        })
-      });
+      const updated = transitionWait(record, {
+        action: 'effect_reconciled', to: state, at: now, principal: normalized.principal,
+        detail: `${outcome}:${normalized.external_operation_id}`
+      }, { reconciliation_receipts: [...(record.reconciliation_receipts ?? []), receipt] });
       // A proven non-effect can be claimed again, but never with the old lease.
       if (outcome === 'not_performed') delete (updated as { claim?: DurableWaitClaim }).claim;
       replaceWait(ledger, updated);
@@ -1358,14 +1392,6 @@ function assertResumeBinding(record: DurableWaitRecord, input: DurableWaitResume
     || claim.lease.token !== input.lease_token) {
     throw new DurableWaitError('unauthorized', `Resume lease does not match Wait ${record.wait_id}`, record.wait_id);
   }
-}
-
-function updateRecord(record: DurableWaitRecord, changes: Partial<DurableWaitRecord>): DurableWaitRecord {
-  return { ...record, ...changes };
-}
-
-function appendHistory(record: DurableWaitRecord, entry: DurableWaitHistoryEntry): readonly DurableWaitHistoryEntry[] {
-  return [...record.history, entry];
 }
 
 function findWait(ledger: DurableWaitLedger, waitId: string): DurableWaitRecord {
