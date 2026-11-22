@@ -95,6 +95,8 @@ interface ParsedArgs {
   command?: string;
   values: Map<string, string[]>;
   flags: Set<string>;
+  /** Tokens after the command that are not an option or an option's value. */
+  positionals: string[];
 }
 
 type InstallTarget = 'codex' | 'claude' | 'codecode';
@@ -600,6 +602,30 @@ function explicitValue(parsed: ParsedArgs, key: string, hint: string): string | 
   return first(parsed, key);
 }
 
+/**
+ * The login commands act on a saved login, so an argument they do not know must
+ * stop them. Ignoring a mistyped `--credntials other.json` would make logout fall
+ * back to the default path and delete the default login. Checked before the save
+ * path is decided, so nothing is read, removed or sent.
+ */
+function assertOnlyLoginOptions(parsed: ParsedArgs, command: string, allowed: readonly string[]): void {
+  const usageHint = `brainbase ${command} ${allowed.map((key) => `[--${key} <${key === 'server' ? 'url' : 'path'}>]`).join(' ')}`;
+  const stop = (what: string) => new Error(`${what}。${usageHint} の形で指定してください。何も変えずに止めました。`);
+  // A known option without a value (or as --opt=value) gets its own, more precise message first.
+  for (const key of allowed) explicitValue(parsed, key, `--${key} <${key === 'server' ? 'url' : 'path'}>`);
+  for (const name of [...parsed.flags, ...parsed.values.keys()]) {
+    // `--known=value` is refused by explicitValue with its own message.
+    const base = name.includes('=') ? name.slice(0, name.indexOf('=')) : name;
+    if (!allowed.includes(base)) throw stop(`${command} は --${base} というオプションを知りません`);
+  }
+  for (const [key, list] of parsed.values) {
+    if (list.length > 1) throw stop(`--${key} が${list.length}回指定されています。1回だけにしてください`);
+  }
+  if (parsed.positionals.length > 0) {
+    throw stop(`${command} は「${parsed.positionals[0]}」のような引数を取りません`);
+  }
+}
+
 function credentialsPathOf(parsed: ParsedArgs): string {
   const path = explicitValue(parsed, 'credentials', '--credentials <path>') ?? defaultCredentialsPath();
   assertCredentialsFilePath(path);
@@ -607,6 +633,7 @@ function credentialsPathOf(parsed: ParsedArgs): string {
 }
 
 async function login(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  assertOnlyLoginOptions(parsed, 'login', ['credentials', 'server']);
   const credentialsPath = credentialsPathOf(parsed);
   const serverUrl = explicitValue(parsed, 'server', '--server <url>') ?? (await readCredentials(credentialsPath).catch(() => null))?.server_url;
   if (!serverUrl) throw new Error('login requires --server <url> (your Brainbase API URL)');
@@ -629,6 +656,7 @@ async function login(parsed: ParsedArgs, io: CliIo): Promise<number> {
 }
 
 async function loginStatus(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  assertOnlyLoginOptions(parsed, 'login:status', ['credentials']);
   const credentialsPath = credentialsPathOf(parsed);
   const credentials = await readCredentials(credentialsPath);
   if (!credentials) {
@@ -647,6 +675,7 @@ async function loginStatus(parsed: ParsedArgs, io: CliIo): Promise<number> {
 }
 
 async function logout(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  assertOnlyLoginOptions(parsed, 'logout', ['credentials']);
   const credentialsPath = credentialsPathOf(parsed);
   let removed;
   try {
@@ -1667,10 +1696,12 @@ function parseArgs(argv: string[]): ParsedArgs {
   const rest = command ? remaining : argv;
   const values = new Map<string, string[]>();
   const flags = new Set<string>();
+  const positionals: string[] = [];
 
   for (let index = 0; index < rest.length; index += 1) {
     const token = rest[index];
     if (!token?.startsWith('--')) {
+      if (token !== undefined) positionals.push(token);
       continue;
     }
     const key = token.slice(2);
@@ -1686,7 +1717,8 @@ function parseArgs(argv: string[]): ParsedArgs {
   return {
     command,
     values,
-    flags
+    flags,
+    positionals
   };
 }
 
