@@ -256,9 +256,11 @@ describe('getAccessToken', () => {
   // Concurrent logout, login and renewal are in brainbase-login-lock.test.ts.
   it('after a failed renewal, does not hand out a token that belongs to another login', async () => {
     const path = await saved({ expires_at: new Date(NOW - 1000).toISOString() });
+    let otherSave: Promise<unknown> | undefined;
     const fetchImpl = (async (input: string | URL) => {
       if (String(input).endsWith('/api/csrf-token')) return new Response('{}', { status: 404 });
-      await writeCredentials(path, {
+      // Every save takes the lock, so this one waits for the renewal to end.
+      otherSave = writeCredentials(path, {
         schema_version: CREDENTIALS_SCHEMA_VERSION, login_id: 'login-2', server_url: 'https://api.example.net',
         access_token: 'other-person', refresh_token: 'refresh-x', expires_at: new Date(NOW + 3600_000).toISOString(),
       });
@@ -266,6 +268,8 @@ describe('getAccessToken', () => {
     }) as typeof fetch;
     await expect(getAccessToken({ credentialsPath: path, fetch: fetchImpl, now: () => NOW }))
       .rejects.toMatchObject({ code: 'login_expired' });
+    await otherSave;
+    expect((await readCredentials(path))?.login_id).toBe('login-2');
   });
 
   it('refuses a saved server that would send the refresh token over plain http', async () => {

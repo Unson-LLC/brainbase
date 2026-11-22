@@ -417,18 +417,31 @@ function sameFile(a: FileIdentity, b: FileIdentity): boolean {
  * there, else which file was checked, so the save can make sure it replaces
  * that same file and nothing put there after the check.
  */
-async function assertReplaceable(target: string, path: string): Promise<FileIdentity | null> {
-  // The file is identified before and after its content is checked: when both
-  // agree, the content checked is that file's, not one swapped in between.
+async function assertReplaceable(target: string, path: string, expected?: SavedLoginKey): Promise<FileIdentity | null> {
+  const checked = await checkedSavedLogin(target, path);
+  // Another login (or no login, or a login where there was none) was saved
+  // since the caller looked: it stays, and this save is refused.
+  if (expected !== undefined && checked.key !== expected) throw changedDuringSave(path);
+  return checked.identity;
+}
+
+/**
+ * Which saved login is at `target` and which file holds it. The file is
+ * identified before and after its content is read: when both agree, the
+ * content read is that file's, not one swapped in between. Throws like
+ * savedLoginKey for a file that is no saved login.
+ */
+async function checkedSavedLogin(target: string, path: string): Promise<{ key: SavedLoginKey; identity: FileIdentity | null }> {
   const first = await identityOf(target, path);
-  if (!(await isSavedLogin(path, target))) {
+  const key = await savedLoginKey(path, target);
+  if (key === null) {
     // Nothing there: a file created later is caught by the exclusive link.
     if (first !== null) throw changedDuringSave(path);
-    return null;
+    return { key, identity: null };
   }
   const second = await identityOf(target, path);
   if (first === null || second === null || !sameFile(first, second)) throw changedDuringSave(path);
-  return second;
+  return { key, identity: second };
 }
 
 async function identityOf(target: string, path: string): Promise<FileIdentity | null> {
@@ -477,22 +490,75 @@ async function placeCredentials(temporary: string, target: string, path: string,
 }
 
 /**
+ * Where a save goes, resolved once: the physical file (see physicalPath) and
+ * which folder holds it. A later lock taken with this destination refuses to
+ * act on any other file or folder, so a folder on the path swapped for a link
+ * (or for another folder) in between is caught instead of followed.
+ */
+export interface CredentialsDestination {
+  readonly target: string;
+  readonly folder: FolderIdentity;
+}
+
+/** Which folder sits at a path: same values = the same folder. */
+export interface FolderIdentity {
+  readonly dev: bigint;
+  readonly ino: bigint;
+}
+
+async function folderIdentity(directory: string): Promise<FolderIdentity> {
+  const info = await stat(directory, { bigint: true });
+  return { dev: info.dev, ino: info.ino };
+}
+
+function sameFolder(a: FolderIdentity, b: FolderIdentity): boolean {
+  return a.dev === b.dev && a.ino === b.ino;
+}
+
+function destinationChanged(): BrainbaseLoginError {
+  return new BrainbaseLoginError('login_changed',
+    'The folder of the saved login changed while it was locked or while the login waited. Nothing was changed. Run the command again.');
+}
+
+export interface CredentialsTargetCheck {
+  /** The file and folder the save must go to; pass it to withCredentialsLock. */
+  destination: CredentialsDestination;
+  /**
+   * Which saved login is there now (see SavedLoginKey); pass it to
+   * writeCredentials as `expected`, so the save replaces only that login.
+   */
+  saved: SavedLoginKey;
+}
+
+/**
  * Fails before anything is asked of the server or of the person when a login
  * could not be saved to `path`: the file there is not a saved login, or the
  * lock cannot be taken because something that is no brainbase lock is in its
- * way. Both are checked again under the lock right before the save.
+ * way. Returns where the save goes and which login is there, so the save
+ * after the approval goes to the same file and replaces the same login.
  */
-export async function checkCredentialsTarget(path: string): Promise<void> {
-  await withCredentialsLock(path, async (lock) => { await isSavedLogin(path, lock.target); });
+export async function checkCredentialsTarget(path: string): Promise<CredentialsTargetCheck> {
+  return withCredentialsLock(path, async (lock) => ({
+    destination: lock.destination,
+    saved: await savedLoginKey(path, lock.target),
+  }));
 }
 
 export interface WriteCredentialsOptions {
   /**
    * The lock this write runs under. The file it locked (lock.target) is the
-   * one written, and the lock is checked to be still held, and to still lock
-   * the file `path` names, right before the file is replaced.
+   * one written, `path` must name that same file, and the lock is checked to
+   * be still held, and to still lock that file, right before it is replaced.
+   * Without a lock, the write takes one itself: every save runs under the lock.
    */
   lock?: CredentialsLock;
+  /**
+   * The saved login that may be replaced (see SavedLoginKey): null for "no
+   * file there". Checked on the file itself right before it is replaced, so
+   * a login saved by anyone else since the caller looked is never overwritten
+   * (`login_changed`). Left out, any saved brainbase login may be replaced.
+   */
+  expected?: SavedLoginKey;
 }
 
 /**
@@ -508,12 +574,19 @@ export async function writeCredentials(
   options: WriteCredentialsOptions = {},
 ): Promise<{ durable: boolean }> {
   assertCredentialsFilePath(path);
-  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  const target = options.lock ? options.lock.target : await physicalPath(path);
+  const { lock } = options;
+  // A save without the lock could land between another process's check and
+  // its write (a renewal's read and write-back), so it takes the lock itself.
+  if (!lock) return withCredentialsLock(path, (taken) => writeCredentials(path, credentials, { ...options, lock: taken }));
+  const target = lock.target;
+  // The lock must be the one for this file: a lock taken for another path
+  // would make the write land in a file `path` does not name.
+  await lock.assertHeld();
+  if (await physicalPath(path) !== target) throw destinationChanged();
   // Only a saved login is ever replaced: a --credentials naming some other
   // file (a config, another tool's data, a lock) is left as it is.
-  const before = await assertReplaceable(target, path);
-  if (options.lock) await options.lock.assertHeld();
+  const before = await assertReplaceable(target, path, options.expected);
+  await lock.assertHeld();
   const directory = dirname(target);
   const temporary = `${target}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
   const handle = await open(temporary, 'wx', 0o600);
@@ -525,7 +598,7 @@ export async function writeCredentials(
     } finally {
       await handle.close();
     }
-    if (options.lock) await options.lock.assertHeld();
+    await lock.assertHeld();
     await placeCredentials(temporary, target, path, before);
   } catch (error) {
     // No copy of the login is left behind when the save fails.
@@ -542,10 +615,13 @@ export interface CredentialsLock {
    * removes this path, not a new resolution of the path it was asked for.
    */
   readonly target: string;
+  /** lock.target with the folder that held it when the lock was taken. */
+  readonly destination: CredentialsDestination;
   /**
    * Fails with `login_lock_lost` when the lock file no longer carries this
    * holder's id, and with `login_changed` when the path the lock was taken for
-   * now leads to another directory (a folder on it was replaced by a link).
+   * now leads to another directory (a folder on it was replaced by a link or
+   * by another folder).
    */
   assertHeld(): Promise<void>;
 }
@@ -553,6 +629,16 @@ export interface CredentialsLock {
 export interface LockTiming {
   /** How long to wait for another holder before failing with `login_busy`. */
   waitMs: number;
+}
+
+export interface LockOptions extends LockTiming {
+  /**
+   * Where an earlier check resolved the path to (checkCredentialsTarget). The
+   * lock is then taken only when the path still leads to that same file in
+   * that same folder, and fails with `login_changed` otherwise: the work
+   * under the lock never moves to a file the earlier check did not see.
+   */
+  destination?: CredentialsDestination;
 }
 
 const DEFAULT_LOCK_TIMING: LockTiming = { waitMs: LOCK_WAIT_MS };
@@ -797,14 +883,21 @@ function busy(lockPath: string, holder: string): BrainbaseLoginError {
 export async function withCredentialsLock<T>(
   path: string,
   task: (lock: CredentialsLock) => Promise<T>,
-  timing: Partial<LockTiming> = {},
+  timing: Partial<LockOptions> = {},
 ): Promise<T> {
   assertCredentialsFilePath(path);
-  const { waitMs } = { ...DEFAULT_LOCK_TIMING, ...timing };
-  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
+  const { waitMs, destination: pinned } = { ...DEFAULT_LOCK_TIMING, ...timing };
+  // A pinned destination is a folder that was there: it is not made again.
+  if (!pinned) await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   // Every spelling of the same file takes the same lock, and the work under
   // the lock acts on this one resolution (lock.target).
-  const target = await physicalPath(path);
+  const target = await physicalPath(path).catch((error) => {
+    if (pinned && (error as NodeJS.ErrnoException)?.code === 'ENOENT') throw destinationChanged();
+    throw error;
+  });
+  const folder = await folderIdentity(dirname(target));
+  if (pinned && (pinned.target !== target || !sameFolder(pinned.folder, folder))) throw destinationChanged();
+  const destination: CredentialsDestination = { target, folder };
   const lockPath = `${target}.lock`;
   const owner = randomBytes(16).toString('hex');
   const record = await lockRecord(owner);
@@ -822,6 +915,7 @@ export async function withCredentialsLock<T>(
   }
   const lock: CredentialsLock = {
     target,
+    destination,
     async assertHeld() {
       if ((await readRaw(lockPath)) !== record) {
         throw new BrainbaseLoginError('login_lock_lost', 'Another brainbase process took over the saved login. Run the command again.');
@@ -830,10 +924,10 @@ export async function withCredentialsLock<T>(
       // was taken: then the path no longer leads to the locked file, nor does
       // the locked path itself lead to the same folder.
       const directory = dirname(target);
-      const now = await Promise.all([realpath(directory), realpath(dirname(path))]).catch(() => null);
-      if (!now || now[0] !== directory || now[1] !== directory) {
-        throw new BrainbaseLoginError('login_changed', 'The folder of the saved login changed while it was locked. Nothing was changed. Run the command again.');
-      }
+      const now = await Promise.all([realpath(directory), realpath(dirname(path)), folderIdentity(directory)]).catch(() => null);
+      // The same real path can also name a new folder (the old one moved away
+      // and another made in its place), so the folder itself is compared too.
+      if (!now || now[0] !== directory || now[1] !== directory || !sameFolder(now[2], folder)) throw destinationChanged();
     },
   };
   try {
@@ -856,14 +950,22 @@ export interface RemoveCredentialsResult {
 }
 
 /**
- * Whether `path` holds a saved login that logout may remove: false when no
+ * Which saved login a file holds, to tell whether it is still the same one:
+ * `login:<login_id>` for a saved login (a renewal keeps it, any new login
+ * gets a new one), `file:<sha256>` for a saved login too broken to carry a
+ * login_id, null for no file.
+ */
+export type SavedLoginKey = string | null;
+
+/**
+ * The SavedLoginKey of the file at `path` (read at `target`): null when no
  * file is there. A file that brainbase did not write (a mistyped
  * --credentials naming some other file) or that cannot be read is refused,
- * so logout never deletes it. A saved login that has become unusable still
- * counts while it carries brainbase's schema_version, so the person can log
- * out of a broken one.
+ * so no save replaces it and logout never deletes it. A saved login that has
+ * become unusable still counts while it carries brainbase's schema_version,
+ * so the person can log out of a broken one.
  */
-async function isSavedLogin(path: string, target?: string): Promise<boolean> {
+async function savedLoginKey(path: string, target?: string): Promise<SavedLoginKey> {
   let text: string | null;
   try {
     text = await readCredentialsText(path, target);
@@ -873,10 +975,9 @@ async function isSavedLogin(path: string, target?: string): Promise<boolean> {
     throw new BrainbaseLoginError('login_credentials_unreadable',
       `The saved login could not be read (${code}): ${path}. Nothing was removed.`);
   }
-  if (text === null) return false;
+  if (text === null) return null;
   try {
-    parseCredentials(text, path);
-    return true;
+    return loginKeyOf(parseCredentials(text, path));
   } catch {
     // Unusable: still ours if brainbase wrote it.
   }
@@ -886,9 +987,54 @@ async function isSavedLogin(path: string, target?: string): Promise<boolean> {
   } catch {
     parsed = null;
   }
-  if ((parsed as { schema_version?: unknown } | null)?.schema_version === CREDENTIALS_SCHEMA_VERSION) return true;
+  if ((parsed as { schema_version?: unknown } | null)?.schema_version === CREDENTIALS_SCHEMA_VERSION) {
+    return `file:${createHash('sha256').update(text).digest('hex')}`;
+  }
   throw new BrainbaseLoginError('login_credentials_unrecognized',
     `This file is not a saved brainbase login: ${path}. It was left as it is. Check --credentials.`);
+}
+
+/** The SavedLoginKey of a login: equal for the login and its renewals. */
+export function loginKeyOf(credentials: BrainbaseCredentials): SavedLoginKey {
+  return `login:${credentials.login_id}`;
+}
+
+/**
+ * Removes the file at `target` only when it is the file that was checked
+ * (`checked`). It is first moved aside in one step, so what is compared is
+ * exactly the file taken away: when another program replaced the saved login
+ * after the check, its file is put back where it was and `login_changed` is
+ * thrown. (rename() changes a file's ctime, so the moved file is compared by
+ * device, inode, size and mtime.)
+ */
+async function removeCheckedFile(target: string, path: string, checked: FileIdentity): Promise<void> {
+  const aside = `${target}.${process.pid}.${randomBytes(4).toString('hex')}.removing`;
+  try {
+    await rename(target, aside);
+  } catch (error) {
+    // Gone since the check: removed by someone else, nothing of ours is left.
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') throw changedDuringRemove(path);
+    throw error;
+  }
+  const moved = await identityOf(aside, path).catch(() => null);
+  if (moved === null || moved.dev !== checked.dev || moved.ino !== checked.ino
+    || moved.size !== checked.size || moved.mtimeNs !== checked.mtimeNs) {
+    // Put it back without replacing anything created at the path meanwhile.
+    try {
+      await link(aside, target);
+      await rm(aside, { force: true });
+    } catch {
+      throw new BrainbaseLoginError('login_changed',
+        `Another program changed ${JSON.stringify(path)} while logging out, and its file could not be put back. It was kept as ${JSON.stringify(aside)}. Nothing was removed.`);
+    }
+    throw changedDuringRemove(path);
+  }
+  await rm(aside, { force: true });
+}
+
+function changedDuringRemove(path: string): BrainbaseLoginError {
+  return new BrainbaseLoginError('login_changed',
+    `Another program created or changed ${JSON.stringify(path)} while logging out. That file was left as it is. Check --credentials and run the command again.`);
 }
 
 /**
@@ -896,7 +1042,7 @@ async function isSavedLogin(path: string, target?: string): Promise<boolean> {
  * lock, before this returns. Without the flush, a power loss right after a
  * logout could bring the old login back. The directory is flushed even when
  * no file was there, since an earlier logout may have stopped before its flush.
- * Only a file that is a saved login is removed (see isSavedLogin); any other
+ * Only a file that is a saved login is removed (see savedLoginKey); any other
  * file is left as it is and `login_credentials_unrecognized` is thrown.
  */
 export async function removeCredentials(path = defaultCredentialsPath()): Promise<RemoveCredentialsResult> {
@@ -904,11 +1050,13 @@ export async function removeCredentials(path = defaultCredentialsPath()): Promis
   return withCredentialsLock(path, async (lock) => {
     // Check, remove and flush the file the lock covers, in its real directory.
     const { target } = lock;
-    const existed = await isSavedLogin(path, target);
+    const { identity } = await checkedSavedLogin(target, path);
     await lock.assertHeld();
-    await rm(target, { force: true });
+    // No file at the check: nothing is removed, so a file another program
+    // creates meanwhile stays. The folder is still flushed (see above).
+    if (identity !== null) await removeCheckedFile(target, path, identity);
     const durable = await syncDirectory(dirname(target));
-    return { existed, durable };
+    return { existed: identity !== null, durable };
   });
 }
 
@@ -927,7 +1075,9 @@ export async function loginWithDeviceCode(options: LoginOptions): Promise<Brainb
   // A folder that cannot hold the lock would only fail after the approval.
   await checkCredentialsStorage(credentialsPath);
   // A path that names some other file would only be refused after the approval.
-  await checkCredentialsTarget(credentialsPath);
+  // Where the save goes and which login is there are fixed here: the save
+  // after the approval goes to this same file and replaces only this login.
+  const check = await checkCredentialsTarget(credentialsPath);
 
   let start;
   try {
@@ -1011,7 +1161,11 @@ export async function loginWithDeviceCode(options: LoginOptions): Promise<Brainb
     // no receipt is sent and the code expires on its own.
     let saved;
     try {
-      saved = await withCredentialsLock(credentialsPath, (lock) => writeCredentials(credentialsPath, credentials, { lock }));
+      saved = await withCredentialsLock(
+        credentialsPath,
+        (lock) => writeCredentials(credentialsPath, credentials, { lock, expected: check.saved }),
+        { destination: check.destination },
+      );
     } catch (error) {
       if (error instanceof BrainbaseLoginError) throw error;
       throw new BrainbaseLoginError('login_save_failed', `Could not save the login to ${credentialsPath} (${(error as NodeJS.ErrnoException)?.code ?? 'error'}). Run brainbase login again.`);
@@ -1117,7 +1271,8 @@ export async function getAccessToken(options: AccessTokenOptions = {}): Promise<
     if (isFresh(latest, now(), skew)) return { token: latest.access_token, serverUrl: latest.server_url };
     if (!latest.refresh_token) return usableWithoutRenewal(latest, now());
     const next = await requestRenewal(latest as BrainbaseCredentials & { refresh_token: string }, fetchImpl, now);
-    await writeCredentials(credentialsPath, next, { lock });
+    // The login checked before the request must still be the one replaced.
+    await writeCredentials(credentialsPath, next, { lock, expected: loginKeyOf(latest) });
     return { token: next.access_token, serverUrl: next.server_url };
   });
 }
