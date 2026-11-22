@@ -66,7 +66,7 @@ import { applyCanonicalWrites, buildCanonicalEdge } from './canonical-edge-build
 import { defaultJudgmentJournalRoot } from './judgment-value-proof-review.js';
 import { createWorldExtension, readWorldVocabulary } from './world-extension.js';
 import { createLocalWebHost, LOCAL_WEB_DEFAULT_PORT } from './local-web-host.js';
-import { assertCredentialsFilePath, BrainbaseLoginError, defaultCredentialsPath, loginWithDeviceCode, normalizeServerUrl, readCredentials, removeCredentials, withCredentialsLock } from './brainbase-login.js';
+import { assertCredentialsFilePath, BrainbaseLoginError, CREDENTIALS_SCHEMA_VERSION, defaultCredentialsPath, loginWithDeviceCode, normalizeServerUrl, readCredentials, removeCredentials, withCredentialsLock } from './brainbase-login.js';
 import {
   CLAUDE_CODE_HOOK_CONFIG_SCHEMA,
   canonicalFilePath,
@@ -397,7 +397,22 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
   }
   const cliPath = fileURLToPath(new URL('./cli.js', import.meta.url));
   const command = claudeCodeHookCommand(process.execPath, cliPath, configPath, registrationId);
-  const run = () => applyClaudeCodeRegistration({ settingsPath, settingsReal, configPath, configReal, config, command, remove, dryRun }, io);
+  const plan = { settingsPath, settingsReal, configPath, configReal, config, command, remove, dryRun };
+  // Claude Code saves its settings without taking the install lock. When it
+  // saved between our read and our write, start again from what it saved, so
+  // its change is kept; give up after a few tries without changing anything.
+  const run = async (): Promise<number> => {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await applyClaudeCodeRegistration(plan, io);
+      } catch (error) {
+        if (!(error instanceof SettingsChangedError)) throw error;
+        if (attempt >= SETTINGS_CHANGED_ATTEMPTS) {
+          throw new Error(`${settingsPath} は登録の途中で何度も別の保存が入ったため、何も変えずに止めました。Claude Code の設定の保存が落ち着いてから、もう一度実行してください。`);
+        }
+      }
+    }
+  };
   // A preview writes nothing, so it takes no lock.
   return dryRun ? await run() : await withInstallLocks([settingsReal, configReal], run);
 }
@@ -435,6 +450,25 @@ async function withInstallLocks<T>(files: string[], task: () => Promise<T>): Pro
   return await hold(0);
 }
 
+const SETTINGS_CHANGED_ATTEMPTS = 3;
+
+/** The file was saved by someone else after it was read; nothing was written over it. */
+class SettingsChangedError extends Error {}
+
+/**
+ * A file brainbase writes for another use (a hook config, a saved login)
+ * carries brainbase's schema_version. Taking it as Claude Code settings would
+ * add hooks to it, and the registration that owns it would later replace it
+ * whole and drop them.
+ */
+function brainbaseFileUse(value: Record<string, unknown>): string | null {
+  const schema = value.schema_version;
+  if (schema === CLAUDE_CODE_HOOK_CONFIG_SCHEMA) return '判断フックの設定';
+  if (schema === CREDENTIALS_SCHEMA_VERSION) return 'brainbase login の保存ファイル';
+  if (typeof schema === 'string' && schema.startsWith('brainbase')) return `brainbase のファイル（${schema}）`;
+  return null;
+}
+
 interface ClaudeCodeRegistrationPlan {
   settingsPath: string;
   settingsReal: string;
@@ -449,14 +483,21 @@ interface ClaudeCodeRegistrationPlan {
 async function applyClaudeCodeRegistration(plan: ClaudeCodeRegistrationPlan, io: CliIo): Promise<number> {
   const { settingsPath, settingsReal, configPath, configReal, config, command, remove, dryRun } = plan;
   let settings: Record<string, unknown> = {};
+  // The text as read, so the write can tell whether someone saved since.
+  let settingsText: string | null = null;
   try {
-    const parsedSettings: unknown = JSON.parse(await readFile(settingsPath, 'utf8'));
+    settingsText = await readFile(settingsPath, 'utf8');
+    const parsedSettings: unknown = JSON.parse(settingsText);
     if (!parsedSettings || typeof parsedSettings !== 'object' || Array.isArray(parsedSettings)) {
       throw new Error(`Claude Code settings is not a JSON object: ${settingsPath}`);
     }
     settings = parsedSettings as Record<string, unknown>;
   } catch (error) {
     if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error;
+  }
+  const otherUse = brainbaseFileUse(settings);
+  if (otherUse) {
+    throw new Error(`judgment:install --settings ${settingsPath} は${otherUse}で、Claude Code の設定ではありません。何も変えずに止めました。Claude Code の settings.json を指定してください。`);
   }
   // The installer only overwrites or removes a config file it wrote itself.
   const previousConfig = await readFile(configPath, 'utf8').then((text) => text, (error: NodeJS.ErrnoException) => {
@@ -494,7 +535,7 @@ async function applyClaudeCodeRegistration(plan: ClaudeCodeRegistrationPlan, io:
     return 0;
   }
   if (remove) {
-    await replaceFileFollowingLinks(settingsPath, `${JSON.stringify(next, null, 2)}\n`, 0o600);
+    await replaceFileFollowingLinks(settingsPath, `${JSON.stringify(next, null, 2)}\n`, 0o600, settingsText);
     // The config is deleted only when the registration it now carries was one
     // of the commands just taken out; otherwise a command elsewhere still uses it.
     const currentElsewhere = !!existingConfig && !removedIds.has(existingConfig.registration.id);
@@ -518,7 +559,7 @@ async function applyClaudeCodeRegistration(plan: ClaudeCodeRegistrationPlan, io:
   await mkdir(dirname(configPath), { recursive: true, mode: 0o700 });
   await replaceFileFollowingLinks(configPath, `${JSON.stringify(config, null, 2)}\n`, 0o600);
   try {
-    await replaceFileFollowingLinks(settingsPath, `${JSON.stringify(next, null, 2)}\n`, 0o600);
+    await replaceFileFollowingLinks(settingsPath, `${JSON.stringify(next, null, 2)}\n`, 0o600, settingsText);
   } catch (error) {
     try {
       if (previousConfig === null) await rm(configPath, { force: true });
@@ -643,8 +684,12 @@ export async function readHookStdin(input: AsyncIterable<string | Uint8Array>, m
  * Replaces the file at `path` atomically. When `path` is a symbolic link, the
  * file it points to is replaced and the link stays; a link to nothing is
  * refused. A file that exists keeps its mode; a new one gets `mode`.
+ *
+ * With `expected` (the text read earlier, or null for "did not exist"), the
+ * file is read again just before the rename; when it no longer matches,
+ * nothing is written and SettingsChangedError is thrown.
  */
-async function replaceFileFollowingLinks(path: string, content: string, mode: number): Promise<void> {
+async function replaceFileFollowingLinks(path: string, content: string, mode: number, expected?: string | null): Promise<void> {
   let target = resolve(path);
   let targetMode = mode;
   try {
@@ -660,6 +705,13 @@ async function replaceFileFollowingLinks(path: string, content: string, mode: nu
   try {
     await writeFile(temporary, content, { mode: targetMode, flag: 'wx' });
     await chmod(temporary, targetMode);
+    if (expected !== undefined) {
+      const current = await readFile(target, 'utf8').catch((error: NodeJS.ErrnoException) => {
+        if (error?.code === 'ENOENT') return null;
+        throw error;
+      });
+      if (current !== expected) throw new SettingsChangedError(`${path} was saved by someone else while it was being changed; nothing was written over it`);
+    }
     await rename(temporary, target);
   } catch (error) {
     await rm(temporary, { force: true });
