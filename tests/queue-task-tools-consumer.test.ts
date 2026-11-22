@@ -3,9 +3,8 @@ import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { it, expect } from 'vitest';
-import { createReleaseArtifact } from '../scripts/npm-release.mjs';
 import { QUEUE_TASK_CONTRACT_SCENARIO_NAMES } from '../src/testing/queue-task-tools-contract.js';
-import { ensureBuiltPackage } from './helpers/consumer-build-guard.js';
+import { ensureBuiltPackage, getConsumerReleaseArtifact } from './helpers/consumer-build-guard.js';
 it('AC-12 imports public queue tools and reuses the contract suite from a consumer', async () => {
     const root = process.cwd();
     const artifactRoot = await mkdtemp(path.join(tmpdir(), 'queue-artifact-'));
@@ -16,7 +15,7 @@ it('AC-12 imports public queue tools and reuses the contract suite from a consum
         const execute = (command: string, args: string[], cwd = root) => execFileSync(command, args, { cwd, env: command === process.execPath ? { ...env, TMPDIR: undefined, TEMP: undefined, TMP: undefined } : env, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
         ensureBuiltPackage(root, execute);
         const version = JSON.parse(await readFile('package.json', 'utf8')).version;
-        const artifact = await createReleaseArtifact(root, artifactRoot, version, execute('git', ['rev-parse', 'HEAD']).trim(), execute);
+        const artifact = await getConsumerReleaseArtifact(root, artifactRoot, version, execute('git', ['rev-parse', 'HEAD']).trim(), execute);
         const output = JSON.parse(execute(process.execPath, ['scripts/queue-task-tools-consumer-smoke.mjs', artifact.tarballPath]));
         expect(output.scenarios).toEqual(QUEUE_TASK_CONTRACT_SCENARIO_NAMES.map(name => ({ name, status: 'passed' })));
         expect(output.moduleResolution).toEqual({ 'queue-task-tools': 'dist/queue-task-tools.js', 'testing/queue-task-tools-contract': 'dist/testing/queue-task-tools-contract.js' });
