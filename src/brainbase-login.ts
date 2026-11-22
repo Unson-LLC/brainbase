@@ -397,13 +397,83 @@ export function assertCredentialsFilePath(path: string): void {
   }
 }
 
+/** Which file sits at a path: same values = the same file, unchanged. */
+interface FileIdentity {
+  dev: bigint;
+  ino: bigint;
+  size: bigint;
+  mtimeNs: bigint;
+  ctimeNs: bigint;
+}
+
+function sameFile(a: FileIdentity, b: FileIdentity): boolean {
+  return a.dev === b.dev && a.ino === b.ino && a.size === b.size && a.mtimeNs === b.mtimeNs && a.ctimeNs === b.ctimeNs;
+}
+
 /**
  * Fails with `login_credentials_unrecognized` (or `_unreadable`, `_path_symlink`,
  * `_path_invalid`) unless `target` is free or holds a saved brainbase login,
- * so a save never replaces any other file.
+ * so a save never replaces any other file. Returns null when nothing is
+ * there, else which file was checked, so the save can make sure it replaces
+ * that same file and nothing put there after the check.
  */
-async function assertReplaceable(target: string, path: string): Promise<void> {
-  await isSavedLogin(path, target);
+async function assertReplaceable(target: string, path: string): Promise<FileIdentity | null> {
+  // The file is identified before and after its content is checked: when both
+  // agree, the content checked is that file's, not one swapped in between.
+  const first = await identityOf(target, path);
+  if (!(await isSavedLogin(path, target))) {
+    // Nothing there: a file created later is caught by the exclusive link.
+    if (first !== null) throw changedDuringSave(path);
+    return null;
+  }
+  const second = await identityOf(target, path);
+  if (first === null || second === null || !sameFile(first, second)) throw changedDuringSave(path);
+  return second;
+}
+
+async function identityOf(target: string, path: string): Promise<FileIdentity | null> {
+  try {
+    const info = await lstat(target, { bigint: true });
+    if (info.isSymbolicLink()) throw symbolicLinkRefused(path);
+    if (!info.isFile()) throw notAFile(path);
+    return { dev: info.dev, ino: info.ino, size: info.size, mtimeNs: info.mtimeNs, ctimeNs: info.ctimeNs };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+function changedDuringSave(path: string): BrainbaseLoginError {
+  return new BrainbaseLoginError('login_changed',
+    `Another program created or changed ${JSON.stringify(path)} while the login was being saved. That file was left as it is and the login was not saved. Check --credentials and run the command again.`);
+}
+
+/**
+ * Puts the written `temporary` file at `target`. When nothing was at `target`
+ * at the check (`before` is null), the file is linked into place, which fails
+ * instead of replacing a file another program created meanwhile. When a saved
+ * login was there, it is replaced only while it is still that same file,
+ * unchanged since it was checked. (A program that replaces that saved login
+ * between this last look and the rename itself is not caught: POSIX offers
+ * no replace-only-if-unchanged. Such a program would be replacing a saved
+ * brainbase login, not a file of its own.)
+ */
+async function placeCredentials(temporary: string, target: string, path: string, before: FileIdentity | null): Promise<void> {
+  if (before === null) {
+    try {
+      await link(temporary, target);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code;
+      if (code === 'EEXIST') throw changedDuringSave(path);
+      if (code && NO_HARD_LINK_CODES.has(code)) throw storageUnsupported(dirname(target), code);
+      throw error;
+    }
+    await rm(temporary, { force: true });
+    return;
+  }
+  const now = await identityOf(target, path);
+  if (now === null || !sameFile(before, now)) throw changedDuringSave(path);
+  await rename(temporary, target);
 }
 
 /**
@@ -442,7 +512,7 @@ export async function writeCredentials(
   const target = options.lock ? options.lock.target : await physicalPath(path);
   // Only a saved login is ever replaced: a --credentials naming some other
   // file (a config, another tool's data, a lock) is left as it is.
-  await assertReplaceable(target, path);
+  const before = await assertReplaceable(target, path);
   if (options.lock) await options.lock.assertHeld();
   const directory = dirname(target);
   const temporary = `${target}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
@@ -456,8 +526,7 @@ export async function writeCredentials(
       await handle.close();
     }
     if (options.lock) await options.lock.assertHeld();
-    else await assertReplaceable(target, path);
-    await rename(temporary, target);
+    await placeCredentials(temporary, target, path, before);
   } catch (error) {
     // No copy of the login is left behind when the save fails.
     await rm(temporary, { force: true });
@@ -489,6 +558,8 @@ export interface LockTiming {
 const DEFAULT_LOCK_TIMING: LockTiming = { waitMs: LOCK_WAIT_MS };
 
 interface LockRecord {
+  /** Always LOCK_FORMAT. */
+  format: typeof LOCK_FORMAT;
   owner: string;
   pid: number;
   host: string;
@@ -551,17 +622,39 @@ async function readRaw(path: string): Promise<string | null> {
 /** What readRaw gives for a path that holds no regular file; no lock record ever equals it. */
 const NOT_A_LOCK = '\u0000not-a-regular-file';
 
+/**
+ * What every lock file this code writes starts with. A file at a lock path is
+ * only taken for a lock (and ever removed as an abandoned one) when it carries
+ * exactly this format and exactly the fields lockRecord() writes, so another
+ * tool's process record or any other JSON at that path is left as it is.
+ */
+const LOCK_FORMAT = 'brainbase-login-lock/v1';
+const LOCK_KEYS = new Set(['format', 'owner', 'pid', 'host', 'start']);
+const LOCK_OWNER_PATTERN = /^[0-9a-f]{32}$/;
+
 function parseLockRecord(raw: string): LockRecord | null {
+  let value: unknown;
   try {
-    const value = JSON.parse(raw) as Partial<LockRecord> | null;
-    if (value && typeof value.owner === 'string' && Number.isInteger(value.pid) && typeof value.host === 'string'
-      && (value.start === undefined || typeof value.start === 'string')) {
-      return value as LockRecord;
-    }
+    value = JSON.parse(raw);
   } catch {
-    // not a lock record
+    return null; // not a lock record
   }
-  return null;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).some((key) => !LOCK_KEYS.has(key))) return null;
+  if (record.format !== LOCK_FORMAT) return null;
+  if (typeof record.owner !== 'string' || !LOCK_OWNER_PATTERN.test(record.owner)) return null;
+  if (typeof record.pid !== 'number' || !Number.isSafeInteger(record.pid) || record.pid <= 0) return null;
+  if (typeof record.host !== 'string' || !record.host) return null;
+  if (record.start !== undefined && (typeof record.start !== 'string' || !record.start)) return null;
+  // Byte for byte what lockRecord() writes, so a hand-edited or look-alike file is no lock.
+  if (raw !== serializeLockRecord(record as unknown as LockRecord)) return null;
+  return record as unknown as LockRecord;
+}
+
+function serializeLockRecord(record: LockRecord): string {
+  const { owner, pid, host, start } = record;
+  return JSON.stringify({ format: LOCK_FORMAT, owner, pid, host, ...(start !== undefined ? { start } : {}) });
 }
 
 function processAlive(pid: number): boolean {
@@ -641,7 +734,7 @@ export async function checkCredentialsStorage(path: string): Promise<void> {
 async function lockRecord(owner: string): Promise<string> {
   ownStart ??= processStart(process.pid);
   const start = await ownStart;
-  return JSON.stringify({ owner, pid: process.pid, host: hostname(), ...(start ? { start } : {}) } satisfies LockRecord);
+  return serializeLockRecord({ format: LOCK_FORMAT, owner, pid: process.pid, host: hostname(), ...(start ? { start } : {}) });
 }
 
 /**

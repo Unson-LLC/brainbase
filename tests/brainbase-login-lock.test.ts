@@ -1,5 +1,6 @@
 import { mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { hostname, tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -33,8 +34,17 @@ function deadPid(): number {
   return child.pid!;
 }
 
+/** A lock record in the exact form brainbase writes (format, then 32-hex owner). */
+function lockRecordText(fields: { owner?: string; pid: number; host?: string; start?: string }): string {
+  const owner = fields.owner ?? createHash('md5').update(`holder-${fields.pid}`).digest('hex');
+  return JSON.stringify({
+    format: 'brainbase-login-lock/v1', owner, pid: fields.pid, host: fields.host ?? hostname(),
+    ...(fields.start !== undefined ? { start: fields.start } : {}),
+  });
+}
+
 function lockFile(pid: number, host = hostname()): string {
-  return JSON.stringify({ owner: `holder-${pid}`, pid, host });
+  return lockRecordText({ pid, host });
 }
 
 async function makeOld(path: string): Promise<void> {
@@ -218,7 +228,7 @@ describe('a lock whose process id was reused', () => {
     const path = await credentialsFile();
     const lockPath = `${path}.lock`;
     // process.ppid runs for the whole test, but it is not the process that took the lock.
-    await writeFile(lockPath, JSON.stringify({ owner: 'crashed', pid: process.ppid, host: hostname(), start: 'an-earlier-process' }));
+    await writeFile(lockPath, lockRecordText({ owner: 'c'.repeat(32), pid: process.ppid, start: 'an-earlier-process' }));
     expect(await withCredentialsLock(path, async () => 'ran', { waitMs: 2000 })).toBe('ran');
   });
 
@@ -229,7 +239,7 @@ describe('a lock whose process id was reused', () => {
     const { createHash } = await import('node:crypto');
     const observed = await readFile(lockPath, 'utf8');
     const guard = `${lockPath}.takeover-${createHash('sha256').update(observed).digest('hex').slice(0, 16)}`;
-    await writeFile(guard, JSON.stringify({ owner: 'crashed', pid: process.ppid, host: hostname(), start: 'an-earlier-process' }));
+    await writeFile(guard, lockRecordText({ owner: 'c'.repeat(32), pid: process.ppid, start: 'an-earlier-process' }));
     expect(await withCredentialsLock(path, async () => 'ran', { waitMs: 2000 })).toBe('ran');
   });
 
@@ -240,7 +250,7 @@ describe('a lock whose process id was reused', () => {
       const own = await readFile(lockPath, 'utf8');
       const parent = JSON.parse(own);
       // Same process, recorded again under another owner id: still alive and the same process.
-      await writeFile(`${lockPath}.copy`, JSON.stringify({ ...parent, owner: 'other' }));
+      await writeFile(`${lockPath}.copy`, lockRecordText({ ...parent, owner: 'd'.repeat(32) }));
     });
     const copy = JSON.parse(await readFile(`${lockPath}.copy`, 'utf8'));
     await writeFile(lockPath, JSON.stringify(copy));
