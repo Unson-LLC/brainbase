@@ -134,7 +134,7 @@ describe('prediction check balance and scope escalations (anti-cherry-picking)',
       'claim_scope', 'population', 'supporting_summary', 'counter_summary',
     ]);
     expect(Object.keys(checkSchema.properties.balance.properties).sort()).toEqual([
-      'claim_scope', 'competing_hypotheses', 'counter_summary', 'population', 'supporting_summary',
+      'claim_scope', 'competing_hypotheses', 'counter_representativeness', 'counter_summary', 'population', 'supporting_summary',
     ]);
   });
 
@@ -265,6 +265,7 @@ describe('prediction check balance and scope escalations (anti-cherry-picking)',
       ['English anecdotal', 'anecdotal complaint from one operator', 'interview'],
       ['English single exception', 'Observed a single exception during holiday peak', 'ops log'],
       ['English isolated case in evidence', '複数条件を確認', 'isolated case in facility B'],
+      ['Negated phrase does not mask separate n=1 signal', '単発ではないと主張されたが実測は n=1 の反例のみ', '個別ログ'],
     ] as const;
 
     for (const [label, counterSummary, evidence] of anecdotalCases) {
@@ -321,6 +322,28 @@ describe('prediction check balance and scope escalations (anti-cherry-picking)',
           population: '20 facilities in Q3',
           supporting_summary: '4 facilities improved',
           counter_summary: 'not anecdotal; replicated across 16 of 20 facilities',
+        },
+      }],
+      ['UNS-4551 regression: isolated case prompted a full cohort audit of 1200 cases', {
+        falsified_if: 'Full cohort audit shows no positive effect',
+        status: 'failed',
+        evidence: 'Full cohort audit, N=1200',
+        balance: {
+          claim_scope: 'probabilistic',
+          population: 'All 1200 cases',
+          supporting_summary: 'Pilot study found a positive effect',
+          counter_summary: 'One isolated case prompted the audit, then the full cohort of 1200 independently showed no effect.',
+        },
+      }],
+      ['Japanese mixed trigger + full census verification', {
+        falsified_if: '母集団全体で改善が確認できない',
+        status: 'failed',
+        evidence: '全数監査レポート（N=1200）',
+        balance: {
+          claim_scope: 'probabilistic',
+          population: '全1200件',
+          supporting_summary: 'パイロット導入では改善傾向',
+          counter_summary: '単発事例を契機に全数監査を実施し、母集団全体で効果がないことを独立確認した。',
         },
       }],
       ['universal claim validly refuted by single exception (even with empty supporting_summary)', {
@@ -442,6 +465,47 @@ describe('prediction check balance and scope escalations (anti-cherry-picking)',
     ]);
   });
 
+  it('gives explicit counter_representativeness precedence over text heuristics', async () => {
+    // Explicit census / representative prevents mismatch even if text mentions an isolated case.
+    for (const representativeness of ['census', 'representative'] as const) {
+      const result = await record({
+        falsified_if: 'effect fails across population',
+        status: 'failed',
+        evidence: 'isolated case noted in summary',
+        balance: {
+          claim_scope: 'probabilistic',
+          population: 'All 1200 cases',
+          supporting_summary: 'Pilot study positive',
+          counter_summary: 'isolated case mentioned',
+          counter_representativeness: representativeness,
+        },
+      });
+      expect(result?.status, representativeness).toBe('ok');
+      expect((result as { data: { escalations: unknown[] } }).data.escalations, representativeness).toEqual([
+        { code: 'chosen_relies_on_failed_prediction', refs: ['fnd_model_cleaning_order'] },
+      ]);
+    }
+
+    // Explicit anecdotal always escalates prediction_scope_mismatch even if text mentions cohort/N=1200.
+    const anecdotalExplicit = await record({
+      falsified_if: 'effect fails across population',
+      status: 'failed',
+      evidence: 'Full cohort audit, N=1200',
+      balance: {
+        claim_scope: 'probabilistic',
+        population: 'All 1200 cases',
+        supporting_summary: 'Pilot study positive',
+        counter_summary: 'Full cohort summary mentioned, but only anecdotal evidence supports refutation',
+        counter_representativeness: 'anecdotal',
+      },
+    });
+    expect(anecdotalExplicit?.status).toBe('ok');
+    expect((anecdotalExplicit as { data: { escalations: unknown[] } }).data.escalations).toEqual([
+      { code: 'chosen_relies_on_failed_prediction', refs: ['fnd_model_cleaning_order'] },
+      { code: 'prediction_scope_mismatch', refs: ['fnd_model_cleaning_order'] },
+    ]);
+  });
+
   it('rejects structurally malformed balance objects including on unchecked checks', async () => {
     const validBalance = {
       claim_scope: 'probabilistic',
@@ -452,6 +516,7 @@ describe('prediction check balance and scope escalations (anti-cherry-picking)',
     const malformedCases: Array<[string, Record<string, unknown>]> = [
       ['unknown balance field', { falsified_if: 'x', status: 'unchecked', balance: { ...validBalance, extra: 1 } }],
       ['invalid claim_scope', { falsified_if: 'x', status: 'unchecked', balance: { ...validBalance, claim_scope: 'always' } }],
+      ['invalid counter_representativeness', { falsified_if: 'x', status: 'unchecked', balance: { ...validBalance, counter_representativeness: 'biased' } }],
       ['non-string population', { falsified_if: 'x', status: 'unchecked', balance: { ...validBalance, population: 123 } }],
       ['credential in counter_summary', { falsified_if: 'x', status: 'held', evidence: 'q', balance: { ...validBalance, counter_summary: 'Bearer secret_token_123456' } }],
       ['control char in supporting_summary', { falsified_if: 'x', status: 'held', evidence: 'q', balance: { ...validBalance, supporting_summary: 'line1\nline2' } }],

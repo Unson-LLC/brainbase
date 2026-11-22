@@ -12,6 +12,7 @@ import {
   summarizeJudgmentModelOutcomes,
   validateJudgmentModelOutcome,
   type JudgmentModelOutcome,
+  type JudgmentModelOutcomeRepresentativeness,
   type JudgmentModelOutcomeSummary,
 } from './judgment-model-outcome.js';
 
@@ -117,6 +118,8 @@ export interface JudgmentFramePredictionBalance {
   readonly population: string;
   readonly supporting_summary: string;
   readonly counter_summary: string;
+  /** Optional explicit representativeness of counter-evidence; takes precedence over text heuristics. */
+  readonly counter_representativeness?: JudgmentModelOutcomeRepresentativeness;
   readonly competing_hypotheses?: readonly JudgmentFrameCompetingHypothesis[];
 }
 
@@ -450,12 +453,19 @@ export function renderJudgmentFrameCatalog(
 
 const PREDICTION_CHECK_STATUSES: readonly JudgmentFramePredictionCheckStatus[] = ['held', 'failed', 'unchecked'];
 const PREDICTION_CHECK_KEYS = ['falsified_if', 'status', 'evidence', 'balance'] as const;
-const PREDICTION_BALANCE_KEYS = ['claim_scope', 'population', 'supporting_summary', 'counter_summary', 'competing_hypotheses'] as const;
+const PREDICTION_BALANCE_KEYS = [
+  'claim_scope',
+  'population',
+  'supporting_summary',
+  'counter_summary',
+  'counter_representativeness',
+  'competing_hypotheses',
+] as const;
 const COMPETING_HYPOTHESIS_KEYS = ['hypothesis', 'ref', 'comparison'] as const;
 const MAX_CHECK_EVIDENCE = 800;
 const MAX_COMPETING_HYPOTHESES = 8;
 
-const ANECDOTAL_NEGATION_PATTERN = /(?:(?:単発(?:の)?(?:例外|反例|事例|ケース)?|逸話(?:的)?(?:な)?(?:反証|例外|反例|事例)?|個別(?:の)?例外|例外(?<![0-9])1件|(?<![0-9])1(?:件|例|事例|ケース)(?:の)?(?:例外|反例|事例|ケース)?のみ|n\s*=\s*1(?![0-9]))(?:\s*(?:では|じゃ|のみでは|だけでは)\s*な[いく]|ではない|じゃない|に限らず|に留まらず|にとどまらず)|\b(?:not|no\s+longer|beyond|more\s+than)\s+(?:just\s+|merely\s+|only\s+)?(?:an?\s+)?(?:anecdotal|isolated|single(?:[-\s]+(?:case|exception|example|instance|counterexample|counter-example|incident|outlier))?)\b)/iu;
+const ANECDOTAL_NEGATION_PATTERN = /(?:(?:単発(?:の)?(?:例外|反例|事例|ケース)?|逸話(?:的)?(?:な)?(?:反証|例外|反例|事例)?|個別(?:の)?例外|例外(?<![0-9])1件|(?<![0-9])1(?:件|例|事例|ケース)(?:の)?(?:例外|反例|事例|ケース)?のみ|n\s*=\s*1(?![0-9]))(?:\s*(?:では|じゃ|のみでは|だけでは)\s*な[いく]|ではない|じゃない|に限らず|に留まらず|にとどまらず)|\b(?:not|no\s+longer|beyond|more\s+than)\s+(?:just\s+|merely\s+|only\s+)?(?:an?\s+)?(?:anecdotal|isolated|single(?:[-\s]+(?:case|exception|example|instance|counterexample|counter-example|incident|outlier))?)\b)/giu;
 
 const ANECDOTAL_ONLY_SIGNAL_PATTERNS: readonly RegExp[] = [
   /(?:単発(?:の)?(?:例外|反例|事例|ケース)|単発のみ)/u,
@@ -467,26 +477,53 @@ const ANECDOTAL_ONLY_SIGNAL_PATTERNS: readonly RegExp[] = [
   /\b(?:one|(?<![0-9])1)\s+(?:isolated\s+)?(?:case|exception|example|instance|counterexample|counter-example|incident|outlier)\s+only\b/iu,
 ];
 
+const POPULATION_EVIDENCE_PATTERNS: readonly RegExp[] = [
+  /\bn\s*(?:=|>=|≥)\s*(?:[2-9]|[1-9][0-9]+)\b/iu,
+  /\b(?:full\s+)?cohort(?:\s+of\s+[0-9,]+|\s+(?:audit|study|analysis|data|wide))?\b/iu,
+  /\b(?:population[-\s]*(?:wide|level)|census|representative\s+(?:sample|survey|study|audit|data)|systematic\s+(?:audit|review|study)|statistically\s+significant|randomized\s+(?:trial|study|experiment)|meta[-\s]*analysis)\b/iu,
+  /\b(?:[2-9]|[1-9][0-9,]*)\s+(?:of|out\s+of)\s+(?:[2-9]|[1-9][0-9,]*)\b/iu,
+  /\b(?:[2-9]|[1-9][0-9]*)\s*\/\s*(?:[2-9]|[1-9][0-9]*)\b/u,
+  /(?:全数(?:調査|監査|検証|集計)?|全体(?:調査|監査|検証|集計)|母集団(?:全体|調査|検証|集計)|コホート(?:調査|監査|分析|検証|全体)?|代表(?:サンプル|調査|抽出)|統計的(?:に)?(?:有意|不成立|反証|検証)|全社(?:調査|集計|検証)|複数(?:件|事例|拠点|施設|店舗)(?:で|の)(?:再現|不成立|反証|確認|逆転)|過半数(?:で|が))/u,
+];
+
 function isUnsafeCheckText(value: string): boolean {
   return PUBLIC_FRAME_CONTROL_CHARACTERS.test(value) || containsJudgmentFrameCredential(value);
 }
 
 /**
+ * True when the check text explicitly cites population-, cohort-, or multi-case
+ * quantitative verification rather than relying solely on a single anecdote.
+ */
+function hasPopulationLevelEvidence(value: string): boolean {
+  const normalized = value.normalize('NFKC');
+  return POPULATION_EVIDENCE_PATTERNS.some((pattern) => pattern.test(normalized));
+}
+
+/**
  * Deterministic check for whether counter-evidence or evidence text explicitly
  * states that a refutation rests only on an anecdotal or single-case exception.
+ * Negated occurrences are stripped individually so one negation does not mask a
+ * separate anecdotal signal, and explicit population/cohort quantitative
+ * verification prevents false positives when a single case merely prompted a
+ * broader audit.
  */
 function isAnecdotalOnlySignal(value: string): boolean {
   const normalized = value.normalize('NFKC');
-  if (ANECDOTAL_NEGATION_PATTERN.test(normalized)) return false;
-  return ANECDOTAL_ONLY_SIGNAL_PATTERNS.some((pattern) => pattern.test(normalized));
+  if (hasPopulationLevelEvidence(normalized)) return false;
+  const unnegated = normalized.replace(ANECDOTAL_NEGATION_PATTERN, ' ');
+  return ANECDOTAL_ONLY_SIGNAL_PATTERNS.some((pattern) => pattern.test(unnegated));
 }
 
 function predictionBalanceProblem(value: unknown): string | null {
   if (!isRecord(value) || Object.keys(value).some((key) => !PREDICTION_BALANCE_KEYS.includes(key as typeof PREDICTION_BALANCE_KEYS[number]))) {
-    return 'check.balance takes claim_scope, population, supporting_summary, counter_summary, and optional competing_hypotheses';
+    return 'check.balance takes claim_scope, population, supporting_summary, counter_summary, and optional counter_representativeness and competing_hypotheses';
   }
   if (!JUDGMENT_FRAME_CLAIM_SCOPES.includes(value.claim_scope as JudgmentFrameClaimScope)) {
     return 'check.balance.claim_scope must be universal, probabilistic, or bounded_case';
+  }
+  if (value.counter_representativeness !== undefined
+    && !JUDGMENT_MODEL_OUTCOME_REPRESENTATIVENESS.includes(value.counter_representativeness as JudgmentModelOutcomeRepresentativeness)) {
+    return 'check.balance.counter_representativeness must be census, representative, anecdotal, or unknown';
   }
   for (const field of ['population', 'supporting_summary', 'counter_summary'] as const) {
     const candidate = value[field];
@@ -571,17 +608,25 @@ function isScopeMismatchedPredictionCheck(
   if (check.status !== 'failed' || !isRecord(check.balance) || check.balance.claim_scope !== 'probabilistic') {
     return false;
   }
+  const representativeness = check.balance.counter_representativeness;
+  if (representativeness === 'census' || representativeness === 'representative') {
+    return false;
+  }
+  if (representativeness === 'anecdotal') {
+    return true;
+  }
+  const combinedEvidenceText = [
+    typeof check.balance.counter_summary === 'string' ? check.balance.counter_summary : '',
+    typeof check.evidence === 'string' ? check.evidence : '',
+  ].filter(Boolean).join('\n');
+  if (hasPopulationLevelEvidence(combinedEvidenceText)) {
+    return false;
+  }
   const summary = outcomes.get(ref);
   if (summary && (summary.structural_refutes ?? summary.refutes) === 0 && (summary.anecdotal_refutes ?? 0) > 0) {
     return true;
   }
-  if (typeof check.balance.counter_summary === 'string' && isAnecdotalOnlySignal(check.balance.counter_summary)) {
-    return true;
-  }
-  if (typeof check.evidence === 'string' && isAnecdotalOnlySignal(check.evidence)) {
-    return true;
-  }
-  return false;
+  return isAnecdotalOnlySignal(combinedEvidenceText);
 }
 
 /** Counts of the chosen option's predictions by check status. A prediction without a check is unchecked. */
@@ -789,12 +834,17 @@ const FRAME_PAGE_LIMIT = 500;
 const predictionBalanceSchema = {
   type: 'object',
   additionalProperties: false,
-  description: 'Optional scope, population, supporting/counter balance, and competing hypotheses to guard against cherry-picking and scope mismatch. Missing population/balance or failing a probabilistic claim on a single-case exception escalates to the human.',
+  description: 'Optional scope, population, supporting/counter balance, counter_representativeness, and competing hypotheses to guard against cherry-picking and scope mismatch. Missing population/balance or failing a probabilistic claim on an anecdotal exception escalates to the human.',
   properties: {
     claim_scope: { type: 'string', enum: [...JUDGMENT_FRAME_CLAIM_SCOPES] },
     population: { type: 'string', maxLength: MAX_NOTE },
     supporting_summary: { type: 'string', maxLength: MAX_NOTE },
     counter_summary: { type: 'string', maxLength: MAX_NOTE },
+    counter_representativeness: {
+      type: 'string',
+      enum: [...JUDGMENT_MODEL_OUTCOME_REPRESENTATIVENESS],
+      description: 'Optional representativeness of the counter-evidence. Takes precedence over text heuristics for prediction_scope_mismatch.',
+    },
     competing_hypotheses: {
       type: 'array',
       maxItems: MAX_COMPETING_HYPOTHESES,
@@ -1039,7 +1089,7 @@ const outcomeTextSchema = { type: 'string', minLength: 1, maxLength: 2_000 } as 
  */
 export const judgmentModelOutcomeTools: Tool[] = [{
   name: 'brainbase_judgment_model_outcome_record',
-  description: 'After the result of a judgment is observed, record whether it supports or refutes a world model that the judgment used as a prediction. Read brainbase_judgment_frame_catalog first and pass its catalog_digest and the model id at its current revision. State the prediction made from the model, what was observed, the conditions (facility, period, state) under which the result holds, and at least one evidence reference. A refutation must say, for each of measurement_error, execution_difference, and external_change, why it does not explain the gap; a prediction gap alone is not a refutation. Optionally include scope_metrics (claim_type, representativeness, and optional sample_size, population_size, effect_magnitude) so anecdotal/unknown refutations against tendency claims are tracked separately from structural refutations. This does not change the model, its revision, or its adoption; adoption and verification stay human decisions. The tool does not judge whether the verdict is semantically right.',
+  description: 'After the result of a judgment is observed, record whether it supports or refutes a world model that the judgment used as a prediction. Read brainbase_judgment_frame_catalog first and pass its catalog_digest and the model id at its current revision. State the prediction made from the model, what was observed, the conditions (facility, period, state) under which the result holds, and at least one evidence reference. A refutation must say, for each of measurement_error, execution_difference, and external_change, why it does not explain the gap; a prediction gap alone is not a refutation. Optionally include scope_metrics (claim_type, representativeness, and optional sample_size, population_size, effect_magnitude) so explicitly anecdotal refutations against tendency claims are tracked separately from structural refutations (unknown representativeness stays conservatively structural). This does not change the model, its revision, or its adoption; adoption and verification stay human decisions. The tool does not judge whether the verdict is semantically right.',
   inputSchema: {
     type: 'object',
     additionalProperties: false,
@@ -1090,7 +1140,7 @@ export const judgmentModelOutcomeTools: Tool[] = [{
       scope_metrics: {
         type: 'object',
         additionalProperties: false,
-        description: 'Optional claim scope and representativeness metrics. Anecdotal or unknown-representativeness refutations on tendency claims are summarized separately from structural refutations.',
+        description: 'Optional claim scope and representativeness metrics. Explicitly anecdotal refutations on tendency claims are summarized separately from structural refutations; unknown representativeness stays conservatively structural.',
         properties: {
           claim_type: { type: 'string', enum: [...JUDGMENT_MODEL_OUTCOME_CLAIM_TYPES] },
           sample_size: { type: 'integer', minimum: 1 },

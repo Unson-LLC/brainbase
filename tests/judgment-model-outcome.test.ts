@@ -7,12 +7,15 @@ import {
   isAnecdotalRefutation,
   judgmentModelOutcomeDigest,
   judgmentModelOutcomeTools,
+  renderJudgmentFrameCatalog,
   summarizeJudgmentModelOutcomes,
+  validateJudgmentFrameRecord,
   type JudgmentFrameKind,
   type JudgmentFrameSourceRecord,
   type JudgmentModelOutcome,
   type JudgmentModelOutcomeScopeMetrics,
   type JudgmentModelOutcomeStoredRecord,
+  type JudgmentModelOutcomeSummary,
   type JudgmentModelOutcomeToolDependencies,
 } from '../src/judgment-frame.js';
 
@@ -319,30 +322,31 @@ describe('scope_metrics and structural vs anecdotal refutation separation', () =
     }), 'out_univ_1', '2026-10-12T00:00:00.000Z');
 
     expect(isAnecdotalRefutation(anecdotalTendency as unknown as JudgmentModelOutcome)).toBe(true);
-    expect(isAnecdotalRefutation(unknownTendency as unknown as JudgmentModelOutcome)).toBe(true);
+    // representativeness: 'unknown' stays conservatively structural so unverified refutations cannot bypass escalation.
+    expect(isAnecdotalRefutation(unknownTendency as unknown as JudgmentModelOutcome)).toBe(false);
     expect(isAnecdotalRefutation(representativeTendency as unknown as JudgmentModelOutcome)).toBe(false);
     expect(isAnecdotalRefutation(universalAnecdotal as unknown as JudgmentModelOutcome)).toBe(false);
     expect(isAnecdotalRefutation(outcome())).toBe(false);
 
-    // 1) Tendency + anecdotal/unknown only: visible in summary & catalog, but does NOT trigger chosen_uses_refuted_model.
+    // 1) Tendency + explicit anecdotal only: visible in summary & catalog, does NOT trigger chosen_uses_refuted_model.
     const anecdotalOnlySummaries = summarizeJudgmentModelOutcomes(
-      [anecdotalTendency, unknownTendency] as unknown as JudgmentModelOutcomeStoredRecord[],
+      [anecdotalTendency] as unknown as JudgmentModelOutcomeStoredRecord[],
       catalog,
     );
     expect(anecdotalOnlySummaries.get('fnd_model_cleaning_order')).toEqual({
       supports: 0,
-      refutes: 2,
+      refutes: 1,
       structural_refutes: 0,
-      anecdotal_refutes: 2,
+      anecdotal_refutes: 1,
       inconclusive: 0,
       refuted_when: [],
-      anecdotal_refuted_when: ['施設C・代表性未確認', '施設B・特売日の1日のみ'],
+      anecdotal_refuted_when: ['施設B・特売日の1日のみ'],
     });
 
-    const depsAnecdotalOnly = dependencies({ outcomes: [anecdotalTendency, unknownTendency] });
+    const depsAnecdotalOnly = dependencies({ outcomes: [anecdotalTendency] });
     const anecdotalCatalog = await catalogData(depsAnecdotalOnly);
     expect(String(anecdotalCatalog.catalog)).toContain(
-      '（この版の結果：支持0・構造反証0・逸話反証2・判定不能0。逸話反証の条件：施設C・代表性未確認／施設B・特売日の1日のみ）',
+      '（この版の結果：支持0・構造反証0・逸話反証1・判定不能0。逸話反証の条件：施設B・特売日の1日のみ）',
     );
 
     const frameResultAnecdotal = await handleJudgmentFrameToolCall('brainbase_judgment_frame_record', {
@@ -365,6 +369,45 @@ describe('scope_metrics and structural vs anecdotal refutation separation', () =
     }, depsAnecdotalOnly);
     expect(frameResultAnecdotal?.status).toBe('ok');
     expect((frameResultAnecdotal as { data: { escalations: unknown[] } }).data.escalations).toEqual([]);
+
+    // 1b) Tendency + unknown representativeness: conservatively treated as structural and escalates chosen_uses_refuted_model.
+    const unknownSummaries = summarizeJudgmentModelOutcomes(
+      [unknownTendency] as unknown as JudgmentModelOutcomeStoredRecord[],
+      catalog,
+    );
+    expect(unknownSummaries.get('fnd_model_cleaning_order')).toEqual({
+      supports: 0,
+      refutes: 1,
+      structural_refutes: 1,
+      anecdotal_refutes: 0,
+      inconclusive: 0,
+      refuted_when: ['施設C・代表性未確認'],
+      anecdotal_refuted_when: [],
+    });
+    const depsUnknown = dependencies({ outcomes: [unknownTendency] });
+    const unknownCatalog = await catalogData(depsUnknown);
+    const frameResultUnknown = await handleJudgmentFrameToolCall('brainbase_judgment_frame_record', {
+      record_version: 'judgment-frame-record.v1',
+      catalog_digest: unknownCatalog.catalog_digest,
+      selections: [
+        { ref: 'phi_purpose_first', kind: 'philosophy', why: '目的を先に固定' },
+        { ref: 'fnd_objective_headroom', kind: 'objective', why: '改善余地を評価' },
+        { ref: 'fnd_model_cleaning_order', kind: 'model', why: '清掃順の効果を予測' },
+      ],
+      options: [{
+        label: '清掃順を探索する',
+        uses: [
+          { ref: 'phi_purpose_first', role: 'constraint', verdict: 'satisfied', note: 'ok' },
+          { ref: 'fnd_objective_headroom', role: 'criterion', note: 'ok' },
+          { ref: 'fnd_model_cleaning_order', role: 'prediction', note: '代表性未確認の反証あり' },
+        ],
+      }],
+      chosen_option: '清掃順を探索する',
+    }, depsUnknown);
+    expect(frameResultUnknown?.status).toBe('ok');
+    expect((frameResultUnknown as { data: { escalations: unknown[] } }).data.escalations).toEqual([
+      { code: 'chosen_uses_refuted_model', refs: ['fnd_model_cleaning_order'] },
+    ]);
 
     // 2) Mixed structural + anecdotal: both shown in catalog AND chosen_uses_refuted_model triggers.
     const depsMixed = dependencies({ outcomes: [anecdotalTendency, representativeTendency, universalAnecdotal] });
@@ -399,6 +442,38 @@ describe('scope_metrics and structural vs anecdotal refutation separation', () =
     expect(frameResultMixed?.status).toBe('ok');
     expect((frameResultMixed as { data: { escalations: unknown[] } }).data.escalations).toEqual([
       { code: 'chosen_uses_refuted_model', refs: ['fnd_model_cleaning_order', 'fnd_model_inventory_boundary'] },
+    ]);
+
+    // 3) Legacy JudgmentModelOutcomeSummary shape (without optional new fields) stays type- and runtime-compatible.
+    const legacySummary: JudgmentModelOutcomeSummary = {
+      supports: 1,
+      refutes: 1,
+      inconclusive: 0,
+      refuted_when: ['旧サマリ条件'],
+    };
+    const legacyMap = new Map<string, JudgmentModelOutcomeSummary>([['fnd_model_cleaning_order', legacySummary]]);
+    expect(renderJudgmentFrameCatalog(catalog, legacyMap)).toContain('（この版の結果：支持1・反証1・判定不能0。反証の条件：旧サマリ条件）');
+    const legacyValidation = validateJudgmentFrameRecord({
+      record_version: 'judgment-frame-record.v1',
+      catalog_digest: catalog.digest,
+      selections: [
+        { ref: 'phi_purpose_first', kind: 'philosophy', why: '目的を先に固定' },
+        { ref: 'fnd_objective_headroom', kind: 'objective', why: '改善余地を評価' },
+        { ref: 'fnd_model_cleaning_order', kind: 'model', why: '清掃順の効果を予測' },
+      ],
+      options: [{
+        label: '旧サマリ案',
+        uses: [
+          { ref: 'phi_purpose_first', role: 'constraint', verdict: 'satisfied', note: 'ok' },
+          { ref: 'fnd_objective_headroom', role: 'criterion', note: 'ok' },
+          { ref: 'fnd_model_cleaning_order', role: 'prediction', note: '旧サマリ経由の反証' },
+        ],
+      }],
+      chosen_option: '旧サマリ案',
+    }, catalog, legacyMap);
+    expect(legacyValidation.valid).toBe(true);
+    expect(legacyValidation.escalations).toEqual([
+      { code: 'chosen_uses_refuted_model', refs: ['fnd_model_cleaning_order'] },
     ]);
   });
 });

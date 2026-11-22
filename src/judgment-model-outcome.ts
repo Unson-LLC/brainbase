@@ -83,15 +83,15 @@ export interface JudgmentModelOutcomeSummary {
   readonly supports: number;
   /** Total refutations (structural_refutes + anecdotal_refutes). */
   readonly refutes: number;
-  /** Structural refutations (census/representative, universal claims, or legacy records without scope_metrics). */
-  readonly structural_refutes: number;
-  /** Single-case or non-representative refutations against a tendency claim. */
-  readonly anecdotal_refutes: number;
+  /** Structural refutations (census/representative, universal claims, unknown representativeness, or legacy records without scope_metrics). */
+  readonly structural_refutes?: number;
+  /** Explicitly anecdotal refutations against a tendency claim (claim_type === 'tendency' and representativeness === 'anecdotal'). */
+  readonly anecdotal_refutes?: number;
   readonly inconclusive: number;
   /** Conditions of the most recent structural refutations, newest first. */
   readonly refuted_when: readonly string[];
   /** Conditions of the most recent anecdotal refutations, newest first. */
-  readonly anecdotal_refuted_when: readonly string[];
+  readonly anecdotal_refuted_when?: readonly string[];
 }
 
 export type JudgmentModelOutcomeIssueCode =
@@ -167,17 +167,18 @@ function outcomeContent(value: JudgmentModelOutcome): JudgmentModelOutcome {
 }
 
 /**
- * True when a refutation is an anecdotal or unknown-representativeness case
- * against a tendency claim rather than a structural refutation.
- * Legacy records without `scope_metrics`, universal claims, and census or
- * representative refutations are treated as structural.
+ * True only when a refutation explicitly declares `claim_type: 'tendency'` and
+ * `representativeness: 'anecdotal'`. Legacy records without `scope_metrics`,
+ * universal claims, census/representative refutations, and `unknown`
+ * representativeness stay on the conservative structural side so an unverified
+ * refutation cannot silently bypass `chosen_uses_refuted_model`.
  */
 export function isAnecdotalRefutation(
   record: Pick<JudgmentModelOutcome, 'verdict' | 'scope_metrics'>,
 ): boolean {
   return record.verdict === 'refutes'
     && record.scope_metrics?.claim_type === 'tendency'
-    && (record.scope_metrics.representativeness === 'anecdotal' || record.scope_metrics.representativeness === 'unknown');
+    && record.scope_metrics.representativeness === 'anecdotal';
 }
 
 type IssueSink = (code: JudgmentModelOutcomeIssueCode, path: string, message: string) => void;
