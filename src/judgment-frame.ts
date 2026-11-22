@@ -927,7 +927,7 @@ export const judgmentFrameTools: Tool[] = [{
     type: 'object',
     additionalProperties: false,
     properties: {
-      record_version: { type: 'string', const: JUDGMENT_FRAME_RECORD_VERSION },
+      record_version: { type: 'string', enum: [JUDGMENT_FRAME_RECORD_VERSION] },
       catalog_digest: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
       selections: {
         type: 'array',
@@ -1112,7 +1112,7 @@ export const judgmentModelOutcomeTools: Tool[] = [{
     type: 'object',
     additionalProperties: false,
     properties: {
-      record_version: { type: 'string', const: JUDGMENT_MODEL_OUTCOME_RECORD_VERSION },
+      record_version: { type: 'string', enum: [JUDGMENT_MODEL_OUTCOME_RECORD_VERSION] },
       catalog_digest: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
       model: {
         type: 'object',
