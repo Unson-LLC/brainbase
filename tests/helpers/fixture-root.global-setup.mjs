@@ -3,6 +3,8 @@ import { join } from 'node:path';
 
 // Linux tmpfs magic number from statfs(2).
 const TMPFS_MAGIC = 0x01021994;
+// Require at least 512 MiB free on /dev/shm before routing throwaway test tmpdir there.
+const MIN_TMPFS_FREE_BYTES = 512 * 1024 * 1024;
 
 /**
  * Chooses where fixture-heavy tests create their throwaway data directories.
@@ -20,7 +22,9 @@ const TMPFS_MAGIC = 0x01021994;
 export function chooseFixtureRoot(env = process.env, candidate = '/dev/shm') {
   if (env.BRAINBASE_TEST_FIXTURE_ROOT) return undefined;
   try {
-    if (statfsSync(candidate).type !== TMPFS_MAGIC) return undefined;
+    const stats = statfsSync(candidate);
+    if (stats.type !== TMPFS_MAGIC) return undefined;
+    if (stats.bavail * stats.bsize < MIN_TMPFS_FREE_BYTES) return undefined;
     return mkdtempSync(join(candidate, 'brainbase-vitest-'));
   } catch {
     return undefined;
@@ -33,9 +37,15 @@ export default function setup() {
   process.stderr.write(`[fixture-root] ${root ?? process.env.BRAINBASE_TEST_FIXTURE_ROOT ?? 'os.tmpdir() (no tmpfs /dev/shm)'}\n`);
   if (!root) return undefined;
   // Test workers start after global setup and inherit this environment.
+  // Routing TMPDIR to the same memory-backed root also moves the 100+ tests that
+  // call os.tmpdir() off the shared CI disk without changing individual test files.
+  const previousTmpdir = process.env.TMPDIR;
   process.env.BRAINBASE_TEST_FIXTURE_ROOT = root;
+  process.env.TMPDIR = root;
   return () => {
     rmSync(root, { recursive: true, force: true });
     delete process.env.BRAINBASE_TEST_FIXTURE_ROOT;
+    if (previousTmpdir === undefined) delete process.env.TMPDIR;
+    else process.env.TMPDIR = previousTmpdir;
   };
 }
