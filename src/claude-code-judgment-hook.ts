@@ -121,9 +121,20 @@ export function defaultClaudeCodeHookConfigPath(env: NodeJS.ProcessEnv = process
 }
 
 export function readClaudeCodeHookConfig(path: string): ClaudeCodeHookConfig | null {
+  let text: string;
+  try {
+    text = readFileSync(path, 'utf8');
+  } catch {
+    return null;
+  }
+  return parseClaudeCodeHookConfig(text);
+}
+
+/** The hook config held in `text` (a file already read), or null when it is not a usable one. */
+export function parseClaudeCodeHookConfig(text: string): ClaudeCodeHookConfig | null {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(readFileSync(path, 'utf8'));
+    parsed = JSON.parse(text);
   } catch {
     return null;
   }
@@ -160,7 +171,16 @@ export function readClaudeCodeHookConfig(path: string): ClaudeCodeHookConfig | n
 /** True when the file holds JSON with this hook config's schema (it was written by the installer). */
 export function isClaudeCodeHookConfigFile(path: string): boolean {
   try {
-    const parsed = JSON.parse(readFileSync(path, 'utf8')) as { schema_version?: unknown } | null;
+    return isClaudeCodeHookConfigText(readFileSync(path, 'utf8'));
+  } catch {
+    return false;
+  }
+}
+
+/** True when `text` (a file already read) is JSON with this hook config's schema. */
+export function isClaudeCodeHookConfigText(text: string): boolean {
+  try {
+    const parsed = JSON.parse(text) as { schema_version?: unknown } | null;
     return !!parsed && typeof parsed === 'object' && !Array.isArray(parsed)
       && parsed.schema_version === CLAUDE_CODE_HOOK_CONFIG_SCHEMA;
   } catch {

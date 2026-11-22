@@ -13,7 +13,7 @@ import {
 } from './personal-memory-handover.js';
 import { createHash, randomBytes } from 'node:crypto';
 import { constants, realpathSync } from 'node:fs';
-import { access, chmod, lstat, mkdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { access, chmod, link, lstat, mkdir, open, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -75,8 +75,8 @@ import {
   defaultClaudeCodeHookConfigPath,
   handleClaudeCodeJudgmentHook,
   hasInstalledClaudeCodeHooks,
-  isClaudeCodeHookConfigFile,
-  readClaudeCodeHookConfig,
+  isClaudeCodeHookConfigText,
+  parseClaudeCodeHookConfig,
   normalizeRepositoryEntry,
   registerClaudeCodeJudgmentHooks,
   type ClaudeCodeHookConfig
@@ -454,6 +454,30 @@ async function withInstallLocks<T>(files: string[], task: () => Promise<T>): Pro
 
 const SETTINGS_CHANGED_ATTEMPTS = 3;
 
+/**
+ * Reads `path` (following links) only when it is a regular file; null when
+ * it does not exist. It is opened without waiting (a named pipe with no
+ * writer would otherwise hold the install, and its lock, forever) and its
+ * type is taken from the opened file, so a swap after the check is caught too.
+ */
+async function readRegularFile(path: string, option: string): Promise<string | null> {
+  let handle;
+  try {
+    handle = await open(path, constants.O_RDONLY | (constants.O_NONBLOCK ?? 0));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return null;
+    throw error;
+  }
+  try {
+    if (!(await handle.stat()).isFile()) {
+      throw new Error(`judgment:install ${option} ${path} は通常のファイルではありません（名前付きパイプ、デバイス、ディレクトリなど）。何も変えずに止めました。`);
+    }
+    return await handle.readFile('utf8');
+  } finally {
+    await handle.close();
+  }
+}
+
 /** The file was saved by someone else after it was read; nothing was written over it. */
 class SettingsChangedError extends Error {}
 
@@ -486,35 +510,31 @@ async function applyClaudeCodeRegistration(plan: ClaudeCodeRegistrationPlan, io:
   const { settingsPath, settingsReal, configPath, configReal, config, command, remove, dryRun } = plan;
   let settings: Record<string, unknown> = {};
   // The text as read, so the write can tell whether someone saved since.
-  let settingsText: string | null = null;
-  try {
-    settingsText = await readFile(settingsPath, 'utf8');
+  const settingsText = await readRegularFile(settingsPath, '--settings');
+  if (settingsText !== null) {
     const parsedSettings: unknown = JSON.parse(settingsText);
     if (!parsedSettings || typeof parsedSettings !== 'object' || Array.isArray(parsedSettings)) {
       throw new Error(`Claude Code settings is not a JSON object: ${settingsPath}`);
     }
     settings = parsedSettings as Record<string, unknown>;
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error;
   }
   const otherUse = brainbaseFileUse(settings);
   if (otherUse) {
     throw new Error(`judgment:install --settings ${settingsPath} は${otherUse}で、Claude Code の設定ではありません。何も変えずに止めました。Claude Code の settings.json を指定してください。`);
   }
   // The installer only overwrites or removes a config file it wrote itself.
-  const previousConfig = await readFile(configPath, 'utf8').then((text) => text, (error: NodeJS.ErrnoException) => {
-    if (error?.code === 'ENOENT') return null;
-    throw error;
-  });
+  // Read once, as a regular file; the checks below use this text and do not
+  // open the path again.
+  const previousConfig = await readRegularFile(configPath, '--config');
   const configExists = previousConfig !== null;
-  const configOwned = configExists && isClaudeCodeHookConfigFile(configPath);
+  const configOwned = configExists && isClaudeCodeHookConfigText(previousConfig);
   if (!remove && configExists && !configOwned) {
     throw new Error(`judgment:install --config ${configPath} exists and is not a brainbase hook config; choose another path`);
   }
   // A hook config belongs to the one settings file that registered it. Another
   // settings file reusing it would redirect or, on removal, stop that
   // registration's hooks.
-  const existingConfig = configOwned ? readClaudeCodeHookConfig(configPath) : null;
+  const existingConfig = configOwned ? parseClaudeCodeHookConfig(previousConfig) : null;
   const registeredElsewhere = configOwned && (existingConfig
     ? canonicalFilePath(existingConfig.registration.settings) !== settingsReal
     : !hasInstalledClaudeCodeHooks(settings, configPath));
@@ -715,8 +735,8 @@ export async function readHookStdin(input: AsyncIterable<string | Uint8Array>, m
  * refused. A file that exists keeps its mode; a new one gets `mode`.
  *
  * With `expected` (the text read earlier, or null for "did not exist"), the
- * file is read again just before the rename; when it no longer matches,
- * nothing is written and SettingsChangedError is thrown.
+ * file is only replaced while it still holds that text (swapInIfUnchanged);
+ * otherwise a save made since stays and SettingsChangedError is thrown.
  */
 async function replaceFileFollowingLinks(path: string, content: string, mode: number, expected?: string | null): Promise<void> {
   let target = resolve(path);
@@ -734,18 +754,96 @@ async function replaceFileFollowingLinks(path: string, content: string, mode: nu
   try {
     await writeFile(temporary, content, { mode: targetMode, flag: 'wx' });
     await chmod(temporary, targetMode);
-    if (expected !== undefined) {
-      const current = await readFile(target, 'utf8').catch((error: NodeJS.ErrnoException) => {
-        if (error?.code === 'ENOENT') return null;
-        throw error;
-      });
-      if (current !== expected) throw new SettingsChangedError(`${path} was saved by someone else while it was being changed; nothing was written over it`);
+    if (expected === undefined) await rename(temporary, target);
+    else {
+      await swapInIfUnchanged(path, target, temporary, content, expected);
+      await rm(temporary, { force: true });
     }
-    await rename(temporary, target);
   } catch (error) {
     await rm(temporary, { force: true });
     throw error;
   }
+}
+
+/**
+ * Puts `temporary` at `target` only when `target` still holds `expected`.
+ * Claude Code saves its settings without our lock, and rename() replaces
+ * whatever is there, so a check followed by rename() would overwrite a save
+ * made in between. Instead the file there is first moved aside (rename is
+ * atomic, so exactly the file present at that moment is taken), ours is
+ * placed with link(), which never replaces a file, and only then is the
+ * file taken out compared. The rule is that a save someone else made always
+ * stays: when what was taken out is not what was read, it goes back; when a
+ * file appeared at `target` meanwhile, that file stays and ours is dropped.
+ * Either way SettingsChangedError is thrown and the caller starts again from
+ * the saved file. Nothing here replaces a file that is not ours.
+ */
+async function swapInIfUnchanged(path: string, target: string, temporary: string, content: string, expected: string | null): Promise<void> {
+  const changed = () => new SettingsChangedError(`${path} was saved by someone else while it was being changed; nothing was written over it`);
+  const tag = `${process.pid}.${randomBytes(4).toString('hex')}`;
+  // A file system without hard links fails here, before the settings are touched.
+  const probe = `${temporary}.link`;
+  await link(temporary, probe);
+  await rm(probe, { force: true });
+  const placeOurs = async (): Promise<boolean> => {
+    try {
+      await link(temporary, target);
+      return true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code === 'EEXIST') return false;
+      throw error;
+    }
+  };
+  if (expected === null) {
+    if (!(await placeOurs())) throw changed();
+  } else {
+    const aside = `${target}.${tag}.brainbase-install-previous`;
+    try {
+      await rename(target, aside);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') throw changed();
+      throw error;
+    }
+    let placed: boolean;
+    try {
+      placed = await placeOurs();
+    } catch (error) {
+      await putBackIfFree(aside, target).catch(() => rename(aside, target));
+      throw error;
+    }
+    if (!placed) {
+      // Saved while the file was aside: that save is the newest and stays.
+      await rm(aside, { force: true });
+      throw changed();
+    }
+    const taken = await readFile(aside, 'utf8');
+    if (taken !== expected) {
+      // What was taken out is a save made after our read. Take ours out again
+      // and give that save back, unless an even newer one has replaced ours.
+      const ours = `${target}.${tag}.brainbase-install-ours`;
+      await rename(target, ours).catch(() => undefined);
+      const back = await readFile(ours, 'utf8').catch(() => null);
+      if (back === null || back === content) await putBackIfFree(aside, target);
+      else await putBackIfFree(ours, target);
+      await rm(ours, { force: true });
+      await rm(aside, { force: true });
+      throw changed();
+    }
+    await rm(aside, { force: true });
+  }
+  // A writer that replaces the file in place right after ours was placed
+  // leaves its own text; start again from it so the hooks are not missing.
+  if ((await readFile(target, 'utf8').catch(() => null)) !== content) throw changed();
+}
+
+/** Puts `from` back at `target` unless a file has appeared there; `from` is then left to the caller. */
+async function putBackIfFree(from: string, target: string): Promise<void> {
+  try {
+    await link(from, target);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== 'EEXIST') throw error;
+  }
+  await rm(from, { force: true });
 }
 
 function textOrJsonFormat(parsed: ParsedArgs, command: string): 'text' | 'json' {
