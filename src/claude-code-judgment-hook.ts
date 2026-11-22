@@ -218,9 +218,20 @@ function isGitMetadata(dotGit: string): boolean {
   }
 }
 
-/** The nearest directory at or above `start` with valid git metadata. */
+/**
+ * The nearest directory at or above `start` with valid git metadata. The walk
+ * starts from the real path: a link inside one checkout that points into
+ * another checkout belongs to the checkout it points into, not to the one
+ * whose directory holds the link. A start that cannot be resolved gives null,
+ * so nothing is sent for it.
+ */
 export function findGitRoot(start: string): string | null {
-  let current = resolve(start);
+  let current: string;
+  try {
+    current = realpathSync(resolve(start));
+  } catch {
+    return null;
+  }
   for (;;) {
     if (isGitMetadata(join(current, '.git'))) return current;
     const parent = dirname(current);
@@ -603,6 +614,25 @@ function digestSummary(value: unknown): { digest: string; bytes: number } {
  * The success fact is kept beside the digest, because a non-empty digest
  * object alone would read as a success.
  */
+/**
+ * Fields of a Stop input the Host reads. Claude Code also puts the session's
+ * background work in a Stop input (`background_tasks[].command`,
+ * `session_crons[].prompt`, ...), whose commands and prompts can hold
+ * secrets, so a Stop is rebuilt from this list and nothing else is sent.
+ */
+export const STOP_FORWARDED_FIELDS = [
+  'hook_event_name', 'session_id', 'turn_id', 'prompt_id', 'transcript_path', 'cwd',
+  'permission_mode', 'model', 'last_assistant_message', 'stop_hook_active',
+] as const;
+
+export function forwardedStopPayload(payload: ClaudeCodeHookPayload): ClaudeCodeHookPayload {
+  const kept: ClaudeCodeHookPayload = {} as ClaudeCodeHookPayload;
+  for (const field of STOP_FORWARDED_FIELDS) {
+    if (payload[field] !== undefined) kept[field] = payload[field];
+  }
+  return kept;
+}
+
 export function forwardedToolPayload(payload: ClaudeCodeHookPayload): ClaudeCodeHookPayload {
   if (isBrainbaseTool(payload)) return payload;
   const summarized: ClaudeCodeHookPayload = { ...payload };
@@ -807,7 +837,7 @@ async function handleStop(payload: ClaudeCodeHookPayload, context: Context): Pro
   const blocks = Number.isSafeInteger(state.stop_blocks) ? state.stop_blocks : 0;
   let raw: Record<string, unknown>;
   try {
-    raw = await forward({ ...payload, turn_id: state.turn_id, stop_hook_active: blocks > 0 }, context, state.repository ?? null, turnLogin(state));
+    raw = await forward({ ...forwardedStopPayload(payload), turn_id: state.turn_id, stop_hook_active: blocks > 0 }, context, state.repository ?? null, turnLogin(state));
   } catch (error) {
     return warning(`回答の照合に失敗したため、監査未完了のまま終了します（${safeReason(error)}）。`);
   }
