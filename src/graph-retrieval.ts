@@ -85,10 +85,10 @@ export interface GraphRetrievalResponse {
   };
   candidates: GraphRetrievalCandidate[];
   results: GraphRetrievalCandidate[];
-  /** Total number of active entities in the resolved retrieval scope (denominator). */
-  totalScopedCount: number;
-  /** Number of candidate results actually returned in this response. */
-  returnedCount: number;
+  /** Total number of active entities in the resolved retrieval scope (denominator). Always set by retrieveGraph; optional for backward compatibility with older responses. */
+  totalScopedCount?: number;
+  /** Number of candidate results actually returned in this response. Always set by retrieveGraph; optional for backward compatibility with older responses. */
+  returnedCount?: number;
   observedRelations: ObservedRelation[];
   /** Alias kept explicit for consumers that call this a relation catalog. */
   observedRelationCatalog: ObservedRelation[];

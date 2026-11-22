@@ -486,17 +486,35 @@ const POPULATION_EVIDENCE_PATTERNS: readonly RegExp[] = [
   /(?:全数(?:調査|監査|検証|集計)?|全体(?:調査|監査|検証|集計)|母集団(?:全体|調査|検証|集計)|コホート(?:調査|監査|分析|検証|全体)?|代表(?:サンプル|調査|抽出)|統計的(?:に)?(?:有意|不成立|反証|検証)|全社(?:調査|集計|検証)|複数(?:件|事例|拠点|施設|店舗)(?:で|の)(?:再現|不成立|反証|確認|逆転)|過半数(?:で|が))/u,
 ];
 
+const CLAUSE_SPLIT_PATTERN = /[\n.;!?。；！？、]+|,(?!\d)/u;
+
+const POPULATION_NEGATION_PATTERNS: readonly RegExp[] = [
+  /\b(?:no|not(?:\s+a|\s+an|\s+the)?|without(?:\s+a|\s+an|\s+the)?|never(?:\s+a|\s+an)?|lack(?:s|ing|ed)?(?:\s+a|\s+an|\s+any)?|neither)\s+(?:[a-z0-9-]+\s+){0,2}(?:full\s+)?(?:cohort|population|census|representative|systematic|statistical(?:ly)?|randomized|meta[-\s]*analysis|audit|survey|study|sample|data)\b/iu,
+  /\b(?:cohort|population|census|representative|systematic|randomized|meta[-\s]*analysis|audit|survey|study|sample)[^.;!?\n]{0,40}\b(?:was\s+not|wasn['’]t|were\s+not|weren['’]t|is\s+not|isn['’]t|has\s+not\s+been|hasn['’]t\s+been|have\s+not\s+been|haven['’]t\s+been|never|not)\s+(?:performed|conducted|done|run|executed|completed|carried\s+out|collected|verified|checked|available|representative|statistically)\b/iu,
+  /\b(?:did\s+not|didn['’]t|has\s+not|hasn['’]t|have\s+not|haven['’]t|never|cannot|can['’]t|could\s+not|couldn['’]t)\s+(?:perform|conduct|do|run|execute|complete|collect|verify|check|audit|survey|have)\s+(?:[a-z0-9-]+\s+){0,3}(?:full\s+)?(?:cohort|population|census|representative|systematic|randomized|audit|survey|study|sample|data)\b/iu,
+  /(?:全数(?:調査|監査|検証|集計)?|全体(?:調査|監査|検証|集計)|母集団(?:全体|調査|検証|集計)?|コホート(?:調査|監査|分析|検証|全体)?|代表(?:サンプル|調査|抽出)|統計的(?:な)?(?:検証|調査|解析|有意性?)|全社(?:調査|集計|検証))(?:\s*(?:は|が|も|を|の))?\s*(?:なし|無し|無く|なく|ない|未実施|未検証|未調査|未確認|不要|せず|しない|していない|行っていない|行われていない|実施していない|実施されていない|実施せず|行わず|存在しない|取れていない|足りていない|欠いて|欠如)/u,
+];
+
 function isUnsafeCheckText(value: string): boolean {
   return PUBLIC_FRAME_CONTROL_CHARACTERS.test(value) || containsJudgmentFrameCredential(value);
 }
 
 /**
- * True when the check text explicitly cites population-, cohort-, or multi-case
- * quantitative verification rather than relying solely on a single anecdote.
+ * True when any non-negated clause in the check text explicitly cites
+ * population-, cohort-, or multi-case quantitative verification rather than
+ * relying solely on a single anecdote. Clauses that negate performing an
+ * audit/cohort/representative check (e.g. "no cohort audit was performed",
+ * "全数調査は未実施") are excluded before matching.
  */
 function hasPopulationLevelEvidence(value: string): boolean {
-  const normalized = value.normalize('NFKC');
-  return POPULATION_EVIDENCE_PATTERNS.some((pattern) => pattern.test(normalized));
+  const clauses = value.normalize('NFKC').split(CLAUSE_SPLIT_PATTERN);
+  for (const clause of clauses) {
+    const trimmed = clause.trim();
+    if (!trimmed) continue;
+    if (POPULATION_NEGATION_PATTERNS.some((pattern) => pattern.test(trimmed))) continue;
+    if (POPULATION_EVIDENCE_PATTERNS.some((pattern) => pattern.test(trimmed))) return true;
+  }
+  return false;
 }
 
 /**
@@ -834,7 +852,7 @@ const FRAME_PAGE_LIMIT = 500;
 const predictionBalanceSchema = {
   type: 'object',
   additionalProperties: false,
-  description: 'Optional scope, population, supporting/counter balance, counter_representativeness, and competing hypotheses to guard against cherry-picking and scope mismatch. Missing population/balance or failing a probabilistic claim on an anecdotal exception escalates to the human.',
+  description: 'Optional scope, population, supporting/counter balance, counter_representativeness, and competing hypotheses to guard against cherry-picking and scope mismatch. Prefer setting counter_representativeness explicitly for deterministic prediction_scope_mismatch evaluation. Missing population/balance or failing a probabilistic claim on an anecdotal exception escalates to the human.',
   properties: {
     claim_scope: { type: 'string', enum: [...JUDGMENT_FRAME_CLAIM_SCOPES] },
     population: { type: 'string', maxLength: MAX_NOTE },

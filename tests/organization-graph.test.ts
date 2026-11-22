@@ -40,13 +40,13 @@ describe('optional organization backend',()=>{
       await expect(createOrganizationGraphClient({...config,fetch:answer(authority)}).search(input)).rejects.toThrow('organization_graph_response_invalid');
     }
   });
-  it('backfills totalScopedCount and returnedCount for older org responses and rejects invalid counts',async()=>{
+  it('preserves omitted counts on older org responses without fabricating denominators and rejects invalid counts',async()=>{
     const local=await retrievePortableGraph(bundle,input);
     const { totalScopedCount: _t, returnedCount: _r, ...legacy } = local;
     const legacyFetch=vi.fn(async()=>new Response(JSON.stringify({...legacy,authority:'owner_private'})));
     const result=await createOrganizationGraphClient({...config,fetch:legacyFetch}).search(input);
-    expect(result.returnedCount).toBe(local.results.length);
-    expect(result.totalScopedCount).toBe(local.results.length);
+    expect(result.returnedCount).toBeUndefined();
+    expect(result.totalScopedCount).toBeUndefined();
     for(const bad of [{totalScopedCount:-1},{returnedCount:-1},{totalScopedCount:'5'},{returnedCount:1.5}]) {
       const badFetch=vi.fn(async()=>new Response(JSON.stringify({...local,authority:'owner_private',...bad})));
       await expect(createOrganizationGraphClient({...config,fetch:badFetch}).search(input)).rejects.toThrow('organization_graph_response_invalid');

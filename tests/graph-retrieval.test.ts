@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { retrieveGraph } from '../src/graph-retrieval.js';
+import { retrieveGraph, type GraphRetrievalResponse } from '../src/graph-retrieval.js';
 import { createHttpEmbeddingProvider, type EmbeddingFetchResponse } from '../src/embedding-provider.js';
 import { canonicalResolutionGraph } from './canonical-resolution-fixture.js';
 import type { PersonalOs } from '../src/types.js';
@@ -222,5 +222,33 @@ describe('retrieveGraph', () => {
     });
     expect(emptyTraversal.totalScopedCount).toBe(4);
     expect(emptyTraversal.returnedCount).toBe(0);
+  });
+
+  it('keeps GraphRetrievalResponse backward-compatible with legacy objects omitting totalScopedCount and returnedCount', () => {
+    const legacyShape: Omit<GraphRetrievalResponse, 'totalScopedCount' | 'returnedCount'> = {
+      graphVersion: 2,
+      schemaVersion: 2,
+      status: 'ok',
+      migrationRequired: false,
+      authority: 'local_graph',
+      query: '田中',
+      asOf,
+      method: 'lexical',
+      semantic: { available: false, method: 'lexical' },
+      candidates: [],
+      results: [],
+      observedRelations: [],
+      observedRelationCatalog: [],
+      traversal: { seedIds: [], steps: [], maxSeeds: 10, maxSteps: 3, maxLimit: 50 },
+      coverage: 'partial',
+      partialReasons: ['semantic_provider_unavailable'],
+      missingEvidence: ['no_candidate_evidence'],
+      evidence: [],
+      sufficiency: 'insufficient',
+      absenceConfirmed: false
+    };
+    const response: GraphRetrievalResponse = legacyShape;
+    expect(response.totalScopedCount).toBeUndefined();
+    expect(response.returnedCount).toBeUndefined();
   });
 });

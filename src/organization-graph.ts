@@ -251,16 +251,14 @@ function parseGraphRetrievalResponse(value: unknown): GraphRetrievalResponse {
     || value.absenceConfirmed !== false) {
     throw new OrganizationGraphError('organization_graph_response_invalid', 'organization service returned a response outside the OSS GraphRetrievalResponse contract');
   }
-  const returnedCount = value.returnedCount ?? value.results.length;
-  const totalScopedCount = value.totalScopedCount ?? returnedCount;
   // This route searches only the token owner's own snapshot (the owner-private
   // area), never the organization's shared Graph. A service from before the
   // owner_private label answered organization_graph for the same area.
+  // Older services that omit totalScopedCount/returnedCount leave them
+  // undefined rather than fabricating a denominator from returned results.
   return {
     ...value,
     authority: 'owner_private',
-    totalScopedCount,
-    returnedCount,
   } as unknown as GraphRetrievalResponse;
 }
 

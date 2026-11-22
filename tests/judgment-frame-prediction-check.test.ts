@@ -266,6 +266,9 @@ describe('prediction check balance and scope escalations (anti-cherry-picking)',
       ['English single exception', 'Observed a single exception during holiday peak', 'ops log'],
       ['English isolated case in evidence', '複数条件を確認', 'isolated case in facility B'],
       ['Negated phrase does not mask separate n=1 signal', '単発ではないと主張されたが実測は n=1 の反例のみ', '個別ログ'],
+      ['UNS-4582 regression: negated cohort audit does not suppress mismatch', 'One isolated case only (n=1); no cohort audit was performed.', 'Case log'],
+      ['Negated verb form on cohort audit does not suppress mismatch', 'Single exception observed; cohort audit was not conducted.', 'Case log'],
+      ['Japanese negated census does not suppress mismatch', '単発事例のみを確認。全数調査は未実施で代表サンプルなし。', '個別ログ'],
     ] as const;
 
     for (const [label, counterSummary, evidence] of anecdotalCases) {
