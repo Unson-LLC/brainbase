@@ -29,6 +29,7 @@ const FORKED_TEST_PATTERNS = [
   'tests/brainbase-login-durability.test.ts',
   'tests/brainbase-login-round11.test.ts',
   'tests/brainbase-login-round13.test.ts',
+  'tests/brainbase-login-round14.test.ts',
 ];
 
 const timeouts = sharedRunnerTimeouts(process.env);

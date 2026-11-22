@@ -203,8 +203,34 @@ function expiryIso(token: string, expiresInSeconds: unknown, now: number): strin
 }
 
 export async function readCredentials(path = defaultCredentialsPath()): Promise<BrainbaseCredentials | null> {
-  const text = await readCredentialsText(path);
+  const text = await readCredentialsText(path) ?? await readAfterSave(path);
   return text === null ? null : parseCredentials(text, path);
+}
+
+/** How long a read without the lock waits for a save in progress to put its file in place. */
+const READ_DURING_SAVE_WAIT_MS = 1000;
+
+/**
+ * A save that replaces a saved login moves it aside before the new file is
+ * linked into place (see placeCredentials), so a read without the lock may
+ * find no file for a moment. When the lock is held meanwhile, this waits for
+ * it to be released and reads again; when no save holds it, nothing is there.
+ */
+async function readAfterSave(path: string): Promise<string | null> {
+  let target: string;
+  try {
+    target = await physicalPath(path);
+  } catch {
+    return null;
+  }
+  const started = Date.now();
+  let waited = false;
+  while (await readRaw(`${target}.lock`).catch(() => null) !== null) {
+    if (Date.now() - started > READ_DURING_SAVE_WAIT_MS) break;
+    waited = true;
+    await defaultSleep(10);
+  }
+  return waited ? readCredentialsText(path) : null;
 }
 
 /**
@@ -462,31 +488,75 @@ function changedDuringSave(path: string): BrainbaseLoginError {
 }
 
 /**
- * Puts the written `temporary` file at `target`. When nothing was at `target`
- * at the check (`before` is null), the file is linked into place, which fails
- * instead of replacing a file another program created meanwhile. When a saved
- * login was there, it is replaced only while it is still that same file,
- * unchanged since it was checked. (A program that replaces that saved login
- * between this last look and the rename itself is not caught: POSIX offers
- * no replace-only-if-unchanged. Such a program would be replacing a saved
- * brainbase login, not a file of its own.)
+ * Puts the written `temporary` file at `target` without ever replacing a file
+ * that was not checked. When nothing was at `target` at the check (`before`
+ * is null), the file is linked into place, which fails instead of replacing a
+ * file another program created meanwhile. When a saved login was there, it is
+ * first moved aside in one step, so what is compared with `before` is exactly
+ * the file taken away; only then is the new file linked into the now empty
+ * path, again without replacing anything. A file another program put there
+ * after the check is put back where it was and `login_changed` is thrown.
+ * (rename() changes a file's ctime, so the moved file is compared by device,
+ * inode, size and mtime.) A read without the lock that finds no file in
+ * between waits for the lock (see readAfterSave).
  */
 async function placeCredentials(temporary: string, target: string, path: string, before: FileIdentity | null): Promise<void> {
   if (before === null) {
-    try {
-      await link(temporary, target);
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException)?.code;
-      if (code === 'EEXIST') throw changedDuringSave(path);
-      if (code && NO_HARD_LINK_CODES.has(code)) throw storageUnsupported(dirname(target), code);
-      throw error;
-    }
+    await linkNew(temporary, target, path);
     await rm(temporary, { force: true });
     return;
   }
-  const now = await identityOf(target, path);
-  if (now === null || !sameFile(before, now)) throw changedDuringSave(path);
-  await rename(temporary, target);
+  const aside = `${target}.${process.pid}.${randomBytes(4).toString('hex')}.replacing`;
+  try {
+    await rename(target, aside);
+  } catch (error) {
+    // Gone since the check: removed by someone else, nothing is put there.
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') throw changedDuringSave(path);
+    throw error;
+  }
+  const moved = await identityOf(aside, path).catch(() => null);
+  if (moved === null || moved.dev !== before.dev || moved.ino !== before.ino
+    || moved.size !== before.size || moved.mtimeNs !== before.mtimeNs) {
+    await putBack(aside, target, path);
+    throw changedDuringSave(path);
+  }
+  try {
+    await linkNew(temporary, target, path);
+  } catch (error) {
+    // A file created at the path meanwhile stays; else the checked login
+    // goes back, so a failed save leaves the old login where it was.
+    if (!(error instanceof BrainbaseLoginError && error.code === 'login_changed')) {
+      await putBack(aside, target, path);
+    } else {
+      await rm(aside, { force: true });
+    }
+    throw error;
+  }
+  await rm(aside, { force: true });
+  await rm(temporary, { force: true });
+}
+
+/** Links `source` to `target`, failing with `login_changed` instead of replacing a file there. */
+async function linkNew(source: string, target: string, path: string): Promise<void> {
+  try {
+    await link(source, target);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException)?.code;
+    if (code === 'EEXIST') throw changedDuringSave(path);
+    if (code && NO_HARD_LINK_CODES.has(code)) throw storageUnsupported(dirname(target), code);
+    throw error;
+  }
+}
+
+/** Puts a file moved `aside` back at `target` without replacing anything created there meanwhile. */
+async function putBack(aside: string, target: string, path: string): Promise<void> {
+  try {
+    await link(aside, target);
+    await rm(aside, { force: true });
+  } catch {
+    throw new BrainbaseLoginError('login_changed',
+      `Another program changed ${JSON.stringify(path)} while the login was being saved, and its file could not be put back. It was kept as ${JSON.stringify(aside)}. The login was not saved.`);
+  }
 }
 
 /**
