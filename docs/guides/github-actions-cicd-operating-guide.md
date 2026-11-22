@@ -6,8 +6,8 @@
 
 | 変更・操作 | 実行する検証 | 副作用 |
 | --- | --- | --- |
-| パッケージ関連のPull Request（`develop`または`main`向け） | Node 22の`npm test -- --maxWorkers=6 --testTimeout=30000 --hookTimeout=30000`（Vitestの完全収集）とbuild、Node 20の代表統合スイート | deployなし |
-| パッケージ関連のPull Requestの正式release検証 | 組織のself-hosted runnerのNode 22で、immutableなPR headと実在するPR branch remoteを対象に`npm run release:validate`（build、完全テスト、production依存監査、pack、consumer smoke）を実行 | npm公開・deployなし。proofとtarballを短期artifactとして保存 |
+| パッケージ関連のPull Request（`develop`または`main`向け） | Node 22の`npm test -- --maxWorkers=4 --testTimeout=30000 --hookTimeout=30000`（Vitestの完全収集）とbuild、Node 20の代表統合スイート | deployなし |
+| パッケージ関連のPull Requestの正式release検証 | 組織のself-hosted runnerのNode 22で、immutableなPR headと実在するPR branch remoteを対象に`npm run release:validate -- --skip-tests`（build、production依存監査、pack、consumer smoke。完全テストは同一PRの`build-and-test (22, complete)`が実行し、本番公開の`npm-publish.yml`は`--skip-tests`を使わず完全テストを実行）を実行 | npm公開・deployなし。proofとtarballを短期artifactとして保存 |
 | ドキュメント関連のPull Request | `docs:check`、公開契約テスト、VitePress build、built HTML smoke | deployなし |
 | `develop`への公開サイト入力のpush | 上記ドキュメント検証のみ（deployなし） | なし |
 | `main`への公開サイト入力のpush | 上記ドキュメント検証、Cloudflare Pages deploy、`docs:verify-public`による公開後readback | 公開サイトのみ |
@@ -49,7 +49,7 @@ runs-on: [self-hosted, Linux, X64, unson-ci-linux]
 
 `verify-skill.yml`もGitHub-hosted runnerで実行する。マージ用のwrapperは`develop`あてのpull requestに`verify-skill`のcommit statusを求め、このjobがそのstatusを付ける。PRコメントは誰でも書けるので、`issue_comment`で動くこのjobを組織のmachineに載せない。コメントのときは既定ブランチのスクリプトだけを実行する。`pull_request`では、headがこのリポジトリ自身のときだけ動く。`develop`以外あてのpull requestにはstatusを付けない。判定は`.github/scripts/verify_skill_status.py`で、記録の形式と信頼の条件は社内のrunner-mergeの手順と同じにする。
 
-EVO-X2は1台の機械に複数のrunnerを載せている。Vitestは既定で機械のコア数に合わせて並列数を決めるため、複数のjobが同時に動くと機械が飽和し、変更と無関係なテストが5秒の上限で落ちる（2026-10-15、PR #786で3回続けて発生）。`test.yml`のテストは`--maxWorkers=6 --testTimeout=30000 --hookTimeout=30000`で並列数と上限時間を固定し、Vitestの`pool: 'threads'`、`/dev/shm`上の`TMPDIR`、LPT順スケジューリング、statelessテストでのモジュール再利用、およびビルド済みテストでの重複`npm run build`省略と組み合わせて高速かつ安定に実行する。手元で全テストを3本同時に走らせると、既定では各9〜10件が時間切れになり、4に固定すると全件合格した。`formal-release-validate-linux`が動かす`scripts/npm-release.mjs`も同じ値を使う。
+EVO-X2は1台の機械に複数のrunnerを載せている。Vitestは既定で機械のコア数に合わせて並列数を決めるため、複数のjobが同時に動くと機械が飽和し、変更と無関係なテストが5秒の上限で落ちる（2026-10-15、PR #786で3回続けて発生）。`test.yml`のテストは`--maxWorkers=4 --testTimeout=30000 --hookTimeout=30000`で並列数と上限時間を固定し、Vitestの`pool: 'threads'`、`/dev/shm`上の`TMPDIR`、LPT順スケジューリング、statelessテストでのモジュール再利用、およびビルド済みテストでの重複`npm run build`省略と組み合わせて高速かつ安定に実行する。手元で全テストを3本同時に走らせると、既定では各9〜10件が時間切れになり、4に固定すると全件合格した。`formal-release-validate-linux`が動かす`scripts/npm-release.mjs`も同じ値を使う。
 
 self-hosted runnerのjobは`actions/setup-node`の`cache: npm`を使わない。EVO-X2の15本のrunnerは同じユーザーの`~/.npm`を共有するため、Actions cacheへ保存されるのは全リポジトリが取得したpackageの総量になる。GitHub-hosted runnerのときは74MBだったcacheが、移行後は422MB・660MB・902MB・1087MBと増え、復元に約10分かかって認証が切れ、後処理の保存でjobが20分の上限を超えた（2026-10-15、PR #791で2回）。`~/.npm`はEVO-X2に残るので、Actions cacheを経由しなくても再取得は少ない。`package.json`に`packageManager`を置くとsetup-nodeが自動でcacheするため、置かない。
 

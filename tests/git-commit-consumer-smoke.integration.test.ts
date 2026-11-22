@@ -36,30 +36,18 @@ describe('exact git commit consumer contract', () => {
     }));
 
     const dependency = `git+${pathToFileURL(repositoryRoot).href}#${sha}`;
-    const baseEnv = {
-      ...process.env,
-      NPM_CONFIG_AUDIT: 'false',
-      NPM_CONFIG_FUND: 'false',
-      NPM_CONFIG_PREFER_OFFLINE: 'true',
-      NPM_CONFIG_PROGRESS: 'false',
-      NPM_CONFIG_UPDATE_NOTIFIER: 'false'
-    };
-    const installArgs = ['install', '--save-exact', '--no-audit', '--no-fund', `@unson/brainbase-mcp@${dependency}`];
-    const tryOfflineFirst = process.env.CI === 'true';
-    try {
-      execFileSync('npm', [...installArgs, tryOfflineFirst ? '--offline' : '--prefer-offline'], {
-        cwd: consumerRoot,
-        encoding: 'utf8',
-        env: tryOfflineFirst ? { ...baseEnv, NPM_CONFIG_OFFLINE: 'true' } : baseEnv
-      });
-    } catch (error) {
-      if (!tryOfflineFirst) throw error;
-      execFileSync('npm', [...installArgs, '--prefer-offline'], {
-        cwd: consumerRoot,
-        encoding: 'utf8',
-        env: baseEnv
-      });
-    }
+    execFileSync('npm', ['install', '--save-exact', '--prefer-offline', '--no-audit', '--no-fund', `@unson/brainbase-mcp@${dependency}`], {
+      cwd: consumerRoot,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        NPM_CONFIG_AUDIT: 'false',
+        NPM_CONFIG_FUND: 'false',
+        NPM_CONFIG_PREFER_OFFLINE: 'true',
+        NPM_CONFIG_PROGRESS: 'false',
+        NPM_CONFIG_UPDATE_NOTIFIER: 'false'
+      }
+    });
 
     const installedPackage = JSON.parse(await readFile(
       path.join(consumerRoot, 'node_modules/@unson/brainbase-mcp/package.json'),

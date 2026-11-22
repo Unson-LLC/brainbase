@@ -386,19 +386,22 @@ export async function validateRelease(
   expectedSha,
   execute = run,
   createArtifact = createReleaseArtifact,
-  consumerSmoke = runConsumerSmoke
+  consumerSmoke = runConsumerSmoke,
+  { skipTests = false } = {}
 ) {
   execute('npm', ['run', 'build'], root);
-  // Shared self-hosted runners execute several jobs at once. Cap validation at
-  // six thread workers with bounded scheduling headroom; dist/ was just built
-  // above so consumer smoke tests skip redundant rebuilds.
-  const previousSkipBuild = process.env.BRAINBASE_TEST_SKIP_BUILD;
-  process.env.BRAINBASE_TEST_SKIP_BUILD = '1';
-  try {
-    execute('npm', ['test', '--', '--maxWorkers=6', '--testTimeout=30000', '--hookTimeout=30000'], root);
-  } finally {
-    if (previousSkipBuild === undefined) delete process.env.BRAINBASE_TEST_SKIP_BUILD;
-    else process.env.BRAINBASE_TEST_SKIP_BUILD = previousSkipBuild;
+  if (!skipTests) {
+    // Shared self-hosted runners execute several jobs at once. Cap validation at
+    // four thread workers with bounded scheduling headroom; dist/ was just built
+    // above so consumer smoke tests skip redundant rebuilds.
+    const previousSkipBuild = process.env.BRAINBASE_TEST_SKIP_BUILD;
+    process.env.BRAINBASE_TEST_SKIP_BUILD = '1';
+    try {
+      execute('npm', ['test', '--', '--maxWorkers=4', '--testTimeout=30000', '--hookTimeout=30000'], root);
+    } finally {
+      if (previousSkipBuild === undefined) delete process.env.BRAINBASE_TEST_SKIP_BUILD;
+      else process.env.BRAINBASE_TEST_SKIP_BUILD = previousSkipBuild;
+    }
   }
   execute('npm', ['audit', '--omit=dev'], root);
   const artifactDirectory = path.resolve(path.dirname(proofFile));
@@ -414,6 +417,7 @@ export async function validateReleaseCandidate({
   expectedSha,
   trustedRef,
   proofFile,
+  skipTests = false,
   execute = run,
   validate = validateRelease,
   createArtifact = createReleaseArtifact,
@@ -431,7 +435,7 @@ export async function validateReleaseCandidate({
   assertCleanCheckout(root, execute);
   if (!proofFile) throw new Error('validation requires an external proof file path');
   assertProofOutsideRepository(root, proofFile);
-  const artifact = await validate(root, proofFile, version, expectedSha, execute, createArtifact, consumerSmoke);
+  const artifact = await validate(root, proofFile, version, expectedSha, execute, createArtifact, consumerSmoke, { skipTests });
   assertCleanCheckout(root, execute);
   return { packageName, version, expectedSha, trustedRef, ...artifact };
 }
@@ -705,7 +709,8 @@ async function main(args) {
         version,
         expectedSha,
         trustedRef,
-        proofFile
+        proofFile,
+        skipTests: rest.includes('--skip-tests')
       });
       await writeFile(proofFile, `${JSON.stringify(result)}\n`, { mode: 0o600 });
       process.stdout.write(`${JSON.stringify(result)}\n`);

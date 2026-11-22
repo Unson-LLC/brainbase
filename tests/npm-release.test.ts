@@ -840,7 +840,7 @@ describe('npm release CLI', () => {
       'git merge-base --is-ancestor ' + sha + ' trusted/develop',
       'git status --porcelain=v1 --untracked-files=all',
       'npm run build',
-      'npm test -- --maxWorkers=6 --testTimeout=30000 --hookTimeout=30000',
+      'npm test -- --maxWorkers=4 --testTimeout=30000 --hookTimeout=30000',
       'npm audit --omit=dev',
       'git status --porcelain=v1 --untracked-files=all'
     ]);
@@ -849,6 +849,51 @@ describe('npm release CLI', () => {
     expect(proof.expectedSha).toBe(sha);
     expect(proof.tarballSha256).toMatch(/^[a-f0-9]{64}$/u);
     expect(proof.tarballIntegrity).toMatch(/^sha512-/u);
+  });
+
+  it('supports skipTests for PR formal release validation while keeping build, audit, artifact, and consumer smoke', async () => {
+    const { root, sha } = await releaseRoot();
+    const proofDirectory = await mkdtemp(path.join(tmpdir(), 'brainbase-npm-proof-'));
+    temporaryRoots.push(proofDirectory);
+    const proofFile = path.join(proofDirectory, 'proof.json');
+    const calls: string[] = [];
+    const execute = vi.fn((command: string, args: string[]) => {
+      calls.push(`${command} ${args.join(' ')}`);
+      return '';
+    });
+    const createArtifact = vi.fn(async () => {
+      const tarballPath = path.join(proofDirectory, 'package.tgz');
+      const bytes = Buffer.from('packed bytes with stamped manifest');
+      await writeFile(tarballPath, bytes);
+      return {
+        tarballPath,
+        tarballSha256: createHash('sha256').update(bytes).digest('hex'),
+        tarballIntegrity: `sha512-${createHash('sha512').update(bytes).digest('base64')}`
+      };
+    });
+    const consumerSmoke = vi.fn().mockResolvedValue({ status: 'passed' });
+    const proof = await validateReleaseCandidate({
+      root,
+      packageName: '@unson/brainbase-mcp',
+      version: '0.1.0',
+      expectedSha: sha,
+      trustedRef: 'trusted/develop',
+      proofFile,
+      skipTests: true,
+      execute,
+      createArtifact,
+      consumerSmoke
+    });
+    expect(calls).toEqual([
+      'git merge-base --is-ancestor ' + sha + ' trusted/develop',
+      'git status --porcelain=v1 --untracked-files=all',
+      'npm run build',
+      'npm audit --omit=dev',
+      'git status --porcelain=v1 --untracked-files=all'
+    ]);
+    expect(createArtifact).toHaveBeenCalledWith(root, proofDirectory, '0.1.0', sha, execute);
+    expect(consumerSmoke).toHaveBeenCalledWith(path.join(proofDirectory, 'package.tgz'));
+    expect(proof.expectedSha).toBe(sha);
   });
 
   it('embeds the exact reviewed git HEAD in the real release tarball manifest', async () => {

@@ -69,7 +69,7 @@ jobs:
       # default worker count follows the machine's cores, so concurrent jobs
       # oversubscribe it. With threads pool, /dev/shm TMPDIR, LPT scheduling,
       # stateless module reuse, and no redundant nested builds inside tests,
-      # six workers with 30s limits stay stable while finishing under 2 minutes.
+      # four workers with 30s limits stay stable while finishing under 2 minutes.
       - name: Run complete package suite on Node 22
         if: ${{ matrix.suite == 'complete' }}
         env:
@@ -77,13 +77,13 @@ jobs:
           CANONICAL_TASK_PG_TEST_ADMIN_URL: postgresql://postgres:local-ci-test-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgres
           CANONICAL_TASK_PG_TEST_URL: postgresql://postgres:local-ci-test-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgres
           CANONICAL_TASK_PG_TEST_REQUIRED: '1'
-        run: npm test -- --maxWorkers=6 --testTimeout=30000 --hookTimeout=30000
+        run: npm test -- --maxWorkers=4 --testTimeout=30000 --hookTimeout=30000
 
       - name: Run representative integration suite on Node 20
         if: ${{ matrix.suite == 'representative' }}
         env:
           BRAINBASE_TEST_SKIP_BUILD: '1'
-        run: npm run test:integration -- --maxWorkers=6 --testTimeout=30000 --hookTimeout=30000
+        run: npm run test:integration -- --maxWorkers=4 --testTimeout=30000 --hookTimeout=30000
 
       - name: Run routine runtime regression tests on Node 20
         if: ${{ matrix.suite == 'representative' }}
@@ -96,7 +96,7 @@ jobs:
             echo '## Package CI failure/cancellation summary'
             echo
             echo '- Protection: Node 22 complete package validation and Node 20 representative integration validation.'
-            echo '- Reproduce: `npm ci --ignore-scripts && npm run build && npm test -- --maxWorkers=6 --testTimeout=30000 --hookTimeout=30000` (Node 22), or `npm ci --ignore-scripts && npm run build && npm run test:integration -- --maxWorkers=6 --testTimeout=30000 --hookTimeout=30000 && npx vitest run tests/stage3c-runtime.test.ts --maxWorkers=1` (Node 20).'
+            echo '- Reproduce: `npm ci --ignore-scripts && npm run build && npm test -- --maxWorkers=4 --testTimeout=30000 --hookTimeout=30000` (Node 22), or `npm ci --ignore-scripts && npm run build && npm run test:integration -- --maxWorkers=4 --testTimeout=30000 --hookTimeout=30000 && npx vitest run tests/stage3c-runtime.test.ts --maxWorkers=1` (Node 20).'
             echo '- Expected: package changes pass the build and required suite; docs-only changes use the docs workflow.'
             echo '- Unknown: inspect the failed step and runner log; this workflow has no release or deployment side effect.'
           } >> "$GITHUB_STEP_SUMMARY"
@@ -142,6 +142,12 @@ jobs:
       - name: Install release dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund --prefer-offline
 
+      # build-and-test (22, complete) already executes the complete Vitest suite
+      # (including PostgreSQL integration tests) on the same pull request. Avoid
+      # running the full suite twice concurrently on the shared EVO-X2 runner while
+      # still validating immutable HEAD, clean checkout, build, production audit,
+      # tarball creation/hashing, and isolated consumer smoke. npm-publish.yml does
+      # not pass --skip-tests and always runs the complete suite before publishing.
       - name: Run formal release validation without publication credentials
         env:
           RELEASE_SHA: ${{ steps.target.outputs.sha }}
@@ -153,6 +159,7 @@ jobs:
           --sha "$RELEASE_SHA"
           --trusted-ref "$TRUSTED_REF"
           --proof-file "$RUNNER_TEMP/npm-release-validation.json"
+          --skip-tests
 
       - name: Upload formal release proof and artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
