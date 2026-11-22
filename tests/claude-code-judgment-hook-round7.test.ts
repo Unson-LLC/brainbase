@@ -183,7 +183,7 @@ describe('install locks never remove a file they did not create', () => {
     await writeFile(lockPath, 'garbage');
     await utimes(lockPath, new Date('2020-01-01'), new Date('2020-01-01'));
     await expect(withCredentialsLock(target, async () => 'ran',
-      { unreadableStaleMs: Number.POSITIVE_INFINITY, waitMs: 100, suffix: '.brainbase-install.lock' }))
+      { waitMs: 100, suffix: '.brainbase-install.lock' }))
       .rejects.toBeInstanceOf(BrainbaseLoginError);
     expect(await readFile(lockPath, 'utf8')).toBe('garbage');
   });

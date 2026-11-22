@@ -59,7 +59,7 @@ describe('withCredentialsLock', () => {
   it('keeps the lock while the holder is still working, however old the file looks', async () => {
     const path = await credentialsFile();
     const lockPath = `${path}.lock`;
-    const timing = { unreadableStaleMs: 50, waitMs: 3000 };
+    const timing = { waitMs: 3000 };
     const order: string[] = [];
     let second: Promise<void> | undefined;
     await withCredentialsLock(path, async () => {
@@ -77,7 +77,7 @@ describe('withCredentialsLock', () => {
     const lockPath = `${path}.lock`;
     await writeFile(lockPath, lockFile(process.ppid));
     await makeOld(lockPath);
-    await expect(withCredentialsLock(path, async () => 'ran', { unreadableStaleMs: 50, waitMs: 300 }))
+    await expect(withCredentialsLock(path, async () => 'ran', { waitMs: 300 }))
       .rejects.toMatchObject({ code: 'login_busy' });
     expect(await readFile(lockPath, 'utf8')).toBe(lockFile(process.ppid));
   });
@@ -111,7 +111,7 @@ describe('withCredentialsLock', () => {
         most = Math.max(most, active);
         await delay(15);
         active -= 1;
-      }, { unreadableStaleMs: 0, waitMs: 5000 })));
+      }, { waitMs: 5000 })));
       expect(most).toBe(1);
     }
   });

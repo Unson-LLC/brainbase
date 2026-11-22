@@ -417,7 +417,7 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
 // beside. They get a name of their own, and a file there that is not a lock
 // record this code wrote is never removed: the install waits and says which
 // file to check instead.
-const INSTALL_LOCK = { suffix: '.brainbase-install.lock', unreadableStaleMs: Number.POSITIVE_INFINITY } as const;
+const INSTALL_LOCK = { suffix: '.brainbase-install.lock' } as const;
 
 async function withInstallLocks<T>(files: string[], task: () => Promise<T>): Promise<T> {
   const keys = [...new Set(files)].sort();
