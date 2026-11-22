@@ -391,6 +391,10 @@
       "types": "./dist/company-os-impact-review.d.ts",
       "import": "./dist/company-os-impact-review.js"
     },
+    "./world-model-impact-index": {
+      "types": "./dist/world-model-impact-index.d.ts",
+      "import": "./dist/world-model-impact-index.js"
+    },
     "./streamable-http": {
       "types": "./dist/streamable-http.d.ts",
       "import": "./dist/streamable-http.js"

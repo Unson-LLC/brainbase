@@ -2,11 +2,17 @@ import { createHash } from 'node:crypto';
 import { access, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { canonicalEdgeId, isActiveAt, validateCanonicalGraph } from './canonical-graph.js';
+import { findLatestFoundationRecord } from './foundation-catalog.js';
 import { stableHash } from './import-extract.js';
 import { canonicalPortableJson } from './portable-graph.js';
 import { getCanonicalRelation } from './relation-registry.js';
 import { loadPersonalOs, mutatePersonalOsWithSidecar, readPersonalOsSidecar } from './ssot.js';
 import type { CanonicalEdge, CanonicalEntity, CoreRelation, GraphFileV2, RelationshipRecord } from './types.js';
+import {
+  analyzeWorldModelImpact,
+  type WorldModelDependencyStep,
+  type WorldModelImpactRef
+} from './world-model-impact-index.js';
 
 /**
  * Owner corrections for the canonical local Graph v2.
@@ -113,6 +119,22 @@ export interface GraphCorrectionRecord {
   projections: GraphProjectionChange[];
 }
 
+export interface GraphCorrectionWorldModelRef {
+  readonly type: 'variable' | 'model';
+  readonly id: string;
+  readonly revision: string;
+  readonly digest: string;
+}
+
+export interface GraphCorrectionWorldModelReviewHint {
+  readonly status: 'needs_review';
+  readonly targetRef: GraphCorrectionWorldModelRef;
+  readonly matchedEntityIds: readonly string[];
+  readonly matchKind: 'direct_scope' | 'direct_subject' | 'direct_relation' | 'transitive_dependency';
+  readonly dependencyPath?: readonly WorldModelDependencyStep[];
+  readonly reason: string;
+}
+
 export interface GraphCorrectionResult {
   status: 'saved';
   correction: GraphCorrectionRecord;
@@ -122,6 +144,17 @@ export interface GraphCorrectionResult {
   digest: string;
   readback: { verified: true; digest: string; historyRecorded: true };
   appliesTo: readonly string[];
+  /**
+   * Optional world-model review hints emitted when `graph.foundation` contains
+   * `VariableDefinition` or `ModelDefinition` entries referencing the corrected
+   * entity/edge (directly or transitively). Omitted when no world-model items match.
+   */
+  worldModelReviewHints?: readonly GraphCorrectionWorldModelReviewHint[];
+  /**
+   * Optional list of affected `ModelDefinition` references derived from
+   * `worldModelReviewHints`. Omitted when no models are affected.
+   */
+  affectedModelRefs?: readonly GraphCorrectionWorldModelRef[];
 }
 
 export type GraphCorrectionErrorKind = 'invalid' | 'not_found' | 'conflict' | 'migration_required' | 'readback_mismatch';
@@ -249,6 +282,7 @@ export async function applyGraphCorrection(
     throw new GraphCorrectionError('readback_mismatch', 'readback_mismatch', 'The correction history line was not found after saving');
   }
   const digest = graphRecordDigest(stored);
+  const worldModelImpact = findGraphCorrectionWorldModelHints(reloaded.graph, outcome.recordType, stored);
   return {
     status: 'saved',
     correction: outcome.record,
@@ -256,8 +290,156 @@ export async function applyGraphCorrection(
     record: stored,
     digest,
     readback: { verified: true, digest, historyRecorded: true },
-    appliesTo: GRAPH_CORRECTION_APPLIES_TO
+    appliesTo: GRAPH_CORRECTION_APPLIES_TO,
+    ...(worldModelImpact.worldModelReviewHints.length > 0
+      ? { worldModelReviewHints: worldModelImpact.worldModelReviewHints }
+      : {}),
+    ...(worldModelImpact.affectedModelRefs.length > 0
+      ? { affectedModelRefs: worldModelImpact.affectedModelRefs }
+      : {})
   };
+}
+
+/**
+ * Pure helper that bridges a local Graph v2 entity/edge correction to the
+ * canonical `foundation` world model. It locates `VariableDefinition` and
+ * `ModelDefinition` entries referencing the corrected entity or edge endpoints
+ * (directly via scope/subject/relation, and transitively via world-model
+ * dependencies) so callers can trigger world-model review instead of stopping
+ * at a local patch.
+ */
+export function findGraphCorrectionWorldModelHints(
+  graph: Pick<GraphFileV2, 'foundation'>,
+  recordType: 'entity' | 'edge',
+  record: CanonicalEntity | CanonicalEdge
+): {
+  readonly worldModelReviewHints: readonly GraphCorrectionWorldModelReviewHint[];
+  readonly affectedModelRefs: readonly GraphCorrectionWorldModelRef[];
+} {
+  const catalog = graph.foundation;
+  if (!catalog || catalog.records.length === 0) {
+    return { worldModelReviewHints: [], affectedModelRefs: [] };
+  }
+
+  const touchedIds = recordType === 'entity'
+    ? [record.id]
+    : [...new Set([record.id, (record as CanonicalEdge).fromId, (record as CanonicalEdge).toId])].sort((a, b) => a.localeCompare(b, 'en'));
+  const touchedSet = new Set(touchedIds);
+
+  const latestWorldRecords = new Map<string, { type: 'variable' | 'model'; id: string; revision: string; digest: string }>();
+  const hintsByKey = new Map<string, GraphCorrectionWorldModelReviewHint>();
+  const directMatchedEntitiesByRef = new Map<string, readonly string[]>();
+
+  const logicalKeys = new Set<string>();
+  for (const item of catalog.records) {
+    if (item.definition.type === 'variable' || item.definition.type === 'model') {
+      logicalKeys.add(JSON.stringify([item.definition.type, item.definition.id]));
+    }
+  }
+
+  for (const logicalKey of [...logicalKeys].sort((a, b) => a.localeCompare(b, 'en'))) {
+    const [type, id] = JSON.parse(logicalKey) as ['variable' | 'model', string];
+    const latest = findLatestFoundationRecord(catalog, type, id);
+    if (!latest || (latest.definition.type !== 'variable' && latest.definition.type !== 'model')) continue;
+
+    const ref: GraphCorrectionWorldModelRef = {
+      type: latest.definition.type,
+      id: latest.definition.id,
+      revision: latest.definition.revision,
+      digest: latest.digest
+    };
+    latestWorldRecords.set(logicalKey, ref);
+
+    const matchedByScope = new Set<string>();
+    const matchedBySubject = new Set<string>();
+
+    for (const subjectId of latest.definition.scope.subjectIds) {
+      if (touchedSet.has(subjectId)) matchedByScope.add(subjectId);
+    }
+    if (latest.definition.type === 'variable') {
+      for (const touchedId of touchedIds) {
+        if (latest.definition.subject === touchedId || latest.definition.subject.startsWith(`${touchedId}/`)) {
+          matchedBySubject.add(touchedId);
+        }
+      }
+    } else {
+      for (const subjectId of latest.definition.applicability.subjectIds) {
+        if (touchedSet.has(subjectId)) matchedByScope.add(subjectId);
+      }
+    }
+
+    const matchedIds = [...new Set([...matchedByScope, ...matchedBySubject])].sort((a, b) => a.localeCompare(b, 'en'));
+    if (matchedIds.length > 0) {
+      const matchKind = matchedByScope.size > 0 ? 'direct_scope' : 'direct_subject';
+      directMatchedEntitiesByRef.set(logicalKey, matchedIds);
+      hintsByKey.set(logicalKey, {
+        status: 'needs_review',
+        targetRef: ref,
+        matchedEntityIds: matchedIds,
+        matchKind,
+        reason: `${ref.type}/${ref.id}@${ref.revision} references corrected ${recordType} node(s): ${matchedIds.join(', ')}`
+      });
+    }
+  }
+
+  for (const relation of catalog.relations) {
+    const pairs: Array<readonly [typeof relation.source, typeof relation.target]> = [
+      [relation.source, relation.target],
+      [relation.target, relation.source]
+    ];
+    for (const [candidate, counterpart] of pairs) {
+      if ((candidate.type !== 'variable' && candidate.type !== 'model') || !touchedSet.has(counterpart.id)) continue;
+      const logicalKey = JSON.stringify([candidate.type, candidate.id]);
+      const ref = latestWorldRecords.get(logicalKey);
+      if (!ref || hintsByKey.has(logicalKey)) continue;
+      const matchedIds = [counterpart.id];
+      directMatchedEntitiesByRef.set(logicalKey, matchedIds);
+      hintsByKey.set(logicalKey, {
+        status: 'needs_review',
+        targetRef: ref,
+        matchedEntityIds: matchedIds,
+        matchKind: 'direct_relation',
+        reason: `${ref.type}/${ref.id}@${ref.revision} is linked via ${relation.relation} to corrected node ${counterpart.id}`
+      });
+    }
+  }
+
+  if (hintsByKey.size > 0) {
+    const seedRefs: WorldModelImpactRef[] = [...hintsByKey.values()].map((hint) => ({
+      kind: hint.targetRef.type,
+      id: hint.targetRef.id,
+      revision: hint.targetRef.revision
+    }));
+    const impact = analyzeWorldModelImpact({ catalog, changedRefs: seedRefs });
+    for (const item of impact.affectedItems) {
+      if (item.affectedRef.kind !== 'variable' && item.affectedRef.kind !== 'model') continue;
+      const logicalKey = JSON.stringify([item.affectedRef.kind, item.affectedRef.id]);
+      if (hintsByKey.has(logicalKey)) continue;
+      const ref = latestWorldRecords.get(logicalKey);
+      if (!ref) continue;
+      const sourceKey = JSON.stringify([item.sourceRef.kind, item.sourceRef.id]);
+      const matchedEntityIds = directMatchedEntitiesByRef.get(sourceKey) ?? touchedIds;
+      hintsByKey.set(logicalKey, {
+        status: 'needs_review',
+        targetRef: ref,
+        matchedEntityIds,
+        matchKind: 'transitive_dependency',
+        dependencyPath: item.dependencyPath,
+        reason: item.reason
+      });
+    }
+  }
+
+  const worldModelReviewHints = [...hintsByKey.values()].sort((left, right) =>
+    left.targetRef.type.localeCompare(right.targetRef.type, 'en')
+    || left.targetRef.id.localeCompare(right.targetRef.id, 'en')
+    || left.targetRef.revision.localeCompare(right.targetRef.revision, 'en')
+  );
+  const affectedModelRefs = worldModelReviewHints
+    .filter((hint) => hint.targetRef.type === 'model')
+    .map((hint) => hint.targetRef);
+
+  return { worldModelReviewHints, affectedModelRefs };
 }
 
 export interface GraphCorrectionHistoryIssue {
