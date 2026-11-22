@@ -316,6 +316,12 @@ interface RepositoryScope {
   checkout: string | null;
   /** In git, but git could not tell the origin: nothing is sent for it. */
   unresolved?: boolean;
+  /**
+   * The checkout has an origin, but its URL gives no `host/owner/name`.
+   * Unlike a checkout without origin, it works for some repository the Host
+   * cannot be told about, so without --project nothing is sent for it.
+   */
+  unidentified?: boolean;
 }
 
 function eventRepository(payload: ClaudeCodeHookPayload, env: NodeJS.ProcessEnv): RepositoryScope {
@@ -331,11 +337,18 @@ function eventRepository(payload: ClaudeCodeHookPayload, env: NodeJS.ProcessEnv)
   }
   const origin = originLookup(root, env);
   if (origin.status === 'unresolved') return { inGit: true, repository: null, checkout, unresolved: true };
-  return { inGit: true, repository: origin.status === 'found' ? repositoryIdentityFromUrl(origin.url) : null, checkout };
+  if (origin.status === 'none') return { inGit: true, repository: null, checkout };
+  const repository = repositoryIdentityFromUrl(origin.url);
+  return repository === null
+    ? { inGit: true, repository: null, checkout, unidentified: true }
+    : { inGit: true, repository, checkout };
 }
 
 function isAuditedRepository(scope: RepositoryScope, config: ClaudeCodeHookConfig): boolean {
   if (!scope.inGit || scope.unresolved) return false;
+  // Sent without a repository, the Host would put the records in the
+  // person's only project, which need not be the one this origin works for.
+  if (scope.unidentified && !config.project_code) return false;
   if (!config.repositories) return true;
   return scope.repository !== null && config.repositories.includes(scope.repository);
 }
@@ -701,9 +714,13 @@ async function handleUserPromptSubmit(payload: ClaudeCodeHookPayload, context: C
   };
   if (!isAuditedRepository(context.scope, context.config)) {
     writeState(env, sessionId, { ...state, start_status: 'out_of_scope' });
-    return context.scope.unresolved
-      ? warning('git からこのリポジトリの origin を確かめられなかったため、判断監査なしで続行します（judgment_repository_unresolved）。git が入っているか、このフォルダーを git が扱えるかを確かめてください。')
-      : {};
+    if (context.scope.unresolved) {
+      return warning('git からこのリポジトリの origin を確かめられなかったため、判断監査なしで続行します（judgment_repository_unresolved）。git が入っているか、このフォルダーを git が扱えるかを確かめてください。');
+    }
+    if (context.scope.unidentified) {
+      return warning('このリポジトリの origin の URL からホスト・所有者・名前を読み取れず、送り先のプロジェクトを決められないため、判断監査なしで続行します（judgment_repository_unidentified）。judgment:install に --project を付けて登録し直してください。');
+    }
+    return {};
   }
   if (!hostCanMapRepository(context.scope.repository, context.config)) {
     writeState(env, sessionId, { ...state, start_status: 'out_of_scope' });

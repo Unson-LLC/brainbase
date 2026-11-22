@@ -50,6 +50,8 @@
 
    ポート番号つきのURL（`ssh://git@git.example.com:2222/...`など）や、パスに`~`を含むリポジトリは、Hostがリポジトリとprojectの対応表で引けません。`--project`をつけずに登録したときは、そのリポジトリの記録を送らず、`judgment_repository_unmappable`の警告を出します。本人の所属先のprojectに、違うprojectの記録が入らないようにするためです。そのリポジトリも記録したいときは、`--project <project>`つきで登録します。
 
+   originはあるのに、そのURLからホスト・所有者・名前を読み取れないリポジトリ（`file:///srv/app.git`やパスだけのURLなど）も同じです。`--project`をつけずに登録したときは記録を送らず、`judgment_repository_unidentified`の警告を出します。originのないリポジトリとは分けて扱います。
+
    ターンの途中で`brainbase login`をし直すと（別のアカウントでも、同じ人でも）、そのターンの残りの記録と回答は送りません。ターンを始めたときのログインで送るためです。tokenの自動更新では、ログインは変わりません。
 
    設定ファイルを既定の場所以外に置くときは`--config <パス>`を足します。Claude Codeに登録するコマンドにも、そのパスが入ります。`--settings`と同じファイルは指定できません。判断フックの設定ではないファイルがすでにあるパスも、指定できません。上書きしないためです。
@@ -82,6 +84,7 @@ Claude Codeの画面に`⚠️ Brainbase判断フック:`で始まる警告が�
 - `judgment_hook_unreachable`、`judgment_hook_timeout`: `<MCP>`に届かない。URLとネットワークを確かめる。
 - `judgment_turn_repository_changed`: ターンの途中で別のリポジトリに移った。回答は送っていない。次の依頼は元のリポジトリで送る。
 - `judgment_repository_unmappable`: ポート番号つきのURLなど、Hostがprojectを引けない形のリポジトリ。手順4を`--project <project>`つきでやり直す。
+- `judgment_repository_unidentified`: originのURLからホスト・所有者・名前を読み取れない。手順4を`--project <project>`つきでやり直す。
 - `judgment_turn_login_changed`: ターンの途中でログインし直した。そのターンの残りは送っていない。次の依頼から新しいログインで送る。
 - `judgment_turn_destination_changed`: ターンの途中で設定ファイルの送り先かprojectが変わった。回答は送っていない。次の依頼から新しい送り先に送る。
 
