@@ -69,11 +69,12 @@ jobs:
       # EVO-X2 shares one machine between several runner slots. Vitest's
       # default worker count follows the machine's cores, so concurrent jobs
       # oversubscribe it. Now that formal-release-validate-linux no longer runs
-      # a duplicate full suite on PRs, six thread workers with /dev/shm TMPDIR,
-      # LPT scheduling, stateless module reuse, and 30s limits keep the suite
-      # fast and stable. Running git-commit-consumer-smoke (which clones HEAD and
-      # builds in isolation, never touching dist/) in parallel with build + the
-      # remaining 271 files overlaps its ~70-90s runtime with build + tests.
+      # a duplicate full suite on PRs, four thread workers with /dev/shm TMPDIR,
+      # LPT scheduling, stateless module reuse, and 30s limits avoid CPU
+      # thrashing while keeping the suite fast and stable. Running
+      # git-commit-consumer-smoke (which clones HEAD and builds in isolation,
+      # never touching dist/) in parallel with build + the remaining 271 files
+      # overlaps its ~65-80s runtime with build + tests.
       - name: Build and run complete package suite on Node 22
         if: ${{ matrix.suite == 'complete' }}
         env:
@@ -97,7 +98,7 @@ jobs:
           main_status=0
           npm run build || main_status=$?
           if [ "$main_status" -eq 0 ]; then
-            npm test -- --exclude tests/git-commit-consumer-smoke.integration.test.ts --maxWorkers=6 --testTimeout=30000 --hookTimeout=30000 || main_status=$?
+            npm test -- --exclude tests/git-commit-consumer-smoke.integration.test.ts --maxWorkers=4 --testTimeout=30000 --hookTimeout=30000 || main_status=$?
           fi
 
           git_smoke_status=0
@@ -112,7 +113,7 @@ jobs:
         if: ${{ matrix.suite == 'representative' }}
         env:
           BRAINBASE_TEST_SKIP_BUILD: '1'
-        run: npm run test:integration -- --maxWorkers=6 --testTimeout=30000 --hookTimeout=30000
+        run: npm run test:integration -- --maxWorkers=4 --testTimeout=30000 --hookTimeout=30000
 
       - name: Run routine runtime regression tests on Node 20
         if: ${{ matrix.suite == 'representative' }}
@@ -125,7 +126,7 @@ jobs:
             echo '## Package CI failure/cancellation summary'
             echo
             echo '- Protection: Node 22 complete package validation and Node 20 representative integration validation.'
-            echo '- Reproduce: `npm ci --ignore-scripts && npm run build && npm test -- --maxWorkers=6 --testTimeout=30000 --hookTimeout=30000` (Node 22), or `npm ci --ignore-scripts && npm run build && npm run test:integration -- --maxWorkers=6 --testTimeout=30000 --hookTimeout=30000 && npx vitest run tests/stage3c-runtime.test.ts --maxWorkers=1` (Node 20).'
+            echo '- Reproduce: `npm ci --ignore-scripts && npm run build && npm test -- --maxWorkers=4 --testTimeout=30000 --hookTimeout=30000` (Node 22), or `npm ci --ignore-scripts && npm run build && npm run test:integration -- --maxWorkers=4 --testTimeout=30000 --hookTimeout=30000 && npx vitest run tests/stage3c-runtime.test.ts --maxWorkers=1` (Node 20).'
             echo '- Expected: package changes pass the build and required suite; docs-only changes use the docs workflow.'
             echo '- Unknown: inspect the failed step and runner log; this workflow has no release or deployment side effect.'
           } >> "$GITHUB_STEP_SUMMARY"
