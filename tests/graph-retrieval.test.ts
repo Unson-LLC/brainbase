@@ -178,9 +178,49 @@ describe('retrieveGraph', () => {
       migrationRequired: true,
       candidates: [],
       results: [],
+      totalScopedCount: 0,
+      returnedCount: 0,
       coverage: 'unknown',
       absenceConfirmed: false
     });
     expect(response.partialReasons).toContain('graph_v1_migration_required');
+  });
+
+  it('always reports totalScopedCount and returnedCount across full, project-scoped, truncated, empty, and inactive scopes', async () => {
+    // Full scope has 5 active entities; lexical query matches only the two Tanaka records.
+    const full = await retrieveGraph(os(), { query: '田中', asOf, limit: 10 });
+    expect(full.totalScopedCount).toBe(5);
+    expect(full.returnedCount).toBe(2);
+    expect(full.returnedCount).toBe(full.results.length);
+
+    // Project scope narrows population to the 3 entities linked to project-atlas.
+    const projectScoped = await retrieveGraph(os(), { query: '田中', project: 'project-atlas', asOf });
+    expect(projectScoped.totalScopedCount).toBe(3);
+    expect(projectScoped.returnedCount).toBe(1);
+
+    // Unknown project scope has 0 scoped entities and 0 returned candidates.
+    const missingProject = await retrieveGraph(os(), { query: '田中', project: 'project-unknown', asOf });
+    expect(missingProject.totalScopedCount).toBe(0);
+    expect(missingProject.returnedCount).toBe(0);
+    expect(missingProject.partialReasons).toContain('project_scope_not_found_or_inactive');
+
+    // Truncated semantic search keeps the full scoped denominator visible.
+    const truncated = await retrieveGraph(os(), { query: '仕事', asOf, limit: 1 }, {
+      id: 'fixture', embed: async (texts) => texts.map(() => [1, 0])
+    });
+    expect(truncated.totalScopedCount).toBe(5);
+    expect(truncated.returnedCount).toBe(1);
+    expect(truncated.coverage).toBe('partial');
+
+    // Expired entities are excluded from totalScopedCount; empty traversal still reports scoped population.
+    const graphWithInactive = structuredClone(canonicalResolutionGraph);
+    graphWithInactive.entities[1]!.validTo = '2026-08-01T00:00:00.000Z';
+    graphWithInactive.edges[2]!.validTo = '2026-08-01T00:00:00.000Z';
+    const emptyTraversal = await retrieveGraph(os({ graph: graphWithInactive }), {
+      query: '判断', asOf, seedIds: ['project-atlas'],
+      steps: [{ relation: 'governs', direction: 'incoming' }]
+    });
+    expect(emptyTraversal.totalScopedCount).toBe(4);
+    expect(emptyTraversal.returnedCount).toBe(0);
   });
 });

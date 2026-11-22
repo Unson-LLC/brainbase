@@ -21,14 +21,20 @@ export type JudgmentModelOutcomeVerdict = 'supports' | 'refutes' | 'inconclusive
 export type JudgmentModelOutcomeEvidenceKind = 'artifact' | 'query' | 'document' | 'judgment';
 export const JUDGMENT_MODEL_OUTCOME_ALTERNATIVES = ['measurement_error', 'execution_difference', 'external_change'] as const;
 export type JudgmentModelOutcomeAlternative = typeof JUDGMENT_MODEL_OUTCOME_ALTERNATIVES[number];
+export const JUDGMENT_MODEL_OUTCOME_CLAIM_TYPES = ['universal', 'tendency'] as const;
+export type JudgmentModelOutcomeClaimType = typeof JUDGMENT_MODEL_OUTCOME_CLAIM_TYPES[number];
+export const JUDGMENT_MODEL_OUTCOME_REPRESENTATIVENESS = ['census', 'representative', 'anecdotal', 'unknown'] as const;
+export type JudgmentModelOutcomeRepresentativeness = typeof JUDGMENT_MODEL_OUTCOME_REPRESENTATIVENESS[number];
 
 const VERDICTS: readonly JudgmentModelOutcomeVerdict[] = ['supports', 'refutes', 'inconclusive'];
 const EVIDENCE_KINDS: readonly JudgmentModelOutcomeEvidenceKind[] = ['artifact', 'query', 'document', 'judgment'];
+const SCOPE_METRICS_KEYS = ['claim_type', 'sample_size', 'population_size', 'effect_magnitude', 'representativeness'] as const;
 const MAX_STATEMENT = 2_000;
 const MAX_RULED_OUT = 1_000;
 const MAX_EVIDENCE = 12;
 const MAX_EVIDENCE_REF = 800;
 const MAX_EVIDENCE_LABEL = 200;
+const MAX_EFFECT_MAGNITUDE = 200;
 const MAX_REFUTED_WHEN = 3;
 const MAX_REFUTED_WHEN_TEXT = 120;
 const DIGEST_PATTERN = /^sha256:[a-f0-9]{64}$/;
@@ -38,6 +44,14 @@ export interface JudgmentModelOutcomeEvidenceRef {
   readonly kind: JudgmentModelOutcomeEvidenceKind;
   readonly ref: string;
   readonly label: string;
+}
+
+export interface JudgmentModelOutcomeScopeMetrics {
+  readonly claim_type: JudgmentModelOutcomeClaimType;
+  readonly sample_size?: number;
+  readonly population_size?: number;
+  readonly effect_magnitude?: string;
+  readonly representativeness: JudgmentModelOutcomeRepresentativeness;
 }
 
 export interface JudgmentModelOutcome {
@@ -54,6 +68,8 @@ export interface JudgmentModelOutcome {
   /** Required only for refutes: why each alternative explanation was ruled out. */
   readonly ruled_out?: Readonly<Record<JudgmentModelOutcomeAlternative, string>>;
   readonly judgment_ref?: { readonly frame_digest: `sha256:${string}` };
+  /** Optional scope and representativeness metrics to separate structural vs anecdotal refutations. */
+  readonly scope_metrics?: JudgmentModelOutcomeScopeMetrics;
 }
 
 /** A record as the host stored it: the outcome plus host-owned id, time, and content digest. */
@@ -65,10 +81,17 @@ export interface JudgmentModelOutcomeStoredRecord extends JudgmentModelOutcome {
 
 export interface JudgmentModelOutcomeSummary {
   readonly supports: number;
+  /** Total refutations (structural_refutes + anecdotal_refutes). */
   readonly refutes: number;
+  /** Structural refutations (census/representative, universal claims, or legacy records without scope_metrics). */
+  readonly structural_refutes: number;
+  /** Single-case or non-representative refutations against a tendency claim. */
+  readonly anecdotal_refutes: number;
   readonly inconclusive: number;
-  /** Conditions of the most recent refutations, newest first. */
+  /** Conditions of the most recent structural refutations, newest first. */
   readonly refuted_when: readonly string[];
+  /** Conditions of the most recent anecdotal refutations, newest first. */
+  readonly anecdotal_refuted_when: readonly string[];
 }
 
 export type JudgmentModelOutcomeIssueCode =
@@ -116,6 +139,16 @@ export function judgmentModelOutcomeDigest(outcome: JudgmentModelOutcome): `sha2
   return `sha256:${createHash('sha256').update(canonicalJson(outcomeContent(outcome)), 'utf8').digest('hex')}`;
 }
 
+function normalizeScopeMetrics(value: JudgmentModelOutcomeScopeMetrics): JudgmentModelOutcomeScopeMetrics {
+  return {
+    claim_type: value.claim_type,
+    ...(value.sample_size === undefined ? {} : { sample_size: value.sample_size }),
+    ...(value.population_size === undefined ? {} : { population_size: value.population_size }),
+    ...(value.effect_magnitude === undefined ? {} : { effect_magnitude: value.effect_magnitude }),
+    representativeness: value.representativeness,
+  };
+}
+
 function outcomeContent(value: JudgmentModelOutcome): JudgmentModelOutcome {
   return {
     record_version: value.record_version,
@@ -129,7 +162,22 @@ function outcomeContent(value: JudgmentModelOutcome): JudgmentModelOutcome {
       ruled_out: Object.fromEntries(JUDGMENT_MODEL_OUTCOME_ALTERNATIVES.map((key) => [key, value.ruled_out![key]])) as Record<JudgmentModelOutcomeAlternative, string>,
     }),
     ...(value.judgment_ref === undefined ? {} : { judgment_ref: { frame_digest: value.judgment_ref.frame_digest } }),
+    ...(value.scope_metrics === undefined ? {} : { scope_metrics: normalizeScopeMetrics(value.scope_metrics) }),
   };
+}
+
+/**
+ * True when a refutation is an anecdotal or unknown-representativeness case
+ * against a tendency claim rather than a structural refutation.
+ * Legacy records without `scope_metrics`, universal claims, and census or
+ * representative refutations are treated as structural.
+ */
+export function isAnecdotalRefutation(
+  record: Pick<JudgmentModelOutcome, 'verdict' | 'scope_metrics'>,
+): boolean {
+  return record.verdict === 'refutes'
+    && record.scope_metrics?.claim_type === 'tendency'
+    && (record.scope_metrics.representativeness === 'anecdotal' || record.scope_metrics.representativeness === 'unknown');
 }
 
 type IssueSink = (code: JudgmentModelOutcomeIssueCode, path: string, message: string) => void;
@@ -205,6 +253,43 @@ function checkOutcomeShape(value: Record<string, unknown>, issue: IssueSink, uns
     const ref = isRecord(value.judgment_ref) ? value.judgment_ref : null;
     if (!ref || typeof ref.frame_digest !== 'string' || !DIGEST_PATTERN.test(ref.frame_digest) || Object.keys(ref).length !== 1) {
       issue('outcome_record_invalid', 'judgment_ref', 'judgment_ref needs only frame_digest as sha256');
+    }
+  }
+
+  if (value.scope_metrics !== undefined) {
+    const metrics = isRecord(value.scope_metrics) ? value.scope_metrics : null;
+    if (!metrics) {
+      issue('outcome_record_invalid', 'scope_metrics', 'scope_metrics must be an object');
+    } else {
+      for (const key of Object.keys(metrics)) {
+        if (!SCOPE_METRICS_KEYS.includes(key as typeof SCOPE_METRICS_KEYS[number])) {
+          issue('outcome_record_invalid', `scope_metrics.${key}`, 'scope_metrics contains an unknown field');
+        }
+      }
+      if (!JUDGMENT_MODEL_OUTCOME_CLAIM_TYPES.includes(metrics.claim_type as JudgmentModelOutcomeClaimType)) {
+        issue('outcome_record_invalid', 'scope_metrics.claim_type', 'scope_metrics.claim_type must be universal or tendency');
+      }
+      if (!JUDGMENT_MODEL_OUTCOME_REPRESENTATIVENESS.includes(metrics.representativeness as JudgmentModelOutcomeRepresentativeness)) {
+        issue('outcome_record_invalid', 'scope_metrics.representativeness', 'scope_metrics.representativeness must be census, representative, anecdotal, or unknown');
+      }
+      const validSampleSize = metrics.sample_size === undefined
+        || (typeof metrics.sample_size === 'number' && Number.isInteger(metrics.sample_size) && metrics.sample_size >= 1);
+      if (!validSampleSize) {
+        issue('outcome_record_invalid', 'scope_metrics.sample_size', 'scope_metrics.sample_size must be a positive integer');
+      }
+      const validPopulationSize = metrics.population_size === undefined
+        || (typeof metrics.population_size === 'number' && Number.isInteger(metrics.population_size) && metrics.population_size >= 1);
+      if (!validPopulationSize) {
+        issue('outcome_record_invalid', 'scope_metrics.population_size', 'scope_metrics.population_size must be a positive integer');
+      }
+      if (validSampleSize && validPopulationSize
+        && typeof metrics.sample_size === 'number' && typeof metrics.population_size === 'number'
+        && metrics.sample_size > metrics.population_size) {
+        issue('outcome_record_invalid', 'scope_metrics.sample_size', 'scope_metrics.sample_size cannot exceed scope_metrics.population_size');
+      }
+      if (metrics.effect_magnitude !== undefined) {
+        checkText(metrics.effect_magnitude, 'scope_metrics.effect_magnitude', MAX_EFFECT_MAGNITUDE, issue, unsafe);
+      }
     }
   }
 }
@@ -288,11 +373,16 @@ export function summarizeJudgmentModelOutcomes(
     const refutations = group
       .filter((record) => record.verdict === 'refutes')
       .sort((left, right) => Date.parse(right.recorded_at) - Date.parse(left.recorded_at) || right.id.localeCompare(left.id));
+    const structuralRefutations = refutations.filter((record) => !isAnecdotalRefutation(record));
+    const anecdotalRefutations = refutations.filter((record) => isAnecdotalRefutation(record));
     summaries.set(id, {
       supports: group.filter((record) => record.verdict === 'supports').length,
       refutes: refutations.length,
+      structural_refutes: structuralRefutations.length,
+      anecdotal_refutes: anecdotalRefutations.length,
       inconclusive: group.filter((record) => record.verdict === 'inconclusive').length,
-      refuted_when: refutations.slice(0, MAX_REFUTED_WHEN).map((record) => clip(record.conditions, MAX_REFUTED_WHEN_TEXT)),
+      refuted_when: structuralRefutations.slice(0, MAX_REFUTED_WHEN).map((record) => clip(record.conditions, MAX_REFUTED_WHEN_TEXT)),
+      anecdotal_refuted_when: anecdotalRefutations.slice(0, MAX_REFUTED_WHEN).map((record) => clip(record.conditions, MAX_REFUTED_WHEN_TEXT)),
     });
   }
   return summaries;
