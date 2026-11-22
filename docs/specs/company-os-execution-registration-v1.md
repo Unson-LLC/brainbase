@@ -1,5 +1,7 @@
 # Company OS execution registration v1
 
+> **2026-11-20 移設**: 実行の意図の本体（`ExecutionAuthorityService`）とHTTPの受け口は brainbase-organization の `packages/company-os`（`execution-authority.js`・`execution-authority-http.js`。保存先はPostgreSQL）へ移した。OSSの `./execution-authority` と `./execution-authority-http` は削除済み。この文書は移設前の記録として残す。
+
 対象Story: [story-company-os-execution-registration-v1](../stories/story-company-os-execution-registration-v1.md)。既存の [company-os-execution-authority-v1](./company-os-execution-authority-v1.md) と [company-os-execution-authority-http-v1](./company-os-execution-authority-http-v1.md) に、登録・報告・帰属・保存先のportを足す。既存の `start` の振る舞いは変えない。
 
 ## 帰属

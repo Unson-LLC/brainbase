@@ -731,7 +731,12 @@ export function stopKnowledgeLookup(previous: KnowledgeLookupState, now = Date.n
 }
 
 export function cancelKnowledgeLookup(previous: KnowledgeLookupState): KnowledgeLookupState {
-  return terminate(structuredClone(previous) as KnowledgeLookupState, 'user_cancelled', 'cancelled');
+  const state = structuredClone(previous) as KnowledgeLookupState;
+  // Like a late result or Stop, a cancel never rewrites a finished lookup:
+  // its status and termination_reason stay as they were, and cancelling a
+  // cancelled lookup again returns it unchanged.
+  if (isKnowledgeLookupTerminal(state)) return state;
+  return terminate(state, 'user_cancelled', 'cancelled');
 }
 
 export function knowledgeLookupContext(state: KnowledgeLookupState): string {

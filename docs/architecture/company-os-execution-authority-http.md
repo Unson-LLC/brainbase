@@ -1,5 +1,7 @@
 # 実行権限Canonical HTTP adapterの境界
 
+> **2026-11-20 移設**: 実行の意図の本体（`ExecutionAuthorityService`）とHTTPの受け口は brainbase-organization の `packages/company-os`（`execution-authority.js`・`execution-authority-http.js`。保存先はPostgreSQL）へ移した。OSSの `./execution-authority` と `./execution-authority-http` は削除済み。この文書は移設前の記録として残す。
+
 この文書は [story-company-os-execution-authority-http-v1](../stories/story-company-os-execution-authority-http-v1.md) の責務境界を定める。HTTP adapterは既存の実行権限サービスを公開するが、認証・組織権限・外部作用の正本をOSSへ移さない。
 
 ```text

@@ -1,5 +1,7 @@
 # Company OS execution authority v1
 
+> **2026-11-20 移設**: 実行の意図の本体（`ExecutionAuthorityService`）とHTTPの受け口は brainbase-organization の `packages/company-os`（`execution-authority.js`・`execution-authority-http.js`。保存先はPostgreSQL）へ移した。OSSの `./execution-authority` と `./execution-authority-http` は削除済み。この文書は移設前の記録として残す。
+
 ## 目的
 
 予約済みの実行でも、作用を開始する直前に現在の権限・承認・制約・予約状態を再検証する。失効や不明を許可へ丸めず、外部作用の開始が不明になったときは未実行として再試行しない。
