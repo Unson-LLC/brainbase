@@ -653,6 +653,199 @@ describe('pattern-level deterministic structural checks', () => {
     });
     expect(supportedNoEvidenceAudit.patterns.conclusion_lock_cherry_picking.status).toBe('fail');
     expect(supportedNoEvidenceAudit.patterns.conclusion_lock_cherry_picking.signals).toContain('verify_node_without_evidence');
+
+    // Regression (verify-skill): a philosophy+objective-only 2-option frame (no models used)
+    // must PASS conclusion_lock_cherry_picking even when the catalog contains an unrelated model.
+    const catalogWithUnreferencedModel = buildJudgmentFrameCatalog([
+      {
+        id: 'phi_only',
+        entity_type: 'philosophy',
+        lifecycle_status: 'active',
+        payload: { display_name: '誠実', statement: '事実に基づき答える。', status: 'active' },
+      },
+      {
+        id: 'obj_only',
+        entity_type: 'objective',
+        lifecycle_status: 'active',
+        payload: { foundation: { revision: '1', adoptionState: 'approved', desiredState: '明確に説明する。' } },
+      },
+      {
+        id: 'mod_unrelated_offseason',
+        entity_type: 'model',
+        lifecycle_status: 'active',
+        payload: {
+          applicability_text: '閑散期・単独施設',
+          foundation: {
+            revision: '1',
+            validationState: 'verified',
+            adoptionState: 'approved',
+            meaning: '閑散期の単独施設では価格調整が有効。',
+          },
+        },
+      },
+    ]).catalog;
+
+    const noModelFrame: JudgmentFrameRecord = {
+      record_version: 'judgment-frame-record.v1',
+      catalog_digest: catalogWithUnreferencedModel.digest,
+      selections: [
+        { ref: 'phi_only', kind: 'philosophy', why: '制約' },
+        { ref: 'obj_only', kind: 'objective', why: '目的' },
+      ],
+      none: { model: '該当する因果モデルがない運用選択のため' },
+      options: [
+        {
+          label: '案A',
+          uses: [
+            { ref: 'phi_only', role: 'constraint', verdict: 'satisfied', note: '整合' },
+            { ref: 'obj_only', role: 'criterion', note: '明確' },
+          ],
+        },
+        {
+          label: '案B',
+          uses: [
+            { ref: 'phi_only', role: 'constraint', verdict: 'satisfied', note: '整合' },
+            { ref: 'obj_only', role: 'criterion', note: '代替案' },
+          ],
+        },
+      ],
+      chosen_option: '案A',
+    };
+    const noModelAudit = auditJudgmentReasoning({
+      frame: noModelFrame,
+      catalog: catalogWithUnreferencedModel,
+    });
+    expect(noModelAudit.patterns.conclusion_lock_cherry_picking.status).toBe('pass');
+    expect(noModelAudit.patterns.conclusion_lock_cherry_picking.score).toBe(1);
+    expect(noModelAudit.overall_status).toBe('pass');
+
+    // Unscoped used model (no applies_when) must NOT treat a scoped catalog model as same-scope competitor
+    const unscopedPlusScopedCatalog = buildJudgmentFrameCatalog([
+      {
+        id: 'phi_only',
+        entity_type: 'philosophy',
+        lifecycle_status: 'active',
+        payload: { display_name: '誠実', statement: '事実に基づき答える。', status: 'active' },
+      },
+      {
+        id: 'obj_only',
+        entity_type: 'objective',
+        lifecycle_status: 'active',
+        payload: { foundation: { revision: '1', adoptionState: 'approved', desiredState: '明確に説明する。' } },
+      },
+      {
+        id: 'mod_unscoped_general',
+        entity_type: 'model',
+        lifecycle_status: 'active',
+        payload: {
+          foundation: {
+            revision: '1',
+            validationState: 'verified',
+            adoptionState: 'approved',
+            meaning: '一般的な傾向モデル。',
+          },
+        },
+      },
+      {
+        id: 'mod_scoped_offseason',
+        entity_type: 'model',
+        lifecycle_status: 'active',
+        payload: {
+          applicability_text: '閑散期・単独施設',
+          foundation: {
+            revision: '1',
+            validationState: 'verified',
+            adoptionState: 'approved',
+            meaning: '閑散期専用モデル。',
+          },
+        },
+      },
+    ]).catalog;
+
+    const unscopedModelFrame: JudgmentFrameRecord = {
+      record_version: 'judgment-frame-record.v1',
+      catalog_digest: unscopedPlusScopedCatalog.digest,
+      selections: [
+        { ref: 'phi_only', kind: 'philosophy', why: '制約' },
+        { ref: 'obj_only', kind: 'objective', why: '目的' },
+        { ref: 'mod_unscoped_general', kind: 'model', why: '一般モデル検証' },
+      ],
+      options: [
+        {
+          label: '案A',
+          uses: [
+            { ref: 'phi_only', role: 'constraint', verdict: 'satisfied', note: '整合' },
+            { ref: 'obj_only', role: 'criterion', note: '基準' },
+            {
+              ref: 'mod_unscoped_general',
+              role: 'prediction',
+              note: '成立確認',
+              check: { falsified_if: '悪化', status: 'held', evidence: 'ログ' },
+            },
+          ],
+        },
+        {
+          label: '案B',
+          uses: [
+            { ref: 'phi_only', role: 'constraint', verdict: 'satisfied', note: '整合' },
+            { ref: 'obj_only', role: 'criterion', note: '比較案' },
+          ],
+        },
+      ],
+      chosen_option: '案A',
+    };
+    const unscopedScopeAudit = auditJudgmentReasoning({
+      frame: unscopedModelFrame,
+      catalog: unscopedPlusScopedCatalog,
+    });
+    expect(unscopedScopeAudit.patterns.conclusion_lock_cherry_picking.status).toBe('pass');
+
+    // Anecdotal-only refutation or older-revision refutation must NOT count as refuted in Pattern 4 (aligned with Pattern 5)
+    const anecdotalOnlyRefutation = makeStoredOutcome('out_p4_anec', '2026-11-20T00:00:00.000Z', {
+      model: { id: 'mod_unscoped_general', revision: '1' },
+      verdict: 'refutes',
+      prediction: '一般傾向が成立',
+      observed: '単発例外',
+      conditions: '単日特例',
+      evidence_refs: [{ kind: 'artifact', ref: 'log-1', label: '単日ログ' }],
+      ruled_out: { measurement_error: 'ok', execution_difference: 'ok', external_change: 'ok' },
+      scope_metrics: { claim_type: 'tendency', sample_size: 1, population_size: 100, representativeness: 'anecdotal' },
+    });
+    const staleRevisionRefutation = makeStoredOutcome('out_p4_stale', '2026-11-10T00:00:00.000Z', {
+      model: { id: 'mod_unscoped_general', revision: '0' },
+      verdict: 'refutes',
+      prediction: '旧版の傾向',
+      observed: '旧版で不成立',
+      conditions: '全社集計',
+      evidence_refs: [{ kind: 'query', ref: 'q-old', label: '旧版集計' }],
+      ruled_out: { measurement_error: 'ok', execution_difference: 'ok', external_change: 'ok' },
+      scope_metrics: { claim_type: 'tendency', sample_size: 100, population_size: 100, representativeness: 'census' },
+    });
+    const nonStructuralRefutationAudit = auditJudgmentReasoning({
+      frame: unscopedModelFrame,
+      catalog: unscopedPlusScopedCatalog,
+      outcomes: [anecdotalOnlyRefutation, staleRevisionRefutation],
+    });
+    expect(nonStructuralRefutationAudit.patterns.conclusion_lock_cherry_picking.status).toBe('pass');
+
+    // Current-revision structural refutation DOES trigger unaddressed_competing_or_refuted_models when counter/competing are empty
+    const currentStructuralRefutation = makeStoredOutcome('out_p4_struct', '2026-11-21T00:00:00.000Z', {
+      model: { id: 'mod_unscoped_general', revision: '1' },
+      verdict: 'refutes',
+      prediction: '一般傾向が成立',
+      observed: '全社集計で逆転',
+      conditions: '全社コホート',
+      evidence_refs: [{ kind: 'query', ref: 'q-now', label: '現行版集計' }],
+      ruled_out: { measurement_error: 'ok', execution_difference: 'ok', external_change: 'ok' },
+      scope_metrics: { claim_type: 'tendency', sample_size: 100, population_size: 100, representativeness: 'census' },
+    });
+    const structuralRefutationAudit = auditJudgmentReasoning({
+      frame: unscopedModelFrame,
+      catalog: unscopedPlusScopedCatalog,
+      outcomes: [currentStructuralRefutation],
+    });
+    expect(structuralRefutationAudit.patterns.conclusion_lock_cherry_picking.status).toBe('fail');
+    expect(structuralRefutationAudit.patterns.conclusion_lock_cherry_picking.signals).toContain('unaddressed_competing_or_refuted_models');
   });
 
   it('5. local_patch_without_model_update: ignores anecdotal-only refutations for >=2 threshold and warns on partial refutation coverage', () => {

@@ -173,13 +173,13 @@ export const JUDGMENT_REASONING_DISTORTION_RUBRIC_V1: Readonly<
     pattern: 'conclusion_lock_cherry_picking',
     title: '結論先固定・チェリーピッキング（Conclusion Lock & Cherry-Picking）',
     definition:
-      '単一案のみを並べて代替案比較を行わない、同スコープの競合モデルや反証済みモデルを無視して都合のよい根拠だけを集める、あるいは検証ノード（verify）に実行証跡を伴わせない推論歪み。',
+      '単一案のみを並べて代替案比較を行わない、同スコープの競合モデルや現行版で構造的反証済みのモデルを無視して都合のよい根拠だけを集める、あるいは検証ノード（node_id を区切り文字で分割したトークンに verify を含むノード）に実行証跡を伴わせない推論歪み。',
     pass_criteria:
-      '2案以上の選択肢（options.length >= 2）を比較し、同スコープの他モデルや反証済みモデルが存在する場合は competing_hypotheses または counter_summary で明示的に対比し、verify ノードには業務ツールの証跡（evidence_tool_use_ids）が紐づいている。',
+      '2案以上の選択肢（options.length >= 2）を比較し、モデル使用時に同スコープの他モデルまたは現行版の構造的反証済みモデルが存在する場合は competing_hypotheses または counter_summary で明示的に対比し、verify ノード（例: verify, judgment.verify）には業務ツールの証跡（evidence_tool_use_ids）が紐づいている。',
     warn_criteria:
-      '結論先固定の直接違反はないが、verify ノードが insufficient かつ evidence_tool_use_ids が空のまま残っている。',
+      '結論先固定の直接違反はないが、verify ノード（node_id の区切りトークンに verify を含むノード）が insufficient かつ evidence_tool_use_ids が空のまま残っている。',
     fail_criteria:
-      'options.length <= 1（代替案比較なし）、カタログ内に同スコープの他モデルまたは反証済みモデルがあるのに competing_hypotheses が空かつ counter_summary も空・未記載、または nodeResults の verify ノードが証跡（evidence_tool_use_ids）なしで supported となっている。',
+      'options.length <= 1（代替案比較なし）、モデル使用時にカタログ内に同スコープの他モデルまたは現行版の構造的反証済みモデルがあるのに competing_hypotheses が空かつ counter_summary も空・未記載、または nodeResults の verify ノード（区切り文字で分割したトークンに verify を含む node_id）が証跡（evidence_tool_use_ids）なしで supported となっている。',
     positive_anchor:
       '2案以上を同一基準で比較し、同スコープの競合モデルを competing_hypotheses で比較したうえで、verify ノードに実測クエリの tool_use_id を紐づける。',
     negative_anchor:
@@ -213,6 +213,12 @@ function normalizedScopeKey(appliesWhen: string | undefined): string {
   return typeof appliesWhen === 'string' ? appliesWhen.trim() : '';
 }
 
+/**
+ * Structural verify-node matcher: splits `node_id` on delimiter characters
+ * (`-`, `.`, `_`, `/`, `:`, whitespace) and returns true when one of the
+ * lowercase tokens is `"verify"` (e.g., `"verify"`, `"judgment.verify"`,
+ * `"hypothesis-verify"`).
+ */
 function isVerifyNodeId(nodeId: string): boolean {
   const normalized = nodeId.trim().toLowerCase();
   if (!normalized) return false;
@@ -544,21 +550,26 @@ export function auditJudgmentReasoning(input: JudgmentReasoningAuditInput): Judg
       .map((entry) => entry.use.ref)
       .filter((ref) => catalogById.get(ref)?.kind === 'model'),
   );
-  const usedModelScopes = new Set(
-    [...usedModelIds].map((id) => normalizedScopeKey(catalogById.get(id)?.applies_when)),
-  );
 
+  // Only check competing / structurally-refuted catalog models when the frame
+  // actually uses at least one model; a philosophy/objective-only frame must
+  // not treat unrelated catalog models as unaddressed competitors.
   const competingOrRefutedCatalogPaths: string[] = [];
-  for (const modelItem of modelCatalogItems) {
-    const idx = catalogIndexById.get(modelItem.id);
-    const itemPath = idx === undefined ? `catalog.items` : `catalog.items[${idx}]`;
-    const isOtherSameScope =
-      !usedModelIds.has(modelItem.id)
-      && (usedModelScopes.size === 0 || usedModelScopes.has(normalizedScopeKey(modelItem.applies_when)));
-    const summary = outcomeSummaries.get(modelItem.id);
-    const isRefuted = Boolean(summary && summary.refutes > 0);
-    if (isOtherSameScope || isRefuted) {
-      competingOrRefutedCatalogPaths.push(itemPath);
+  if (usedModelIds.size > 0) {
+    const usedModelScopes = new Set(
+      [...usedModelIds].map((id) => normalizedScopeKey(catalogById.get(id)?.applies_when)),
+    );
+    for (const modelItem of modelCatalogItems) {
+      const idx = catalogIndexById.get(modelItem.id);
+      const itemPath = idx === undefined ? `catalog.items` : `catalog.items[${idx}]`;
+      const isOtherSameScope =
+        !usedModelIds.has(modelItem.id)
+        && usedModelScopes.has(normalizedScopeKey(modelItem.applies_when));
+      const summary = outcomeSummaries.get(modelItem.id);
+      const isRefuted = structuralRefutationCount(summary) > 0;
+      if (isOtherSameScope || isRefuted) {
+        competingOrRefutedCatalogPaths.push(itemPath);
+      }
     }
   }
 
