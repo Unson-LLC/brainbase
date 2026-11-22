@@ -256,133 +256,80 @@ describe('prediction check balance and scope escalations (anti-cherry-picking)',
     }
   });
 
-  it('escalates prediction_scope_mismatch when a probabilistic claim is failed on a single/anecdotal exception', async () => {
-    const anecdotalCases = [
-      ['Japanese 単発例外', '単発例外: 施設Bの1日だけ悪化した', '施設Bの日報'],
-      ['Japanese 逸話的反証', '逸話的反証（現場1名の印象）', 'ヒアリングメモ'],
-      ['Japanese 例外1件のみ', '例外1件のみ確認された', '問い合わせ1件'],
-      ['Japanese n=1', 'n=1 のケースで不成立', '個別ログ'],
-      ['English anecdotal', 'anecdotal complaint from one operator', 'interview'],
-      ['English single exception', 'Observed a single exception during holiday peak', 'ops log'],
-      ['English isolated case in evidence', '複数条件を確認', 'isolated case in facility B'],
-      ['Negated phrase does not mask separate n=1 signal', '単発ではないと主張されたが実測は n=1 の反例のみ', '個別ログ'],
-      ['UNS-4582 regression: negated cohort audit does not suppress mismatch', 'One isolated case only (n=1); no cohort audit was performed.', 'Case log'],
-      ['Negated verb form on cohort audit does not suppress mismatch', 'Single exception observed; cohort audit was not conducted.', 'Case log'],
-      ['Japanese negated census does not suppress mismatch', '単発事例のみを確認。全数調査は未実施で代表サンプルなし。', '個別ログ'],
-    ] as const;
+  it('escalates prediction_scope_mismatch purely on structural counter_representativeness: anecdotal (chosen and rejected options)', async () => {
+    // 1) Chosen option: probabilistic + failed + counter_representativeness: 'anecdotal' -> escalates regardless of prose.
+    const chosenAnecdotal = await record({
+      falsified_if: '全体傾向として効果が逆転する',
+      status: 'failed',
+      evidence: 'Full cohort audit, N=1200 (mentioned as background)',
+      balance: {
+        claim_scope: 'probabilistic',
+        population: '全12施設・30日',
+        supporting_summary: '11施設では従来どおり改善',
+        counter_summary: '施設Bの単発事例のみ',
+        counter_representativeness: 'anecdotal',
+      },
+    });
+    expect(chosenAnecdotal?.status).toBe('ok');
+    expect((chosenAnecdotal as { data: { escalations: unknown[] } }).data.escalations).toEqual([
+      { code: 'chosen_relies_on_failed_prediction', refs: ['fnd_model_cleaning_order'] },
+      { code: 'prediction_scope_mismatch', refs: ['fnd_model_cleaning_order'] },
+    ]);
 
-    for (const [label, counterSummary, evidence] of anecdotalCases) {
-      const result = await record({
-        falsified_if: '全体傾向として効果が逆転する',
-        status: 'failed',
-        evidence,
-        balance: {
-          claim_scope: 'probabilistic',
-          population: '全12施設・30日',
-          supporting_summary: '11施設では従来どおり改善',
-          counter_summary: counterSummary,
+    // 2) Rejected alternative option: catches cherry-picked rejection of an alternative option without triggering chosen_relies_on_failed_prediction.
+    const catalog = await handleJudgmentFrameToolCall('brainbase_judgment_frame_catalog', {}, dependencies);
+    const digest = (catalog as { data: { catalog_digest: string } }).data.catalog_digest;
+    const rejectedAnecdotal = await handleJudgmentFrameToolCall('brainbase_judgment_frame_record', {
+      record_version: 'judgment-frame-record.v1',
+      catalog_digest: digest,
+      selections: [
+        { ref: 'phi_purpose_first', kind: 'philosophy', why: '目的を先に固定するため' },
+        { ref: 'fnd_objective_headroom', kind: 'objective', why: '上限を先に出すため' },
+        { ref: 'fnd_model_cleaning_order', kind: 'model', why: '清掃順の効果を予測するため' },
+      ],
+      options: [
+        {
+          label: '現行維持',
+          uses: [
+            { ref: 'phi_purpose_first', role: 'constraint', verdict: 'satisfied', note: '目的は固定した' },
+            { ref: 'fnd_objective_headroom', role: 'criterion', note: '現状の上限を維持' },
+          ],
         },
-      });
-      expect(result?.status, label).toBe('ok');
-      const escalations = (result as { data: { escalations: Array<{ code: string; refs: string[] }> } }).data.escalations;
-      expect(escalations, label).toContainEqual({
-        code: 'prediction_scope_mismatch',
-        refs: ['fnd_model_cleaning_order'],
-      });
-    }
+        {
+          label: '清掃順を探索する',
+          uses: [
+            { ref: 'phi_purpose_first', role: 'constraint', verdict: 'satisfied', note: '目的は固定した' },
+            { ref: 'fnd_objective_headroom', role: 'criterion', note: '改善余地を検証' },
+            {
+              ref: 'fnd_model_cleaning_order',
+              role: 'prediction',
+              note: '単発反例を理由に不採用とする',
+              check: {
+                falsified_if: '全体傾向が不成立',
+                status: 'failed',
+                evidence: '施設Bの単日ログ',
+                balance: {
+                  claim_scope: 'probabilistic',
+                  population: '全12施設・30日',
+                  supporting_summary: '既存運用では改善傾向あり',
+                  counter_summary: '施設Bの1日だけ悪化',
+                  counter_representativeness: 'anecdotal',
+                },
+              },
+            },
+          ],
+        },
+      ],
+      chosen_option: '現行維持',
+    }, dependencies);
+
+    expect(rejectedAnecdotal?.status).toBe('ok');
+    expect((rejectedAnecdotal as { data: { escalations: unknown[] } }).data.escalations).toEqual([
+      { code: 'prediction_scope_mismatch', refs: ['fnd_model_cleaning_order'] },
+    ]);
   });
 
-  it('does not false-positive prediction_scope_mismatch for population-level refutation, negated wording, universal, or bounded_case', async () => {
-    const nonMismatchCases: Array<[string, Record<string, unknown>]> = [
-      ['probabilistic failed with representative refutation (n=120)', {
-        falsified_if: '過半数で改善しない',
-        status: 'failed',
-        evidence: '全120件の代表サンプル集計（n=120）',
-        balance: {
-          claim_scope: 'probabilistic',
-          population: '全120施設日',
-          supporting_summary: '35/120件のみ改善',
-          counter_summary: '85/120件（71%）で改善せず、11件のみ軽微な例外改善',
-        },
-      }],
-      ['probabilistic failed with explicit Japanese negation of single exception', {
-        falsified_if: '全社傾向が逆転する',
-        status: 'failed',
-        evidence: '全30拠点集計',
-        balance: {
-          claim_scope: 'probabilistic',
-          population: '全30拠点・Q3',
-          supporting_summary: '6拠点のみで効果あり',
-          counter_summary: '単発例外ではなく24/30拠点で再現した構造的反証',
-        },
-      }],
-      ['probabilistic failed with explicit English negation', {
-        falsified_if: 'effect reverses across facilities',
-        status: 'failed',
-        evidence: 'Q3 cohort report',
-        balance: {
-          claim_scope: 'probabilistic',
-          population: '20 facilities in Q3',
-          supporting_summary: '4 facilities improved',
-          counter_summary: 'not anecdotal; replicated across 16 of 20 facilities',
-        },
-      }],
-      ['UNS-4551 regression: isolated case prompted a full cohort audit of 1200 cases', {
-        falsified_if: 'Full cohort audit shows no positive effect',
-        status: 'failed',
-        evidence: 'Full cohort audit, N=1200',
-        balance: {
-          claim_scope: 'probabilistic',
-          population: 'All 1200 cases',
-          supporting_summary: 'Pilot study found a positive effect',
-          counter_summary: 'One isolated case prompted the audit, then the full cohort of 1200 independently showed no effect.',
-        },
-      }],
-      ['Japanese mixed trigger + full census verification', {
-        falsified_if: '母集団全体で改善が確認できない',
-        status: 'failed',
-        evidence: '全数監査レポート（N=1200）',
-        balance: {
-          claim_scope: 'probabilistic',
-          population: '全1200件',
-          supporting_summary: 'パイロット導入では改善傾向',
-          counter_summary: '単発事例を契機に全数監査を実施し、母集団全体で効果がないことを独立確認した。',
-        },
-      }],
-      ['universal claim validly refuted by single exception (even with empty supporting_summary)', {
-        falsified_if: '1件でも例外が出れば普遍主張は偽',
-        status: 'failed',
-        evidence: '施設Bの検証ログ',
-        balance: {
-          claim_scope: 'universal',
-          population: '全施設・繁忙帯',
-          supporting_summary: '',
-          counter_summary: '単発例外: 施設Bで反例1件を確認',
-        },
-      }],
-      ['bounded_case validly refuted on the target case', {
-        falsified_if: '対象案件で不成立',
-        status: 'failed',
-        evidence: '対象案件の検証ログ',
-        balance: {
-          claim_scope: 'bounded_case',
-          population: '施設A・9月第2週',
-          supporting_summary: '初日のみ一致',
-          counter_summary: '単発例外: 対象ケース全体では不成立',
-        },
-      }],
-    ];
-
-    for (const [label, check] of nonMismatchCases) {
-      const result = await record(check);
-      expect(result?.status, label).toBe('ok');
-      const escalations = (result as { data: { escalations: Array<{ code: string; refs: string[] }> } }).data.escalations;
-      expect(escalations.map((e) => e.code), label).not.toContain('prediction_scope_mismatch');
-      expect(escalations.map((e) => e.code), label).not.toContain('prediction_unbalanced_evidence');
-    }
-  });
-
-  it('catches prediction_scope_mismatch on a rejected alternative option and against anecdotal-only stored outcomes', async () => {
+  it('never triggers prediction_scope_mismatch from free-text wording when counter_representativeness is omitted, census, representative, or unknown, or for non-probabilistic/non-failed checks', async () => {
     const anecdotalOutcome: JudgmentModelOutcome = {
       record_version: 'judgment-model-outcome.v1',
       model: { id: 'fnd_model_cleaning_order', revision: '2' },
@@ -415,98 +362,141 @@ describe('prediction check balance and scope escalations (anti-cherry-picking)',
         }],
       }),
     };
-    const catalog = await handleJudgmentFrameToolCall('brainbase_judgment_frame_catalog', {}, depsWithAnecdotalOutcome);
-    const digest = (catalog as { data: { catalog_digest: string } }).data.catalog_digest;
 
-    // Rejected alternative option fails a probabilistic model based on anecdotal-only outcome; chosen option avoids it.
-    const result = await handleJudgmentFrameToolCall('brainbase_judgment_frame_record', {
-      record_version: 'judgment-frame-record.v1',
-      catalog_digest: digest,
-      selections: [
-        { ref: 'phi_purpose_first', kind: 'philosophy', why: '目的を先に固定するため' },
-        { ref: 'fnd_objective_headroom', kind: 'objective', why: '上限を先に出すため' },
-        { ref: 'fnd_model_cleaning_order', kind: 'model', why: '清掃順の効果を予測するため' },
-      ],
-      options: [
-        {
-          label: '現行維持',
-          uses: [
-            { ref: 'phi_purpose_first', role: 'constraint', verdict: 'satisfied', note: '目的は固定した' },
-            { ref: 'fnd_objective_headroom', role: 'criterion', note: '現状の上限を維持' },
-          ],
+    const nonMismatchCases: Array<[string, Record<string, unknown>]> = [
+      ['omitted counter_representativeness with isolated case + no cohort prose', {
+        falsified_if: 'Full cohort shows no positive effect',
+        status: 'failed',
+        evidence: 'Case log',
+        balance: {
+          claim_scope: 'probabilistic',
+          population: 'All 1200 cases',
+          supporting_summary: 'Pilot study found a positive effect',
+          counter_summary: 'One isolated case only (n=1); no cohort audit was performed.',
         },
-        {
-          label: '清掃順を探索する',
-          uses: [
-            { ref: 'phi_purpose_first', role: 'constraint', verdict: 'satisfied', note: '目的は固定した' },
-            { ref: 'fnd_objective_headroom', role: 'criterion', note: '改善余地を検証' },
-            {
-              ref: 'fnd_model_cleaning_order',
-              role: 'prediction',
-              note: '反証記録があるため不採用とする',
-              check: {
-                falsified_if: '全体傾向が不成立',
-                status: 'failed',
-                evidence: '過去の反証記録を参照',
-                balance: {
-                  claim_scope: 'probabilistic',
-                  population: '全12施設・30日',
-                  supporting_summary: '既存運用では改善傾向あり',
-                  counter_summary: '過去の反証記録が1件存在する',
-                },
-              },
-            },
-          ],
+      }],
+      ['omitted counter_representativeness with planned cohort audit prose', {
+        falsified_if: 'Full cohort shows no positive effect',
+        status: 'failed',
+        evidence: 'Case log',
+        balance: {
+          claim_scope: 'probabilistic',
+          population: 'All 1200 cases',
+          supporting_summary: 'Pilot study found a positive effect',
+          counter_summary: 'Single exception observed; cohort audit is planned for next month.',
         },
-      ],
-      chosen_option: '現行維持',
-    }, depsWithAnecdotalOutcome);
-
-    expect(result?.status).toBe('ok');
-    expect((result as { data: { escalations: unknown[] } }).data.escalations).toEqual([
-      { code: 'prediction_scope_mismatch', refs: ['fnd_model_cleaning_order'] },
-    ]);
-  });
-
-  it('gives explicit counter_representativeness precedence over text heuristics', async () => {
-    // Explicit census / representative prevents mismatch even if text mentions an isolated case.
-    for (const representativeness of ['census', 'representative'] as const) {
-      const result = await record({
+      }],
+      ['omitted counter_representativeness with full cohort audit (UNS-4551)', {
+        falsified_if: 'Full cohort audit shows no positive effect',
+        status: 'failed',
+        evidence: 'Full cohort audit, N=1200',
+        balance: {
+          claim_scope: 'probabilistic',
+          population: 'All 1200 cases',
+          supporting_summary: 'Pilot study found a positive effect',
+          counter_summary: 'One isolated case prompted the audit, then the full cohort of 1200 independently showed no effect.',
+        },
+      }],
+      ['explicit census representativeness', {
         falsified_if: 'effect fails across population',
         status: 'failed',
-        evidence: 'isolated case noted in summary',
+        evidence: 'Full cohort audit, N=1200',
         balance: {
           claim_scope: 'probabilistic',
           population: 'All 1200 cases',
           supporting_summary: 'Pilot study positive',
           counter_summary: 'isolated case mentioned',
-          counter_representativeness: representativeness,
+          counter_representativeness: 'census',
         },
-      });
-      expect(result?.status, representativeness).toBe('ok');
-      expect((result as { data: { escalations: unknown[] } }).data.escalations, representativeness).toEqual([
-        { code: 'chosen_relies_on_failed_prediction', refs: ['fnd_model_cleaning_order'] },
-      ]);
-    }
+      }],
+      ['explicit representative representativeness', {
+        falsified_if: 'effect fails across population',
+        status: 'failed',
+        evidence: 'Representative sample',
+        balance: {
+          claim_scope: 'probabilistic',
+          population: 'All 1200 cases',
+          supporting_summary: 'Pilot study positive',
+          counter_summary: 'isolated case mentioned',
+          counter_representativeness: 'representative',
+        },
+      }],
+      ['explicit unknown representativeness with anecdotal prose', {
+        falsified_if: 'effect fails across population',
+        status: 'failed',
+        evidence: 'Case log',
+        balance: {
+          claim_scope: 'probabilistic',
+          population: 'All 1200 cases',
+          supporting_summary: 'Pilot study positive',
+          counter_summary: 'One isolated case only (n=1)',
+          counter_representativeness: 'unknown',
+        },
+      }],
+      ['universal claim with anecdotal counter_representativeness', {
+        falsified_if: '1件でも例外が出れば普遍主張は偽',
+        status: 'failed',
+        evidence: '施設Bの検証ログ',
+        balance: {
+          claim_scope: 'universal',
+          population: '全施設・繁忙帯',
+          supporting_summary: '',
+          counter_summary: '単発例外: 施設Bで反例1件を確認',
+          counter_representativeness: 'anecdotal',
+        },
+      }],
+      ['bounded_case claim with anecdotal counter_representativeness', {
+        falsified_if: '対象案件で不成立',
+        status: 'failed',
+        evidence: '対象案件の検証ログ',
+        balance: {
+          claim_scope: 'bounded_case',
+          population: '施設A・9月第2週',
+          supporting_summary: '初日のみ一致',
+          counter_summary: '対象ケース全体では不成立',
+          counter_representativeness: 'anecdotal',
+        },
+      }],
+      ['probabilistic held check with anecdotal counter_representativeness', {
+        falsified_if: '過半数で悪化',
+        status: 'held',
+        evidence: '全12施設集計',
+        balance: {
+          claim_scope: 'probabilistic',
+          population: '全12施設・30日',
+          supporting_summary: '11施設で改善',
+          counter_summary: '単発例外1件のみ',
+          counter_representativeness: 'anecdotal',
+        },
+      }],
+    ];
 
-    // Explicit anecdotal always escalates prediction_scope_mismatch even if text mentions cohort/N=1200.
-    const anecdotalExplicit = await record({
-      falsified_if: 'effect fails across population',
-      status: 'failed',
-      evidence: 'Full cohort audit, N=1200',
-      balance: {
-        claim_scope: 'probabilistic',
-        population: 'All 1200 cases',
-        supporting_summary: 'Pilot study positive',
-        counter_summary: 'Full cohort summary mentioned, but only anecdotal evidence supports refutation',
-        counter_representativeness: 'anecdotal',
-      },
-    });
-    expect(anecdotalExplicit?.status).toBe('ok');
-    expect((anecdotalExplicit as { data: { escalations: unknown[] } }).data.escalations).toEqual([
-      { code: 'chosen_relies_on_failed_prediction', refs: ['fnd_model_cleaning_order'] },
-      { code: 'prediction_scope_mismatch', refs: ['fnd_model_cleaning_order'] },
-    ]);
+    const catalog = await handleJudgmentFrameToolCall('brainbase_judgment_frame_catalog', {}, depsWithAnecdotalOutcome);
+    const digest = (catalog as { data: { catalog_digest: string } }).data.catalog_digest;
+    for (const [label, check] of nonMismatchCases) {
+      const result = await handleJudgmentFrameToolCall('brainbase_judgment_frame_record', {
+        record_version: 'judgment-frame-record.v1',
+        catalog_digest: digest,
+        selections: [
+          { ref: 'phi_purpose_first', kind: 'philosophy', why: '目的を先に固定するため' },
+          { ref: 'fnd_objective_headroom', kind: 'objective', why: '上限を先に出すため' },
+          { ref: 'fnd_model_cleaning_order', kind: 'model', why: '清掃順の効果を予測するため' },
+        ],
+        options: [{
+          label: '清掃順を探索する',
+          uses: [
+            { ref: 'phi_purpose_first', role: 'constraint', verdict: 'satisfied', note: '目的は固定した' },
+            { ref: 'fnd_objective_headroom', role: 'criterion', note: '上限を比べる' },
+            { ref: 'fnd_model_cleaning_order', role: 'prediction', note: '予測を確認', check },
+          ],
+        }],
+        chosen_option: '清掃順を探索する',
+      }, depsWithAnecdotalOutcome);
+      expect(result?.status, label).toBe('ok');
+      const escalations = (result as { data: { escalations: Array<{ code: string; refs: string[] }> } }).data.escalations;
+      expect(escalations.map((e) => e.code), label).not.toContain('prediction_scope_mismatch');
+      expect(escalations.map((e) => e.code), label).not.toContain('prediction_unbalanced_evidence');
+    }
   });
 
   it('rejects structurally malformed balance objects including on unchecked checks', async () => {

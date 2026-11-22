@@ -197,7 +197,7 @@ export type JudgmentFrameEscalationCode =
   | 'chosen_relies_on_failed_prediction'
   /** A prediction check with balance is missing population or counter/supporting balance needed for its status. */
   | 'prediction_unbalanced_evidence'
-  /** A probabilistic prediction is marked failed on a single-case/anecdotal basis or against anecdotal-only outcomes. */
+  /** A probabilistic prediction is marked failed with explicit counter_representativeness: 'anecdotal'. */
   | 'prediction_scope_mismatch';
 
 export interface JudgmentFrameEscalation {
@@ -465,71 +465,8 @@ const COMPETING_HYPOTHESIS_KEYS = ['hypothesis', 'ref', 'comparison'] as const;
 const MAX_CHECK_EVIDENCE = 800;
 const MAX_COMPETING_HYPOTHESES = 8;
 
-const ANECDOTAL_NEGATION_PATTERN = /(?:(?:単発(?:の)?(?:例外|反例|事例|ケース)?|逸話(?:的)?(?:な)?(?:反証|例外|反例|事例)?|個別(?:の)?例外|例外(?<![0-9])1件|(?<![0-9])1(?:件|例|事例|ケース)(?:の)?(?:例外|反例|事例|ケース)?のみ|n\s*=\s*1(?![0-9]))(?:\s*(?:では|じゃ|のみでは|だけでは)\s*な[いく]|ではない|じゃない|に限らず|に留まらず|にとどまらず)|\b(?:not|no\s+longer|beyond|more\s+than)\s+(?:just\s+|merely\s+|only\s+)?(?:an?\s+)?(?:anecdotal|isolated|single(?:[-\s]+(?:case|exception|example|instance|counterexample|counter-example|incident|outlier))?)\b)/giu;
-
-const ANECDOTAL_ONLY_SIGNAL_PATTERNS: readonly RegExp[] = [
-  /(?:単発(?:の)?(?:例外|反例|事例|ケース)|単発のみ)/u,
-  /逸話(?:的)?(?:な)?(?:反証|例外|反例|事例|のみ|ベース)?/u,
-  /(?:個別(?:の)?例外のみ|例外(?:が|は)?(?<![0-9])1件(?:のみ|だけ)?|(?<![0-9])1(?:件|例|事例|ケース)(?:の)?(?:例外|反例|事例|ケース)?(?:のみ|だけ)|特例(?:が|は)?(?<![0-9])1件(?:のみ|だけ)?)/u,
-  /\bn\s*=\s*1(?![0-9])/iu,
-  /\banecdotal\b/iu,
-  /\b(?:single|isolated)(?:[-\s]+)(?:case|exception|example|instance|counterexample|counter-example|incident|outlier)\b/iu,
-  /\b(?:one|(?<![0-9])1)\s+(?:isolated\s+)?(?:case|exception|example|instance|counterexample|counter-example|incident|outlier)\s+only\b/iu,
-];
-
-const POPULATION_EVIDENCE_PATTERNS: readonly RegExp[] = [
-  /\bn\s*(?:=|>=|≥)\s*(?:[2-9]|[1-9][0-9]+)\b/iu,
-  /\b(?:full\s+)?cohort(?:\s+of\s+[0-9,]+|\s+(?:audit|study|analysis|data|wide))?\b/iu,
-  /\b(?:population[-\s]*(?:wide|level)|census|representative\s+(?:sample|survey|study|audit|data)|systematic\s+(?:audit|review|study)|statistically\s+significant|randomized\s+(?:trial|study|experiment)|meta[-\s]*analysis)\b/iu,
-  /\b(?:[2-9]|[1-9][0-9,]*)\s+(?:of|out\s+of)\s+(?:[2-9]|[1-9][0-9,]*)\b/iu,
-  /\b(?:[2-9]|[1-9][0-9]*)\s*\/\s*(?:[2-9]|[1-9][0-9]*)\b/u,
-  /(?:全数(?:調査|監査|検証|集計)?|全体(?:調査|監査|検証|集計)|母集団(?:全体|調査|検証|集計)|コホート(?:調査|監査|分析|検証|全体)?|代表(?:サンプル|調査|抽出)|統計的(?:に)?(?:有意|不成立|反証|検証)|全社(?:調査|集計|検証)|複数(?:件|事例|拠点|施設|店舗)(?:で|の)(?:再現|不成立|反証|確認|逆転)|過半数(?:で|が))/u,
-];
-
-const CLAUSE_SPLIT_PATTERN = /[\n.;!?。；！？、]+|,(?!\d)/u;
-
-const POPULATION_NEGATION_PATTERNS: readonly RegExp[] = [
-  /\b(?:no|not(?:\s+a|\s+an|\s+the)?|without(?:\s+a|\s+an|\s+the)?|never(?:\s+a|\s+an)?|lack(?:s|ing|ed)?(?:\s+a|\s+an|\s+any)?|neither)\s+(?:[a-z0-9-]+\s+){0,2}(?:full\s+)?(?:cohort|population|census|representative|systematic|statistical(?:ly)?|randomized|meta[-\s]*analysis|audit|survey|study|sample|data)\b/iu,
-  /\b(?:cohort|population|census|representative|systematic|randomized|meta[-\s]*analysis|audit|survey|study|sample)[^.;!?\n]{0,40}\b(?:was\s+not|wasn['’]t|were\s+not|weren['’]t|is\s+not|isn['’]t|has\s+not\s+been|hasn['’]t\s+been|have\s+not\s+been|haven['’]t\s+been|never|not)\s+(?:performed|conducted|done|run|executed|completed|carried\s+out|collected|verified|checked|available|representative|statistically)\b/iu,
-  /\b(?:did\s+not|didn['’]t|has\s+not|hasn['’]t|have\s+not|haven['’]t|never|cannot|can['’]t|could\s+not|couldn['’]t)\s+(?:perform|conduct|do|run|execute|complete|collect|verify|check|audit|survey|have)\s+(?:[a-z0-9-]+\s+){0,3}(?:full\s+)?(?:cohort|population|census|representative|systematic|randomized|audit|survey|study|sample|data)\b/iu,
-  /(?:全数(?:調査|監査|検証|集計)?|全体(?:調査|監査|検証|集計)|母集団(?:全体|調査|検証|集計)?|コホート(?:調査|監査|分析|検証|全体)?|代表(?:サンプル|調査|抽出)|統計的(?:な)?(?:検証|調査|解析|有意性?)|全社(?:調査|集計|検証))(?:\s*(?:は|が|も|を|の))?\s*(?:なし|無し|無く|なく|ない|未実施|未検証|未調査|未確認|不要|せず|しない|していない|行っていない|行われていない|実施していない|実施されていない|実施せず|行わず|存在しない|取れていない|足りていない|欠いて|欠如)/u,
-];
-
 function isUnsafeCheckText(value: string): boolean {
   return PUBLIC_FRAME_CONTROL_CHARACTERS.test(value) || containsJudgmentFrameCredential(value);
-}
-
-/**
- * True when any non-negated clause in the check text explicitly cites
- * population-, cohort-, or multi-case quantitative verification rather than
- * relying solely on a single anecdote. Clauses that negate performing an
- * audit/cohort/representative check (e.g. "no cohort audit was performed",
- * "全数調査は未実施") are excluded before matching.
- */
-function hasPopulationLevelEvidence(value: string): boolean {
-  const clauses = value.normalize('NFKC').split(CLAUSE_SPLIT_PATTERN);
-  for (const clause of clauses) {
-    const trimmed = clause.trim();
-    if (!trimmed) continue;
-    if (POPULATION_NEGATION_PATTERNS.some((pattern) => pattern.test(trimmed))) continue;
-    if (POPULATION_EVIDENCE_PATTERNS.some((pattern) => pattern.test(trimmed))) return true;
-  }
-  return false;
-}
-
-/**
- * Deterministic check for whether counter-evidence or evidence text explicitly
- * states that a refutation rests only on an anecdotal or single-case exception.
- * Negated occurrences are stripped individually so one negation does not mask a
- * separate anecdotal signal, and explicit population/cohort quantitative
- * verification prevents false positives when a single case merely prompted a
- * broader audit.
- */
-function isAnecdotalOnlySignal(value: string): boolean {
-  const normalized = value.normalize('NFKC');
-  if (hasPopulationLevelEvidence(normalized)) return false;
-  const unnegated = normalized.replace(ANECDOTAL_NEGATION_PATTERN, ' ');
-  return ANECDOTAL_ONLY_SIGNAL_PATTERNS.some((pattern) => pattern.test(unnegated));
 }
 
 function predictionBalanceProblem(value: unknown): string | null {
@@ -618,33 +555,16 @@ function isUnbalancedPredictionCheck(check: Record<string, unknown>): boolean {
     || (check.balance.claim_scope === 'probabilistic' && supporting.length === 0);
 }
 
-function isScopeMismatchedPredictionCheck(
-  ref: string,
-  check: Record<string, unknown>,
-  outcomes: ReadonlyMap<string, JudgmentModelOutcomeSummary>,
-): boolean {
-  if (check.status !== 'failed' || !isRecord(check.balance) || check.balance.claim_scope !== 'probabilistic') {
-    return false;
-  }
-  const representativeness = check.balance.counter_representativeness;
-  if (representativeness === 'census' || representativeness === 'representative') {
-    return false;
-  }
-  if (representativeness === 'anecdotal') {
-    return true;
-  }
-  const combinedEvidenceText = [
-    typeof check.balance.counter_summary === 'string' ? check.balance.counter_summary : '',
-    typeof check.evidence === 'string' ? check.evidence : '',
-  ].filter(Boolean).join('\n');
-  if (hasPopulationLevelEvidence(combinedEvidenceText)) {
-    return false;
-  }
-  const summary = outcomes.get(ref);
-  if (summary && (summary.structural_refutes ?? summary.refutes) === 0 && (summary.anecdotal_refutes ?? 0) > 0) {
-    return true;
-  }
-  return isAnecdotalOnlySignal(combinedEvidenceText);
+/**
+ * Pure structural scope-mismatch check: fires only when a probabilistic
+ * prediction is marked failed with explicit `counter_representativeness: 'anecdotal'`.
+ * Free-text semantic interpretation is intentionally left to offline audit / Eval layers.
+ */
+function isScopeMismatchedPredictionCheck(check: Record<string, unknown>): boolean {
+  return check.status === 'failed'
+    && isRecord(check.balance)
+    && check.balance.claim_scope === 'probabilistic'
+    && check.balance.counter_representativeness === 'anecdotal';
 }
 
 /** Counts of the chosen option's predictions by check status. A prediction without a check is unchecked. */
@@ -836,7 +756,7 @@ export function validateJudgmentFrameRecord(
       .map((use) => String(use.ref)))];
     if (unbalanced.length > 0) escalations.push({ code: 'prediction_unbalanced_evidence', refs: unbalanced });
     const scopeMismatched = [...new Set(allPredictionUsesWithBalance
-      .filter((use) => isScopeMismatchedPredictionCheck(String(use.ref), use.check as Record<string, unknown>, outcomes))
+      .filter((use) => isScopeMismatchedPredictionCheck(use.check as Record<string, unknown>))
       .map((use) => String(use.ref)))];
     if (scopeMismatched.length > 0) escalations.push({ code: 'prediction_scope_mismatch', refs: scopeMismatched });
   }
@@ -852,7 +772,7 @@ const FRAME_PAGE_LIMIT = 500;
 const predictionBalanceSchema = {
   type: 'object',
   additionalProperties: false,
-  description: 'Optional scope, population, supporting/counter balance, counter_representativeness, and competing hypotheses to guard against cherry-picking and scope mismatch. Prefer setting counter_representativeness explicitly for deterministic prediction_scope_mismatch evaluation. Missing population/balance or failing a probabilistic claim on an anecdotal exception escalates to the human.',
+  description: 'Optional scope, population, supporting/counter balance, counter_representativeness, and competing hypotheses to guard against cherry-picking and scope mismatch. Missing population/balance escalates prediction_unbalanced_evidence; marking a probabilistic prediction failed with counter_representativeness: "anecdotal" escalates prediction_scope_mismatch.',
   properties: {
     claim_scope: { type: 'string', enum: [...JUDGMENT_FRAME_CLAIM_SCOPES] },
     population: { type: 'string', maxLength: MAX_NOTE },
@@ -861,7 +781,7 @@ const predictionBalanceSchema = {
     counter_representativeness: {
       type: 'string',
       enum: [...JUDGMENT_MODEL_OUTCOME_REPRESENTATIVENESS],
-      description: 'Optional representativeness of the counter-evidence. Takes precedence over text heuristics for prediction_scope_mismatch.',
+      description: 'Optional representativeness of the counter-evidence. When failing a probabilistic prediction (claim_scope: "probabilistic") on an anecdotal/single-case exception only, set counter_representativeness: "anecdotal" to trigger prediction_scope_mismatch.',
     },
     competing_hypotheses: {
       type: 'array',
@@ -922,7 +842,7 @@ export const judgmentFrameTools: Tool[] = [{
   annotations: { readOnlyHint: true, destructiveHint: false },
 }, {
   name: 'brainbase_judgment_frame_record',
-  description: 'Record the judgment frame: which catalog references you selected and why, and for each evaluated option how each selected reference was used. Philosophy is a constraint (give verdict satisfied, violated, or tension), an objective is a criterion, a world model is a prediction. Every selection must be used by at least one option. For a kind with no applicable reference, give the reason in none instead of selecting. Name the option you chose. For prediction checks, you may optionally include check.balance (claim_scope, population, supporting_summary, counter_summary, and competing_hypotheses) to record scope and counter-evidence balance; missing population/balance or failing a probabilistic claim on a single-case exception returns an escalation. The tool rejects references outside the catalog; it does not judge semantic quality. If escalations are returned, ask the human before acting on the chosen option. Include public_frame only when the caller explicitly intends this exact summary and reason for the future owner-only projection; Core never derives it from an answer, tool response, or internal reasoning. public_frame accepts only non-empty safe summary and reason strings up to 2000 characters.',
+  description: 'Record the judgment frame: which catalog references you selected and why, and for each evaluated option how each selected reference was used. Philosophy is a constraint (give verdict satisfied, violated, or tension), an objective is a criterion, a world model is a prediction. Every selection must be used by at least one option. For a kind with no applicable reference, give the reason in none instead of selecting. Name the option you chose. For prediction checks, you may optionally include check.balance (claim_scope, population, supporting_summary, counter_summary, optional counter_representativeness, and competing_hypotheses) to record scope and counter-evidence balance; missing population/balance returns prediction_unbalanced_evidence, and failing a probabilistic claim with counter_representativeness: "anecdotal" returns prediction_scope_mismatch. The tool rejects references outside the catalog; it does not judge semantic quality. If escalations are returned, ask the human before acting on the chosen option. Include public_frame only when the caller explicitly intends this exact summary and reason for the future owner-only projection; Core never derives it from an answer, tool response, or internal reasoning. public_frame accepts only non-empty safe summary and reason strings up to 2000 characters.',
   inputSchema: {
     type: 'object',
     additionalProperties: false,

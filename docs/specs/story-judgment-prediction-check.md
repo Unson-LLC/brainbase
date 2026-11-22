@@ -8,7 +8,7 @@
 - 採用案が `failed` の予測に頼るとき、`chosen_relies_on_failed_prediction`（refs＝その世界モデル）を返す。他の枠組みのエスカレーションと同じく、hostが人間へ戻す。
 - `balance` が指定された予測チェックでは、以下の追加エスカレーションを検査する（`balance` を省略した従来入力では発火しない）：
   - `prediction_unbalanced_evidence`：`held` で `population`・`supporting_summary`・`counter_summary` のいずれかが空/空白の場合、または `failed` で `population`・`counter_summary`（および `probabilistic` 時の `supporting_summary`）が空/空白の場合。
-  - `prediction_scope_mismatch`：`claim_scope: probabilistic` の傾向的主張を `status: failed` とした際、`counter_representativeness` が `anecdotal` と明示されている場合、または未指定/`unknown` で母集団・コホート・複数件の定量検証が無く、保存済み結果が逸話反証のみか反証テキストが単発逸話のみを示す場合。`counter_representativeness` が `census` または `representative`、あるいは同一チェック内に母集団・コホート監査（例：`full cohort`、`N>=2`）が明記されている場合は発火しない。
+  - `prediction_scope_mismatch`：`claim_scope: probabilistic` の傾向的主張を `status: failed` とし、かつ構造欄 `counter_representativeness: anecdotal` が明示されている場合のみ発火する。`counter_representativeness` が未指定、または `census`・`representative`・`unknown` の場合は発火しない。自由文の推定・意味解釈は行わず、自由文の監査はオフライン監査／Eval 層で行う。
 - 記録の応答は `prediction_checks`（採用案の予測の `held`・`failed`・`unchecked` の件数。`check` の無い予測は `unchecked`）を返す。
 - 記録の版は `judgment-frame-record.v1` のまま。`check` や `balance` を使わない記録は従来どおりで、digestは入力全体から作る。
 
