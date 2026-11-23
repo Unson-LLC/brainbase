@@ -345,6 +345,10 @@ function assertClaudeCodeInstallOptions(parsed: ParsedArgs): void {
 // if the path has no `..`; with one, a link before it could lead elsewhere,
 // so the install stops instead of guessing.
 function settingsPathAsOpened(path: string): string {
+  // `file.json/` names a directory; dropping the slash would edit file.json.
+  if (/[\\/]$/u.test(path)) {
+    throw new Error(`--settings ${path} は末尾が / で、ファイルを指していないため止めました。settings.json のパスを指定してください。何も変えていません。`);
+  }
   return pathAsOpened(isAbsolute(path) ? path : `${process.cwd()}${sep}${path}`, () => new Error(
     `--settings ${path} の途中に、まだ無いディレクトリと .. があり、どのファイルを開くかを決められないため止めました。.. を含まないパスか、ディレクトリがそろったパスを指定してください。何も変えていません。`,
   ));
@@ -490,11 +494,17 @@ const SETTINGS_CHANGED_ATTEMPTS = 3;
 const INSTALL_SETTINGS_BACKUP_SUFFIX = '.brainbase-install-previous';
 
 // A settings symlink can be dangling precisely because its target was moved aside.
-// Each link's target is opened the way the system opens it: a target such as
-// `link/../settings.json` passes through `link` before the `..` (UNS-5603).
+// Each link is followed the way the system does (pathAsOpened), since a link's
+// text such as `sub/../settings.json` or `link/../settings.json` names a file
+// reached through sub's or link's target (UNS-656, UNS-5603).
 async function installSettingsTarget(path: string): Promise<string> {
+  try {
+    return realpathSync.native(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
   const seen = new Set<string>();
-  let target = canonicalFilePath(path);
+  let target = path;
   while (!seen.has(target)) {
     seen.add(target);
     const destination = await readlink(target).catch((error) => {
