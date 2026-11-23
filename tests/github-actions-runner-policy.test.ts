@@ -61,6 +61,15 @@ describe('public CI self-hosted runner policy', () => {
     expect(docsWorkflow).not.toMatch(/pull_request_target:/u);
   });
 
+  it('AC-010 validates docs on pull requests to main and deploys only from a push to main or a manual run', async () => {
+    const docsWorkflow = await readRepoFile('.github/workflows/docs-cloudflare-pages.yml');
+    const pullRequestTrigger = docsWorkflow.slice(docsWorkflow.indexOf('  pull_request:'), docsWorkflow.indexOf('  push:'));
+
+    expect(pullRequestTrigger).toMatch(/    branches:\n      - develop\n      - main\n/u);
+    expect(docsWorkflow).toMatch(/if \[ "\$EVENT_NAME" = "push" \] && \[ "\$GITHUB_REF" = "refs\/heads\/main" \]; then/u);
+    expect(docsWorkflow).toMatch(/elif \[ "\$EVENT_NAME" = "workflow_dispatch" \] && \[ "\$MANUAL_DEPLOY" = "true" \]; then/u);
+  });
+
   it('AC-003 keeps npm publish off the pull request head and publishes without a long-lived npm token', async () => {
     const workflow = await readRepoFile('.github/workflows/npm-publish.yml');
     const validationJob = workflow.slice(workflow.indexOf('  validate:'), workflow.indexOf('  publish:'));
