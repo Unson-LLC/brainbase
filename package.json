@@ -39,6 +39,10 @@
       "types": "./dist/judgment-frame.d.ts",
       "import": "./dist/judgment-frame.js"
     },
+    "./judgment-reasoning-audit": {
+      "types": "./dist/judgment-reasoning-audit.d.ts",
+      "import": "./dist/judgment-reasoning-audit.js"
+    },
     "./judgment-history": {
       "types": "./dist/judgment-history.d.ts",
       "import": "./dist/judgment-history.js"
@@ -78,6 +82,10 @@
     "./judgment-frame-evidence": {
       "types": "./dist/judgment-frame-evidence.d.ts",
       "import": "./dist/judgment-frame-evidence.js"
+    },
+    "./judgment-project-binding": {
+      "types": "./dist/judgment-project-binding.d.ts",
+      "import": "./dist/judgment-project-binding.js"
     },
     "./judgment-event-adapter": {
       "types": "./dist/judgment-event-adapter.d.ts",
@@ -394,6 +402,10 @@
     "./company-os-impact-review": {
       "types": "./dist/company-os-impact-review.d.ts",
       "import": "./dist/company-os-impact-review.js"
+    },
+    "./world-model-impact-index": {
+      "types": "./dist/world-model-impact-index.d.ts",
+      "import": "./dist/world-model-impact-index.js"
     },
     "./streamable-http": {
       "types": "./dist/streamable-http.d.ts",

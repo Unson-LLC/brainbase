@@ -4,12 +4,15 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 
 import {
   JUDGMENT_MODEL_OUTCOME_ALTERNATIVES,
+  JUDGMENT_MODEL_OUTCOME_CLAIM_TYPES,
   JUDGMENT_MODEL_OUTCOME_RECORD_VERSION,
+  JUDGMENT_MODEL_OUTCOME_REPRESENTATIVENESS,
   judgmentModelOutcomeDigest,
   parseJudgmentModelOutcomeRecords,
   summarizeJudgmentModelOutcomes,
   validateJudgmentModelOutcome,
   type JudgmentModelOutcome,
+  type JudgmentModelOutcomeRepresentativeness,
   type JudgmentModelOutcomeSummary,
 } from './judgment-model-outcome.js';
 
@@ -101,6 +104,24 @@ export interface JudgmentFrameSelection {
 }
 
 export type JudgmentFramePredictionCheckStatus = 'held' | 'failed' | 'unchecked';
+export const JUDGMENT_FRAME_CLAIM_SCOPES = ['universal', 'probabilistic', 'bounded_case'] as const;
+export type JudgmentFrameClaimScope = typeof JUDGMENT_FRAME_CLAIM_SCOPES[number];
+
+export interface JudgmentFrameCompetingHypothesis {
+  readonly hypothesis: string;
+  readonly ref?: string;
+  readonly comparison: string;
+}
+
+export interface JudgmentFramePredictionBalance {
+  readonly claim_scope: JudgmentFrameClaimScope;
+  readonly population: string;
+  readonly supporting_summary: string;
+  readonly counter_summary: string;
+  /** Optional explicit representativeness of counter-evidence; takes precedence over text heuristics. */
+  readonly counter_representativeness?: JudgmentModelOutcomeRepresentativeness;
+  readonly competing_hypotheses?: readonly JudgmentFrameCompetingHypothesis[];
+}
 
 /**
  * How a world-model prediction was checked against data (ADR-014). The check is
@@ -112,6 +133,8 @@ export interface JudgmentFramePredictionCheck {
   readonly status: JudgmentFramePredictionCheckStatus;
   /** Where the check was done. Required for held and failed. */
   readonly evidence?: string;
+  /** Optional scope and support/counter balance to guard against cherry-picking and scope mismatch. */
+  readonly balance?: JudgmentFramePredictionBalance;
 }
 
 export interface JudgmentFrameUse {
@@ -171,7 +194,11 @@ export type JudgmentFrameEscalationCode =
   /** The chosen option predicts with a world model refuted at its current revision (F5, F6). */
   | 'chosen_uses_refuted_model'
   /** The chosen option relies on a prediction that was checked against data and failed. */
-  | 'chosen_relies_on_failed_prediction';
+  | 'chosen_relies_on_failed_prediction'
+  /** A prediction check with balance is missing population or counter/supporting balance needed for its status. */
+  | 'prediction_unbalanced_evidence'
+  /** A probabilistic prediction is marked failed with explicit counter_representativeness: 'anecdotal'. */
+  | 'prediction_scope_mismatch';
 
 export interface JudgmentFrameEscalation {
   readonly code: JudgmentFrameEscalationCode;
@@ -389,7 +416,18 @@ const KIND_HEADINGS: Readonly<Record<JudgmentFrameKind, string>> = {
 
 function renderOutcomeSummary(summary: JudgmentModelOutcomeSummary | undefined): string {
   if (!summary) return '';
-  const counts = `支持${summary.supports}・反証${summary.refutes}・判定不能${summary.inconclusive}`;
+  const structural = summary.structural_refutes ?? summary.refutes;
+  const anecdotal = summary.anecdotal_refutes ?? 0;
+  if (anecdotal > 0) {
+    const counts = `支持${summary.supports}・構造反証${structural}・逸話反証${anecdotal}・判定不能${summary.inconclusive}`;
+    const parts: string[] = [];
+    if (summary.refuted_when.length > 0) parts.push(`構造反証の条件：${summary.refuted_when.join('／')}`);
+    const anecdotalWhen = summary.anecdotal_refuted_when ?? [];
+    if (anecdotalWhen.length > 0) parts.push(`逸話反証の条件：${anecdotalWhen.join('／')}`);
+    const details = parts.length > 0 ? `。${parts.join('。')}` : '';
+    return `（この版の結果：${counts}${details}）`;
+  }
+  const counts = `支持${summary.supports}・反証${structural}・判定不能${summary.inconclusive}`;
   const refuted = summary.refuted_when.length > 0 ? `。反証の条件：${summary.refuted_when.join('／')}` : '';
   return `（この版の結果：${counts}${refuted}）`;
 }
@@ -414,27 +452,119 @@ export function renderJudgmentFrameCatalog(
 }
 
 const PREDICTION_CHECK_STATUSES: readonly JudgmentFramePredictionCheckStatus[] = ['held', 'failed', 'unchecked'];
+const PREDICTION_CHECK_KEYS = ['falsified_if', 'status', 'evidence', 'balance'] as const;
+const PREDICTION_BALANCE_KEYS = [
+  'claim_scope',
+  'population',
+  'supporting_summary',
+  'counter_summary',
+  'counter_representativeness',
+  'competing_hypotheses',
+] as const;
+const COMPETING_HYPOTHESIS_KEYS = ['hypothesis', 'ref', 'comparison'] as const;
 const MAX_CHECK_EVIDENCE = 800;
+const MAX_COMPETING_HYPOTHESES = 8;
+
+function isUnsafeCheckText(value: string): boolean {
+  return PUBLIC_FRAME_CONTROL_CHARACTERS.test(value) || containsJudgmentFrameCredential(value);
+}
+
+function predictionBalanceProblem(value: unknown): string | null {
+  if (!isRecord(value) || Object.keys(value).some((key) => !PREDICTION_BALANCE_KEYS.includes(key as typeof PREDICTION_BALANCE_KEYS[number]))) {
+    return 'check.balance takes claim_scope, population, supporting_summary, counter_summary, and optional counter_representativeness and competing_hypotheses';
+  }
+  if (!JUDGMENT_FRAME_CLAIM_SCOPES.includes(value.claim_scope as JudgmentFrameClaimScope)) {
+    return 'check.balance.claim_scope must be universal, probabilistic, or bounded_case';
+  }
+  if (value.counter_representativeness !== undefined
+    && !JUDGMENT_MODEL_OUTCOME_REPRESENTATIVENESS.includes(value.counter_representativeness as JudgmentModelOutcomeRepresentativeness)) {
+    return 'check.balance.counter_representativeness must be census, representative, anecdotal, or unknown';
+  }
+  for (const field of ['population', 'supporting_summary', 'counter_summary'] as const) {
+    const candidate = value[field];
+    if (typeof candidate !== 'string' || candidate.length > MAX_NOTE) {
+      return `check.balance.${field} must be a string of at most ${MAX_NOTE} characters`;
+    }
+    if (isUnsafeCheckText(candidate)) {
+      return `check.balance.${field} contains control characters or a credential-like value`;
+    }
+  }
+  if (value.competing_hypotheses !== undefined) {
+    if (!Array.isArray(value.competing_hypotheses) || value.competing_hypotheses.length > MAX_COMPETING_HYPOTHESES) {
+      return `check.balance.competing_hypotheses must be a list of at most ${MAX_COMPETING_HYPOTHESES}`;
+    }
+    for (const entry of value.competing_hypotheses) {
+      if (!isRecord(entry) || Object.keys(entry).some((key) => !COMPETING_HYPOTHESIS_KEYS.includes(key as typeof COMPETING_HYPOTHESIS_KEYS[number]))) {
+        return 'check.balance.competing_hypotheses entries take hypothesis, comparison, and optional ref';
+      }
+      if (!nonEmpty(entry.hypothesis, MAX_NOTE) || !nonEmpty(entry.comparison, MAX_NOTE)) {
+        return 'check.balance.competing_hypotheses entries need non-empty hypothesis and comparison';
+      }
+      if (entry.ref !== undefined && !nonEmpty(entry.ref, 1_000)) {
+        return 'check.balance.competing_hypotheses.ref must be a non-empty string of at most 1000 characters';
+      }
+      for (const fieldValue of [entry.hypothesis, entry.comparison, entry.ref]) {
+        if (typeof fieldValue === 'string' && isUnsafeCheckText(fieldValue)) {
+          return 'check.balance.competing_hypotheses contains control characters or a credential-like value';
+        }
+      }
+    }
+  }
+  return null;
+}
 
 function predictionCheckProblem(value: unknown, role: unknown): string | null {
   if (role !== 'prediction') return 'check is only for prediction uses';
-  if (!isRecord(value) || Object.keys(value).some((key) => !['falsified_if', 'status', 'evidence'].includes(key))) {
-    return 'check takes falsified_if, status, and evidence';
+  if (!isRecord(value) || Object.keys(value).some((key) => !PREDICTION_CHECK_KEYS.includes(key as typeof PREDICTION_CHECK_KEYS[number]))) {
+    return 'check takes falsified_if, status, evidence, and optional balance';
   }
   if (!nonEmpty(value.falsified_if, MAX_NOTE)) return 'check.falsified_if must say what observation would show the prediction wrong';
+  if (isUnsafeCheckText(value.falsified_if)) {
+    return 'check contains control characters or a credential-like value';
+  }
   if (!PREDICTION_CHECK_STATUSES.includes(value.status as JudgmentFramePredictionCheckStatus)) {
     return 'check.status must be held, failed, or unchecked';
   }
   if (value.evidence === undefined) {
-    return value.status === 'unchecked' ? null : 'a held or failed check needs evidence of where it was checked';
-  }
-  if (!nonEmpty(value.evidence, MAX_CHECK_EVIDENCE)) return `check.evidence must be at most ${MAX_CHECK_EVIDENCE} characters`;
-  for (const text of [value.falsified_if, value.evidence]) {
-    if (typeof text === 'string' && (PUBLIC_FRAME_CONTROL_CHARACTERS.test(text) || containsJudgmentFrameCredential(text))) {
+    if (value.status !== 'unchecked') return 'a held or failed check needs evidence of where it was checked';
+  } else {
+    if (!nonEmpty(value.evidence, MAX_CHECK_EVIDENCE)) return `check.evidence must be at most ${MAX_CHECK_EVIDENCE} characters`;
+    if (isUnsafeCheckText(value.evidence)) {
       return 'check contains control characters or a credential-like value';
     }
   }
+  if (value.balance !== undefined) {
+    const balanceProblem = predictionBalanceProblem(value.balance);
+    if (balanceProblem) return balanceProblem;
+  }
   return null;
+}
+
+function isUnbalancedPredictionCheck(check: Record<string, unknown>): boolean {
+  if (!isRecord(check.balance)) return false;
+  const status = check.status;
+  if (status !== 'held' && status !== 'failed') return false;
+  const population = typeof check.balance.population === 'string' ? check.balance.population.trim() : '';
+  const supporting = typeof check.balance.supporting_summary === 'string' ? check.balance.supporting_summary.trim() : '';
+  const counter = typeof check.balance.counter_summary === 'string' ? check.balance.counter_summary.trim() : '';
+  if (status === 'held') {
+    return population.length === 0 || counter.length === 0 || supporting.length === 0;
+  }
+  return population.length === 0
+    || counter.length === 0
+    || (check.balance.claim_scope === 'probabilistic' && supporting.length === 0);
+}
+
+/**
+ * Pure structural scope-mismatch check: fires only when a probabilistic
+ * prediction is marked failed with explicit `counter_representativeness: 'anecdotal'`.
+ * Free-text semantic interpretation is intentionally left to offline audit / Eval layers.
+ */
+function isScopeMismatchedPredictionCheck(check: Record<string, unknown>): boolean {
+  return check.status === 'failed'
+    && isRecord(check.balance)
+    && check.balance.claim_scope === 'probabilistic'
+    && check.balance.counter_representativeness === 'anecdotal';
 }
 
 /** Counts of the chosen option's predictions by check status. A prediction without a check is unchecked. */
@@ -597,8 +727,12 @@ export function validateJudgmentFrameRecord(
     if (violated.length > 0) escalations.push({ code: 'chosen_violates_philosophy', refs: violated });
     if (tension.length > 0) escalations.push({ code: 'chosen_philosophy_tension', refs: tension });
     const refuted = [...new Set(chosenUses
-      .filter((use): use is Record<string, unknown> => isRecord(use) && use.role === 'prediction'
-        && selected.get(String(use.ref)) === 'model' && (outcomes.get(String(use.ref))?.refutes ?? 0) > 0)
+      .filter((use): use is Record<string, unknown> => {
+        if (!isRecord(use) || use.role !== 'prediction' || selected.get(String(use.ref)) !== 'model') return false;
+        const summary = outcomes.get(String(use.ref));
+        if (!summary) return false;
+        return (summary.structural_refutes ?? summary.refutes) > 0;
+      })
       .map((use) => String(use.ref)))];
     if (refuted.length > 0) escalations.push({ code: 'chosen_uses_refuted_model', refs: refuted });
     const failed = [...new Set(chosenUses
@@ -606,6 +740,25 @@ export function validateJudgmentFrameRecord(
         && isRecord(use.check) && use.check.status === 'failed')
       .map((use) => String(use.ref)))];
     if (failed.length > 0) escalations.push({ code: 'chosen_relies_on_failed_prediction', refs: failed });
+  }
+  const allPredictionUsesWithBalance = (options ?? []).flatMap((option) => (
+    isRecord(option) && Array.isArray(option.uses) ? option.uses : []
+  )).filter((use): use is Record<string, unknown> => (
+    isRecord(use)
+    && use.role === 'prediction'
+    && selected.has(String(use.ref))
+    && isRecord(use.check)
+    && isRecord(use.check.balance)
+  ));
+  if (allPredictionUsesWithBalance.length > 0) {
+    const unbalanced = [...new Set(allPredictionUsesWithBalance
+      .filter((use) => isUnbalancedPredictionCheck(use.check as Record<string, unknown>))
+      .map((use) => String(use.ref)))];
+    if (unbalanced.length > 0) escalations.push({ code: 'prediction_unbalanced_evidence', refs: unbalanced });
+    const scopeMismatched = [...new Set(allPredictionUsesWithBalance
+      .filter((use) => isScopeMismatchedPredictionCheck(use.check as Record<string, unknown>))
+      .map((use) => String(use.ref)))];
+    if (scopeMismatched.length > 0) escalations.push({ code: 'prediction_scope_mismatch', refs: scopeMismatched });
   }
   return { valid: issues.length === 0, issues, escalations };
 }
@@ -615,6 +768,38 @@ export function validateJudgmentFrameRecord(
 // and the validation stay shared so every host enforces the same contract.
 
 const FRAME_PAGE_LIMIT = 500;
+
+const predictionBalanceSchema = {
+  type: 'object',
+  additionalProperties: false,
+  description: 'Optional scope, population, supporting/counter balance, counter_representativeness, and competing hypotheses to guard against cherry-picking and scope mismatch. Missing population/balance escalates prediction_unbalanced_evidence; marking a probabilistic prediction failed with counter_representativeness: "anecdotal" escalates prediction_scope_mismatch.',
+  properties: {
+    claim_scope: { type: 'string', enum: [...JUDGMENT_FRAME_CLAIM_SCOPES] },
+    population: { type: 'string', maxLength: MAX_NOTE },
+    supporting_summary: { type: 'string', maxLength: MAX_NOTE },
+    counter_summary: { type: 'string', maxLength: MAX_NOTE },
+    counter_representativeness: {
+      type: 'string',
+      enum: [...JUDGMENT_MODEL_OUTCOME_REPRESENTATIVENESS],
+      description: 'Optional representativeness of the counter-evidence. When failing a probabilistic prediction (claim_scope: "probabilistic") on an anecdotal/single-case exception only, set counter_representativeness: "anecdotal" to trigger prediction_scope_mismatch.',
+    },
+    competing_hypotheses: {
+      type: 'array',
+      maxItems: MAX_COMPETING_HYPOTHESES,
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          hypothesis: { type: 'string', minLength: 1, maxLength: MAX_NOTE },
+          ref: { type: 'string', minLength: 1, maxLength: 1_000 },
+          comparison: { type: 'string', minLength: 1, maxLength: MAX_NOTE },
+        },
+        required: ['hypothesis', 'comparison'],
+      },
+    },
+  },
+  required: ['claim_scope', 'population', 'supporting_summary', 'counter_summary'],
+};
 
 const frameUseSchema = {
   type: 'object',
@@ -627,11 +812,12 @@ const frameUseSchema = {
     check: {
       type: 'object',
       additionalProperties: false,
-      description: 'Only for prediction uses: what observation would show the prediction wrong, and whether it was checked against data. held and failed need evidence. A chosen option that relies on a failed prediction returns the choice to the human.',
+      description: 'Only for prediction uses: what observation would show the prediction wrong, and whether it was checked against data. held and failed need evidence. Optional balance records claim_scope, population, supporting_summary, counter_summary, and competing_hypotheses to prevent cherry-picking and scope mismatch. A chosen option that relies on a failed prediction returns the choice to the human.',
       properties: {
         falsified_if: { type: 'string', minLength: 1, maxLength: MAX_NOTE },
         status: { type: 'string', enum: ['held', 'failed', 'unchecked'] },
         evidence: { type: 'string', minLength: 1, maxLength: 800 },
+        balance: predictionBalanceSchema,
       },
       required: ['falsified_if', 'status'],
     },
@@ -656,12 +842,12 @@ export const judgmentFrameTools: Tool[] = [{
   annotations: { readOnlyHint: true, destructiveHint: false },
 }, {
   name: 'brainbase_judgment_frame_record',
-  description: 'Record the judgment frame: which catalog references you selected and why, and for each evaluated option how each selected reference was used. Philosophy is a constraint (give verdict satisfied, violated, or tension), an objective is a criterion, a world model is a prediction. Every selection must be used by at least one option. For a kind with no applicable reference, give the reason in none instead of selecting. Name the option you chose. The tool rejects references outside the catalog; it does not judge semantic quality. If escalations are returned, ask the human before acting on the chosen option. Include public_frame only when the caller explicitly intends this exact summary and reason for the future owner-only projection; Core never derives it from an answer, tool response, or internal reasoning. public_frame accepts only non-empty safe summary and reason strings up to 2000 characters.',
+  description: 'Record the judgment frame: which catalog references you selected and why, and for each evaluated option how each selected reference was used. Philosophy is a constraint (give verdict satisfied, violated, or tension), an objective is a criterion, a world model is a prediction. Every selection must be used by at least one option. For a kind with no applicable reference, give the reason in none instead of selecting. Name the option you chose. For prediction checks, you may optionally include check.balance (claim_scope, population, supporting_summary, counter_summary, optional counter_representativeness, and competing_hypotheses) to record scope and counter-evidence balance; missing population/balance returns prediction_unbalanced_evidence, and failing a probabilistic claim with counter_representativeness: "anecdotal" returns prediction_scope_mismatch. The tool rejects references outside the catalog; it does not judge semantic quality. If escalations are returned, ask the human before acting on the chosen option. Include public_frame only when the caller explicitly intends this exact summary and reason for the future owner-only projection; Core never derives it from an answer, tool response, or internal reasoning. public_frame accepts only non-empty safe summary and reason strings up to 2000 characters.',
   inputSchema: {
     type: 'object',
     additionalProperties: false,
     properties: {
-      record_version: { type: 'string', const: JUDGMENT_FRAME_RECORD_VERSION },
+      record_version: { type: 'string', enum: [JUDGMENT_FRAME_RECORD_VERSION] },
       catalog_digest: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
       selections: {
         type: 'array',
@@ -841,12 +1027,12 @@ const outcomeTextSchema = { type: 'string', minLength: 1, maxLength: 2_000 } as 
  */
 export const judgmentModelOutcomeTools: Tool[] = [{
   name: 'brainbase_judgment_model_outcome_record',
-  description: 'After the result of a judgment is observed, record whether it supports or refutes a world model that the judgment used as a prediction. Read brainbase_judgment_frame_catalog first and pass its catalog_digest and the model id at its current revision. State the prediction made from the model, what was observed, the conditions (facility, period, state) under which the result holds, and at least one evidence reference. A refutation must say, for each of measurement_error, execution_difference, and external_change, why it does not explain the gap; a prediction gap alone is not a refutation. This does not change the model, its revision, or its adoption; adoption and verification stay human decisions. The tool does not judge whether the verdict is semantically right.',
+  description: 'After the result of a judgment is observed, record whether it supports or refutes a world model that the judgment used as a prediction. Read brainbase_judgment_frame_catalog first and pass its catalog_digest and the model id at its current revision. State the prediction made from the model, what was observed, the conditions (facility, period, state) under which the result holds, and at least one evidence reference. A refutation must say, for each of measurement_error, execution_difference, and external_change, why it does not explain the gap; a prediction gap alone is not a refutation. Optionally include scope_metrics (claim_type, representativeness, and optional sample_size, population_size, effect_magnitude) so explicitly anecdotal refutations against tendency claims are tracked separately from structural refutations (unknown representativeness stays conservatively structural). This does not change the model, its revision, or its adoption; adoption and verification stay human decisions. The tool does not judge whether the verdict is semantically right.',
   inputSchema: {
     type: 'object',
     additionalProperties: false,
     properties: {
-      record_version: { type: 'string', const: JUDGMENT_MODEL_OUTCOME_RECORD_VERSION },
+      record_version: { type: 'string', enum: [JUDGMENT_MODEL_OUTCOME_RECORD_VERSION] },
       catalog_digest: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
       model: {
         type: 'object',
@@ -888,6 +1074,19 @@ export const judgmentModelOutcomeTools: Tool[] = [{
         additionalProperties: false,
         properties: { frame_digest: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' } },
         required: ['frame_digest'],
+      },
+      scope_metrics: {
+        type: 'object',
+        additionalProperties: false,
+        description: 'Optional claim scope and representativeness metrics. Explicitly anecdotal refutations on tendency claims are summarized separately from structural refutations; unknown representativeness stays conservatively structural.',
+        properties: {
+          claim_type: { type: 'string', enum: [...JUDGMENT_MODEL_OUTCOME_CLAIM_TYPES] },
+          sample_size: { type: 'integer', minimum: 1 },
+          population_size: { type: 'integer', minimum: 1 },
+          effect_magnitude: { type: 'string', minLength: 1, maxLength: 200 },
+          representativeness: { type: 'string', enum: [...JUDGMENT_MODEL_OUTCOME_REPRESENTATIVENESS] },
+        },
+        required: ['claim_type', 'representativeness'],
       },
     },
     required: ['record_version', 'catalog_digest', 'model', 'verdict', 'prediction', 'observed', 'conditions', 'evidence_refs'],
@@ -933,7 +1132,10 @@ export async function handleJudgmentModelOutcomeToolCall(
 
 export {
   JUDGMENT_MODEL_OUTCOME_ALTERNATIVES,
+  JUDGMENT_MODEL_OUTCOME_CLAIM_TYPES,
   JUDGMENT_MODEL_OUTCOME_RECORD_VERSION,
+  JUDGMENT_MODEL_OUTCOME_REPRESENTATIVENESS,
+  isAnecdotalRefutation,
   judgmentModelOutcomeDigest,
   parseJudgmentModelOutcomeRecords,
   summarizeJudgmentModelOutcomes,
@@ -942,10 +1144,13 @@ export {
 export type {
   JudgmentModelOutcome,
   JudgmentModelOutcomeAlternative,
+  JudgmentModelOutcomeClaimType,
   JudgmentModelOutcomeEvidenceKind,
   JudgmentModelOutcomeEvidenceRef,
   JudgmentModelOutcomeIssue,
   JudgmentModelOutcomeIssueCode,
+  JudgmentModelOutcomeRepresentativeness,
+  JudgmentModelOutcomeScopeMetrics,
   JudgmentModelOutcomeStoredRecord,
   JudgmentModelOutcomeSummary,
   JudgmentModelOutcomeValidation,

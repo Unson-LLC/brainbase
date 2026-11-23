@@ -7,7 +7,13 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { CallToolRequestSchema, ListToolsRequestSchema, type Tool } from '@modelcontextprotocol/sdk/types.js';
+import {
+  normalizeMcpToolForPortability,
+  normalizeMcpToolInputSchemaForPortability
+} from './mcp-tool-schema-portability.js';
+
+export { normalizeMcpToolInputSchemaForPortability };
 import { z } from 'zod';
 import { ConnectedOnboardingRuntime, type ConnectedOnboardingRun } from './connected-onboarding.js';
 import { validateCanonicalGraph } from './canonical-graph.js';
@@ -193,7 +199,7 @@ export const toolDefinitions = [
       type: 'object',
       properties: {
         dataDir: { type: 'string' },
-        type: { enum: ['person', 'org', 'project', 'relationship', 'decision'] }
+        type: { type: 'string', enum: ['person', 'org', 'project', 'relationship', 'decision'] }
       }
     }
   },
@@ -211,9 +217,9 @@ export const toolDefinitions = [
         seedIds: { type: 'array', minItems: 1, maxItems: 10, items: { type: 'string' }, description: 'Canonical IDs chosen by the calling model; no embeddings needed.' },
         steps: { type: 'array', minItems: 1, maxItems: 3, items: {
           type: 'object', additionalProperties: false, required: ['relation', 'direction'], properties: {
-            relation: { enum: ['member_of', 'participates_in', 'accountable_for', 'owned_by', 'related_to', 'governs', 'supersedes'] },
-            direction: { enum: ['incoming', 'outgoing'] },
-            targetType: { enum: ['person', 'org', 'project', 'decision'] }
+            relation: { type: 'string', enum: ['member_of', 'participates_in', 'accountable_for', 'owned_by', 'related_to', 'governs', 'supersedes'] },
+            direction: { type: 'string', enum: ['incoming', 'outgoing'] },
+            targetType: { type: 'string', enum: ['person', 'org', 'project', 'decision'] }
           }
         } },
         limit: { type: 'integer', minimum: 1, maximum: 50 },
@@ -263,9 +269,9 @@ export const toolDefinitions = [
             body_hash: { type: 'string', minLength: 1 },
             occurred_at: { type: 'string', minLength: 1 },
             captured_at: { type: 'string', minLength: 1 },
-            source: {},
-            source_pointer: {},
-            parent_episode_id: { type: ['string', 'null'] },
+            source: { type: 'string', description: 'Optional caller source label or serialized pointer.' },
+            source_pointer: { type: 'string', description: 'Optional source pointer URI or identifier.' },
+            parent_episode_id: { type: 'string', description: 'Optional parent episode ID. Omit when there is no parent episode.' },
             permission_snapshot: { type: 'object' },
             sensitivity: { type: 'string', minLength: 1 },
             kind: { type: 'string', minLength: 1 },
@@ -319,8 +325,8 @@ export const toolDefinitions = [
       properties: {
         dataDir: { type: 'string', description: 'Optional Personal OS directory.' }, valueTarget: { type: 'string', description: 'One concrete question the first useful answer should resolve.' },
         sources: { type: 'array', maxItems: 50, items: { type: 'object', required: ['id', 'mode', 'status'], additionalProperties: false, properties: {
-          id: { type: 'string' }, mode: { enum: ['mcp', 'drive', 'gmail', 'local_folder', 'single_document'] },
-          status: { enum: ['ready', 'waiting_for_authorization', 'unavailable', 'error', 'unconfirmed'] }, evidencePointer: { type: 'string' },
+          id: { type: 'string' }, mode: { type: 'string', enum: ['mcp', 'drive', 'gmail', 'local_folder', 'single_document'] },
+          status: { type: 'string', enum: ['ready', 'waiting_for_authorization', 'unavailable', 'error', 'unconfirmed'] }, evidencePointer: { type: 'string' },
           permissionScope: { type: 'array', items: { type: 'string' } }, detail: { type: 'string' }
         } } }
       }
@@ -339,10 +345,10 @@ export const toolDefinitions = [
       properties: {
         dataDir: { type: 'string' }, runId: { type: 'string', description: 'runId returned by brainbase_onboarding_start.' },
         source: { type: 'object', required: ['sourceId', 'evidencePointer', 'contentHash', 'permissionSnapshot', 'collectionStatus'], additionalProperties: false, properties: {
-          sourceId: { type: 'string' }, evidencePointer: { type: 'string' }, contentHash: { type: 'string' }, permissionSnapshot: { type: 'object' }, collectionStatus: { const: 'collected' }
+          sourceId: { type: 'string' }, evidencePointer: { type: 'string' }, contentHash: { type: 'string' }, permissionSnapshot: { type: 'object' }, collectionStatus: { type: 'string', enum: ['collected'] }
         } },
         candidates: { type: 'array', maxItems: 50, items: { type: 'object', required: ['kind', 'payload', 'observationClass', 'evidenceId'], additionalProperties: false, properties: {
-          kind: { type: 'string' }, payload: { type: 'object' }, observationClass: { enum: ['observed', 'inferred'] }, evidenceId: { type: 'string' }
+          kind: { type: 'string' }, payload: { type: 'object' }, observationClass: { type: 'string', enum: ['observed', 'inferred'] }, evidenceId: { type: 'string' }
         } } }
       }
     }
@@ -352,22 +358,27 @@ export const toolDefinitions = [
     description: 'Submit review decisions in actions. Inferred candidates cannot be approved or merged; use edit with a human-confirmed payload, or reject.',
     inputSchema: {
       type: 'object', required: ['runId', 'actions'], additionalProperties: false,
-      properties: { dataDir: { type: 'string' }, runId: { type: 'string', minLength: 1, maxLength: 200 }, actions: { type: 'array', minItems: 1, maxItems: 50, items: {
-        oneOf: [
-          { type: 'object', required: ['candidateId', 'decision', 'reason'], additionalProperties: false, properties: {
-            candidateId: { type: 'string', minLength: 1, maxLength: 200 }, decision: { const: 'approve' }, reason: { type: 'string', minLength: 1, maxLength: 500 }
-          } },
-          { type: 'object', required: ['candidateId', 'decision', 'reason', 'payload'], additionalProperties: false, properties: {
-            candidateId: { type: 'string', minLength: 1, maxLength: 200 }, decision: { const: 'edit' }, reason: { type: 'string', minLength: 1, maxLength: 500 }, payload: { type: 'object' }
-          } },
-          { type: 'object', required: ['candidateId', 'decision', 'reason'], additionalProperties: false, properties: {
-            candidateId: { type: 'string', minLength: 1, maxLength: 200 }, decision: { const: 'reject' }, reason: { type: 'string', minLength: 1, maxLength: 500 }
-          } },
-          { type: 'object', required: ['candidateId', 'decision', 'reason', 'mergeIntoCandidateId'], additionalProperties: false, properties: {
-            candidateId: { type: 'string', minLength: 1, maxLength: 200 }, decision: { const: 'merge' }, reason: { type: 'string', minLength: 1, maxLength: 500 }, mergeIntoCandidateId: { type: 'string', minLength: 1, maxLength: 200 }
-          } }
-        ]
-      } } }
+      properties: {
+        dataDir: { type: 'string' },
+        runId: { type: 'string', minLength: 1, maxLength: 200 },
+        actions: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 50,
+          items: {
+            type: 'object',
+            required: ['candidateId', 'decision', 'reason'],
+            additionalProperties: false,
+            properties: {
+              candidateId: { type: 'string', minLength: 1, maxLength: 200 },
+              decision: { type: 'string', enum: ['approve', 'edit', 'reject', 'merge'], description: 'Review decision. Supply payload only for edit and mergeIntoCandidateId only for merge.' },
+              reason: { type: 'string', minLength: 1, maxLength: 500 },
+              payload: { type: 'object', description: 'Required only when decision is edit; omit for approve, reject, or merge.' },
+              mergeIntoCandidateId: { type: 'string', minLength: 1, maxLength: 200, description: 'Required only when decision is merge; omit for approve, edit, or reject.' }
+            }
+          }
+        }
+      }
     }
   },
   {
@@ -378,10 +389,10 @@ export const toolDefinitions = [
       properties: {
         dataDir: { type: 'string', description: 'Optional Personal OS directory.' },
         runId: { type: 'string', minLength: 1, maxLength: 200, description: 'runId returned by the previous onboarding step.' },
-        action: { enum: ['record', 'review'], description: 'Use record first. Use review only after the answer receipt has been recorded.' },
+        action: { type: 'string', enum: ['record', 'review'], description: 'Use record first. Use review only after the answer receipt has been recorded.' },
         answerHash: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$', description: 'Required for action=record. SHA-256 of the answer body; the body itself is not stored.' },
         usedCanonicalIds: { type: 'array', minItems: 1, maxItems: 50, items: { type: 'string', minLength: 1, maxLength: 200 }, description: 'Required for action=record. Use only promotedCanonicalIds returned by review.' },
-        verdict: { enum: ['useful', 'not_useful'], description: 'Required for action=review.' },
+        verdict: { type: 'string', enum: ['useful', 'not_useful'], description: 'Required for action=review.' },
         missingContext: { type: 'array', maxItems: 50, items: { type: 'string', minLength: 1, maxLength: 200 }, description: 'Optional short labels for context the answer still lacked.' }
       }
     }
@@ -401,7 +412,7 @@ export const toolDefinitions = [
       type: 'object',
       properties: {
         dataDir: { type: 'string' },
-        ontologyVersion: { enum: ['0.0.0', '1.0.0', '2.0.0'] }
+        ontologyVersion: { type: 'string', enum: ['0.0.0', '1.0.0', '2.0.0'] }
       }
     }
   },
@@ -413,7 +424,7 @@ export const toolDefinitions = [
       properties: {
         dataDir: { type: 'string' },
         asOf: { type: 'string', format: 'date-time' },
-        ontologyVersion: { enum: ['0.0.0', '1.0.0', '2.0.0'] }
+        ontologyVersion: { type: 'string', enum: ['0.0.0', '1.0.0', '2.0.0'] }
       }
     }
   },
@@ -453,13 +464,13 @@ export const toolDefinitions = [
           additionalProperties: false,
           properties: {
             projectIds: { type: 'array', minItems: 1, items: { type: 'string', minLength: 1 } },
-            policy: { enum: ['strict', 'prefer_project', 'allow_global_fallback'] }
+            policy: { type: 'string', enum: ['strict', 'prefer_project', 'allow_global_fallback'] }
           }
         },
         entityTypes: {
           type: 'array',
           minItems: 1,
-          items: { enum: ['person', 'org', 'project', 'decision'] }
+          items: { type: 'string', enum: ['person', 'org', 'project', 'decision'] }
         }
       }
     }
@@ -964,7 +975,9 @@ export function createServer(options: { foundation?: FoundationPublicConnection 
   );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: configuredToolDefinitions(options.foundation)
+    tools: configuredToolDefinitions(options.foundation).map((tool) =>
+      normalizeMcpToolForPortability(tool as unknown as Tool)
+    )
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
