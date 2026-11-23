@@ -1,3 +1,6 @@
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -10,9 +13,14 @@ import { judgmentFrameReadTools } from '../src/judgment-frame-read.js';
 import { knowledgeLookupTools } from '../src/knowledge-lookup.js';
 import { queueTaskToolDefinitions } from '../src/queue-task-tools.js';
 import {
+  applyMcpToolSchemaProfile,
   assertMcpToolSchemasPortable,
   createLocalMcpServer,
   normalizeMcpToolInputSchemaForPortability,
+  normalizeMcpToolInputSchemaForProfile,
+  resolveMcpToolSchemaProfile,
+  runLocalMcpServer,
+  validateMcpToolInputSchemaPortability,
   validateMcpToolSchemaPortability,
   type LocalMcpRuntimeTool,
 } from '../src/mcp-runtime.js';
@@ -149,6 +157,7 @@ describe('MCP tool inputSchema cross-client portability contract (Gemini / OpenA
       type: 'array',
       minItems: 3,
       maxItems: 3,
+      description: 'In this order: "覚えていたこと", "つながったこと", "次にできること".',
       items: {
         type: 'string',
         enum: ['覚えていたこと', 'つながったこと', '次にできること'],
@@ -207,7 +216,11 @@ describe('MCP tool inputSchema cross-client portability contract (Gemini / OpenA
     const props = normalized.properties as Record<string, Record<string, unknown>>;
     expect(props.mode).toEqual({ type: 'string', enum: ['strict'] });
     expect(props.version).toMatchObject({ type: 'integer' });
-    expect(props.nullable_text).toEqual({ type: 'string' });
+    expect(props.nullable_text).toEqual({
+      type: 'string',
+      nullable: true,
+      description: 'null is also accepted.',
+    });
     expect(props.untyped_enum).toEqual({ type: 'string', enum: ['alpha', 'beta'] });
     expect(props.tuple_items).toEqual({ type: 'array', items: { type: 'string' }, maxItems: 2 });
     expect(props.bare_array).toEqual({ type: 'array', items: { type: 'string' } });
@@ -258,5 +271,281 @@ describe('MCP tool inputSchema cross-client portability contract (Gemini / OpenA
       'enum_invalid',
     ]));
     expect(() => assertMcpToolSchemasPortable([broken])).toThrow(/broken_tool/);
+  });
+
+  it('resolves host schema profile from env and separates lossless standard from gemini normalization', async () => {
+    expect(resolveMcpToolSchemaProfile({})).toBe('standard');
+    expect(resolveMcpToolSchemaProfile({ BRAINBASE_MCP_SCHEMA_PROFILE: '' })).toBe('standard');
+    expect(resolveMcpToolSchemaProfile({ BRAINBASE_MCP_SCHEMA_PROFILE: 'openai' })).toBe('standard');
+    expect(resolveMcpToolSchemaProfile({ BRAINBASE_MCP_SCHEMA_PROFILE: 'standard' })).toBe('standard');
+    expect(resolveMcpToolSchemaProfile({ BRAINBASE_MCP_SCHEMA_PROFILE: 'gemini' })).toBe('gemini');
+    expect(resolveMcpToolSchemaProfile({ BRAINBASE_MCP_SCHEMA_PROFILE: ' Gemini ' })).toBe('gemini');
+
+    const richTool: Tool = {
+      name: 'rich_standard_tool',
+      description: 'Uses standard JSON Schema 2020-12 null union and anyOf.',
+      inputSchema: {
+        type: 'object',
+        required: ['answer', 'evidence_refs'],
+        properties: {
+          answer: { type: ['string', 'null'], description: 'Nullable answer.' },
+          evidence_refs: {
+            type: 'array',
+            items: {
+              anyOf: [
+                { type: 'string', description: 'Reference ID.' },
+                { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+              ],
+            },
+          },
+          presented_sections: {
+            type: 'array',
+            prefixItems: [
+              { const: '覚えていたこと' },
+              { const: 'つながったこと' },
+              { const: '次にできること' },
+            ],
+            items: { type: 'string', enum: ['覚えていたこと', 'つながったこと', '次にできること'] },
+            minItems: 3,
+            maxItems: 3,
+          },
+        },
+      } as unknown as Tool['inputSchema'],
+    };
+
+    // Standard profile is lossless (preserves union-with-null, anyOf, prefixItems).
+    expect(applyMcpToolSchemaProfile(richTool, 'standard')).toBe(richTool);
+    const standardSchema = normalizeMcpToolInputSchemaForProfile(richTool.inputSchema, 'standard');
+    expect(standardSchema).toEqual(richTool.inputSchema);
+    expect(standardSchema).not.toBe(richTool.inputSchema);
+
+    // Gemini profile produces zero violations and documents lost shapes in descriptions.
+    const geminiTool = applyMcpToolSchemaProfile(richTool, 'gemini');
+    expect(validateMcpToolSchemaPortability(geminiTool)).toEqual([]);
+    const geminiProps = geminiTool.inputSchema.properties as Record<string, Record<string, unknown>>;
+    expect(geminiProps.answer).toEqual({
+      type: 'string',
+      nullable: true,
+      description: 'Nullable answer. null is also accepted.',
+    });
+    expect(geminiProps.evidence_refs.items).toEqual({
+      type: 'string',
+      description: 'Reference ID. Other accepted shapes: object.',
+    });
+    expect(geminiProps.presented_sections).toEqual({
+      type: 'array',
+      minItems: 3,
+      maxItems: 3,
+      items: { type: 'string', enum: ['覚えていたこと', 'つながったこと', '次にできること'] },
+    });
+
+    // createLocalMcpServer & runLocalMcpServer respect schemaProfile: 'standard' losslessly.
+    const standardServer = createLocalMcpServer({
+      name: 'standard-host',
+      version: '1.0.0',
+      schemaProfile: 'standard',
+      tools: [{ definition: richTool, handler: async () => ({ content: [] }) }],
+    });
+    const [listedStandard] = await listToolsFromServer(standardServer);
+    expect(listedStandard.inputSchema).toEqual(richTool.inputSchema);
+
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: 'run-local-standard-test', version: '1.0.0' });
+    const handle = await runLocalMcpServer({
+      name: 'standard-run-host',
+      version: '1.0.0',
+      schemaProfile: 'standard',
+      tools: [{ definition: richTool, handler: async () => ({ content: [] }) }],
+      transport: serverTransport,
+    });
+    await client.connect(clientTransport);
+    try {
+      const [listedRun] = (await client.listTools()).tools;
+      expect(listedRun.inputSchema).toEqual(richTool.inputSchema);
+    } finally {
+      await client.close();
+      await handle.close();
+    }
+  });
+
+  it('normalizes nullable variants, union-with-null enums, heterogeneous unions, and nested objects/additionalProperties idempotently', () => {
+    const complex = {
+      type: 'object',
+      properties: {
+        nullable_union_enum: {
+          anyOf: [{ type: 'null' }, { type: 'string', enum: ['x', 'y'] }],
+          description: 'Target layer.',
+        },
+        enum_with_null: {
+          enum: ['a', 'b', null],
+        },
+        null_const: {
+          const: null,
+        },
+        pure_null: {
+          type: 'null',
+        },
+        explicit_nullable_false: {
+          type: 'string',
+          nullable: false,
+        },
+        invalid_nullable_flag: {
+          type: 'string',
+          nullable: 'yes',
+        },
+        multi_type_nullable: {
+          type: ['string', 'integer', 'null'],
+          description: 'Identifier.',
+        },
+        outer_desc_union: {
+          description: 'Reference value.',
+          anyOf: [
+            { type: 'string' },
+            { type: 'object', properties: { uri: { type: 'string' } }, required: ['uri'] },
+          ],
+        },
+        numeric_union: {
+          anyOf: [{ type: 'integer' }, { type: 'number' }],
+        },
+        empty_nested_object: {
+          type: 'object',
+        },
+        closed_empty_nested_object: {
+          type: 'object',
+          properties: {},
+          additionalProperties: false,
+        },
+        typed_map: {
+          type: 'object',
+          additionalProperties: {
+            type: ['string', 'null'],
+          },
+        },
+        nested_array_of_empty_objects: {
+          type: 'array',
+          items: { type: 'object' },
+        },
+      },
+    } as unknown as Tool['inputSchema'];
+
+    const normalized = normalizeMcpToolInputSchemaForPortability(complex);
+    expect(validateMcpToolInputSchemaPortability(normalized)).toEqual([]);
+    // Strictly idempotent on second pass.
+    expect(normalizeMcpToolInputSchemaForPortability(normalized)).toEqual(normalized);
+
+    const props = normalized.properties as Record<string, Record<string, unknown>>;
+    expect(props.nullable_union_enum).toEqual({
+      type: 'string',
+      nullable: true,
+      description: 'Target layer. Allowed values: "x", "y". null is also accepted.',
+    });
+    expect(props.enum_with_null).toEqual({
+      type: 'string',
+      nullable: true,
+      description: 'Allowed values: "a", "b". null is also accepted.',
+    });
+    expect(props.null_const).toEqual({
+      type: 'string',
+      nullable: true,
+      description: 'Must be null. null is also accepted.',
+    });
+    expect(props.pure_null).toEqual({
+      type: 'string',
+      nullable: true,
+      description: 'null is also accepted.',
+    });
+    expect(props.explicit_nullable_false).toEqual({
+      type: 'string',
+      nullable: false,
+    });
+    expect(props.invalid_nullable_flag).toEqual({
+      type: 'string',
+    });
+    expect(props.multi_type_nullable).toEqual({
+      type: 'string',
+      nullable: true,
+      description: 'Identifier. Other accepted shapes: integer. null is also accepted.',
+    });
+    expect(props.outer_desc_union).toEqual({
+      type: 'string',
+      description: 'Reference value. Other accepted shapes: object.',
+    });
+    expect(props.numeric_union).toEqual({
+      type: 'number',
+    });
+    expect(props.empty_nested_object).toEqual({
+      type: 'object',
+      additionalProperties: true,
+    });
+    expect(props.closed_empty_nested_object).toEqual({
+      type: 'object',
+      properties: {},
+      additionalProperties: true,
+    });
+    expect(props.typed_map).toEqual({
+      type: 'object',
+      additionalProperties: {
+        type: 'string',
+        nullable: true,
+        description: 'null is also accepted.',
+      },
+    });
+    expect(props.nested_array_of_empty_objects).toEqual({
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: true,
+      },
+    });
+    // Empty root objects stay clean (no unsolicited additionalProperties on root).
+    const emptyRoot = normalizeMcpToolInputSchemaForPortability({ type: 'object', properties: {} });
+    expect(emptyRoot).toEqual({ type: 'object', properties: {} });
+    expect(validateMcpToolInputSchemaPortability(emptyRoot)).toEqual([]);
+  });
+
+  it('validates nullable type, nested empty objects, additionalProperties schemas, and combinator children', () => {
+    const issues = validateMcpToolInputSchemaPortability({
+      type: 'object',
+      properties: {
+        ok_nullable: { type: 'string', nullable: true },
+        bad_nullable: { type: 'string', nullable: 'true' },
+        empty_nested: { type: 'object' },
+        free_nested: { type: 'object', additionalProperties: true },
+        bad_map: { type: 'object', additionalProperties: { type: 'array' } },
+        either_null: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+      },
+    }, 'edge_tool');
+
+    expect(issues.map((issue) => `${issue.path}:${issue.code}`)).toEqual([
+      'inputSchema.properties.bad_nullable.nullable:nullable_invalid',
+      'inputSchema.properties.empty_nested:object_properties_missing',
+      'inputSchema.properties.bad_map.additionalProperties.items:array_items_missing',
+      'inputSchema.properties.either_null.anyOf:forbidden_keyword',
+      'inputSchema.properties.either_null.type:type_missing',
+      'inputSchema.properties.either_null.anyOf[1].type:type_unsupported',
+    ]);
+  });
+
+  it('publishes ./mcp-tool-schema-portability and re-exports profile helpers via ./mcp-runtime', async () => {
+    const manifest = JSON.parse(await readFile(path.join(process.cwd(), 'package.json'), 'utf8'));
+    expect(manifest.exports['./mcp-tool-schema-portability']).toEqual({
+      types: './dist/mcp-tool-schema-portability.d.ts',
+      import: './dist/mcp-tool-schema-portability.js',
+    });
+    const direct = await import(pathToFileURL(path.join(process.cwd(), 'dist/mcp-tool-schema-portability.js')).href);
+    const runtime = await import(pathToFileURL(path.join(process.cwd(), 'dist/mcp-runtime.js')).href);
+    for (const symbol of [
+      'resolveMcpToolSchemaProfile',
+      'applyMcpToolSchemaProfile',
+      'normalizeMcpToolInputSchemaForPortability',
+      'normalizeMcpToolInputSchemaForProfile',
+      'normalizeMcpToolForPortability',
+      'validateMcpToolInputSchemaPortability',
+      'validateMcpToolSchemaPortability',
+      'assertMcpToolSchemasPortable',
+    ]) {
+      expect(typeof direct[symbol]).toBe('function');
+      expect(typeof runtime[symbol]).toBe('function');
+    }
   });
 });
