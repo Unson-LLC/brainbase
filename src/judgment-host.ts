@@ -27,7 +27,27 @@ import {
 } from './judgment-event-adapter.js';
 import type { JudgmentKnowledgeEventSink } from './judgment-event-outbox.js';
 import { canonicalJson } from './judgment-resolution-contract.js';
+import {
+  AUDIT_LINE_STRIP_PREFIX,
+  COMPACT_FOUR_BLOCK_GATE_PROMPT_V2,
+  COMPACT_FOUR_BLOCK_GATE_PROMPT_V3,
+  REASONING_GATE_MODES,
+  resolveReasoningGateMode,
+  shouldApplyReasoningGate,
+  type ReasoningGateHostConfig,
+  type ReasoningGateMode
+} from './judgment-reasoning-gate-prompt.js';
 
+export {
+  AUDIT_LINE_STRIP_PREFIX,
+  COMPACT_FOUR_BLOCK_GATE_PROMPT_V2,
+  COMPACT_FOUR_BLOCK_GATE_PROMPT_V3,
+  REASONING_GATE_MODES,
+  resolveReasoningGateMode,
+  shouldApplyReasoningGate,
+  type ReasoningGateHostConfig,
+  type ReasoningGateMode
+};
 type Environment = Record<string, string | undefined>;
 
 export interface ConversationMessage {
@@ -153,6 +173,8 @@ export interface JudgmentHostOptions {
   autonomyResolver?: JudgmentAutonomyResolver;
   autonomyMode?: JudgmentAutonomyMode;
   autonomyCanaryProjects?: readonly string[];
+  reasoningGateMode?: ReasoningGateMode | 'compact_4block_v2';
+  reasoningGateCanaryProjects?: readonly string[];
   trustedConversationMessages?: ConversationMessage[];
   /** Optional adapter-owned queue. The default Host lifecycle remains unchanged. */
   knowledgeEventSink?: JudgmentKnowledgeEventSink;
@@ -1276,7 +1298,7 @@ function normalizedAnswerBody(answer: string, expectedLines: string[]): string {
     .map((line) => line.replace(/[ \t]+$/u, ''))
     .filter((line) => !auditLines.has(line));
   while (bodyLines.length > 0 && (
-    bodyLines[0] === '' || /^(?:🧠 |📚 Brainbase|⚠️ (?:Brainbase|判断))/u.test(bodyLines[0])
+    bodyLines[0] === '' || AUDIT_LINE_STRIP_PREFIX.test(bodyLines[0])
   )) bodyLines.shift();
   while (bodyLines.at(-1) === '') bodyLines.pop();
   return bodyLines.join('\n');
@@ -1409,9 +1431,13 @@ export function buildOwnerReferenceLine(request: JudgmentRequest, receipt: Judgm
 function successOutput(
   request: JudgmentRequest,
   receipt: JudgmentReceipt,
-  ownerAudit: JudgmentOwnerAudit = buildOwnerAudit(request, receipt)
+  ownerAudit: JudgmentOwnerAudit = buildOwnerAudit(request, receipt),
+  options: ReasoningGateHostConfig = {},
+  env: Environment = {}
 ): JudgmentHookOutput {
   const ownerReferenceLine = ownerAudit.display_line;
+  const reasoningGateMode = resolveReasoningGateMode(options, env, request.project_code ?? receipt.project_code);
+  const applyReasoningGate = reasoningGateMode !== 'off' && shouldApplyReasoningGate(receipt);
   const executionPlan = {
     status: receipt.status,
     active_edges: receipt.active_edges,
@@ -1438,7 +1464,8 @@ function successOutput(
       ? 'This route requires a successful portable knowledge call; do not claim a zero-call completion.'
       : `If no portable Brainbase MCP call occurs, put this exact line immediately after the judgment line:\n${ZERO_CALL_DISPLAY_LINE}`,
     `Execution plan: ${JSON.stringify(executionPlan)}`,
-    `audit_contract: ${JSON.stringify(auditContract)}`
+    `audit_contract: ${JSON.stringify(auditContract)}`,
+    ...(applyReasoningGate ? ['', COMPACT_FOUR_BLOCK_GATE_PROMPT_V3] : [])
   ].join('\n');
   return {
     continue: true,
@@ -1451,6 +1478,8 @@ function successOutput(
 export async function runJudgmentHost(payload: JudgmentHookPayload, options: JudgmentHostOptions = {}): Promise<JudgmentHookOutput> {
   const env = options.env ?? process.env;
   const expectedHostBinding = normalizeExpectedHostBinding(options.expectedHostBinding);
+  // Fail fast on invalid reasoning gate configuration before acquiring locks or invoking a resolver.
+  resolveReasoningGateMode(options, env);
   const sessionId = typeof payload.session_id === 'string' ? payload.session_id : '';
   const turnId = typeof payload.turn_id === 'string' ? payload.turn_id.trim() : '';
   if (!sessionId || !turnId) throw new TypeError('UserPromptSubmit requires prompt, turn_id, and session_id');
@@ -1463,7 +1492,7 @@ export async function runJudgmentHost(payload: JudgmentHookPayload, options: Jud
       if (!requestText || episode.request_text_digest !== sha256(requestText)) {
         throw new Error('judgment_episode_binding_mismatch');
       }
-      return successOutput(episode.adoption.request, episode.adoption.receipt, episode.adoption.owner_audit);
+      return successOutput(episode.adoption.request, episode.adoption.receipt, episode.adoption.owner_audit, options, env);
     } catch (error) {
       if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
     }
@@ -1505,7 +1534,7 @@ export async function runJudgmentHost(payload: JudgmentHookPayload, options: Jud
       episode_digest: sha256(canonicalJson(episodeWithoutDigest))
     };
     writeImmutableJson(paths.episode, episode as unknown as Record<string, unknown>);
-    return successOutput(adoption.request, adoption.receipt, adoption.owner_audit);
+    return successOutput(adoption.request, adoption.receipt, adoption.owner_audit, options, env);
   });
 }
 
