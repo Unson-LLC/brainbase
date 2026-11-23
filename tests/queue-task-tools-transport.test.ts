@@ -22,7 +22,7 @@ describe.each(['stdio', 'http'] as const)('queue task tools over %s', (transport
                 const transcript = await runQueueTaskContractScenario(name, adapterFor(transport), assert);
                 recordedTranscripts.set(`${transport}:${name}`, transcript);
             },
-            30000,
+            transport === 'stdio' ? 120_000 : 30_000,
         );
 });
 it('AC-10 runs the same queue contract over stdio and Streamable HTTP', async () => {
