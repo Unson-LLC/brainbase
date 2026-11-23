@@ -19,6 +19,7 @@ Run from the repository root. Read the PR diff and the Story and Spec it names b
      npm_cache=$(mktemp -d "${TMPDIR:-/tmp}/brainbase-verify-npm.XXXXXXXX") || exit 1
      trap 'rm -rf -- "$npm_cache"' EXIT
    fi
+   unset NPM_CONFIG_CACHE
    export npm_config_cache="$npm_cache"
    ```
 
