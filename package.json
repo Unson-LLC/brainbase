@@ -299,6 +299,10 @@
       "types": "./dist/ontology-release-trust.d.ts",
       "import": "./dist/ontology-release-trust.js"
     },
+    "./brainbase-login": {
+      "types": "./dist/brainbase-login.d.ts",
+      "import": "./dist/brainbase-login.js"
+    },
     "./canonical-document-writer": {
       "types": "./dist/canonical-document-writer.d.ts",
       "import": "./dist/canonical-document-writer.js"
