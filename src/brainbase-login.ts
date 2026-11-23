@@ -845,6 +845,8 @@ export interface CredentialsLock {
 export interface LockTiming {
   /** How long to wait for another holder before failing with `login_busy`. */
   waitMs: number;
+  /** Appended to the real path of the locked file to name the lock (default `.lock`). */
+  suffix?: string;
 }
 
 export interface LockOptions extends LockTiming {
@@ -855,6 +857,14 @@ export interface LockOptions extends LockTiming {
    * under the lock never moves to a file the earlier check did not see.
    */
   destination?: CredentialsDestination;
+  /**
+   * Whether taking the lock first finishes or rolls back a save or logout of
+   * a login that stopped half way (finishInterrupted; default true). A lock
+   * on a file that is no saved login, such as the Claude Code settings that
+   * judgment:install locks, passes false: it never moves or deletes the
+   * files next to that path.
+   */
+  recover?: boolean;
 }
 
 const DEFAULT_LOCK_TIMING: LockTiming = { waitMs: LOCK_WAIT_MS };
@@ -1102,7 +1112,7 @@ export async function withCredentialsLock<T>(
   timing: Partial<LockOptions> = {},
 ): Promise<T> {
   assertCredentialsFilePath(path);
-  const { waitMs, destination: pinned } = { ...DEFAULT_LOCK_TIMING, ...timing };
+  const { waitMs, destination: pinned, suffix = '.lock', recover = true } = { ...DEFAULT_LOCK_TIMING, ...timing };
   // A pinned destination is a folder that was there: it is not made again.
   if (!pinned) await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   // Every spelling of the same file takes the same lock, and the work under
@@ -1114,7 +1124,7 @@ export async function withCredentialsLock<T>(
   const folder = await folderIdentity(dirname(target));
   if (pinned && (pinned.target !== target || !sameFolder(pinned.folder, folder))) throw destinationChanged();
   const destination: CredentialsDestination = { target, folder };
-  const lockPath = `${target}.lock`;
+  const lockPath = `${target}${suffix}`;
   const owner = randomBytes(16).toString('hex');
   const record = await lockRecord(owner);
   const started = Date.now();
@@ -1138,7 +1148,9 @@ export async function withCredentialsLock<T>(
   try {
     // Whoever takes the lock next finishes (or rolls back) a save or logout
     // that stopped half way, before anything else reads or writes the login.
-    interrupted = await finishInterrupted(target);
+    interrupted = recover
+      ? await finishInterrupted(target)
+      : { logoutFinished: false, saveRolledBack: false };
   } catch (error) {
     await release();
     throw error;
@@ -1463,10 +1475,10 @@ function isFresh(credentials: BrainbaseCredentials, now: number, skew: number): 
   return Date.parse(credentials.expires_at) - skew > now;
 }
 
-function usableWithoutRenewal(credentials: BrainbaseCredentials, now: number): { token: string; serverUrl: string } {
+function usableWithoutRenewal(credentials: BrainbaseCredentials, now: number): { token: string; serverUrl: string; loginId: string } {
   // Nothing can renew it, so it is used until it actually expires.
   if (Date.parse(credentials.expires_at) > now) {
-    return { token: credentials.access_token, serverUrl: credentials.server_url };
+    return { token: credentials.access_token, serverUrl: credentials.server_url, loginId: credentials.login_id };
   }
   throw new BrainbaseLoginError('login_expired', 'The saved login has expired. Run brainbase login again.');
 }
@@ -1480,6 +1492,15 @@ function usableWithoutRenewal(credentials: BrainbaseCredentials, now: number): {
  * login waits for it and then wins.
  */
 export async function getAccessToken(options: AccessTokenOptions = {}): Promise<{ token: string; serverUrl: string }> {
+  const { token, serverUrl } = await getAccessTokenOfLogin(options);
+  return { token, serverUrl };
+}
+
+/**
+ * getAccessToken, with the saved login's login_id. A renewal keeps the
+ * login_id; another `brainbase login` (as anyone) gets a new one.
+ */
+export async function getAccessTokenOfLogin(options: AccessTokenOptions = {}): Promise<{ token: string; serverUrl: string; loginId: string }> {
   const credentialsPath = options.credentialsPath ?? defaultCredentialsPath();
   const fetchImpl = options.fetch ?? fetch;
   const now = options.now ?? Date.now;
@@ -1489,7 +1510,7 @@ export async function getAccessToken(options: AccessTokenOptions = {}): Promise<
     throw new BrainbaseLoginError('login_missing', 'Not logged in. Run brainbase login --server <url>.');
   }
   if (isFresh(credentials, now(), skew)) {
-    return { token: credentials.access_token, serverUrl: credentials.server_url };
+    return { token: credentials.access_token, serverUrl: credentials.server_url, loginId: credentials.login_id };
   }
   if (!credentials.refresh_token) return usableWithoutRenewal(credentials, now());
   return withCredentialsLock(credentialsPath, async (lock) => {
@@ -1500,11 +1521,11 @@ export async function getAccessToken(options: AccessTokenOptions = {}): Promise<
     if (!latest || !sameLogin(latest, credentials)) {
       throw new BrainbaseLoginError('login_changed', 'The saved login changed while it was being renewed. Run the command again.');
     }
-    if (isFresh(latest, now(), skew)) return { token: latest.access_token, serverUrl: latest.server_url };
+    if (isFresh(latest, now(), skew)) return { token: latest.access_token, serverUrl: latest.server_url, loginId: latest.login_id };
     if (!latest.refresh_token) return usableWithoutRenewal(latest, now());
     const next = await requestRenewal(latest as BrainbaseCredentials & { refresh_token: string }, fetchImpl, now);
     // The login checked before the request must still be the one replaced.
     await writeCredentials(credentialsPath, next, { lock, expected: loginKeyOf(latest) });
-    return { token: next.access_token, serverUrl: next.server_url };
+    return { token: next.access_token, serverUrl: next.server_url, loginId: next.login_id };
   });
 }

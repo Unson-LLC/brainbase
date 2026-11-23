@@ -17,6 +17,9 @@ const ISOLATED_TEST_PATTERNS = [
   'tests/judgment-history-scan-cache.test.ts',
   'tests/judgment-value-proof-journal-cache.test.ts',
   'tests/build-stage3b-candidate-bundle.test.ts',
+  // These vi.mock() node:fs/promises to step in while judgment:install writes.
+  'tests/claude-code-judgment-hook-round13.test.ts',
+  'tests/claude-code-judgment-hook-round14.test.ts',
 ];
 
 // Tests that change the working directory need their own process: worker threads
