@@ -39,6 +39,10 @@
       "types": "./dist/judgment-frame.d.ts",
       "import": "./dist/judgment-frame.js"
     },
+    "./judgment-reasoning-audit": {
+      "types": "./dist/judgment-reasoning-audit.d.ts",
+      "import": "./dist/judgment-reasoning-audit.js"
+    },
     "./judgment-history": {
       "types": "./dist/judgment-history.d.ts",
       "import": "./dist/judgment-history.js"
