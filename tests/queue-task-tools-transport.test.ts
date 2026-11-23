@@ -4,6 +4,7 @@ import {
     QUEUE_TASK_CONTRACT_SCENARIO_NAMES,
     runQueueTaskContractScenario,
     createQueueReferenceSeed,
+    type QueueTaskContractTranscript,
 } from '../src/testing/queue-task-tools-contract.js';
 import {
     createStdioQueueAdapter,
@@ -12,16 +13,26 @@ import {
 } from './helpers/queue-task-transport-adapters.js';
 const adapterFor = (transport: string) =>
     transport === 'stdio' ? createStdioQueueAdapter() : createHttpQueueAdapter();
+const recordedTranscripts = new Map<string, QueueTaskContractTranscript>();
 describe.each(['stdio', 'http'] as const)('queue task tools over %s', (transport) => {
     for (const name of QUEUE_TASK_CONTRACT_SCENARIO_NAMES)
-        it(name, () => runQueueTaskContractScenario(name, adapterFor(transport), assert), 30000);
+        it.concurrent(
+            name,
+            async () => {
+                const transcript = await runQueueTaskContractScenario(name, adapterFor(transport), assert);
+                recordedTranscripts.set(`${transport}:${name}`, transcript);
+            },
+            30000,
+        );
 });
 it('AC-10 runs the same queue contract over stdio and Streamable HTTP', async () => {
     const transcripts = [];
     for (const transport of ['stdio', 'http']) {
         const results = [];
-        for (const name of QUEUE_TASK_CONTRACT_SCENARIO_NAMES)
-            results.push(await runQueueTaskContractScenario(name, adapterFor(transport), assert));
+        for (const name of QUEUE_TASK_CONTRACT_SCENARIO_NAMES) {
+            const cached = recordedTranscripts.get(`${transport}:${name}`);
+            results.push(cached ?? (await runQueueTaskContractScenario(name, adapterFor(transport), assert)));
+        }
         transcripts.push(results);
     }
     expect(transcripts[0]).toEqual(transcripts[1]);

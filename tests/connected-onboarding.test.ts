@@ -12,10 +12,13 @@ import {
 } from '../src/connected-onboarding.js';
 import { initializePersonalOs, loadPersonalOs } from '../src/ssot.js';
 
+// Set by tests/helpers/fixture-root.global-setup.mjs to memory-backed /dev/shm when available.
+const TEST_TMP_ROOT = process.env.BRAINBASE_TEST_FIXTURE_ROOT ?? tmpdir();
+
 const dirs: string[] = [];
 
 async function fixture(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'brainbase-connected-onboarding-'));
+  const dir = await mkdtemp(join(TEST_TMP_ROOT, 'brainbase-connected-onboarding-'));
   dirs.push(dir);
   await initializePersonalOs(dir);
   return dir;
