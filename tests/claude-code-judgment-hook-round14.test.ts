@@ -3,7 +3,7 @@
 // the installer must never replace the settings unconditionally. (2)
 // --settings and --config must be refused, before any blocking read, when
 // they are not regular files (a named pipe, also behind a link).
-import { mkdtemp, readFile, readdir, rm, symlink, writeFile, mkdir } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rename, rm, symlink, writeFile, mkdir } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { existsSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
@@ -15,7 +15,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 //   plain rename() used to make), so what is taken out is a newer save;
 // - 'while-aside': while the file is aside, so a new file appears at the path;
 // - 'after-placed': right after the installer's file was placed, written in place.
-type Moment = 'before-aside' | 'while-aside' | 'after-placed';
+type Moment = 'before-aside' | 'while-aside' | 'after-placed' | 'during-recovery';
 const saves = vi.hoisted(() => ({ settings: '', moment: '' as string, remaining: 0, content: (n: number) => `${n}` }));
 vi.mock('node:fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs/promises')>();
@@ -33,6 +33,8 @@ vi.mock('node:fs/promises', async (importOriginal) => {
     link: async (from: Parameters<typeof actual.link>[0], to: Parameters<typeof actual.link>[1]) => {
       const placing = String(to) === saves.settings && String(from).endsWith('.tmp');
       if (placing && armed('while-aside')) await save();
+      if (String(to) === saves.settings && String(from).endsWith('.brainbase-install-previous')
+        && armed('during-recovery')) await save();
       await actual.link(from, to);
       if (placing && armed('after-placed')) await save();
     },
@@ -136,6 +138,68 @@ describe('judgment:install never writes over a Claude Code save made after its c
     expect(await runCli([...base, '--settings', linked, '--config', join(dir, 'hook.json')], capture().io)).toBe(0);
     expect(realpathSync(linked)).toBe(settings);
     expect(JSON.parse(await readFile(settings, 'utf8')).permissions).toEqual({ allow: ['Bash(ls)'] });
+  });
+});
+
+describe('judgment:install recovers settings moved aside by an interrupted run', () => {
+  it.each(['.brainbase-install-previous', '.1234.01abcdef.brainbase-install-previous'])(
+    'keeps existing hooks and permissions when recovering %s',
+    async (suffix) => {
+      const { dir, settings } = await home();
+      const backup = settings + suffix;
+      const config = join(dir, 'hook.json');
+      await writeFile(settings, saved());
+      await rename(settings, backup);
+      const args = [...base, '--settings', settings, '--config', config];
+      expect(await runCli([...args, '--dry-run'], capture().io)).toBe(0);
+      expect(existsSync(settings)).toBe(false);
+      expect(await readFile(backup, 'utf8')).toBe(saved());
+
+      expect(await runCli(args, capture().io)).toBe(0);
+      const result = JSON.parse(await readFile(settings, 'utf8'));
+      expect(result.permissions).toEqual({ allow: ['Bash(ls)'] });
+      expect(commands(result)).toContain('echo saved');
+      expect(commands(result).some((command) => command.includes(config))).toBe(true);
+      expect(await leftovers(dir)).toEqual([]);
+    }
+  );
+
+  it('recovers a symlink target before removing the registration', async () => {
+    const { dir, settings } = await home();
+    const alias = join(dir, 'linked-settings.json');
+    const config = join(dir, 'hook.json');
+    await symlink('settings.json', alias);
+    expect(await runCli([...base, '--settings', alias, '--config', config], capture().io)).toBe(0);
+    await rename(settings, settings + '.brainbase-install-previous');
+    expect(await runCli(['judgment:install', '--target', 'claude-code', '--remove', '--settings', alias, '--config', config], capture().io)).toBe(0);
+    expect(realpathSync(alias)).toBe(settings);
+    expect(commands(JSON.parse(await readFile(alias, 'utf8')))).toEqual(['echo kept']);
+    expect(await leftovers(dir)).toEqual([]);
+  });
+
+  it('keeps a Claude Code save that arrives during recovery', async () => {
+    const { dir, settings } = await home();
+    await rename(settings, settings + '.brainbase-install-previous');
+    Object.assign(saves, { settings, moment: 'during-recovery', remaining: 1, content: saved });
+    expect(await runCli([...base, '--settings', settings, '--config', join(dir, 'hook.json')], capture().io)).toBe(0);
+    expect(saves.remaining).toBe(0);
+    expect(commands(JSON.parse(await readFile(settings, 'utf8')))).toContain('echo saved');
+  });
+
+  it('leaves both backups in place when recovery is ambiguous', async () => {
+    const { dir, settings } = await home();
+    const backup = settings + '.brainbase-install-previous';
+    const legacy = settings + '.1234.01abcdef.brainbase-install-previous';
+    const config = join(dir, 'hook.json');
+    await rename(settings, backup);
+    await writeFile(legacy, saved());
+    const out = capture();
+    expect(await runCli([...base, '--settings', settings, '--config', config], out.io)).toBe(1);
+    expect(out.stderr()).toContain('multiple judgment:install backups');
+    expect(existsSync(settings)).toBe(false);
+    expect(existsSync(config)).toBe(false);
+    expect(existsSync(backup)).toBe(true);
+    expect(await readFile(legacy, 'utf8')).toBe(saved());
   });
 });
 

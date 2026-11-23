@@ -13,9 +13,9 @@ import {
 } from './personal-memory-handover.js';
 import { createHash, randomBytes } from 'node:crypto';
 import { constants, realpathSync } from 'node:fs';
-import { access, chmod, link, lstat, mkdir, open, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { access, chmod, link, lstat, mkdir, open, readdir, readFile, readlink, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
+import { basename, delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initializePersonalOs, loadPersonalOs, migrateCanonicalGraph, mutatePersonalOs } from './ssot.js';
 import { diagnoseGraph, type GraphDiagnosis } from './graph-diagnosis.js';
@@ -344,10 +344,13 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
     ?? join(process.env.CLAUDE_CONFIG_DIR || join(process.env.HOME || '', '.claude'), 'settings.json'));
   // Absolute, because the registered command carries it to every hook run.
   const configPath = resolve(explicitValue(parsed, 'config', '--config <path>') ?? defaultClaudeCodeHookConfigPath());
-  const settingsReal = canonicalFilePath(settingsPath);
+  const settingsReal = await installSettingsTarget(settingsPath);
   const configReal = canonicalFilePath(configPath);
   if (settingsReal === configReal) {
     throw new Error('judgment:install --settings and --config must be different files');
+  }
+  if (configReal === settingsReal + INSTALL_SETTINGS_BACKUP_SUFFIX) {
+    throw new Error('judgment:install --config must not be the settings backup file');
   }
   if (configReal === canonicalFilePath(resolve(defaultCredentialsPath()))) {
     throw new Error('judgment:install --config must not be the brainbase login file');
@@ -416,7 +419,10 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
     }
   };
   // A preview writes nothing, so it takes no lock.
-  return dryRun ? await run() : await withInstallLocks([settingsReal, configReal], run);
+  return dryRun ? await run() : await withInstallLocks([settingsReal, configReal], async () => {
+    await recoverInstallSettings(settingsReal);
+    return await run();
+  });
 }
 
 /**
@@ -455,6 +461,57 @@ async function withInstallLocks<T>(files: string[], task: () => Promise<T>): Pro
 }
 
 const SETTINGS_CHANGED_ATTEMPTS = 3;
+const INSTALL_SETTINGS_BACKUP_SUFFIX = '.brainbase-install-previous';
+
+// A settings symlink can be dangling precisely because its target was moved aside.
+async function installSettingsTarget(path: string): Promise<string> {
+  const seen = new Set<string>();
+  let target = canonicalFilePath(path);
+  while (!seen.has(target)) {
+    seen.add(target);
+    const destination = await readlink(target).catch((error) => {
+      if (error.code === 'ENOENT' || error.code === 'EINVAL') return null;
+      throw error;
+    });
+    if (destination === null) return target;
+    target = canonicalFilePath(resolve(dirname(target), destination));
+  }
+  throw new Error(`${path} has a symbolic link loop`);
+}
+
+async function recoverInstallSettings(target: string): Promise<void> {
+  const current = await lstat(target).catch((error) => {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  });
+  if (current) return;
+
+  const directory = dirname(target);
+  const name = basename(target);
+  const entries = await readdir(directory).catch((error) => {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  });
+  // Older installers added a PID and eight hex digits before the suffix.
+  const backups = entries.filter((entry) => entry === name + INSTALL_SETTINGS_BACKUP_SUFFIX
+    || (entry.startsWith(name) && /^\.\d+\.[0-9a-f]{8}\.brainbase-install-previous$/u.test(entry.slice(name.length))));
+  if (backups.length === 0) return;
+  if (backups.length !== 1) {
+    throw new Error(`${target} has multiple judgment:install backups. Restore the correct settings file before retrying.`);
+  }
+  const backup = join(directory, backups[0]);
+  if (!(await lstat(backup)).isFile()) {
+    throw new Error(`${backup} is not a regular settings backup. Check the file before retrying.`);
+  }
+  try {
+    // A save by Claude Code made during recovery takes precedence.
+    await link(backup, target);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') return;
+    throw error;
+  }
+  await rm(backup, { force: true });
+}
 
 /**
  * Reads `path` (following links) only when it is a regular file; null when
@@ -799,7 +856,7 @@ async function swapInIfUnchanged(path: string, target: string, temporary: string
   if (expected === null) {
     if (!(await placeOurs())) throw changed();
   } else {
-    const aside = `${target}.${tag}.brainbase-install-previous`;
+    const aside = target + INSTALL_SETTINGS_BACKUP_SUFFIX;
     try {
       await rename(target, aside);
     } catch (error) {
