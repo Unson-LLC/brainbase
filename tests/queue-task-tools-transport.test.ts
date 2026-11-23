@@ -12,9 +12,14 @@ import {
 } from './helpers/queue-task-transport-adapters.js';
 const adapterFor = (transport: string) =>
     transport === 'stdio' ? createStdioQueueAdapter() : createHttpQueueAdapter();
+// Each scenario starts the server over stdio or HTTP. On the shared CI machine
+// under load, AC-8 over stdio took up to 29.9s on 2026-11-23 and timed out at
+// 30s several times (UNS-5551), so the limits are twice the longest pass seen.
+const SCENARIO_TIMEOUT_MS = 60_000;
+const BOTH_TRANSPORTS_TIMEOUT_MS = 160_000;
 describe.each(['stdio', 'http'] as const)('queue task tools over %s', (transport) => {
     for (const name of QUEUE_TASK_CONTRACT_SCENARIO_NAMES)
-        it(name, () => runQueueTaskContractScenario(name, adapterFor(transport), assert), 30000);
+        it(name, () => runQueueTaskContractScenario(name, adapterFor(transport), assert), SCENARIO_TIMEOUT_MS);
 });
 it('AC-10 runs the same queue contract over stdio and Streamable HTTP', async () => {
     const transcripts = [];
@@ -24,8 +29,9 @@ it('AC-10 runs the same queue contract over stdio and Streamable HTTP', async ()
             results.push(await runQueueTaskContractScenario(name, adapterFor(transport), assert));
         transcripts.push(results);
     }
+    // Every scenario on both transports; up to 80.2s passed on 2026-11-23.
     expect(transcripts[0]).toEqual(transcripts[1]);
-}, 120000);
+}, BOTH_TRANSPORTS_TIMEOUT_MS);
 it('AC-11 rejects cross-agent HTTP sessions and cleans up transports', async () => {
     const f = await createQueueHttpFixture({
         state: createQueueReferenceSeed(),
