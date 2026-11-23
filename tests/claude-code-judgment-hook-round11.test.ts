@@ -76,7 +76,8 @@ const pre = (cwd: string) => ({
 const stop = (cwd: string) => ({ hook_event_name: 'Stop', session_id: 's1', prompt_id: 'p1', cwd, last_assistant_message: 'answer' });
 
 describe('an origin the client cannot turn into host/owner/name', () => {
-  for (const url of ['file:///srv/git/app.git', '/srv/git/app.git', 'https://example.com/app.git']) {
+  // Review 01a205aa (round 18): an absolute scp-like path names no repository either.
+  for (const url of ['file:///srv/git/app.git', '/srv/git/app.git', 'https://example.com/app.git', 'git@git.example.com:/srv/acme/app.git']) {
     it(`is not sent without --project (${url})`, async () => {
       const { repo, config, credentials, env } = await setup(url);
       const { fetchImpl, sent } = host();

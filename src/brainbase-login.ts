@@ -857,6 +857,14 @@ export interface LockOptions extends LockTiming {
    * under the lock never moves to a file the earlier check did not see.
    */
   destination?: CredentialsDestination;
+  /**
+   * Whether taking the lock first finishes or rolls back a save or logout of
+   * a login that stopped half way (finishInterrupted; default true). A lock
+   * on a file that is no saved login, such as the Claude Code settings that
+   * judgment:install locks, passes false: it never moves or deletes the
+   * files next to that path.
+   */
+  recover?: boolean;
 }
 
 const DEFAULT_LOCK_TIMING: LockTiming = { waitMs: LOCK_WAIT_MS };
@@ -1104,7 +1112,7 @@ export async function withCredentialsLock<T>(
   timing: Partial<LockOptions> = {},
 ): Promise<T> {
   assertCredentialsFilePath(path);
-  const { waitMs, destination: pinned, suffix = '.lock' } = { ...DEFAULT_LOCK_TIMING, ...timing };
+  const { waitMs, destination: pinned, suffix = '.lock', recover = true } = { ...DEFAULT_LOCK_TIMING, ...timing };
   // A pinned destination is a folder that was there: it is not made again.
   if (!pinned) await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   // Every spelling of the same file takes the same lock, and the work under
@@ -1140,7 +1148,9 @@ export async function withCredentialsLock<T>(
   try {
     // Whoever takes the lock next finishes (or rolls back) a save or logout
     // that stopped half way, before anything else reads or writes the login.
-    interrupted = await finishInterrupted(target);
+    interrupted = recover
+      ? await finishInterrupted(target)
+      : { logoutFinished: false, saveRolledBack: false };
   } catch (error) {
     await release();
     throw error;

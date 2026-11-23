@@ -315,6 +315,12 @@ export function repositoryIdentityFromUrl(remote: string): string | null {
   const scp = /^(?:[^@/\s]+@)?([^:/\s]+):(?!\/\/)(.+)$/u.exec(value);
   if (scp && !/^[a-z][a-z0-9+.-]*:\/\//iu.test(value)) {
     [, host, path] = scp;
+    // `host:/srv/a/b` names a path from the server's root, `host:a/b` one
+    // below the login's home: on a self-hosted SSH server they can be two
+    // repositories. Without the leading slash they would read as the same
+    // `host/a/b`, so an absolute scp-like path names no repository; without
+    // --project nothing is sent for it (see isAuditedRepository).
+    if (path.startsWith('/')) return null;
   } else {
     let url: URL;
     try {

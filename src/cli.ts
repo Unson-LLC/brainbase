@@ -434,7 +434,9 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
 // beside. They get a name of their own, and a file there that is not a lock
 // record this code wrote is never removed: the install waits and says which
 // file to check instead.
-const INSTALL_LOCK = { suffix: '.brainbase-install.lock' } as const;
+// The settings are no saved login, so taking this lock never runs the
+// recovery of a login save or logout that stopped half way (recover: false).
+const INSTALL_LOCK = { suffix: '.brainbase-install.lock', recover: false } as const;
 
 async function withInstallLocks<T>(files: string[], task: () => Promise<T>): Promise<T> {
   const keys = [...new Set(files)].sort();
