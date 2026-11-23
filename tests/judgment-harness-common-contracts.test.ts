@@ -241,6 +241,7 @@ describe('portable judgment harness common contracts', () => {
       './judgment-host',
       './judgment-execution-outcome',
       './judgment-node-evidence',
+      './judgment-project-binding',
       './judgment-event-adapter',
       './judgment-event-outbox',
       './judgment-reasoning-audit'

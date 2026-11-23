@@ -493,4 +493,91 @@ describe('company OS learning adoption', () => {
       access: { principal: 'reader-1', scope }
     })).rejects.toMatchObject({ code: 'authorization_denied' });
   }, 15000);
+
+  it('persists optional addressedRefutationIds and competingModels with tamper detection and full backward compatibility', async () => {
+    const harness = await makeHarness();
+
+    // Legacy candidate without optional fields preserves exact shape without undefined keys.
+    const legacyCandidate = await harness.store.createCandidate(candidateRequest(harness, 'candidate-legacy'));
+    expect('addressedRefutationIds' in legacyCandidate).toBe(false);
+    expect('competingModels' in legacyCandidate).toBe(false);
+
+    // Candidate linking prior refutation records and competing hypotheses.
+    const enriched = await harness.store.createCandidate({
+      ...candidateRequest(harness, 'candidate-refutation-linked'),
+      addressedRefutationIds: ['outcome-refute-001', 'outcome-refute-002'],
+      competingModels: [
+        {
+          ref: 'model-alt-staffing@1',
+          hypothesis: 'Total handling load rises with peak check-in clustering regardless of automation.',
+          comparison: 'Revised model incorporates handoff overhead while retaining automation benefit off-peak.'
+        },
+        {
+          hypothesis: 'Training drift explains the pilot gap without structural model changes.',
+          comparison: 'Ruled out because experienced staff showed the same handoff overhead.'
+        }
+      ]
+    });
+
+    expect(enriched.addressedRefutationIds).toEqual(['outcome-refute-001', 'outcome-refute-002']);
+    expect(enriched.competingModels).toEqual([
+      {
+        ref: 'model-alt-staffing@1',
+        hypothesis: 'Total handling load rises with peak check-in clustering regardless of automation.',
+        comparison: 'Revised model incorporates handoff overhead while retaining automation benefit off-peak.'
+      },
+      {
+        hypothesis: 'Training drift explains the pilot gap without structural model changes.',
+        comparison: 'Ruled out because experienced staff showed the same handoff overhead.'
+      }
+    ]);
+    expect(enriched.digest).not.toBe(legacyCandidate.digest);
+
+    const readback = await harness.store.readCandidate(enriched.id, harness.access);
+    expect(readback).toEqual(enriched);
+
+    // Full validation -> adoption flow succeeds with enriched candidate.
+    const validation = await harness.store.createValidation({
+      id: 'validation-refutation-linked',
+      candidateRef: { id: enriched.id, digest: enriched.digest },
+      findings: [{ kind: 'external_change', description: 'Peak handoff overhead verified.', evidenceRefs: ['obs-peak-1'] }],
+      conclusion: 'supported',
+      modelDisposition: 'revise',
+      basis: 'Revision directly addresses both prior refutation records.',
+      validatedAt: '2026-04-02T01:00:00.000Z',
+      access: harness.access
+    });
+    const adoption = await harness.store.adopt({
+      id: 'adoption-refutation-linked',
+      idempotencyKey: 'adoption-refutation-linked-key',
+      candidateRef: { id: enriched.id, digest: enriched.digest },
+      validationRef: { id: validation.id, digest: validation.digest },
+      access: harness.access
+    });
+    expect(adoption.adoptedTarget.revision).toBe('2');
+
+    // Validation rejects malformed optional fields.
+    await expect(harness.store.createCandidate({
+      ...candidateRequest(harness, 'candidate-bad-refutation'),
+      addressedRefutationIds: ['valid-id', '   ']
+    })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(harness.store.createCandidate({
+      ...candidateRequest(harness, 'candidate-bad-competing-ref'),
+      competingModels: [{ ref: '  ', hypothesis: 'H', comparison: 'C' }]
+    })).rejects.toMatchObject({ code: 'invalid_input' });
+    await expect(harness.store.createCandidate({
+      ...candidateRequest(harness, 'candidate-bad-competing-comparison'),
+      competingModels: [{ hypothesis: 'H', comparison: '' }]
+    })).rejects.toMatchObject({ code: 'invalid_input' });
+
+    // Tampering with addressedRefutationIds on disk is caught by digest verification.
+    const sidecarPath = join(harness.dataDir, COMPANY_OS_LEARNING_ADOPTION_SIDECAR);
+    const ledger = JSON.parse(await readFile(sidecarPath, 'utf8')) as {
+      candidates: Array<{ id: string; addressedRefutationIds?: string[] }>;
+    };
+    const stored = ledger.candidates.find((item) => item.id === enriched.id)!;
+    stored.addressedRefutationIds = ['outcome-refute-001'];
+    await writeFile(sidecarPath, `${JSON.stringify(ledger, null, 2)}\n`, 'utf8');
+    await expect(harness.store.readCandidate(enriched.id, harness.access)).rejects.toMatchObject({ code: 'corrupt_record' });
+  }, 15000);
 });
