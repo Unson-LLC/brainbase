@@ -346,7 +346,8 @@ function assertClaudeCodeInstallOptions(parsed: ParsedArgs): void {
 // so the install stops instead of guessing.
 function settingsPathAsOpened(path: string): string {
   // `file.json/` names a directory; dropping the slash would edit file.json.
-  if (/[\\/]$/u.test(path)) {
+  // Only the system's separators count: on POSIX `settings.json\` is a file name.
+  if (process.platform === 'win32' ? /[\\/]$/u.test(path) : path.endsWith('/')) {
     throw new Error(`--settings ${path} は末尾が / で、ファイルを指していないため止めました。settings.json のパスを指定してください。何も変えていません。`);
   }
   const absolute = isAbsolute(path) ? path : `${process.cwd()}${sep}${path}`;
