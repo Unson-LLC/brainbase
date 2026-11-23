@@ -2,7 +2,6 @@ import { createHash } from 'node:crypto';
 import { access, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { canonicalEdgeId, isActiveAt, validateCanonicalGraph } from './canonical-graph.js';
-import { findLatestFoundationRecord } from './foundation-catalog.js';
 import { stableHash } from './import-extract.js';
 import { canonicalPortableJson } from './portable-graph.js';
 import { getCanonicalRelation } from './relation-registry.js';
@@ -10,6 +9,10 @@ import { loadPersonalOs, mutatePersonalOsWithSidecar, readPersonalOsSidecar } fr
 import type { CanonicalEdge, CanonicalEntity, CoreRelation, GraphFileV2, RelationshipRecord } from './types.js';
 import {
   analyzeWorldModelImpact,
+  canReadFoundationAcl,
+  formatWorldModelDependencyPath,
+  redactWorldModelDependencyPath,
+  resolveLatestCatalogRecord,
   type WorldModelDependencyStep,
   type WorldModelImpactRef
 } from './world-model-impact-index.js';
@@ -230,7 +233,7 @@ export function parseGraphCorrectionInput(value: unknown): GraphCorrectionInput 
 export async function applyGraphCorrection(
   dataDir: string,
   input: unknown,
-  options: { now?: Date } = {}
+  options: { now?: Date; principal?: string } = {}
 ): Promise<GraphCorrectionResult> {
   if (typeof dataDir !== 'string' || dataDir.trim() === '') throw new TypeError('dataDir is required');
   const correction = parseGraphCorrectionInput(input);
@@ -282,7 +285,18 @@ export async function applyGraphCorrection(
     throw new GraphCorrectionError('readback_mismatch', 'readback_mismatch', 'The correction history line was not found after saving');
   }
   const digest = graphRecordDigest(stored);
-  const worldModelImpact = findGraphCorrectionWorldModelHints(reloaded.graph, outcome.recordType, stored);
+  let worldModelImpact: {
+    readonly worldModelReviewHints: readonly GraphCorrectionWorldModelReviewHint[];
+    readonly affectedModelRefs: readonly GraphCorrectionWorldModelRef[];
+  } = { worldModelReviewHints: [], affectedModelRefs: [] };
+  try {
+    worldModelImpact = findGraphCorrectionWorldModelHints(reloaded.graph, outcome.recordType, stored, {
+      principal: options.principal
+    });
+  } catch {
+    // The Graph correction and history sidecar are already committed and verified;
+    // omit optional world-model review hints rather than failing the saved correction.
+  }
   return {
     status: 'saved',
     correction: outcome.record,
@@ -307,11 +321,16 @@ export async function applyGraphCorrection(
  * (directly via scope/subject/relation, and transitively via world-model
  * dependencies) so callers can trigger world-model review instead of stopping
  * at a local patch.
+ *
+ * Enforces Foundation ACL read checks against `options.principal ?? graph.owner?.id`
+ * so unauthorized `private` Foundation definitions are never exposed in hints,
+ * `affectedModelRefs`, `dependencyPath`, or `reason`.
  */
 export function findGraphCorrectionWorldModelHints(
-  graph: Pick<GraphFileV2, 'foundation'>,
+  graph: Pick<GraphFileV2, 'foundation' | 'owner'>,
   recordType: 'entity' | 'edge',
-  record: CanonicalEntity | CanonicalEdge
+  record: CanonicalEntity | CanonicalEdge,
+  options: { principal?: string } = {}
 ): {
   readonly worldModelReviewHints: readonly GraphCorrectionWorldModelReviewHint[];
   readonly affectedModelRefs: readonly GraphCorrectionWorldModelRef[];
@@ -321,14 +340,23 @@ export function findGraphCorrectionWorldModelHints(
     return { worldModelReviewHints: [], affectedModelRefs: [] };
   }
 
+  const effectivePrincipal = options.principal ?? graph.owner?.id;
   const touchedIds = recordType === 'entity'
     ? [record.id]
     : [...new Set([record.id, (record as CanonicalEdge).fromId, (record as CanonicalEdge).toId])].sort((a, b) => a.localeCompare(b, 'en'));
   const touchedSet = new Set(touchedIds);
 
-  const latestWorldRecords = new Map<string, { type: 'variable' | 'model'; id: string; revision: string; digest: string }>();
-  const hintsByKey = new Map<string, GraphCorrectionWorldModelReviewHint>();
-  const directMatchedEntitiesByRef = new Map<string, readonly string[]>();
+  const latestWorldRecords = new Map<string, {
+    readonly ref: GraphCorrectionWorldModelRef;
+    readonly readable: boolean;
+  }>();
+  const directSeedRefs = new Map<string, {
+    readonly ref: GraphCorrectionWorldModelRef;
+    readonly matchedEntityIds: readonly string[];
+    readonly matchKind: 'direct_scope' | 'direct_subject' | 'direct_relation';
+    readonly reason: string;
+    readonly readable: boolean;
+  }>();
 
   const logicalKeys = new Set<string>();
   for (const item of catalog.records) {
@@ -339,7 +367,7 @@ export function findGraphCorrectionWorldModelHints(
 
   for (const logicalKey of [...logicalKeys].sort((a, b) => a.localeCompare(b, 'en'))) {
     const [type, id] = JSON.parse(logicalKey) as ['variable' | 'model', string];
-    const latest = findLatestFoundationRecord(catalog, type, id);
+    const latest = resolveLatestCatalogRecord(catalog, type, id);
     if (!latest || (latest.definition.type !== 'variable' && latest.definition.type !== 'model')) continue;
 
     const ref: GraphCorrectionWorldModelRef = {
@@ -348,7 +376,8 @@ export function findGraphCorrectionWorldModelHints(
       revision: latest.definition.revision,
       digest: latest.digest
     };
-    latestWorldRecords.set(logicalKey, ref);
+    const readable = canReadFoundationAcl(latest.definition.acl, effectivePrincipal);
+    latestWorldRecords.set(logicalKey, { ref, readable });
 
     const matchedByScope = new Set<string>();
     const matchedBySubject = new Set<string>();
@@ -371,13 +400,12 @@ export function findGraphCorrectionWorldModelHints(
     const matchedIds = [...new Set([...matchedByScope, ...matchedBySubject])].sort((a, b) => a.localeCompare(b, 'en'));
     if (matchedIds.length > 0) {
       const matchKind = matchedByScope.size > 0 ? 'direct_scope' : 'direct_subject';
-      directMatchedEntitiesByRef.set(logicalKey, matchedIds);
-      hintsByKey.set(logicalKey, {
-        status: 'needs_review',
-        targetRef: ref,
+      directSeedRefs.set(logicalKey, {
+        ref,
         matchedEntityIds: matchedIds,
         matchKind,
-        reason: `${ref.type}/${ref.id}@${ref.revision} references corrected ${recordType} node(s): ${matchedIds.join(', ')}`
+        reason: `${ref.type}/${ref.id}@${ref.revision} references corrected ${recordType} node(s): ${matchedIds.join(', ')}`,
+        readable
       });
     }
   }
@@ -390,42 +418,63 @@ export function findGraphCorrectionWorldModelHints(
     for (const [candidate, counterpart] of pairs) {
       if ((candidate.type !== 'variable' && candidate.type !== 'model') || !touchedSet.has(counterpart.id)) continue;
       const logicalKey = JSON.stringify([candidate.type, candidate.id]);
-      const ref = latestWorldRecords.get(logicalKey);
-      if (!ref || hintsByKey.has(logicalKey)) continue;
+      const entry = latestWorldRecords.get(logicalKey);
+      if (!entry || directSeedRefs.has(logicalKey)) continue;
       const matchedIds = [counterpart.id];
-      directMatchedEntitiesByRef.set(logicalKey, matchedIds);
-      hintsByKey.set(logicalKey, {
-        status: 'needs_review',
-        targetRef: ref,
+      directSeedRefs.set(logicalKey, {
+        ref: entry.ref,
         matchedEntityIds: matchedIds,
         matchKind: 'direct_relation',
-        reason: `${ref.type}/${ref.id}@${ref.revision} is linked via ${relation.relation} to corrected node ${counterpart.id}`
+        reason: `${entry.ref.type}/${entry.ref.id}@${entry.ref.revision} is linked via ${relation.relation} to corrected node ${counterpart.id}`,
+        readable: entry.readable
       });
     }
   }
 
-  if (hintsByKey.size > 0) {
-    const seedRefs: WorldModelImpactRef[] = [...hintsByKey.values()].map((hint) => ({
-      kind: hint.targetRef.type,
-      id: hint.targetRef.id,
-      revision: hint.targetRef.revision
+  const hintsByKey = new Map<string, GraphCorrectionWorldModelReviewHint>();
+  for (const [logicalKey, seed] of directSeedRefs) {
+    if (!seed.readable) continue;
+    hintsByKey.set(logicalKey, {
+      status: 'needs_review',
+      targetRef: seed.ref,
+      matchedEntityIds: seed.matchedEntityIds,
+      matchKind: seed.matchKind,
+      reason: seed.reason
+    });
+  }
+
+  const isNodeReadable = (ref: WorldModelImpactRef): boolean => {
+    if (ref.kind === 'redacted') return false;
+    if (ref.kind === 'objective' || ref.kind === 'variable' || ref.kind === 'model' || ref.kind === 'constraint') {
+      const latest = resolveLatestCatalogRecord(catalog, ref.kind, ref.id);
+      return latest ? canReadFoundationAcl(latest.definition.acl, effectivePrincipal) : false;
+    }
+    return false;
+  };
+
+  if (directSeedRefs.size > 0) {
+    const seedRefs: WorldModelImpactRef[] = [...directSeedRefs.values()].map((seed) => ({
+      kind: seed.ref.type,
+      id: seed.ref.id,
+      revision: seed.ref.revision
     }));
     const impact = analyzeWorldModelImpact({ catalog, changedRefs: seedRefs });
     for (const item of impact.affectedItems) {
       if (item.affectedRef.kind !== 'variable' && item.affectedRef.kind !== 'model') continue;
       const logicalKey = JSON.stringify([item.affectedRef.kind, item.affectedRef.id]);
       if (hintsByKey.has(logicalKey)) continue;
-      const ref = latestWorldRecords.get(logicalKey);
-      if (!ref) continue;
+      const entry = latestWorldRecords.get(logicalKey);
+      if (!entry || !entry.readable) continue;
       const sourceKey = JSON.stringify([item.sourceRef.kind, item.sourceRef.id]);
-      const matchedEntityIds = directMatchedEntitiesByRef.get(sourceKey) ?? touchedIds;
+      const matchedEntityIds = directSeedRefs.get(sourceKey)?.matchedEntityIds ?? touchedIds;
+      const redactedPath = redactWorldModelDependencyPath(item.dependencyPath, isNodeReadable);
       hintsByKey.set(logicalKey, {
         status: 'needs_review',
-        targetRef: ref,
+        targetRef: entry.ref,
         matchedEntityIds,
         matchKind: 'transitive_dependency',
-        dependencyPath: item.dependencyPath,
-        reason: item.reason
+        dependencyPath: redactedPath,
+        reason: `needs_review: ${formatWorldModelDependencyPath(redactedPath)}`
       });
     }
   }

@@ -11,6 +11,7 @@ import {
 import type { FoundationAcl, FoundationScope, ModelDefinition, VariableDefinition } from '../src/ontology-foundation.js';
 import { loadPersonalOs } from '../src/ssot.js';
 import type { GraphFileV2 } from '../src/types.js';
+import { REDACTED_WORLD_MODEL_REF_LABEL } from '../src/world-model-impact-index.js';
 import { EDGES, ENTITIES, FIXTURE_NOW, writeGraphV2 } from './graph-web-fixture.js';
 
 let root: string;
@@ -31,7 +32,12 @@ function scopeFor(subjectIds: readonly string[]): FoundationScope {
   };
 }
 
-function makeVariable(id: string, subject: string, subjectIds: readonly string[]): VariableDefinition {
+function makeVariable(
+  id: string,
+  subject: string,
+  subjectIds: readonly string[],
+  variableAcl: FoundationAcl = acl,
+): VariableDefinition {
   return {
     id,
     type: 'variable',
@@ -39,7 +45,7 @@ function makeVariable(id: string, subject: string, subjectIds: readonly string[]
     meaning: `Variable ${id}`,
     adoptionState: 'approved',
     authorizedUses: ['draft', 'judgment', 'evaluation', 'execution'],
-    acl,
+    acl: variableAcl,
     storage: 'ontology',
     provenance: [{ sourceId: 'world-model-test', sourceKind: 'document', evidenceIds: [] }],
     scope: scopeFor(subjectIds),
@@ -57,6 +63,7 @@ function makeModel(
   inputVarId: string,
   outputVarId: string,
   subjectIds: readonly string[],
+  modelAcl: FoundationAcl = acl,
 ): ModelDefinition {
   return {
     id,
@@ -66,7 +73,7 @@ function makeModel(
     epistemicState: 'hypothesis',
     adoptionState: 'approved',
     authorizedUses: ['draft', 'judgment', 'evaluation', 'execution'],
-    acl,
+    acl: modelAcl,
     storage: 'ontology',
     provenance: [{ sourceId: 'world-model-test', sourceKind: 'document', evidenceIds: [] }],
     scope: scopeFor(subjectIds),
@@ -140,7 +147,7 @@ describe('graph corrections world-model review bridge', () => {
       expectedDigest: graphRecordDigest(ENTITIES.atlas),
       reason: '導入目標を段階展開へ変更した。',
       changes: { goal: '段階展開で本番移行する' },
-    }, { now: FIXTURE_NOW });
+    }, { now: FIXTURE_NOW, principal: 'person-sato' });
 
     expect(result.status).toBe('saved');
     expect(result.worldModelReviewHints).toBeDefined();
@@ -192,7 +199,7 @@ describe('graph corrections world-model review bridge', () => {
       expectedDigest: graphRecordDigest(EDGES.tanakaAtlas),
       reason: '田中さんは技術顧問へ役割変更した。',
       changes: { role: '技術顧問' },
-    }, { now: FIXTURE_NOW });
+    }, { now: FIXTURE_NOW, principal: 'person-sato' });
 
     expect(result.affectedModelRefs).toEqual([
       { type: 'model', id: modelVelocity.id, revision: modelVelocity.revision, digest: modelVelocity.digest },
@@ -205,8 +212,107 @@ describe('graph corrections world-model review bridge', () => {
 
     // Pure helper produces the exact same output on the reloaded graph snapshot.
     const reloaded = await loadPersonalOs(dataDir);
-    const pureResult = findGraphCorrectionWorldModelHints(reloaded.graph as GraphFileV2, result.recordType, result.record);
+    const pureResult = findGraphCorrectionWorldModelHints(
+      reloaded.graph as GraphFileV2,
+      result.recordType,
+      result.record,
+      { principal: 'person-sato' },
+    );
     expect(pureResult.worldModelReviewHints).toEqual(result.worldModelReviewHints);
     expect(pureResult.affectedModelRefs).toEqual(result.affectedModelRefs);
+  });
+
+  it('enforces Foundation ACLs in worldModelReviewHints and redacts private intermediate models', async () => {
+    await writeGraphV2(dataDir);
+    const foundationStore = createFoundationRevisionStore({ dataDir });
+    const secretAcl: FoundationAcl = {
+      ownerId: 'other-owner',
+      visibility: 'private',
+      readerIds: [],
+      writerIds: [],
+    };
+
+    await foundationStore.create(
+      makeVariable('var-atlas-input', 'project-atlas/input', ['project-atlas']),
+      { principal: 'person-sato' },
+    );
+    await foundationStore.create(
+      makeVariable('var-public-kpi', 'portfolio/kpi', ['org-acme']),
+      { principal: 'person-sato' },
+    );
+    await foundationStore.create(
+      makeVariable('var-public-output', 'portfolio/output', ['org-acme']),
+      { principal: 'person-sato' },
+    );
+    await foundationStore.create(
+      makeModel('secret-internal-model', 'var-atlas-input', 'var-public-kpi', ['project-atlas'], secretAcl),
+      { principal: 'other-owner' },
+    );
+    const publicDownstream = await foundationStore.create(
+      makeModel('model-public-forecast', 'var-public-kpi', 'var-public-output', ['org-acme']),
+      { principal: 'person-sato' },
+    );
+
+    const result = await applyGraphCorrection(dataDir, {
+      kind: 'update_entity',
+      entityId: 'project-atlas',
+      expectedDigest: graphRecordDigest(ENTITIES.atlas),
+      reason: '対象範囲を見直した。',
+      changes: { summary: '対象範囲の更新' },
+    }, { now: FIXTURE_NOW, principal: 'person-sato' });
+
+    // Downstream readable model is still surfaced, while private intermediate model is never leaked.
+    expect(result.affectedModelRefs).toEqual([
+      {
+        type: 'model',
+        id: publicDownstream.id,
+        revision: publicDownstream.revision,
+        digest: publicDownstream.digest,
+      },
+    ]);
+    const serialized = JSON.stringify(result.worldModelReviewHints);
+    expect(serialized).not.toContain('secret-internal-model');
+    expect(serialized).toContain(REDACTED_WORLD_MODEL_REF_LABEL);
+
+    // Without principal override, default graph.owner.id ('self') cannot see person-sato's private definitions either.
+    const reloaded = await loadPersonalOs(dataDir);
+    const asDefaultOwner = findGraphCorrectionWorldModelHints(
+      reloaded.graph as GraphFileV2,
+      result.recordType,
+      result.record,
+    );
+    expect(asDefaultOwner.worldModelReviewHints).toEqual([]);
+    expect(asDefaultOwner.affectedModelRefs).toEqual([]);
+  });
+
+  it('keeps a committed Graph correction succeeding when optional worldModelReviewHints computation throws', async () => {
+    await writeGraphV2(dataDir);
+    const foundationStore = createFoundationRevisionStore({ dataDir });
+    await foundationStore.create(
+      makeVariable('var-atlas-safe', 'project-atlas/ops', ['project-atlas']),
+      { principal: 'person-sato' },
+    );
+
+    const throwingOptions = { now: FIXTURE_NOW } as { now: Date; principal?: string };
+    Object.defineProperty(throwingOptions, 'principal', {
+      enumerable: true,
+      get() {
+        throw new Error('injected world-model hint failure');
+      },
+    });
+
+    const result = await applyGraphCorrection(dataDir, {
+      kind: 'update_entity',
+      entityId: 'project-atlas',
+      expectedDigest: graphRecordDigest(ENTITIES.atlas),
+      reason: '表示名を更新する。',
+      changes: { name: 'Atlas改訂版' },
+    }, throwingOptions);
+
+    expect(result.status).toBe('saved');
+    expect(result.readback.verified).toBe(true);
+    expect(result.readback.historyRecorded).toBe(true);
+    expect('worldModelReviewHints' in result).toBe(false);
+    expect('affectedModelRefs' in result).toBe(false);
   });
 });

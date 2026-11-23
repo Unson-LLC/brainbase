@@ -28,8 +28,10 @@ import type {
 import type { FoundationCatalog } from '../src/types.js';
 import {
   analyzeWorldModelImpact,
+  compareRevisionStrings,
   createWorldModelImpactIndex,
   formatWorldModelDependencyPath,
+  REDACTED_WORLD_MODEL_REF_LABEL,
   WORLD_MODEL_IMPACT_INDEX_VERSION,
 } from '../src/world-model-impact-index.js';
 
@@ -56,7 +58,7 @@ function sha256(seed: string): `sha256:${string}` {
   return `sha256:${createHash('sha256').update(seed, 'utf8').digest('hex')}`;
 }
 
-function makeVariable(id: string, revision = '1'): VariableDefinition {
+function makeVariable(id: string, revision = '1', acl: FoundationAcl = defaultAcl): VariableDefinition {
   return {
     id,
     type: 'variable',
@@ -64,7 +66,7 @@ function makeVariable(id: string, revision = '1'): VariableDefinition {
     meaning: `Variable ${id}`,
     adoptionState: 'approved',
     authorizedUses: ['draft', 'judgment', 'evaluation', 'execution'],
-    acl: defaultAcl,
+    acl,
     storage: 'ontology',
     provenance: [{ sourceId: 'test-src', sourceKind: 'document', evidenceIds: [] }],
     scope: defaultScope,
@@ -82,6 +84,7 @@ function makeModel(
   inputs: readonly string[],
   outputs: readonly string[],
   revision = '1',
+  acl: FoundationAcl = defaultAcl,
 ): ModelDefinition {
   return {
     id,
@@ -91,7 +94,7 @@ function makeModel(
     epistemicState: 'hypothesis',
     adoptionState: 'approved',
     authorizedUses: ['draft', 'judgment', 'evaluation', 'execution'],
-    acl: defaultAcl,
+    acl,
     storage: 'ontology',
     provenance: [{ sourceId: 'test-src', sourceKind: 'document', evidenceIds: [] }],
     scope: defaultScope,
@@ -168,12 +171,13 @@ function makeSnapshot(
   problemId: string,
   refs: readonly { kind: 'model' | 'variable' | 'objective' | 'constraint'; id: string; revision?: string }[],
   acl: FoundationAcl = defaultAcl,
+  revision = '1',
 ): JudgmentProblemSnapshot {
   return {
     snapshot_version: 'judgment-problem-snapshot.v1',
     problem_id: problemId,
-    revision: '1',
-    question: `Question for ${problemId}`,
+    revision,
+    question: `Question for ${problemId}@${revision}`,
     owner_scope: { type: 'project', id: 'project-1' },
     references: refs.map((ref) => ({
       kind: ref.kind,
@@ -193,15 +197,16 @@ function makePlan(
   planId: string,
   problemId: string,
   overrides: Partial<ImpactReviewPlan> = {},
+  snapshotRevision = '1',
 ): ImpactReviewPlan {
   return {
     plan_id: planId,
     owner_scope: { type: 'project', id: 'project-1' },
     read_policy: defaultAcl,
     problem_snapshot: {
-      snapshot_id: sha256(`snapshot:${problemId}`),
+      snapshot_id: sha256(`snapshot:${problemId}:${snapshotRevision}`),
       problem_id: problemId,
-      revision: '1',
+      revision: snapshotRevision,
     },
     run_id: `run-${planId}`,
     execution_state: 'planned',
@@ -342,6 +347,139 @@ describe('analyzeWorldModelImpact', () => {
       'plan_reference',
     ]);
   });
+
+  it('uses catalog.latest pointer as authoritative and compares r9 vs r10 numerically in fallback', () => {
+    expect(compareRevisionStrings('r9', 'r10')).toBeLessThan(0);
+    expect(compareRevisionStrings('9', '10')).toBeLessThan(0);
+
+    // Fallback when catalog.latest has no pointer: r10 must beat r9 (unlike lexicographic localeCompare).
+    const varA = makeVariable('var-a');
+    const varB = makeVariable('var-b');
+    const varOut = makeVariable('var-out');
+    const modelR9 = makeModel('model-ver', ['var-a'], ['var-out'], 'r9');
+    const modelR10 = makeModel('model-ver', ['var-b'], ['var-out'], 'r10');
+    const catalogNoLatest: FoundationCatalog = {
+      version: 1,
+      records: [
+        { definition: varA, digest: digestFoundationDefinition(varA) },
+        { definition: varB, digest: digestFoundationDefinition(varB) },
+        { definition: varOut, digest: digestFoundationDefinition(varOut) },
+        { definition: modelR9, digest: digestFoundationDefinition(modelR9) },
+        { definition: modelR10, digest: digestFoundationDefinition(modelR10) },
+      ],
+      latest: {},
+      relations: [],
+    };
+
+    const fromVarB = analyzeWorldModelImpact({
+      catalog: catalogNoLatest,
+      changedRefs: [{ kind: 'variable', id: 'var-b', revision: '1' }],
+    });
+    expect(fromVarB.affectedModels.map((item) => [item.affectedRef.id, item.affectedRef.revision])).toEqual([
+      ['model-ver', 'r10'],
+    ]);
+    const fromVarA = analyzeWorldModelImpact({
+      catalog: catalogNoLatest,
+      changedRefs: [{ kind: 'variable', id: 'var-a', revision: '1' }],
+    });
+    expect(fromVarA.affectedModels).toEqual([]);
+
+    // Authoritative catalog.latest rollback: when latest points back to revision 1 even though revision 2 exists.
+    const modelRev1 = makeModel('model-rolled-back', ['var-a'], ['var-out'], '1');
+    const modelRev2 = makeModel('model-rolled-back', ['var-b'], ['var-out'], '2');
+    const rolledBackCatalog: FoundationCatalog = {
+      version: 1,
+      records: [
+        { definition: varA, digest: digestFoundationDefinition(varA) },
+        { definition: varB, digest: digestFoundationDefinition(varB) },
+        { definition: varOut, digest: digestFoundationDefinition(varOut) },
+        { definition: modelRev1, digest: digestFoundationDefinition(modelRev1) },
+        { definition: modelRev2, digest: digestFoundationDefinition(modelRev2) },
+      ],
+      latest: {
+        [foundationKey(varA)]: { id: varA.id, type: 'variable', revision: '1' },
+        [foundationKey(varB)]: { id: varB.id, type: 'variable', revision: '1' },
+        [foundationKey(varOut)]: { id: varOut.id, type: 'variable', revision: '1' },
+        [foundationKey(modelRev1)]: { id: modelRev1.id, type: 'model', revision: '1' },
+      },
+      relations: [],
+    };
+
+    const rolledBackFromA = analyzeWorldModelImpact({
+      catalog: rolledBackCatalog,
+      changedRefs: [{ kind: 'variable', id: 'var-a', revision: '1' }],
+    });
+    expect(rolledBackFromA.affectedModels.map((item) => [item.affectedRef.id, item.affectedRef.revision])).toEqual([
+      ['model-rolled-back', '1'],
+    ]);
+    const rolledBackFromB = analyzeWorldModelImpact({
+      catalog: rolledBackCatalog,
+      changedRefs: [{ kind: 'variable', id: 'var-b', revision: '1' }],
+    });
+    expect(rolledBackFromB.affectedModels).toEqual([]);
+  });
+
+  it('keeps distinct revisions of the same problem_id isolated during snapshot traversal', () => {
+    const var1 = makeVariable('var-1');
+    const var2 = makeVariable('var-2');
+    const modelOld = makeModel('model-old', ['var-1'], ['var-2']);
+    const modelNew = makeModel('model-new', ['var-1'], ['var-2']);
+    const catalog = makeCatalog([var1, var2, modelOld, modelNew]);
+
+    const snapshotRev1 = makeSnapshot('problem-shared', [{ kind: 'model', id: 'model-old' }], defaultAcl, '1');
+    const snapshotRev2 = makeSnapshot('problem-shared', [{ kind: 'model', id: 'model-new' }], defaultAcl, '2');
+    const planRev1 = makePlan('plan-rev1', 'problem-shared', {}, '1');
+    const planRev2 = makePlan('plan-rev2', 'problem-shared', {}, '2');
+
+    const impactOld = analyzeWorldModelImpact({
+      catalog,
+      snapshots: [snapshotRev1, snapshotRev2],
+      plans: [planRev1, planRev2],
+      changedRefs: [{ kind: 'model', id: 'model-old', revision: '2' }],
+    });
+    expect(impactOld.affectedSnapshots.map((item) => `${item.affectedRef.id}@${item.affectedRef.revision}`)).toEqual([
+      'problem-shared@1',
+    ]);
+    expect(impactOld.affectedPlans.map((item) => item.affectedRef.id)).toEqual(['plan-rev1']);
+
+    const impactNew = analyzeWorldModelImpact({
+      catalog,
+      snapshots: [snapshotRev1, snapshotRev2],
+      plans: [planRev1, planRev2],
+      changedRefs: [{ kind: 'model', id: 'model-new', revision: '2' }],
+    });
+    expect(impactNew.affectedSnapshots.map((item) => `${item.affectedRef.id}@${item.affectedRef.revision}`)).toEqual([
+      'problem-shared@2',
+    ]);
+    expect(impactNew.affectedPlans.map((item) => item.affectedRef.id)).toEqual(['plan-rev2']);
+  });
+
+  it('resolves constraint appliesTo strictly by kind and skips ambiguous bare IDs across kinds', () => {
+    const varShared = makeVariable('shared-target');
+    const modelShared = makeModel('shared-target', [], []);
+    const constraintAmbiguous = makeConstraint('constraint-ambiguous', ['shared-target']);
+    const constraintTyped = makeConstraint('constraint-typed', ['model/shared-target', 'judgment_problem/problem-x@1']);
+    const snapshotRev1 = makeSnapshot('problem-x', [], defaultAcl, '1');
+    const snapshotRev2 = makeSnapshot('problem-x', [], defaultAcl, '2');
+    const catalog = makeCatalog([varShared, modelShared, constraintAmbiguous, constraintTyped]);
+
+    const ambiguousImpact = analyzeWorldModelImpact({
+      catalog,
+      snapshots: [snapshotRev1, snapshotRev2],
+      changedRefs: [{ kind: 'constraint', id: 'constraint-ambiguous', revision: '2' }],
+    });
+    expect(ambiguousImpact.affectedItems).toEqual([]);
+
+    const typedImpact = analyzeWorldModelImpact({
+      catalog,
+      snapshots: [snapshotRev1, snapshotRev2],
+      changedRefs: [{ kind: 'constraint', id: 'constraint-typed', revision: '2' }],
+    });
+    expect(typedImpact.affectedItems.map((item) => `${item.affectedRef.kind}/${item.affectedRef.id}@${item.affectedRef.revision}`)).toEqual([
+      'judgment_problem/problem-x@1',
+      'model/shared-target@1',
+    ]);
+  });
 });
 
 describe('WorldModelImpactIndex with CompanyOsImpactReviewCoordinator', () => {
@@ -440,6 +578,173 @@ describe('WorldModelImpactIndex with CompanyOsImpactReviewCoordinator', () => {
     const storedWait = await waitStore.get({ wait_id: activeDecision.wait_id!, principal: 'person-1' });
     expect(storedWait.state).toBe('waiting');
     expect(await notifications.list()).toHaveLength(2);
+  });
+
+  it('redacts unauthorized private intermediate Foundation nodes in findAffectedPlans evidence without missing affected plans', async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), 'brainbase-world-model-acl-'));
+    dataDirs.push(dataDir);
+
+    const sharedAcl: FoundationAcl = {
+      ownerId: 'person-1',
+      visibility: 'private',
+      readerIds: ['person-2'],
+      writerIds: ['person-2'],
+    };
+    const secretAcl: FoundationAcl = {
+      ownerId: 'other-owner',
+      visibility: 'private',
+      readerIds: [],
+      writerIds: [],
+    };
+
+    const varIn = makeVariable('var-in', '1', sharedAcl);
+    const varSecretMid = makeVariable('secret-margin-var', '3', secretAcl);
+    const varOut = makeVariable('var-out', '1', sharedAcl);
+    const modelEntry = makeModel('model-public-entry', [], ['var-in'], '1', sharedAcl);
+    const modelSecret1 = makeModel('secret-pricing-model', ['var-in'], ['secret-margin-var'], '7', secretAcl);
+    const modelSecret2 = makeModel('secret-rebate-model', ['secret-margin-var'], ['var-out'], '4', secretAcl);
+    const catalog = makeCatalog([varIn, varSecretMid, varOut, modelEntry, modelSecret1, modelSecret2]);
+
+    const snapshotA = makeSnapshot('problem-a', [{ kind: 'variable', id: 'var-out' }], sharedAcl, '1');
+    const planA = makePlan('plan-a', 'problem-a', { read_policy: sharedAcl }, '1');
+
+    const index = createWorldModelImpactIndex({
+      source: {
+        catalog,
+        snapshots: [snapshotA],
+        plans: [planA],
+      },
+    });
+
+    const changeRef: ImpactReviewReference = {
+      kind: 'model',
+      id: 'model-public-entry',
+      revision: '2',
+      digest: sha256('model-public-entry@2'),
+      scope: { type: 'project', id: 'project-1' },
+    };
+    const change: ImpactReviewChange = {
+      change_id: 'change-public-entry',
+      source: 'world_model',
+      current: changeRef,
+      significance: 'material',
+      reason: 'Public entry model revised.',
+    };
+
+    const affected = await index.findAffectedPlans({
+      changes: [change],
+      current_references: [changeRef],
+      access: { principal: 'person-2', scope: { type: 'project', id: 'project-1' } },
+    });
+
+    // (a) plan-a must still be detected for re-review so impact is never silently dropped.
+    expect(affected).toHaveLength(1);
+    expect(affected[0]?.plan.plan_id).toBe('plan-a');
+
+    // (b) Unauthorized private intermediate nodes (IDs, revisions, kinds, and private hop count) must not leak.
+    const serialized = JSON.stringify(affected[0]?.matches);
+    expect(serialized).not.toContain('secret-pricing-model');
+    expect(serialized).not.toContain('secret-margin-var');
+    expect(serialized).not.toContain('secret-rebate-model');
+    expect(serialized).not.toContain('@7');
+    expect(serialized).not.toContain('@4');
+    expect(affected[0]?.matches[0]?.evidence).toContain(REDACTED_WORLD_MODEL_REF_LABEL);
+    // Consecutive private nodes collapse into one `<redacted>` segment.
+    expect(affected[0]?.matches[0]?.evidence).toBe(
+      'model/model-public-entry@2 --[predicts]--> variable/var-in@1 --[redacted]--> <redacted> --[redacted]--> variable/var-out@1 --[snapshot_reference]--> judgment_problem/problem-a@1 --[plan_reference]--> plan/plan-a',
+    );
+
+    // Also verify end-to-end inside CompanyOsImpactReviewCoordinator.
+    const waitStore = new DurableWaitStore({
+      dataDir,
+      clock: () => new Date('2026-09-23T00:00:00.000Z'),
+      problemSnapshot: {
+        verify: async ({ reference }) => reference.snapshot_id === planA.problem_snapshot.snapshot_id,
+      },
+    });
+    const coordinator = new CompanyOsImpactReviewCoordinator({
+      currentReferences: { readCurrent: async () => changeRef },
+      index,
+      notifications: createCompanyOsImpactReviewNotificationStore({ dataDir }),
+      waits: createCompanyOsImpactReviewDurableWaitPort(waitStore),
+    });
+    const review = await coordinator.review({
+      access: { principal: 'person-2', scope: { type: 'project', id: 'project-1' } },
+      changes: [change],
+    });
+    expect(review.outcome).toBe('affected');
+    expect(review.decisions[0]?.disposition).toBe('hold');
+    expect(JSON.stringify(review)).not.toContain('secret-pricing-model');
+    expect(JSON.stringify(review)).not.toContain('secret-margin-var');
+  });
+
+  it('redacts unauthorized endpoints traversed through catalog.relations', async () => {
+    const sharedAcl: FoundationAcl = {
+      ownerId: 'person-1',
+      visibility: 'private',
+      readerIds: ['person-2'],
+      writerIds: ['person-2'],
+    };
+    const secretAcl: FoundationAcl = {
+      ownerId: 'other-owner',
+      visibility: 'private',
+      readerIds: [],
+      writerIds: [],
+    };
+
+    const modelPublic = makeModel('model-public', [], [], '1', sharedAcl);
+    const secretRelVar = makeVariable('secret-relation-variable', '9', secretAcl);
+    const relations: FoundationRelationReference[] = [
+      {
+        relation: 'predicts',
+        source: { id: 'model-public', type: 'model', revision: '1' },
+        target: { id: 'secret-relation-variable', type: 'variable', revision: '9' },
+      },
+      {
+        relation: 'used_as_basis',
+        source: { id: 'problem-rel', type: 'judgment_problem', revision: '1' },
+        target: { id: 'secret-relation-variable', type: 'variable', revision: '9' },
+      },
+    ];
+    const catalog = makeCatalog([modelPublic, secretRelVar], relations);
+    const planRel = makePlan('plan-rel', 'problem-rel', { read_policy: sharedAcl }, '1');
+
+    const index = createWorldModelImpactIndex({
+      source: {
+        catalog,
+        plans: [planRel],
+      },
+    });
+
+    const changeRef: ImpactReviewReference = {
+      kind: 'model',
+      id: 'model-public',
+      revision: '2',
+      digest: sha256('model-public@2'),
+      scope: { type: 'project', id: 'project-1' },
+    };
+    const affected = await index.findAffectedPlans({
+      changes: [{
+        change_id: 'change-rel-1',
+        source: 'world_model',
+        current: changeRef,
+        significance: 'material',
+        reason: 'Public model updated.',
+      }],
+      current_references: [changeRef],
+      access: { principal: 'person-2', scope: { type: 'project', id: 'project-1' } },
+    });
+
+    expect(affected).toHaveLength(1);
+    expect(affected[0]?.plan.plan_id).toBe('plan-rel');
+    const match = affected[0]?.matches[0];
+    expect(match?.relation).toBe('adopted');
+    expect(match?.domain).toBe('world_model');
+    expect(match?.evidence).toBe(
+      'model/model-public@2 --[redacted]--> <redacted> --[redacted]--> judgment_problem/problem-rel@1 --[plan_reference]--> plan/plan-rel',
+    );
+    expect(JSON.stringify(affected)).not.toContain('secret-relation-variable');
+    expect(JSON.stringify(affected)).not.toContain('@9');
   });
 
   it('publishes ./world-model-impact-index as a package subpath export', async () => {
