@@ -67,6 +67,10 @@
       "types": "./dist/judgment-host.d.ts",
       "import": "./dist/judgment-host.js"
     },
+    "./judgment-runtime-config": {
+      "types": "./dist/judgment-runtime-config.d.ts",
+      "import": "./dist/judgment-runtime-config.js"
+    },
     "./judgment-lifecycle-core": {
       "types": "./dist/judgment-lifecycle-core.d.ts",
       "import": "./dist/judgment-lifecycle-core.js"
