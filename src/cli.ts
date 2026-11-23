@@ -15,7 +15,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { constants, realpathSync } from 'node:fs';
 import { access, chmod, link, lstat, mkdir, open, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
+import { basename, delimiter, dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initializePersonalOs, loadPersonalOs, migrateCanonicalGraph, mutatePersonalOs } from './ssot.js';
 import { diagnoseGraph, type GraphDiagnosis } from './graph-diagnosis.js';
@@ -336,11 +336,29 @@ function assertClaudeCodeInstallOptions(parsed: ParsedArgs): void {
   }
 }
 
+// The file the system opens for `path`. resolve() drops `link/..` as text, but
+// the system follows `link` first, so `alias/link/../settings.json` is a file
+// next to the link's target, not in `alias`. The parent directory is resolved
+// by the system and the last name added back; a missing parent has no links
+// left to follow, so the text form is used. realpathSync.native, because the
+// JavaScript realpathSync also normalizes the text before following links.
+function settingsPathAsOpened(path: string): string {
+  const absolute = isAbsolute(path) ? path : `${process.cwd()}${sep}${path}`;
+  const name = basename(absolute);
+  if (name === '' || name === '.' || name === '..') return resolve(absolute);
+  try {
+    return join(realpathSync.native(dirname(absolute)), name);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return resolve(absolute);
+    throw error;
+  }
+}
+
 async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise<number> {
   assertClaudeCodeInstallOptions(parsed);
   // `--opt=value` or a bare `--opt` would otherwise fall back to the default
   // settings or config, and --remove would edit a file the user did not name.
-  const settingsPath = resolve(explicitValue(parsed, 'settings', '--settings <path>')
+  const settingsPath = settingsPathAsOpened(explicitValue(parsed, 'settings', '--settings <path>')
     ?? join(process.env.CLAUDE_CONFIG_DIR || join(process.env.HOME || '', '.claude'), 'settings.json'));
   // Absolute, because the registered command carries it to every hook run.
   const configPath = resolve(explicitValue(parsed, 'config', '--config <path>') ?? defaultClaudeCodeHookConfigPath());
