@@ -119,13 +119,19 @@ describe('must 1: a save that stopped after moving the saved login aside', () =>
     expect(await asides(dir)).toEqual([]);
   });
 
-  it('a file left aside that is no saved login is put back into the empty path, never deleted', async () => {
+  it('a file left aside that is no saved login stays where it is: neither moved into the empty path nor deleted', async () => {
     const { dir, path } = await root();
     await writeFile(`${path}.replacing`, OTHER_FILE);
 
-    await expect(writeCredentials(path, saved())).rejects.toMatchObject({ code: 'login_credentials_unrecognized' });
-    expect(await readFile(path, 'utf8')).toBe(OTHER_FILE);
-    expect(await asides(dir)).toEqual([]);
+    expect(await readCredentials(path)).toBeNull();
+    // A first save needs no aside, so it saves; the other file is not touched.
+    await writeCredentials(path, saved());
+    expect(await readFile(path, 'utf8')).toBe(text(saved()));
+    expect(await readFile(`${path}.replacing`, 'utf8')).toBe(OTHER_FILE);
+    expect(await asides(dir)).toEqual(['credentials.json.replacing']);
+    // Replacing that login would need the aside: refused, both stay.
+    await expect(writeCredentials(path, saved({ access_token: 'fake.next.access' }))).rejects.toMatchObject({ code: 'login_changed' });
+    expect(await readFile(`${path}.replacing`, 'utf8')).toBe(OTHER_FILE);
   });
 
   it('a file left aside that is no saved login, with a login at the path: both stay, the save refuses', async () => {
@@ -179,13 +185,14 @@ describe('must 3: a logout that stopped after moving the saved login aside', () 
     expect(await readCredentials(path)).toEqual(next);
   });
 
-  it('a file left aside that is no saved login is put back, and the logout leaves it as it is', async () => {
+  it('a file left aside that is no saved login stays where it is, and the logout does not move or delete it', async () => {
     const { dir, path } = await root();
     await writeFile(`${path}.removing`, OTHER_FILE);
 
-    await expect(removeCredentials(path)).rejects.toMatchObject({ code: 'login_credentials_unrecognized' });
-    expect(await readFile(path, 'utf8')).toBe(OTHER_FILE);
-    expect(await asides(dir)).toEqual([]);
+    await expect(removeCredentials(path)).resolves.toMatchObject({ existed: false });
+    expect(await exists(path)).toBe(false);
+    expect(await readFile(`${path}.removing`, 'utf8')).toBe(OTHER_FILE);
+    expect(await asides(dir)).toEqual(['credentials.json.removing']);
   });
 
   it('a file left aside that is no saved login, with a login at the path: both stay, the logout refuses', async () => {
@@ -196,5 +203,39 @@ describe('must 3: a logout that stopped after moving the saved login aside', () 
     await expect(removeCredentials(path)).rejects.toMatchObject({ code: 'login_changed' });
     expect(await readFile(`${path}.removing`, 'utf8')).toBe(OTHER_FILE);
     expect(await readFile(path, 'utf8')).toBe(text(saved()));
+  });
+});
+
+// Review round 15: the recovery above reads `<path>.replacing` and
+// `<path>.removing` as the login a stopped save or logout moved aside. A
+// saved login at such a name (another --credentials) would be taken for it
+// and moved or deleted, so no saved login may be at a name brainbase derives
+// from another saved login's path.
+describe('a saved-login path at a name brainbase keeps for the lock or the aside', () => {
+  it.each([
+    'credentials.json.replacing',
+    'credentials.json.removing',
+    'credentials.json.lock',
+    'credentials.json.probe-0a1b2c',
+    'credentials.json.REMOVING',
+  ])('%s is refused by every command, and nothing is changed', async (name) => {
+    const { dir, path } = await root();
+    await writeCredentials(path, saved());
+    const reserved = join(dir, name);
+    const neverCalled = (async () => { throw new Error('no request expected'); }) as unknown as typeof fetch;
+
+    await expect(readCredentials(reserved)).rejects.toMatchObject({ code: 'login_credentials_path_invalid' });
+    await expect(writeCredentials(reserved, saved({ login_id: 'fake-login-other' }))).rejects.toMatchObject({ code: 'login_credentials_path_invalid' });
+    await expect(removeCredentials(reserved)).rejects.toMatchObject({ code: 'login_credentials_path_invalid' });
+    await expect(getAccessToken({ credentialsPath: reserved, fetch: neverCalled })).rejects.toMatchObject({ code: 'login_credentials_path_invalid' });
+    expect(await exists(reserved)).toBe(false);
+    expect(await readFile(path, 'utf8')).toBe(text(saved()));
+  });
+
+  it('a name that only contains such a word is still accepted', async () => {
+    const { dir } = await root();
+    const path = join(dir, 'credentials.removing.json');
+    await writeCredentials(path, saved());
+    expect(await readCredentials(path)).toEqual(saved());
   });
 });
