@@ -177,6 +177,30 @@ describe('judgment:install recovers settings moved aside by an interrupted run',
     expect(await leftovers(dir)).toEqual([]);
   });
 
+  // UNS-5603: settings.json is a link to `link/../settings.json`. The system
+  // passes through `link` before the `..`, so the file is next to the link's
+  // target; read as text, the target was the settings link itself.
+  it('recovers through a settings link whose target goes through another link and ..', async () => {
+    const { dir } = await home();
+    const profile = join(dir, 'profile');
+    await mkdir(join(dir, 'real', 'child'), { recursive: true });
+    await mkdir(profile);
+    await symlink(join(dir, 'real', 'child'), join(profile, 'link'));
+    await symlink('link/../settings.json', join(profile, 'settings.json'));
+    const real = join(dir, 'real', 'settings.json');
+    const config = join(dir, 'hook.json');
+    await writeFile(real, saved());
+    await rename(real, real + '.brainbase-install-previous');
+    const out = capture();
+    expect(await runCli([...base, '--settings', join(profile, 'settings.json'), '--config', config], out.io)).toBe(0);
+    const result = JSON.parse(await readFile(real, 'utf8'));
+    expect(result.permissions).toEqual({ allow: ['Bash(ls)'] });
+    expect(commands(result)).toContain('echo saved');
+    expect(commands(result).some((command) => command.includes(config))).toBe(true);
+    expect(JSON.parse(await readFile(config, 'utf8')).registration.settings).toBe(real);
+    expect(await leftovers(join(dir, 'real'))).toEqual([]);
+  });
+
   // The save stays and so does the backup: installing would have to move the
   // save aside onto the backup's name, so the install stops instead.
   it('keeps a Claude Code save that arrives during recovery, and the backup too', async () => {

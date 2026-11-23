@@ -468,6 +468,26 @@ describe('judgment:install --target claude-code', () => {
     expect(JSON.parse(await readFile(config, 'utf8')).registration.settings).toBe(await realpath(join(dir, 'real', 'settings.json')));
   });
 
+  // UNS-5603: the JavaScript realpathSync reads `link/..` as text, so this
+  // settings link pointed back at itself and the install never ended.
+  it('installs through a settings link whose target goes through another link and ..', async () => {
+    const dir = await tempDir();
+    await mkdir(join(dir, 'real', 'child'), { recursive: true });
+    await mkdir(join(dir, 'profile'));
+    await symlink(join(dir, 'real', 'child'), join(dir, 'profile', 'link'));
+    await symlink('link/../settings.json', join(dir, 'profile', 'settings.json'));
+    await writeFile(join(dir, 'real', 'settings.json'), JSON.stringify({ env: { PROFILE: 'selected' } }));
+    const config = join(dir, 'hook.json');
+    expect(await runCli([
+      'judgment:install', '--target', 'claude-code', '--origin', 'https://mcp.example.net', '--server', 'https://api.example.net',
+      '--settings', join(dir, 'profile', 'settings.json'), '--config', config,
+    ], capture().io)).toBe(0);
+    const result = JSON.parse(await readFile(join(dir, 'real', 'settings.json'), 'utf8'));
+    expect(result.env).toEqual({ PROFILE: 'selected' });
+    expect(JSON.stringify(result.hooks)).toContain(config);
+    expect(JSON.parse(await readFile(config, 'utf8')).registration.settings).toBe(await realpath(join(dir, 'real', 'settings.json')));
+  }, 10_000);
+
   it('stops when a path with .. passes through a directory that does not exist yet', async () => {
     const dir = await tempDir();
     await mkdir(join(dir, 'real', 'child'), { recursive: true });

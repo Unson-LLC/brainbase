@@ -997,10 +997,13 @@ export function installedHookConfigPath(hook: unknown): string | null {
  * every existing directory followed. For a file that does not exist yet, its
  * nearest existing directory is resolved and the rest appended.
  */
+// realpathSync.native: the JavaScript realpathSync resolves a link's target
+// as text, so a link to `link/../name` that points back at itself by text
+// never ends (UNS-5603).
 export function canonicalFilePath(path: string): string {
   const absolute = resolve(path);
   try {
-    return realpathSync(absolute);
+    return realpathSync.native(absolute);
   } catch {
     const parent = dirname(absolute);
     if (parent === absolute) return absolute;

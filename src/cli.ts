@@ -345,16 +345,19 @@ function assertClaudeCodeInstallOptions(parsed: ParsedArgs): void {
 // if the path has no `..`; with one, a link before it could lead elsewhere,
 // so the install stops instead of guessing.
 function settingsPathAsOpened(path: string): string {
-  const absolute = isAbsolute(path) ? path : `${process.cwd()}${sep}${path}`;
+  return pathAsOpened(isAbsolute(path) ? path : `${process.cwd()}${sep}${path}`, () => new Error(
+    `--settings ${path} の途中に、まだ無いディレクトリと .. があり、どのファイルを開くかを決められないため止めました。.. を含まないパスか、ディレクトリがそろったパスを指定してください。何も変えていません。`,
+  ));
+}
+
+function pathAsOpened(absolute: string, ambiguous: () => Error): string {
   const name = basename(absolute);
   if (name === '' || name === '.' || name === '..') return resolve(absolute);
   try {
     return join(realpathSync.native(dirname(absolute)), name);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    if (absolute.split(/[\\/]/u).includes('..')) {
-      throw new Error(`--settings ${path} の途中に、まだ無いディレクトリと .. があり、どのファイルを開くかを決められないため止めました。.. を含まないパスか、ディレクトリがそろったパスを指定してください。何も変えていません。`);
-    }
+    if (absolute.split(/[\\/]/u).includes('..')) throw ambiguous();
     return resolve(absolute);
   }
 }
@@ -487,6 +490,8 @@ const SETTINGS_CHANGED_ATTEMPTS = 3;
 const INSTALL_SETTINGS_BACKUP_SUFFIX = '.brainbase-install-previous';
 
 // A settings symlink can be dangling precisely because its target was moved aside.
+// Each link's target is opened the way the system opens it: a target such as
+// `link/../settings.json` passes through `link` before the `..` (UNS-5603).
 async function installSettingsTarget(path: string): Promise<string> {
   const seen = new Set<string>();
   let target = canonicalFilePath(path);
@@ -497,7 +502,10 @@ async function installSettingsTarget(path: string): Promise<string> {
       throw error;
     });
     if (destination === null) return target;
-    target = canonicalFilePath(resolve(dirname(target), destination));
+    target = canonicalFilePath(pathAsOpened(
+      isAbsolute(destination) ? destination : `${dirname(target)}${sep}${destination}`,
+      () => new Error(`${path} のリンクの先 ${destination} の途中に、まだ無いディレクトリと .. があり、どのファイルかを決められないため止めました。何も変えていません。`),
+    ));
   }
   throw new Error(`${path} has a symbolic link loop`);
 }
