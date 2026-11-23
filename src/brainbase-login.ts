@@ -438,7 +438,20 @@ export function assertCredentialsFilePath(path: string): void {
     throw new BrainbaseLoginError('login_credentials_path_invalid',
       `The saved-login path must name a file, not a folder: ${JSON.stringify(path)}. Nothing was changed.`);
   }
+  if (RESERVED_SUFFIX.test(name)) {
+    throw new BrainbaseLoginError('login_credentials_path_invalid',
+      `The saved-login path ends in a name brainbase keeps for the lock and for a login moved aside while saving or logging out: ${JSON.stringify(path)}. Give another file name with --credentials. Nothing was changed.`);
+  }
 }
+
+/**
+ * Names brainbase derives from another saved login's path: its lock, the
+ * login moved aside while saving or logging out, and the probe of the file
+ * system. A saved login may not be at one of these, so recovering a stopped
+ * save or logout (see finishInterrupted) never takes another saved login for
+ * the one it moved aside. Case is ignored, as on macOS and Windows file systems.
+ */
+const RESERVED_SUFFIX = /\.(?:lock|replacing|removing|probe-[0-9a-f]+)$/iu;
 
 /** Which file sits at a path: same values = the same file, unchanged. */
 interface FileIdentity {
@@ -659,37 +672,28 @@ async function isFree(target: string): Promise<boolean> {
  *   stopped before its new file was linked in, so the old login is linked back
  *   and keeps working. With a file at the path, the save had placed its new
  *   file: the old login is deleted.
- * - A file there that is no saved brainbase login (put back half way, or by
- *   another program) is only ever linked back into an empty path, never
- *   deleted. Anything that is no regular file is left as it is. Either one
- *   left there makes the next save or logout fail (see assertAsideFree)
- *   instead of replacing it.
+ * - A file there that is no saved brainbase login, or no regular file, was not
+ *   put there by brainbase: no saved login may be at such a name (see
+ *   assertCredentialsFilePath). It is left where it is, neither moved nor
+ *   deleted, and the next save or logout fails while it is there (see
+ *   assertAsideFree) instead of replacing it.
  */
 async function finishInterrupted(target: string): Promise<InterruptedWork> {
   const done: InterruptedWork = { logoutFinished: false, saveRolledBack: false };
   let changed = false;
   for (const [aside, kind] of [[removingPath(target), 'logout'], [replacingPath(target), 'save']] as const) {
-    const found = await asideKind(aside);
-    if (found === 'missing' || found === 'other') continue;
-    if (found === 'login' && kind === 'logout') {
-      await rm(aside, { force: true });
-      done.logoutFinished = true;
-      changed = true;
-      continue;
-    }
-    if (await isFree(target)) {
+    if (await asideKind(aside) !== 'login') continue;
+    if (kind === 'save' && await isFree(target)) {
       try {
         await link(aside, target);
-        if (kind === 'save' && found === 'login') done.saveRolledBack = true;
+        done.saveRolledBack = true;
       } catch (error) {
         // Created meanwhile by another program: that file stays.
         if ((error as NodeJS.ErrnoException)?.code !== 'EEXIST') throw error;
-        if (found !== 'login') continue;
       }
-    } else if (found !== 'login') {
-      continue; // Kept: no file that is not ours is deleted.
     }
     await rm(aside, { force: true });
+    if (kind === 'logout') done.logoutFinished = true;
     changed = true;
   }
   if (changed) await syncDirectory(dirname(target));

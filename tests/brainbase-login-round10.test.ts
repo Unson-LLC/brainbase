@@ -129,7 +129,8 @@ describe('a login never replaces a file that is not a saved login', () => {
     const lockOfOther = join(dir, 'credentials.json.lock');
     await withCredentialsLock(join(dir, 'credentials.json'), async () => {
       const held = await readFile(lockOfOther, 'utf8');
-      await expect(writeCredentials(lockOfOther, saved())).rejects.toMatchObject({ code: 'login_credentials_unrecognized' });
+      // A saved login may not be at a lock's name at all (review round 15).
+      await expect(writeCredentials(lockOfOther, saved())).rejects.toMatchObject({ code: 'login_credentials_path_invalid' });
       expect(await readFile(lockOfOther, 'utf8')).toBe(held);
     });
   });
@@ -155,12 +156,13 @@ describe('a file that is not a lock record is never taken as a stale lock', () =
     const path = join(dir, 'credentials.json');
     await writeCredentials(path, saved({ login_id: 'fake-login-a' }));
     const other = `${path}.lock`;
-    await writeCredentials(other, saved({ login_id: 'fake-login-b' }));
+    // Put there by hand: brainbase itself refuses to save a login at a lock's name.
+    await writeFile(other, `${JSON.stringify(saved({ login_id: 'fake-login-b' }), null, 2)}\n`);
     await makeOld(other);
     await expect(removeCredentials(path)).rejects.toMatchObject({ code: 'login_busy' });
     await expect(getAccessToken({ credentialsPath: path, now: () => NOW + 7200_000, fetch: neverCalled }))
       .rejects.toMatchObject({ code: 'login_busy' });
-    expect((await readCredentials(other))?.login_id).toBe('fake-login-b');
+    expect(JSON.parse(await readFile(other, 'utf8')).login_id).toBe('fake-login-b');
     expect((await readCredentials(path))?.login_id).toBe('fake-login-a');
   });
 });
