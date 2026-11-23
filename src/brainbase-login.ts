@@ -25,6 +25,9 @@ const MCP_RESOURCE_PATH_PATTERN = /^\/runtime-mcp(?:\/t\/([a-z0-9][a-z0-9_-]{0,6
 const MCP_OAUTH_ALLOWED_SCOPE_SET = new Set<string>(MCP_OAUTH_ALLOWED_SCOPES);
 const MCP_CLIENT_NAME_PREFIX = 'brainbase-cli';
 const MCP_CLIENT_NAME_MAX_LENGTH = 80;
+const MCP_ACCESS_TOKEN_PREFIX = 'bb_mcp_at_';
+const MCP_REFRESH_TOKEN_PREFIX = 'bb_mcp_rt_';
+const CONTROL_CHAR_PATTERN = /[\u0000-\u001f\u007f-\u009f]/u;
 
 export type BrainbaseTokenKind = 'mcp_oauth';
 
@@ -237,6 +240,106 @@ export function resolveMcpLoginConfig(serverUrl: string, options: McpLoginOption
     clientName,
     ...(tenant !== undefined ? { tenant } : {}),
   };
+}
+
+function assertMcpAccessToken(value: unknown): string {
+  if (
+    typeof value !== 'string'
+    || !value.startsWith(MCP_ACCESS_TOKEN_PREFIX)
+    || value.length <= MCP_ACCESS_TOKEN_PREFIX.length
+    || CONTROL_CHAR_PATTERN.test(value)
+  ) {
+    throw new BrainbaseLoginError(
+      'login_token_response_invalid',
+      'Expected an MCP OAuth access token (bb_mcp_at_...), but the server returned an incompatible token. Nothing was saved.',
+    );
+  }
+  return value;
+}
+
+function validateMcpRefreshToken(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (
+    typeof value !== 'string'
+    || !value.startsWith(MCP_REFRESH_TOKEN_PREFIX)
+    || value.length <= MCP_REFRESH_TOKEN_PREFIX.length
+    || CONTROL_CHAR_PATTERN.test(value)
+  ) {
+    throw new BrainbaseLoginError(
+      'login_token_response_invalid',
+      'Expected an MCP OAuth refresh token (bb_mcp_rt_...), but the server returned an incompatible token. Nothing was saved.',
+    );
+  }
+  return value;
+}
+
+function validateMcpResponseScope(rawScope: unknown, expectedScope: string | undefined): string | undefined {
+  if (rawScope === undefined || rawScope === null) return expectedScope;
+  if (typeof rawScope !== 'string') {
+    throw new BrainbaseLoginError(
+      'login_token_response_invalid',
+      'The server returned an invalid MCP scope. Nothing was saved.',
+    );
+  }
+  let normalized: string;
+  try {
+    normalized = normalizeMcpScope(rawScope);
+  } catch {
+    throw new BrainbaseLoginError(
+      'login_token_response_invalid',
+      'The server returned a disallowed MCP scope. Nothing was saved.',
+    );
+  }
+  if (expectedScope !== undefined) {
+    const allowedTokens = new Set(normalizeMcpScope(expectedScope).split(' '));
+    if (normalized.split(' ').some((token) => !allowedTokens.has(token))) {
+      throw new BrainbaseLoginError(
+        'login_token_response_invalid',
+        'The server returned an MCP scope outside the requested scope. Nothing was saved.',
+      );
+    }
+  }
+  return normalized;
+}
+
+function validateMcpResponseResource(rawResource: unknown, expectedResource: string | undefined): string | undefined {
+  if (rawResource === undefined || rawResource === null) return expectedResource;
+  if (typeof rawResource !== 'string') {
+    throw new BrainbaseLoginError(
+      'login_token_response_invalid',
+      'The server returned an invalid MCP resource URL. Nothing was saved.',
+    );
+  }
+  let normalized: string;
+  try {
+    normalized = normalizeMcpResourceUrl(rawResource);
+  } catch {
+    throw new BrainbaseLoginError(
+      'login_token_response_invalid',
+      'The server returned an invalid MCP resource URL. Nothing was saved.',
+    );
+  }
+  if (expectedResource !== undefined && normalized !== expectedResource) {
+    throw new BrainbaseLoginError(
+      'login_token_response_invalid',
+      'The server returned an MCP resource URL that does not match the requested resource. Nothing was saved.',
+    );
+  }
+  return normalized;
+}
+
+function validateMcpMetadataIdentifier(
+  raw: unknown,
+  fieldName: 'organization_id' | 'tenant_id',
+): string | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (typeof raw !== 'string' || CONTROL_CHAR_PATTERN.test(raw) || !raw.trim()) {
+    throw new BrainbaseLoginError(
+      'login_token_response_invalid',
+      `The server returned an invalid ${fieldName}. Nothing was saved.`,
+    );
+  }
+  return raw.trim();
 }
 
 function defaultSleep(ms: number): Promise<void> {
@@ -484,9 +587,38 @@ function parseCredentials(text: string, path: string): BrainbaseCredentials {
   }
   if (normalized !== value.server_url) throw unusable();
   if (value.token_kind !== undefined && value.token_kind !== 'mcp_oauth') throw unusable();
+  if (value.token_kind === 'mcp_oauth') {
+    if (
+      !value.access_token.startsWith(MCP_ACCESS_TOKEN_PREFIX)
+      || value.access_token.length <= MCP_ACCESS_TOKEN_PREFIX.length
+      || CONTROL_CHAR_PATTERN.test(value.access_token)
+    ) {
+      throw unusable();
+    }
+    if (
+      value.refresh_token !== undefined
+      && (
+        typeof value.refresh_token !== 'string'
+        || !value.refresh_token.startsWith(MCP_REFRESH_TOKEN_PREFIX)
+        || value.refresh_token.length <= MCP_REFRESH_TOKEN_PREFIX.length
+        || CONTROL_CHAR_PATTERN.test(value.refresh_token)
+      )
+    ) {
+      throw unusable();
+    }
+  }
   for (const key of ['organization_id', 'tenant_id', 'scope'] as const) {
     const field = value[key];
-    if (field !== undefined && (typeof field !== 'string' || !field.trim())) throw unusable();
+    if (field !== undefined && (typeof field !== 'string' || CONTROL_CHAR_PATTERN.test(field) || !field.trim())) {
+      throw unusable();
+    }
+  }
+  if (value.scope !== undefined) {
+    try {
+      normalizeMcpScope(value.scope);
+    } catch {
+      throw unusable();
+    }
   }
   if (value.resource !== undefined) {
     if (typeof value.resource !== 'string') throw unusable();
@@ -1575,30 +1707,21 @@ export async function loginWithDeviceCode(options: LoginOptions): Promise<Brainb
       }
       continue;
     }
-    const accessToken = poll.json?.access_token;
-    if (typeof accessToken !== 'string' || !accessToken) {
+    const rawAccessToken = poll.json?.access_token;
+    if (typeof rawAccessToken !== 'string' || !rawAccessToken) {
       throw new BrainbaseLoginError('login_token_response_invalid', 'The server answered without a token. Nothing was saved.');
     }
-    const refreshToken = poll.json?.refresh_token;
+    const rawRefreshToken = poll.json?.refresh_token;
+    let accessToken = rawAccessToken;
+    let refreshToken: string | undefined = typeof rawRefreshToken === 'string' && rawRefreshToken ? rawRefreshToken : undefined;
     let mcpFields: Partial<BrainbaseCredentials> = {};
     if (mcpConfig) {
-      const responseOrgId = typeof poll.json?.organization_id === 'string' && poll.json.organization_id.trim()
-        ? poll.json.organization_id.trim()
-        : undefined;
-      const responseTenantId = typeof poll.json?.tenant_id === 'string' && poll.json.tenant_id.trim()
-        ? poll.json.tenant_id.trim()
-        : undefined;
-      const responseScope = typeof poll.json?.scope === 'string' && poll.json.scope.trim()
-        ? poll.json.scope.trim()
-        : mcpConfig.scope;
-      let responseResource = mcpConfig.resource;
-      if (typeof poll.json?.resource === 'string' && poll.json.resource.trim()) {
-        try {
-          responseResource = normalizeMcpResourceUrl(poll.json.resource);
-        } catch {
-          throw new BrainbaseLoginError('login_token_response_invalid', 'The server returned an invalid MCP resource URL. Nothing was saved.');
-        }
-      }
+      accessToken = assertMcpAccessToken(rawAccessToken);
+      refreshToken = validateMcpRefreshToken(rawRefreshToken);
+      const responseOrgId = validateMcpMetadataIdentifier(poll.json?.organization_id, 'organization_id');
+      const responseTenantId = validateMcpMetadataIdentifier(poll.json?.tenant_id, 'tenant_id');
+      const responseScope = validateMcpResponseScope(poll.json?.scope, mcpConfig.scope) ?? mcpConfig.scope;
+      const responseResource = validateMcpResponseResource(poll.json?.resource, mcpConfig.resource) ?? mcpConfig.resource;
       mcpFields = {
         token_kind: 'mcp_oauth',
         ...(responseOrgId ? { organization_id: responseOrgId } : {}),
@@ -1612,7 +1735,7 @@ export async function loginWithDeviceCode(options: LoginOptions): Promise<Brainb
       login_id: newLoginId(),
       server_url: serverUrl,
       access_token: accessToken,
-      ...(typeof refreshToken === 'string' && refreshToken ? { refresh_token: refreshToken } : {}),
+      ...(refreshToken ? { refresh_token: refreshToken } : {}),
       expires_at: expiryIso(accessToken, poll.json?.expires_in, now()),
       ...mcpFields,
     };
@@ -1659,8 +1782,7 @@ async function requestMcpOAuthRenewal(
   } catch {
     throw new BrainbaseLoginError('login_refresh_unreachable', `Cannot reach ${credentials.server_url} to renew the login.`);
   }
-  const token = result.json?.access_token;
-  if (!result.ok || typeof token !== 'string' || !token) {
+  if (!result.ok || result.bodyLost) {
     if (
       result.status === 429
       || result.status >= 500
@@ -1671,22 +1793,15 @@ async function requestMcpOAuthRenewal(
     }
     throw new BrainbaseLoginError('login_expired', 'The saved login can no longer be renewed. Run brainbase login again.');
   }
-  const nextRefresh = result.json?.refresh_token;
-  const nextScope = result.json?.scope;
-  const nextResource = result.json?.resource;
-  let validatedResource: string | undefined;
-  if (typeof nextResource === 'string' && nextResource.trim()) {
-    try {
-      validatedResource = normalizeMcpResourceUrl(nextResource);
-    } catch {
-      throw new BrainbaseLoginError('login_token_response_invalid', 'The server returned an invalid MCP resource URL. Nothing was saved.');
-    }
-  }
+  const token = assertMcpAccessToken(result.json?.access_token);
+  const nextRefresh = validateMcpRefreshToken(result.json?.refresh_token);
+  const validatedScope = validateMcpResponseScope(result.json?.scope, credentials.scope);
+  const validatedResource = validateMcpResponseResource(result.json?.resource, credentials.resource);
   return {
     ...credentials,
     access_token: token,
-    ...(typeof nextRefresh === 'string' && nextRefresh ? { refresh_token: nextRefresh } : {}),
-    ...(typeof nextScope === 'string' && nextScope.trim() ? { scope: nextScope.trim() } : {}),
+    ...(nextRefresh ? { refresh_token: nextRefresh } : {}),
+    ...(validatedScope ? { scope: validatedScope } : {}),
     ...(validatedResource ? { resource: validatedResource } : {}),
     expires_at: expiryIso(token, result.json?.expires_in, now()),
   };

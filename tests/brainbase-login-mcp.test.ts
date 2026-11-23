@@ -330,6 +330,213 @@ describe('loginWithDeviceCode in --mcp mode', () => {
     });
     expect(await readCredentials(path)).toBeNull();
   });
+
+  it('rejects a human JWT access_token or non-MCP refresh_token in --mcp mode and leaves existing credentials untouched', async () => {
+    const path = await credentialsFile();
+    const existing: BrainbaseCredentials = {
+      schema_version: CREDENTIALS_SCHEMA_VERSION,
+      login_id: 'existing-login-keep',
+      server_url: 'https://api.example.net',
+      access_token: jwt(NOW / 1000 + 3600),
+      refresh_token: 'existing-refresh',
+      expires_at: new Date(NOW + 3600_000).toISOString(),
+    };
+    await writeCredentials(path, existing);
+
+    for (const tokenPayload of [
+      {
+        access_token: jwt(NOW / 1000 + 3600),
+        refresh_token: 'bb_mcp_rt_ok',
+        expires_in: 600,
+        receipt_token: 'rcpt-should-not-ack',
+      },
+      {
+        access_token: 'bb_mcp_at_ok',
+        refresh_token: jwt(NOW / 1000 + 86400),
+        expires_in: 600,
+        receipt_token: 'rcpt-should-not-ack',
+      },
+      {
+        access_token: 'bb_mcp_at_ok',
+        refresh_token: 'legacy-refresh-without-prefix',
+        expires_in: 600,
+      },
+      {
+        access_token: 'bb_mcp_at_',
+        refresh_token: 'bb_mcp_rt_ok',
+        expires_in: 600,
+      },
+    ]) {
+      let ackCalled = false;
+      const fetchImpl = (async (input: string | URL) => {
+        const pathname = new URL(String(input)).pathname;
+        if (pathname === '/api/auth/device/code') {
+          return new Response(
+            JSON.stringify({
+              device_code: 'dev-bad-tok',
+              verification_uri: 'https://api.example.net/device',
+              expires_in: 300,
+              interval: 1,
+            }),
+            { status: 200 },
+          );
+        }
+        if (pathname === '/api/auth/device/token') {
+          return new Response(JSON.stringify(tokenPayload), { status: 200 });
+        }
+        if (pathname === '/api/auth/device/received') {
+          ackCalled = true;
+          return new Response(JSON.stringify({ ok: true }), { status: 200 });
+        }
+        return new Response('{}', { status: 404 });
+      }) as typeof fetch;
+
+      await expect(
+        loginWithDeviceCode({
+          serverUrl: 'https://api.example.net',
+          credentialsPath: path,
+          mcp: { tenant: 'acme' },
+          fetch: fetchImpl,
+          now: () => NOW,
+          sleep: async () => undefined,
+          onPrompt: () => undefined,
+        }),
+      ).rejects.toMatchObject({ code: 'login_token_response_invalid' });
+
+      expect(ackCalled).toBe(false);
+      expect(await readCredentials(path)).toEqual(existing);
+    }
+  });
+
+  it('rejects disallowed/widened scope, substituted resource, or control characters in org/tenant metadata', async () => {
+    const path = await credentialsFile();
+    const invalidResponses: Array<Record<string, unknown>> = [
+      // Disallowed scope
+      {
+        access_token: 'bb_mcp_at_1',
+        refresh_token: 'bb_mcp_rt_1',
+        expires_in: 600,
+        scope: 'brainbase.canonical.task',
+        resource: 'https://api.example.net/runtime-mcp/t/acme/mcp',
+      },
+      // Widened scope beyond requested brainbase.graph.read
+      {
+        access_token: 'bb_mcp_at_1',
+        refresh_token: 'bb_mcp_rt_1',
+        expires_in: 600,
+        scope: 'brainbase.graph.read brainbase.graph.directory',
+        resource: 'https://api.example.net/runtime-mcp/t/acme/mcp',
+      },
+      // Resource origin substitution
+      {
+        access_token: 'bb_mcp_at_1',
+        refresh_token: 'bb_mcp_rt_1',
+        expires_in: 600,
+        scope: 'brainbase.graph.read',
+        resource: 'https://evil.example.net/runtime-mcp/t/acme/mcp',
+      },
+      // Resource tenant substitution
+      {
+        access_token: 'bb_mcp_at_1',
+        refresh_token: 'bb_mcp_rt_1',
+        expires_in: 600,
+        scope: 'brainbase.graph.read',
+        resource: 'https://api.example.net/runtime-mcp/t/other_tenant/mcp',
+      },
+      // Control characters / ANSI escape injection in organization_id
+      {
+        access_token: 'bb_mcp_at_1',
+        refresh_token: 'bb_mcp_rt_1',
+        expires_in: 600,
+        scope: 'brainbase.graph.read',
+        resource: 'https://api.example.net/runtime-mcp/t/acme/mcp',
+        organization_id: 'org_acme\u001b[31m',
+        tenant_id: 'ten_acme',
+      },
+      // Control characters in tenant_id
+      {
+        access_token: 'bb_mcp_at_1',
+        refresh_token: 'bb_mcp_rt_1',
+        expires_in: 600,
+        scope: 'brainbase.graph.read',
+        resource: 'https://api.example.net/runtime-mcp/t/acme/mcp',
+        organization_id: 'org_acme',
+        tenant_id: 'ten_acme\nfake-line',
+      },
+    ];
+
+    for (const tokenBody of invalidResponses) {
+      const fetchImpl = (async (input: string | URL) => {
+        const pathname = new URL(String(input)).pathname;
+        if (pathname === '/api/auth/device/code') {
+          return new Response(
+            JSON.stringify({
+              device_code: 'dev-bad-meta',
+              verification_uri: 'https://api.example.net/device',
+              expires_in: 300,
+              interval: 1,
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response(JSON.stringify(tokenBody), { status: 200 });
+      }) as typeof fetch;
+
+      await expect(
+        loginWithDeviceCode({
+          serverUrl: 'https://api.example.net',
+          credentialsPath: path,
+          mcp: { tenant: 'acme', scope: 'brainbase.graph.read' },
+          fetch: fetchImpl,
+          now: () => NOW,
+          sleep: async () => undefined,
+          onPrompt: () => undefined,
+        }),
+      ).rejects.toMatchObject({ code: 'login_token_response_invalid' });
+    }
+    expect(await readCredentials(path)).toBeNull();
+  });
+
+  it('allows the server to narrow the granted scope to a valid subset of the requested scope', async () => {
+    const path = await credentialsFile();
+    const fetchImpl = (async (input: string | URL) => {
+      const pathname = new URL(String(input)).pathname;
+      if (pathname === '/api/auth/device/code') {
+        return new Response(
+          JSON.stringify({
+            device_code: 'dev-narrow',
+            verification_uri: 'https://api.example.net/device',
+            expires_in: 300,
+            interval: 1,
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          access_token: 'bb_mcp_at_narrow',
+          refresh_token: 'bb_mcp_rt_narrow',
+          expires_in: 600,
+          scope: 'brainbase.graph.read',
+          resource: 'https://api.example.net/runtime-mcp/t/acme/mcp',
+          organization_id: 'org_acme',
+          tenant_id: 'ten_acme',
+        }),
+        { status: 200 },
+      );
+    }) as typeof fetch;
+
+    const saved = await loginWithDeviceCode({
+      serverUrl: 'https://api.example.net',
+      credentialsPath: path,
+      mcp: { tenant: 'acme', scope: 'brainbase.graph.read brainbase.graph.directory' },
+      fetch: fetchImpl,
+      now: () => NOW,
+      sleep: async () => undefined,
+      onPrompt: () => undefined,
+    });
+    expect(saved.scope).toBe('brainbase.graph.read');
+  });
 });
 
 describe('requestRenewal for token_kind === mcp_oauth', () => {
@@ -420,6 +627,39 @@ describe('requestRenewal for token_kind === mcp_oauth', () => {
     await expect(getAccessToken({ credentialsPath: path, fetch: refusedFetch, now: () => NOW })).rejects.toMatchObject({
       code: 'login_expired',
     });
+  });
+
+  it('rejects human JWTs, invalid refresh prefixes, disallowed/widened scopes, or substituted resources during renewal without modifying saved credentials', async () => {
+    const path = await savedMcp();
+    const before = await readCredentials(path);
+
+    const badRenewalPayloads: Array<Record<string, unknown>> = [
+      { access_token: jwt(NOW / 1000 + 3600), refresh_token: 'bb_mcp_rt_new', expires_in: 600 },
+      { access_token: 'bb_mcp_at_new', refresh_token: jwt(NOW / 1000 + 86400), expires_in: 600 },
+      { access_token: 'bb_mcp_at_new', refresh_token: 'plain-refresh', expires_in: 600 },
+      { access_token: 'bb_mcp_at_new', refresh_token: 'bb_mcp_rt_new', expires_in: 600, scope: 'brainbase.canonical.task' },
+      { access_token: 'bb_mcp_at_new', refresh_token: 'bb_mcp_rt_new', expires_in: 600, scope: 'brainbase.graph.directory' },
+      {
+        access_token: 'bb_mcp_at_new',
+        refresh_token: 'bb_mcp_rt_new',
+        expires_in: 600,
+        resource: 'https://evil.example.net/runtime-mcp/t/acme/mcp',
+      },
+      {
+        access_token: 'bb_mcp_at_new',
+        refresh_token: 'bb_mcp_rt_new',
+        expires_in: 600,
+        resource: 'https://api.example.net/runtime-mcp/t/other/mcp',
+      },
+    ];
+
+    for (const payload of badRenewalPayloads) {
+      const fetchImpl = (async () => new Response(JSON.stringify(payload), { status: 200 })) as typeof fetch;
+      await expect(getAccessToken({ credentialsPath: path, fetch: fetchImpl, now: () => NOW })).rejects.toMatchObject({
+        code: 'login_token_response_invalid',
+      });
+      expect(await readCredentials(path)).toEqual(before);
+    }
   });
 });
 
@@ -578,6 +818,64 @@ describe('CLI integration with mock HTTP server (MCP mode + legacy regression)',
     expect(await runCli(['login', '--server', origin, '--mcp', '--tenant', 'acme', '--credentials', path], out.io)).toBe(1);
     expect(out.stderr()).toContain('device_mcp_flow_disabled');
     expect(await readCredentials(path)).toBeNull();
+  });
+
+  it('refuses fail-closed against a legacy mock HTTP server that returns a human JWT during --mcp login or MCP renewal', async () => {
+    const path = await credentialsFile();
+    const humanJwt = jwt(Math.floor(Date.now() / 1000) + 3600);
+    const { origin } = await startMockServer((req, _body, res) => {
+      res.setHeader('content-type', 'application/json');
+      if (req.url === '/api/auth/device/code') {
+        res.statusCode = 200;
+        res.end(
+          JSON.stringify({
+            device_code: 'dev-old-srv',
+            user_code: 'OLD1-2222',
+            verification_uri: `${origin}/device`,
+            expires_in: 60,
+            interval: 0.01,
+          }),
+        );
+        return;
+      }
+      if (req.url === '/api/auth/device/token') {
+        res.statusCode = 200;
+        res.end(JSON.stringify({ access_token: humanJwt, refresh_token: 'legacy-rt', expires_in: 3600 }));
+        return;
+      }
+      if (req.url === '/api/auth/mcp/token') {
+        res.statusCode = 200;
+        res.end(JSON.stringify({ access_token: humanJwt, refresh_token: 'legacy-rt-2', expires_in: 3600 }));
+        return;
+      }
+      res.statusCode = 404;
+      res.end('{}');
+    });
+
+    const out = capture();
+    expect(await runCli(['login', '--server', origin, '--mcp', '--tenant', 'acme', '--credentials', path], out.io)).toBe(1);
+    expect(out.stderr()).toContain('bb_mcp_at_');
+    expect(await readCredentials(path)).toBeNull();
+
+    // Also verify renewal against mock HTTP server returning human JWT preserves saved MCP login
+    const initialMcp: BrainbaseCredentials = {
+      schema_version: CREDENTIALS_SCHEMA_VERSION,
+      login_id: 'mcp-keep-1',
+      server_url: origin,
+      access_token: 'bb_mcp_at_existing',
+      refresh_token: 'bb_mcp_rt_existing',
+      expires_at: new Date(NOW - 5_000).toISOString(),
+      token_kind: 'mcp_oauth',
+      organization_id: 'org_acme',
+      tenant_id: 'ten_acme',
+      scope: 'brainbase.graph.read',
+      resource: `${origin}/runtime-mcp/t/acme/mcp`,
+    };
+    await writeCredentials(path, initialMcp);
+    await expect(getAccessToken({ credentialsPath: path, now: () => NOW })).rejects.toMatchObject({
+      code: 'login_token_response_invalid',
+    });
+    expect(await readCredentials(path)).toEqual(initialMcp);
   });
 
   it('rejects invalid CLI options for --mcp, --tenant, --scope, and --resource before network access', async () => {

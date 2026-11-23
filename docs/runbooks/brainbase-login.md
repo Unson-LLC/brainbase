@@ -33,7 +33,14 @@ When `--mcp` is omitted, `brainbase login` keeps the existing person JWT Device 
 
 ### Operational notes for `--mcp`
 
+- **Keep existing person JWT logins separate**: If you already use the default `~/.brainbase/credentials.json` for a legacy person JWT login (for example, Claude Code judgment hooks), do not overwrite it with `--mcp`. Pass a dedicated file via `--credentials <path>` (or `BRAINBASE_CREDENTIALS_FILE`) so the two logins stay isolated:
+  ```sh
+  brainbase login --server https://<your-brainbase-api> --mcp --tenant <tenant> --credentials ~/.brainbase/mcp-credentials.json
+  brainbase login:status --credentials ~/.brainbase/mcp-credentials.json
+  brainbase logout --credentials ~/.brainbase/mcp-credentials.json
+  ```
 - In the browser approval screen, confirm the organization, project subset, and allowed scope before approving. MCP OAuth tokens issued via Device Flow are bound to a single organization and tenant and cannot access Personal KG routes.
+- Fail-closed token and metadata verification: In `--mcp` mode (both login and token refresh), the CLI requires `access_token` to start with `bb_mcp_at_` and any returned `refresh_token` to start with `bb_mcp_rt_`, verifies that returned `scope` is within the allowed whitelist and requested scope, verifies that returned `resource` matches the requested resource URL, and rejects control characters in `organization_id` / `tenant_id`. Any mismatch fails with `login_token_response_invalid` without saving or overwriting `credentials.json`.
 - While polling `/api/auth/device/token`, if the server returns RFC 8628 `slow_down` (HTTP 400), the CLI extends the polling interval by +5 seconds and continues until approval or expiry.
 - If the server has the remote MCP Device Flow feature flag disabled (`BRAINBASE_MCP_OAUTH_DEVICE_FLOW_ENABLED=false`), the server responds with HTTP 400 `device_mcp_flow_disabled`; the CLI exits safely with `login_device_mcp_flow_disabled` without modifying `credentials.json`.
 - `brainbase login:status` displays connection metadata (`接続種別`, `組織`, `テナント`, `スコープ`, `接続先 resource`) for `mcp_oauth` logins and never prints access or refresh tokens.
