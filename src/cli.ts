@@ -601,7 +601,7 @@ async function applyClaudeCodeRegistration(plan: ClaudeCodeRegistrationPlan, io:
     ...(await readCredentials(defaultCredentialsPath()).catch(() => null)
       ? []
       : ['まだログインしていません。brainbase login --server <API のURL> を実行してください。']),
-    'Claude Codeを起動し直すと有効になります。',
+    '判断フックを有効にするには、Claude Codeを再起動してください。',
     ''
   ].join('\n'));
   return 0;

@@ -432,6 +432,7 @@ describe('judgment:install --target claude-code', () => {
       'judgment:install', '--target', 'claude-code', '--origin', 'https://mcp.example.net/mcp', '--server', 'https://api.example.net',
       '--repositories', 'github.com/Acme/growin-app,github.com/acme/growin-api', '--settings', settings, '--config', config,
     ], out.io)).toBe(0);
+    expect(out.stdout()).toContain('Claude Codeを再起動してください。');
     const written = JSON.parse(await readFile(settings, 'utf8'));
     expect(written.permissions).toEqual({ allow: ['Read'] });
     expect(installedHookConfigPath(written.hooks.UserPromptSubmit[0].hooks[0])).toBe(config);
