@@ -1,6 +1,6 @@
 {
   "name": "@unson/brainbase-mcp",
-  "version": "0.50.24",
+  "version": "0.50.26",
   "description": "Local-first Brainbase judgment OS that lets supported AI agents reuse a user's approved goals, priorities, decisions, and judgment criteria.",
   "type": "module",
   "license": "MIT",
@@ -78,6 +78,10 @@
     "./judgment-frame-evidence": {
       "types": "./dist/judgment-frame-evidence.d.ts",
       "import": "./dist/judgment-frame-evidence.js"
+    },
+    "./judgment-project-binding": {
+      "types": "./dist/judgment-project-binding.d.ts",
+      "import": "./dist/judgment-project-binding.js"
     },
     "./judgment-event-adapter": {
       "types": "./dist/judgment-event-adapter.d.ts",
@@ -170,6 +174,10 @@
     "./company-os-objectives": {
       "types": "./dist/company-os-objectives.d.ts",
       "import": "./dist/company-os-objectives.js"
+    },
+    "./claude-code-judgment-hook": {
+      "types": "./dist/claude-code-judgment-hook.d.ts",
+      "import": "./dist/claude-code-judgment-hook.js"
     },
     "./company-os-evaluation": {
       "types": "./dist/company-os-evaluation.d.ts",
@@ -290,6 +298,10 @@
     "./ontology-release-trust": {
       "types": "./dist/ontology-release-trust.d.ts",
       "import": "./dist/ontology-release-trust.js"
+    },
+    "./brainbase-login": {
+      "types": "./dist/brainbase-login.d.ts",
+      "import": "./dist/brainbase-login.js"
     },
     "./canonical-document-writer": {
       "types": "./dist/canonical-document-writer.d.ts",
