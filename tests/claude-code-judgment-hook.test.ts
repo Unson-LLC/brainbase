@@ -449,6 +449,25 @@ describe('judgment:install --target claude-code', () => {
     await expect(readFile(config, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
+  it('edits the settings file the system opens for a path with a symlink followed by ..', async () => {
+    const dir = await tempDir();
+    await mkdir(join(dir, 'real', 'child'), { recursive: true });
+    await mkdir(join(dir, 'alias'));
+    await symlink(join(dir, 'real', 'child'), join(dir, 'alias', 'link'));
+    await writeFile(join(dir, 'real', 'settings.json'), JSON.stringify({ env: { PROFILE: 'selected' } }));
+    await writeFile(join(dir, 'alias', 'settings.json'), JSON.stringify({ env: { PROFILE: 'other' } }));
+    const config = join(dir, 'hook.json');
+    expect(await runCli([
+      'judgment:install', '--target', 'claude-code', '--origin', 'https://mcp.example.net', '--server', 'https://api.example.net',
+      '--settings', `${join(dir, 'alias', 'link')}/../settings.json`, '--config', config,
+    ], capture().io)).toBe(0);
+    const selected = JSON.parse(await readFile(join(dir, 'real', 'settings.json'), 'utf8'));
+    const other = JSON.parse(await readFile(join(dir, 'alias', 'settings.json'), 'utf8'));
+    expect(installedHookConfigPath(selected.hooks.UserPromptSubmit[0].hooks[0])).toBe(config);
+    expect(other).toEqual({ env: { PROFILE: 'other' } });
+    expect(JSON.parse(await readFile(config, 'utf8')).registration.settings).toBe(await realpath(join(dir, 'real', 'settings.json')));
+  });
+
   it('refuses settings and config that are the same file, also through a symlink, and a bare repository name', async () => {
     const dir = await tempDir();
     const settings = join(dir, 'claude', 'settings.json');
