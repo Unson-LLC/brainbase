@@ -11,9 +11,11 @@ import {
   renderRegistrationResult,
   selectLocalMemories
 } from './personal-memory-handover.js';
+import { createHash, randomBytes } from 'node:crypto';
 import { constants, realpathSync } from 'node:fs';
-import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
+import { access, chmod, link, lstat, mkdir, open, readdir, readFile, readlink, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { basename, delimiter, dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initializePersonalOs, loadPersonalOs, migrateCanonicalGraph, mutatePersonalOs } from './ssot.js';
 import { diagnoseGraph, type GraphDiagnosis } from './graph-diagnosis.js';
@@ -64,6 +66,21 @@ import { applyCanonicalWrites, buildCanonicalEdge } from './canonical-edge-build
 import { defaultJudgmentJournalRoot } from './judgment-value-proof-review.js';
 import { createWorldExtension, readWorldVocabulary } from './world-extension.js';
 import { createLocalWebHost, LOCAL_WEB_DEFAULT_PORT } from './local-web-host.js';
+import { assertCredentialsFilePath, BrainbaseLoginError, CREDENTIALS_SCHEMA_VERSION, defaultCredentialsPath, loginWithDeviceCode, normalizeServerUrl, readCredentials, removeCredentials, withCredentialsLock } from './brainbase-login.js';
+import {
+  CLAUDE_CODE_HOOK_CONFIG_SCHEMA,
+  canonicalFilePath,
+  claudeCodeHookCommand,
+  claudeCodeJudgmentHookGroups,
+  defaultClaudeCodeHookConfigPath,
+  handleClaudeCodeJudgmentHook,
+  hasInstalledClaudeCodeHooks,
+  isClaudeCodeHookConfigText,
+  parseClaudeCodeHookConfig,
+  normalizeRepositoryEntry,
+  registerClaudeCodeJudgmentHooks,
+  type ClaudeCodeHookConfig
+} from './claude-code-judgment-hook.js';
 import type { CanonicalEntity, DecisionRecord, PersonalKgEntry, PersonalOs, RelationshipRecord } from './types.js';
 
 interface CliIo {
@@ -78,6 +95,8 @@ interface ParsedArgs {
   command?: string;
   values: Map<string, string[]>;
   flags: Set<string>;
+  /** Tokens after the command that are not an option or an option's value. */
+  positionals: string[];
 }
 
 type InstallTarget = 'codex' | 'claude' | 'codecode';
@@ -162,6 +181,14 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
         return await judgmentHook(parsed, io);
       case 'judgment:install':
         return await judgmentInstall(parsed, io);
+      case 'judgment:claude-code-hook':
+        return await judgmentClaudeCodeHook(parsed, io);
+      case 'login':
+        return await login(parsed, io);
+      case 'login:status':
+        return await loginStatus(parsed, io);
+      case 'logout':
+        return await logout(parsed, io);
       case 'doctor':
         return await doctor(parsed, io);
       case 'web:serve':
@@ -217,7 +244,8 @@ async function judgmentHook(parsed: ParsedArgs, io: CliIo): Promise<number> {
 
 async function judgmentInstall(parsed: ParsedArgs, io: CliIo): Promise<number> {
   const target = first(parsed, 'target');
-  if (target !== 'codex') throw new Error('judgment:install currently requires --target codex');
+  if (target === 'claude-code') return await judgmentInstallClaudeCode(parsed, io);
+  if (target !== 'codex') throw new Error('judgment:install requires --target codex|claude-code');
   const cliPath = fileURLToPath(new URL('./cli.js', import.meta.url));
   const autonomy = judgmentAutonomyOptions(parsed);
   const hookArguments = [
@@ -254,10 +282,670 @@ async function judgmentInstall(parsed: ParsedArgs, io: CliIo): Promise<number> {
   return 0;
 }
 
-async function readHookStdin(input: AsyncIterable<string | Uint8Array>): Promise<string> {
-  let text = '';
-  for await (const chunk of input) text += typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8');
-  return text;
+const CLAUDE_CODE_HOOK_MAX_INPUT_BYTES = 16 * 1024 * 1024;
+
+async function judgmentClaudeCodeHook(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  // Fail-open: whatever happens, Claude Code gets a valid hook answer and exit 0.
+  let output: Record<string, unknown>;
+  try {
+    const input = await readHookStdin(io.stdin ?? process.stdin, CLAUDE_CODE_HOOK_MAX_INPUT_BYTES);
+    const payload: unknown = JSON.parse(input || '{}');
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('judgment_hook_payload_invalid');
+    const configPath = first(parsed, 'config');
+    const registrationId = first(parsed, 'registration');
+    output = await handleClaudeCodeJudgmentHook(payload as Record<string, unknown>, {
+      ...(configPath ? { configPath } : {}),
+      ...(registrationId ? { registrationId } : {}),
+    });
+  } catch (error) {
+    const message = error instanceof Error && /^judgment_[a-z0-9_]{1,120}$/u.test(error.message)
+      ? error.message : 'judgment_hook_failed';
+    output = { systemMessage: `⚠️ Brainbase判断フック: 判断フックの処理に失敗しました（${message}）。判断監査なしで続行します。` };
+  }
+  write(io, `${JSON.stringify(output)}\n`);
+  return 0;
+}
+
+const HOOK_PROJECT_CODE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/u;
+
+// Every option judgment:install --target claude-code reads. Anything else
+// (a typo, or `--opt=value`, which parseArgs keeps whole as the key
+// `opt=value`) would be ignored silently and widen what gets audited or write
+// where a preview was meant, so it is refused before any file is touched.
+const CLAUDE_CODE_INSTALL_VALUE_OPTIONS = new Set(['target', 'settings', 'config', 'origin', 'server', 'project', 'repositories']);
+const CLAUDE_CODE_INSTALL_SWITCHES = new Set(['remove', 'dry-run']);
+
+function assertClaudeCodeInstallOptions(parsed: ParsedArgs): void {
+  for (const name of [...parsed.flags, ...parsed.values.keys()]) {
+    if (CLAUDE_CODE_INSTALL_VALUE_OPTIONS.has(name) || CLAUDE_CODE_INSTALL_SWITCHES.has(name)) continue;
+    const base = name.split('=')[0] ?? name;
+    if (base !== name && (CLAUDE_CODE_INSTALL_VALUE_OPTIONS.has(base) || CLAUDE_CODE_INSTALL_SWITCHES.has(base))) {
+      const hint = CLAUDE_CODE_INSTALL_SWITCHES.has(base) ? `--${base}` : `--${base} <値>`;
+      throw new Error(`--${base}=… の形は使えません。${hint} のように書いてください。何も変えずに止めました。`);
+    }
+    throw new Error(`judgment:install --target claude-code は --${name} を知りません。何も変えずに止めました。`);
+  }
+  for (const name of CLAUDE_CODE_INSTALL_SWITCHES) {
+    // `--dry-run true` would leave dry-run unset and write for real.
+    if (parsed.values.has(name)) throw new Error(`--${name} は値をとりません（--${name} だけを書きます）。何も変えずに止めました。`);
+  }
+  for (const name of CLAUDE_CODE_INSTALL_VALUE_OPTIONS) {
+    if (name !== 'repositories' && (parsed.values.get(name)?.length ?? 0) > 1) {
+      throw new Error(`--${name} は1回だけ書けます。何も変えずに止めました。`);
+    }
+  }
+}
+
+// The file the system opens for `path`. resolve() drops `link/..` as text, but
+// the system follows `link` first, so `alias/link/../settings.json` is a file
+// next to the link's target, not in `alias`. The parent directory is resolved
+// by the system and the last name added back. realpathSync.native, because
+// the JavaScript realpathSync also normalizes the text before following links.
+// When the parent does not exist yet, the text form opens the same file only
+// if the path has no `..`; with one, a link before it could lead elsewhere,
+// so the install stops instead of guessing.
+function settingsPathAsOpened(path: string): string {
+  // `file.json/` names a directory; dropping the slash would edit file.json.
+  // Only the system's separators count: on POSIX `settings.json\` is a file name.
+  if (process.platform === 'win32' ? /[\\/]$/u.test(path) : path.endsWith('/')) {
+    throw new Error(`--settings ${path} は末尾が / で、ファイルを指していないため止めました。settings.json のパスを指定してください。何も変えていません。`);
+  }
+  const absolute = isAbsolute(path) ? path : `${process.cwd()}${sep}${path}`;
+  const name = basename(absolute);
+  if (name === '' || name === '.' || name === '..') return resolve(absolute);
+  try {
+    return join(realpathSync.native(dirname(absolute)), name);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    if (absolute.split(/[\\/]/u).includes('..')) {
+      throw new Error(`--settings ${path} の途中に、まだ無いディレクトリと .. があり、どのファイルを開くかを決められないため止めました。.. を含まないパスか、ディレクトリがそろったパスを指定してください。何も変えていません。`);
+    }
+    return resolve(absolute);
+  }
+}
+
+async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  assertClaudeCodeInstallOptions(parsed);
+  // `--opt=value` or a bare `--opt` would otherwise fall back to the default
+  // settings or config, and --remove would edit a file the user did not name.
+  const settingsPath = settingsPathAsOpened(explicitValue(parsed, 'settings', '--settings <path>')
+    ?? join(process.env.CLAUDE_CONFIG_DIR || join(process.env.HOME || '', '.claude'), 'settings.json'));
+  // Absolute, because the registered command carries it to every hook run.
+  const configPath = resolve(explicitValue(parsed, 'config', '--config <path>') ?? defaultClaudeCodeHookConfigPath());
+  const settingsReal = await installSettingsTarget(settingsPath);
+  const configReal = canonicalFilePath(configPath);
+  if (settingsReal === configReal) {
+    throw new Error('judgment:install --settings and --config must be different files');
+  }
+  if (configReal === settingsReal + INSTALL_SETTINGS_BACKUP_SUFFIX) {
+    throw new Error('judgment:install --config must not be the settings backup file');
+  }
+  if (configReal === canonicalFilePath(resolve(defaultCredentialsPath()))) {
+    throw new Error('judgment:install --config must not be the brainbase login file');
+  }
+  const remove = parsed.flags.has('remove');
+  const dryRun = parsed.flags.has('dry-run');
+  const registrationId = randomBytes(16).toString('hex');
+  let config: ClaudeCodeHookConfig | undefined;
+  if (!remove) {
+    const origin = explicitValue(parsed, 'origin', '--origin <hosted MCP URL>');
+    if (!origin) throw new Error('judgment:install --target claude-code requires --origin <hosted MCP URL>');
+    // A bare, empty or blank --project would drop the project and let the Host
+    // pick one; leave the option out for that instead.
+    const projectValue = explicitValue(parsed, 'project', '--project <code>');
+    const projectCode = projectValue?.trim();
+    if (projectValue !== undefined && !HOOK_PROJECT_CODE_PATTERN.test(projectCode ?? '')) throw new Error('judgment:install --project must match [a-z0-9][a-z0-9._-]{0,63}');
+    explicitValue(parsed, 'repositories', '--repositories <host/owner/name,...>');
+    const repositoryValues = parsed.values.get('repositories');
+    const repositories = (repositoryValues ?? [])
+      .flatMap((value) => value.split(',')).map((name) => name.trim()).filter(Boolean)
+      .map((name) => {
+        const normalized = normalizeRepositoryEntry(name);
+        if (!normalized) {
+          throw new Error(`judgment:install --repositories needs host/owner/name, e.g. github.com/example-org/app (got ${name})`);
+        }
+        return normalized;
+      });
+    // An empty list would read as "no limit". Leaving the option out audits
+    // every repository; an empty value is refused instead of widening to that.
+    // `--repositories ''` arrives as a bare flag.
+    if ((repositoryValues !== undefined || parsed.flags.has('repositories')) && repositories.length === 0) {
+      throw new Error('judgment:install --repositories needs at least one host/owner/name; leave the option out to audit every repository');
+    }
+    // The hook sends only the login made to this API, so a later login to
+    // another environment never reaches this Host.
+    const loginServer = explicitValue(parsed, 'server', '--server <API URL>')
+      ?? (await readCredentials(defaultCredentialsPath()).catch(() => null))?.server_url;
+    if (!loginServer) {
+      throw new Error('judgment:install --target claude-code requires --server <API URL> (the server you log in to with brainbase login), or a saved login');
+    }
+    config = {
+      schema_version: CLAUDE_CODE_HOOK_CONFIG_SCHEMA,
+      origin: normalizeServerUrl(origin),
+      login_server: normalizeServerUrl(loginServer),
+      ...(projectCode ? { project_code: projectCode } : {}),
+      ...(repositories.length > 0 ? { repositories: [...new Set(repositories)] } : {}),
+      registration: { id: registrationId, settings: settingsReal }
+    };
+  }
+  const cliPath = fileURLToPath(new URL('./cli.js', import.meta.url));
+  const command = claudeCodeHookCommand(process.execPath, cliPath, configPath, registrationId);
+  const plan = { settingsPath, settingsReal, configPath, configReal, config, command, remove, dryRun };
+  // Claude Code saves its settings without taking the install lock. When it
+  // saved between our read and our write, start again from what it saved, so
+  // its change is kept; give up after a few tries without changing anything.
+  const run = async (): Promise<number> => {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await applyClaudeCodeRegistration(plan, io);
+      } catch (error) {
+        if (!(error instanceof SettingsChangedError)) throw error;
+        if (attempt >= SETTINGS_CHANGED_ATTEMPTS) {
+          throw new Error(`${settingsPath} は登録の途中で何度も別の保存が入ったため、何も変えずに止めました。Claude Code の設定の保存が落ち着いてから、もう一度実行してください。`);
+        }
+      }
+    }
+  };
+  // A preview writes nothing, so it takes no lock.
+  return dryRun ? await run() : await withInstallLocks([settingsReal, configReal], async () => {
+    await recoverInstallSettings(settingsReal);
+    return await run();
+  });
+}
+
+/**
+ * Runs `task` holding one lock per file, so that two installs touching the
+ * same Claude Code settings or the same hook config run one after the other:
+ * each reads, checks ownership and writes both files under the locks. The
+ * locks are taken in one order (sorted real paths), so two installs never wait
+ * on each other. Each lock sits next to the real file
+ * (`<real path>.brainbase-install.lock`),
+ * so installs run with different homes still share it. They follow the rules
+ * of the saved-login lock: a lock is only taken over when its holder no
+ * longer runs.
+ */
+// Install locks sit next to settings files that other tools also keep files
+// beside. They get a name of their own, and a file there that is not a lock
+// record this code wrote is never removed: the install waits and says which
+// file to check instead.
+// The settings are no saved login, so taking this lock never runs the
+// recovery of a login save or logout that stopped half way (recover: false).
+const INSTALL_LOCK = { suffix: '.brainbase-install.lock', recover: false } as const;
+
+async function withInstallLocks<T>(files: string[], task: () => Promise<T>): Promise<T> {
+  const keys = [...new Set(files)].sort();
+  const hold = async (index: number): Promise<T> => {
+    if (index === keys.length) return await task();
+    try {
+      return await withCredentialsLock(keys[index], () => hold(index + 1), INSTALL_LOCK);
+    } catch (error) {
+      if (error instanceof BrainbaseLoginError && error.code === 'login_busy') {
+        throw new Error(`Another judgment:install is changing ${files.join(' or ')}. Try again. If no judgment:install runs, remove ${keys[index]}${INSTALL_LOCK.suffix}.`);
+      }
+      throw error;
+    }
+  };
+  return await hold(0);
+}
+
+const SETTINGS_CHANGED_ATTEMPTS = 3;
+const INSTALL_SETTINGS_BACKUP_SUFFIX = '.brainbase-install-previous';
+
+// A settings symlink can be dangling precisely because its target was moved aside.
+// Each link is followed the way the system does (settingsPathAsOpened), since a
+// link's text such as `sub/../settings.json` names a file next to sub's target.
+async function installSettingsTarget(path: string): Promise<string> {
+  try {
+    return realpathSync.native(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+  const seen = new Set<string>();
+  let target = path;
+  while (!seen.has(target)) {
+    seen.add(target);
+    const destination = await readlink(target).catch((error) => {
+      if (error.code === 'ENOENT' || error.code === 'EINVAL') return null;
+      throw error;
+    });
+    if (destination === null) return target;
+    target = settingsPathAsOpened(isAbsolute(destination) ? destination : `${dirname(target)}${sep}${destination}`);
+  }
+  throw new Error(`${path} has a symbolic link loop`);
+}
+
+async function recoverInstallSettings(target: string): Promise<void> {
+  const current = await lstat(target).catch((error) => {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  });
+  if (current) return;
+
+  const directory = dirname(target);
+  const name = basename(target);
+  const entries = await readdir(directory).catch((error) => {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  });
+  // Older installers added a PID and eight hex digits before the suffix.
+  const backups = entries.filter((entry) => entry === name + INSTALL_SETTINGS_BACKUP_SUFFIX
+    || (entry.startsWith(name) && /^\.\d+\.[0-9a-f]{8}\.brainbase-install-previous$/u.test(entry.slice(name.length))));
+  if (backups.length === 0) return;
+  if (backups.length !== 1) {
+    throw new Error(`${target} has multiple judgment:install backups. Restore the correct settings file before retrying.`);
+  }
+  const backup = join(directory, backups[0]);
+  if (!(await lstat(backup)).isFile()) {
+    throw new Error(`${backup} is not a regular settings backup. Check the file before retrying.`);
+  }
+  try {
+    // A save by Claude Code made during recovery takes precedence.
+    await link(backup, target);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') return;
+    throw error;
+  }
+  await rm(backup, { force: true });
+}
+
+/**
+ * Reads `path` (following links) only when it is a regular file; null when
+ * it does not exist. It is opened without waiting (a named pipe with no
+ * writer would otherwise hold the install, and its lock, forever) and its
+ * type is taken from the opened file, so a swap after the check is caught too.
+ */
+async function readRegularFile(path: string, option: string): Promise<string | null> {
+  let handle;
+  try {
+    handle = await open(path, constants.O_RDONLY | (constants.O_NONBLOCK ?? 0));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return null;
+    throw error;
+  }
+  try {
+    if (!(await handle.stat()).isFile()) {
+      throw new Error(`judgment:install ${option} ${path} は通常のファイルではありません（名前付きパイプ、デバイス、ディレクトリなど）。何も変えずに止めました。`);
+    }
+    return await handle.readFile('utf8');
+  } finally {
+    await handle.close();
+  }
+}
+
+/** The file was saved by someone else after it was read; nothing was written over it. */
+class SettingsChangedError extends Error {}
+
+/**
+ * A file brainbase writes for another use (a hook config, a saved login)
+ * carries brainbase's schema_version. Taking it as Claude Code settings would
+ * add hooks to it, and the registration that owns it would later replace it
+ * whole and drop them.
+ */
+function brainbaseFileUse(value: Record<string, unknown>): string | null {
+  const schema = value.schema_version;
+  if (schema === CLAUDE_CODE_HOOK_CONFIG_SCHEMA) return '判断フックの設定';
+  if (schema === CREDENTIALS_SCHEMA_VERSION) return 'brainbase login の保存ファイル';
+  if (typeof schema === 'string' && schema.startsWith('brainbase')) return `brainbase のファイル（${schema}）`;
+  return null;
+}
+
+interface ClaudeCodeRegistrationPlan {
+  settingsPath: string;
+  settingsReal: string;
+  configPath: string;
+  configReal: string;
+  config: ClaudeCodeHookConfig | undefined;
+  command: string;
+  remove: boolean;
+  dryRun: boolean;
+}
+
+async function applyClaudeCodeRegistration(plan: ClaudeCodeRegistrationPlan, io: CliIo): Promise<number> {
+  const { settingsPath, settingsReal, configPath, configReal, config, command, remove, dryRun } = plan;
+  let settings: Record<string, unknown> = {};
+  // The text as read, so the write can tell whether someone saved since.
+  const settingsText = await readRegularFile(settingsPath, '--settings');
+  if (settingsText !== null) {
+    const parsedSettings: unknown = JSON.parse(settingsText);
+    if (!parsedSettings || typeof parsedSettings !== 'object' || Array.isArray(parsedSettings)) {
+      throw new Error(`Claude Code settings is not a JSON object: ${settingsPath}`);
+    }
+    settings = parsedSettings as Record<string, unknown>;
+  }
+  const otherUse = brainbaseFileUse(settings);
+  if (otherUse) {
+    throw new Error(`judgment:install --settings ${settingsPath} は${otherUse}で、Claude Code の設定ではありません。何も変えずに止めました。Claude Code の settings.json を指定してください。`);
+  }
+  // The installer only overwrites or removes a config file it wrote itself.
+  // Read once, as a regular file; the checks below use this text and do not
+  // open the path again.
+  const previousConfig = await readRegularFile(configPath, '--config');
+  const configExists = previousConfig !== null;
+  const configOwned = configExists && isClaudeCodeHookConfigText(previousConfig);
+  if (!remove && configExists && !configOwned) {
+    throw new Error(`judgment:install --config ${configPath} exists and is not a brainbase hook config; choose another path`);
+  }
+  // A hook config belongs to the one settings file that registered it. Another
+  // settings file reusing it would redirect or, on removal, stop that
+  // registration's hooks.
+  const existingConfig = configOwned ? parseClaudeCodeHookConfig(previousConfig) : null;
+  const registeredElsewhere = configOwned && (existingConfig
+    ? canonicalFilePath(existingConfig.registration.settings) !== settingsReal
+    : !hasInstalledClaudeCodeHooks(settings, configPath));
+  if (!remove && registeredElsewhere) {
+    throw new Error(`judgment:install --config ${configPath} is used by ${existingConfig?.registration.settings ?? 'another registration'}; choose another --config for ${settingsPath}`);
+  }
+  if (remove && !hasInstalledClaudeCodeHooks(settings, configPath)) {
+    throw new Error(`judgment:install --remove found no registration for ${configPath} in ${settingsPath}; nothing was changed`);
+  }
+  const removedIds = new Set<string>();
+  const next = registerClaudeCodeJudgmentHooks(settings, { command, configPath, remove, removedIds });
+  if (dryRun) {
+    // Only the change: the settings around it may hold secrets.
+    write(io, `${JSON.stringify({
+      settingsPath,
+      configPath,
+      config: config ?? null,
+      hooks: { add: remove ? [] : claudeCodeJudgmentHookGroups(command), remove_registration_ids: [...removedIds] },
+    }, null, 2)}\n`);
+    return 0;
+  }
+  if (remove) {
+    await replaceFileFollowingLinks(settingsPath, `${JSON.stringify(next, null, 2)}\n`, 0o600, settingsText);
+    // The config is deleted only when the registration it now carries was one
+    // of the commands just taken out; otherwise a command elsewhere still uses it.
+    const currentElsewhere = !!existingConfig && !removedIds.has(existingConfig.registration.id);
+    // The real file goes, not a link to it: a command that names the real
+    // path would otherwise still find its registration. The link is left.
+    if (configOwned && !registeredElsewhere && !currentElsewhere) await rm(configReal, { force: true });
+    write(io, [
+      `Claude Codeの判断フックを外しました（${settingsPath}）。`,
+      ...(configExists && !configOwned ? [`${configPath} は判断フックの設定ではないため、残しました。`] : []),
+      ...(registeredElsewhere ? [`${configPath} は ${existingConfig?.registration.settings ?? '別の登録'} の登録が使っているため、残しました。`] : []),
+      ...(!registeredElsewhere && currentElsewhere ? [`${configPath} は外した登録とは別の、いまの登録が使っているため、残しました。`] : []),
+      ''
+    ].join('\n'));
+    return 0;
+  }
+  // The config goes first: while the settings are not yet written, the new
+  // registration is not active, and an earlier one (whose command carries the
+  // old registration id) sends nothing rather than to the new destination.
+  // When writing the settings fails, the earlier config is put back, so the
+  // earlier registration keeps auditing where it did.
+  await mkdir(dirname(configPath), { recursive: true, mode: 0o700 });
+  await replaceFileFollowingLinks(configPath, `${JSON.stringify(config, null, 2)}\n`, 0o600);
+  try {
+    await replaceFileFollowingLinks(settingsPath, `${JSON.stringify(next, null, 2)}\n`, 0o600, settingsText);
+  } catch (error) {
+    try {
+      if (previousConfig === null) await rm(configPath, { force: true });
+      else await replaceFileFollowingLinks(configPath, previousConfig, 0o600);
+    } catch {
+      throw new Error(`${error instanceof Error ? error.message : String(error)}; ${configPath} could not be put back, run judgment:install again`);
+    }
+    throw error;
+  }
+  write(io, [
+    `Claude Codeの判断フックを登録しました（${settingsPath}）。`,
+    `送り先: ${config!.origin}`,
+    `project: ${config!.project_code ?? 'Hostが決める'}`,
+    `対象のリポジトリ: ${config!.repositories?.join(', ') ?? 'すべて'}`,
+    ...(await readCredentials(defaultCredentialsPath()).catch(() => null)
+      ? []
+      : ['まだログインしていません。brainbase login --server <API のURL> を実行してください。']),
+    'Claude Codeを起動し直すと有効になります。',
+    ''
+  ].join('\n'));
+  return 0;
+}
+
+/**
+ * An option the user typed must carry a value. parseArgs turns `--opt` with no
+ * value (or `--opt ''`) into a bare flag; falling back to the default there would
+ * act on a path or server the user did not choose (logout would delete the
+ * default login). Stop before touching any file or the network.
+ */
+function explicitValue(parsed: ParsedArgs, key: string, hint: string): string | undefined {
+  if (parsed.flags.has(key)) throw new Error(`--${key} には値が要ります（${hint}）。何も変えずに止めました。`);
+  // parseArgs keeps `--opt=value` whole as the key `opt=value`, so the option
+  // would look absent and the default would be used. Refuse that spelling.
+  const prefix = `${key}=`;
+  if ([...parsed.flags, ...parsed.values.keys()].some((name) => name.startsWith(prefix))) {
+    throw new Error(`--${key}=… の形は使えません。${hint} のように空白で区切ってください。何も変えずに止めました。`);
+  }
+  return first(parsed, key);
+}
+
+/**
+ * The login commands act on a saved login, so an argument they do not know must
+ * stop them. Ignoring a mistyped `--credntials other.json` would make logout fall
+ * back to the default path and delete the default login. Checked before the save
+ * path is decided, so nothing is read, removed or sent.
+ */
+function assertOnlyLoginOptions(parsed: ParsedArgs, command: string, allowed: readonly string[]): void {
+  const usageHint = `brainbase ${command} ${allowed.map((key) => `[--${key} <${key === 'server' ? 'url' : 'path'}>]`).join(' ')}`;
+  const stop = (what: string) => new Error(`${what}。${usageHint} の形で指定してください。何も変えずに止めました。`);
+  // A known option without a value (or as --opt=value) gets its own, more precise message first.
+  for (const key of allowed) explicitValue(parsed, key, `--${key} <${key === 'server' ? 'url' : 'path'}>`);
+  for (const name of [...parsed.flags, ...parsed.values.keys()]) {
+    // `--known=value` is refused by explicitValue with its own message.
+    const base = name.includes('=') ? name.slice(0, name.indexOf('=')) : name;
+    if (!allowed.includes(base)) throw stop(`${command} は --${base} というオプションを知りません`);
+  }
+  for (const [key, list] of parsed.values) {
+    if (list.length > 1) throw stop(`--${key} が${list.length}回指定されています。1回だけにしてください`);
+  }
+  if (parsed.positionals.length > 0) {
+    throw stop(`${command} は「${parsed.positionals[0]}」のような引数を取りません`);
+  }
+}
+
+function credentialsPathOf(parsed: ParsedArgs): string {
+  const path = explicitValue(parsed, 'credentials', '--credentials <path>') ?? defaultCredentialsPath();
+  assertCredentialsFilePath(path);
+  return path;
+}
+
+async function login(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  assertOnlyLoginOptions(parsed, 'login', ['credentials', 'server']);
+  const credentialsPath = credentialsPathOf(parsed);
+  const serverUrl = explicitValue(parsed, 'server', '--server <url>') ?? (await readCredentials(credentialsPath).catch(() => null))?.server_url;
+  if (!serverUrl) throw new Error('login requires --server <url> (your Brainbase API URL)');
+  const credentials = await loginWithDeviceCode({
+    serverUrl,
+    credentialsPath,
+    onPrompt: (prompt) => {
+      write(io, [
+        'ブラウザで次の URL を開き、ログインして承認してください。',
+        `  URL: ${prompt.verificationUriComplete ?? prompt.verificationUri}`,
+        ...(prompt.userCode ? [`  コード: ${prompt.userCode}`] : []),
+        `  期限: ${Math.round(prompt.expiresInSeconds / 60)} 分`,
+        '承認を待っています...',
+        ''
+      ].join('\n'));
+    }
+  });
+  write(io, `ログインしました（${credentials.server_url}）。保存先: ${credentialsPath}\n`);
+  return 0;
+}
+
+async function loginStatus(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  assertOnlyLoginOptions(parsed, 'login:status', ['credentials']);
+  const credentialsPath = credentialsPathOf(parsed);
+  const credentials = await readCredentials(credentialsPath);
+  if (!credentials) {
+    write(io, 'ログインしていません。brainbase login --server <url> を実行してください。\n');
+    return 1;
+  }
+  const expired = Date.parse(credentials.expires_at) <= Date.now();
+  write(io, [
+    `サーバー: ${credentials.server_url}`,
+    `token の期限: ${credentials.expires_at}${expired ? '（切れています）' : ''}`,
+    `自動の更新: ${credentials.refresh_token ? 'できる' : 'できない（期限が来たら brainbase login をやり直す）'}`,
+    `保存先: ${credentialsPath}`,
+    ''
+  ].join('\n'));
+  return 0;
+}
+
+async function logout(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  assertOnlyLoginOptions(parsed, 'logout', ['credentials']);
+  const credentialsPath = credentialsPathOf(parsed);
+  let removed;
+  try {
+    removed = await removeCredentials(credentialsPath);
+  } catch (error) {
+    if (error instanceof BrainbaseLoginError) throw error; // login_busy and the like say what to do.
+    // The file may be gone in memory but not on disk: do not report a logout.
+    const code = (error as NodeJS.ErrnoException)?.code ?? 'error';
+    writeError(io, `ログインを消したことを、ディスクに書き切れませんでした（${code}）。brainbase logout をやり直してください。\n`);
+    return 1;
+  }
+  write(io, removed.existed ? `この端末のログインを消しました（${credentialsPath}）。\n` : 'ログインはありませんでした。\n');
+  if (!removed.durable) {
+    writeError(io, 'この環境ではディレクトリをディスクに書き切れないため、電源が落ちると消したログインが戻ることがあります。\n');
+  }
+  return 0;
+}
+
+// Bytes are joined before decoding, so a character split across chunks stays intact.
+export async function readHookStdin(input: AsyncIterable<string | Uint8Array>, maxBytes = Number.POSITIVE_INFINITY): Promise<string> {
+  const chunks: Buffer[] = [];
+  let bytes = 0;
+  for await (const chunk of input) {
+    const buffer = typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : Buffer.from(chunk);
+    bytes += buffer.length;
+    if (bytes > maxBytes) throw new Error('judgment_hook_payload_too_large');
+    chunks.push(buffer);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+// The real path of a file, or of its nearest existing parent joined with the
+// rest, so two spellings of one file (symlinks, `..`) compare equal.
+/**
+ * Replaces the file at `path` atomically. When `path` is a symbolic link, the
+ * file it points to is replaced and the link stays; a link to nothing is
+ * refused. A file that exists keeps its mode; a new one gets `mode`.
+ *
+ * With `expected` (the text read earlier, or null for "did not exist"), the
+ * file is only replaced while it still holds that text (swapInIfUnchanged);
+ * otherwise a save made since stays and SettingsChangedError is thrown.
+ */
+async function replaceFileFollowingLinks(path: string, content: string, mode: number, expected?: string | null): Promise<void> {
+  let target = resolve(path);
+  let targetMode = mode;
+  try {
+    target = await realpath(target);
+    targetMode = (await stat(target)).mode & 0o777;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== 'ENOENT') throw error;
+    const link = await lstat(target).catch(() => null);
+    if (link?.isSymbolicLink()) throw new Error(`${path} is a symbolic link to a missing file; nothing was changed`);
+    await mkdir(dirname(target), { recursive: true });
+  }
+  const temporary = `${target}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
+  try {
+    await writeFile(temporary, content, { mode: targetMode, flag: 'wx' });
+    await chmod(temporary, targetMode);
+    if (expected === undefined) await rename(temporary, target);
+    else {
+      await swapInIfUnchanged(path, target, temporary, content, expected);
+      await rm(temporary, { force: true });
+    }
+  } catch (error) {
+    await rm(temporary, { force: true });
+    throw error;
+  }
+}
+
+/**
+ * Puts `temporary` at `target` only when `target` still holds `expected`.
+ * Claude Code saves its settings without our lock, and rename() replaces
+ * whatever is there, so a check followed by rename() would overwrite a save
+ * made in between. Instead the file there is first moved aside (rename is
+ * atomic, so exactly the file present at that moment is taken), ours is
+ * placed with link(), which never replaces a file, and only then is the
+ * file taken out compared. The rule is that a save someone else made always
+ * stays: when what was taken out is not what was read, it goes back; when a
+ * file appeared at `target` meanwhile, that file stays and ours is dropped.
+ * Either way SettingsChangedError is thrown and the caller starts again from
+ * the saved file. Nothing here replaces a file that is not ours.
+ */
+async function swapInIfUnchanged(path: string, target: string, temporary: string, content: string, expected: string | null): Promise<void> {
+  const changed = () => new SettingsChangedError(`${path} was saved by someone else while it was being changed; nothing was written over it`);
+  const tag = `${process.pid}.${randomBytes(4).toString('hex')}`;
+  // A file system without hard links fails here, before the settings are touched.
+  const probe = `${temporary}.link`;
+  await link(temporary, probe);
+  await rm(probe, { force: true });
+  const placeOurs = async (): Promise<boolean> => {
+    try {
+      await link(temporary, target);
+      return true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code === 'EEXIST') return false;
+      throw error;
+    }
+  };
+  if (expected === null) {
+    if (!(await placeOurs())) throw changed();
+  } else {
+    const aside = target + INSTALL_SETTINGS_BACKUP_SUFFIX;
+    // rename() replaces whatever is at `aside`. A file already there is a
+    // backup from an earlier run that someone may still need; keep it.
+    if (await lstat(aside).then(() => true, (error) => {
+      if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return false;
+      throw error;
+    })) {
+      throw new Error(`${aside} が残っているため、上書きせずに止めました。中身を確かめて、要らなければ消してから、もう一度実行してください。${path} は変えていません。`);
+    }
+    try {
+      await rename(target, aside);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') throw changed();
+      throw error;
+    }
+    let placed: boolean;
+    try {
+      placed = await placeOurs();
+    } catch (error) {
+      await putBackIfFree(aside, target).catch(() => rename(aside, target));
+      throw error;
+    }
+    if (!placed) {
+      // Saved while the file was aside: that save is the newest and stays.
+      await rm(aside, { force: true });
+      throw changed();
+    }
+    const taken = await readFile(aside, 'utf8');
+    if (taken !== expected) {
+      // What was taken out is a save made after our read. Take ours out again
+      // and give that save back, unless an even newer one has replaced ours.
+      const ours = `${target}.${tag}.brainbase-install-ours`;
+      await rename(target, ours).catch(() => undefined);
+      const back = await readFile(ours, 'utf8').catch(() => null);
+      if (back === null || back === content) await putBackIfFree(aside, target);
+      else await putBackIfFree(ours, target);
+      await rm(ours, { force: true });
+      await rm(aside, { force: true });
+      throw changed();
+    }
+    await rm(aside, { force: true });
+  }
+  // A writer that replaces the file in place right after ours was placed
+  // leaves its own text; start again from it so the hooks are not missing.
+  if ((await readFile(target, 'utf8').catch(() => null)) !== content) throw changed();
+}
+
+/** Puts `from` back at `target` unless a file has appeared there; `from` is then left to the caller. */
+async function putBackIfFree(from: string, target: string): Promise<void> {
+  try {
+    await link(from, target);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code !== 'EEXIST') throw error;
+  }
+  await rm(from, { force: true });
 }
 
 function textOrJsonFormat(parsed: ParsedArgs, command: string): 'text' | 'json' {
@@ -1208,10 +1896,12 @@ function parseArgs(argv: string[]): ParsedArgs {
   const rest = command ? remaining : argv;
   const values = new Map<string, string[]>();
   const flags = new Set<string>();
+  const positionals: string[] = [];
 
   for (let index = 0; index < rest.length; index += 1) {
     const token = rest[index];
     if (!token?.startsWith('--')) {
+      if (token !== undefined) positionals.push(token);
       continue;
     }
     const key = token.slice(2);
@@ -1227,7 +1917,8 @@ function parseArgs(argv: string[]): ParsedArgs {
   return {
     command,
     values,
-    flags
+    flags,
+    positionals
   };
 }
 
@@ -1350,7 +2041,12 @@ function usage(): string {
   brainbase memory:register --id id [--id id...] [--dir path] [--write] [--format text|json]
   brainbase ontology:migrate [--dir path] [--write --expected-input-digest digest]
   brainbase judgment:install --target codex [--autonomy-mode off|canary|on] [--autonomy-project code] [--dry-run] [--output path]
+  brainbase judgment:install --target claude-code --origin url [--server url] [--project code] [--repositories name,name] [--settings path] [--config path] [--dry-run] [--remove]
+  brainbase judgment:claude-code-hook [--config path]
   brainbase judgment:hook [--autonomy-mode off|canary|on] [--autonomy-project code]
+  brainbase login --server url [--credentials path]
+  brainbase login:status [--credentials path]
+  brainbase logout [--credentials path]
   brainbase doctor [--dir path] [--judgment-hooks path]
   brainbase web:serve [--dir path] [--journal path] [--port n] [--world [--world-vocabulary file]]
   brainbase review:serve [--dir path] [--journal path] [--port n]  （web:serveの別名）

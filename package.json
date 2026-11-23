@@ -175,6 +175,10 @@
       "types": "./dist/company-os-objectives.d.ts",
       "import": "./dist/company-os-objectives.js"
     },
+    "./claude-code-judgment-hook": {
+      "types": "./dist/claude-code-judgment-hook.d.ts",
+      "import": "./dist/claude-code-judgment-hook.js"
+    },
     "./company-os-evaluation": {
       "types": "./dist/company-os-evaluation.d.ts",
       "import": "./dist/company-os-evaluation.js"
@@ -294,6 +298,10 @@
     "./ontology-release-trust": {
       "types": "./dist/ontology-release-trust.d.ts",
       "import": "./dist/ontology-release-trust.js"
+    },
+    "./brainbase-login": {
+      "types": "./dist/brainbase-login.d.ts",
+      "import": "./dist/brainbase-login.js"
     },
     "./canonical-document-writer": {
       "types": "./dist/canonical-document-writer.d.ts",
