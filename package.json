@@ -379,6 +379,10 @@
       "types": "./dist/mcp-runtime.d.ts",
       "import": "./dist/mcp-runtime.js"
     },
+    "./mcp-tool-schema-portability": {
+      "types": "./dist/mcp-tool-schema-portability.d.ts",
+      "import": "./dist/mcp-tool-schema-portability.js"
+    },
     "./durable-waits": {
       "types": "./dist/durable-waits.d.ts",
       "import": "./dist/durable-waits.js"
