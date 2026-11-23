@@ -36,7 +36,9 @@
 
    `login:status`に、サーバーとtokenの期限が出れば成功です。tokenそのものは表示されません。
 
-4. Claude Codeにフックを登録する。
+4. Claude Codeをすべて終了してから、ターミナルのシェルでフックを登録する。
+
+   Claude Codeが同時に `settings.json` を保存すると、権限やフックの変更が失われることがあります。コマンドが終わるまでClaude Codeを起動しないでください。
 
    ```sh
    brainbase judgment:install --target claude-code --origin <MCP> --server <API>
@@ -89,6 +91,8 @@ Claude Codeの画面に`⚠️ Brainbase判断フック:`で始まる警告が�
 - `judgment_turn_destination_changed`: ターンの途中で設定ファイルの送り先かprojectが変わった。回答は送っていない。次の依頼から新しい送り先に送る。
 
 ## やめるとき
+
+Claude Codeをすべて終了してから、ターミナルのシェルで次のコマンドを実行します。
 
 ```sh
 brainbase judgment:install --target claude-code --remove
