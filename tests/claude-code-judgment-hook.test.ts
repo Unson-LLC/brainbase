@@ -518,6 +518,22 @@ describe('judgment:install --target claude-code', () => {
     expect(JSON.parse(await readFile(other, 'utf8'))).toEqual({ env: { PROFILE: 'other' } });
   });
 
+  it.skipIf(process.platform === 'win32')('recovers a settings file whose name ends with a backslash on POSIX', async () => {
+    const dir = await tempDir();
+    const real = join(dir, 'settings.json\\');
+    await writeFile(real, JSON.stringify({ fixture: 'previous' }));
+    await symlink('settings.json\\', join(dir, 'link.json'));
+    const args = [
+      'judgment:install', '--target', 'claude-code', '--origin', 'https://mcp.example.net', '--server', 'https://api.example.net',
+      '--settings', join(dir, 'link.json'), '--config', join(dir, 'hook.json'),
+    ];
+    expect(await runCli(args, capture().io)).toBe(0);
+    // The state right after an install moved the settings aside and stopped.
+    await rename(real, `${real}.brainbase-install-previous`);
+    expect(await runCli(args, capture().io)).toBe(0);
+    expect(JSON.parse(await readFile(real, 'utf8')).fixture).toBe('previous');
+  });
+
   it('stops instead of writing over a settings backup left by an earlier run', async () => {
     const dir = await tempDir();
     const settings = join(dir, 'settings.json');
