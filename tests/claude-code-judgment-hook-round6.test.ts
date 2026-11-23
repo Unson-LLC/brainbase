@@ -137,6 +137,28 @@ describe('a saved repository list reads back the same', () => {
 });
 
 describe('removing through a link to the hook config', () => {
+  it('registers again through the same config link after removal', async () => {
+    const dir = await tempDir();
+    const settings = join(dir, 'settings.json');
+    const real = join(dir, 'real', 'hook.json');
+    const link = join(dir, 'links', 'hook.json');
+    const base = ['judgment:install', '--target', 'claude-code', '--settings', settings];
+    const install = [...base, '--origin', 'https://mcp.example.net', '--server', 'https://api.example.net'];
+    expect(await runCli([...install, '--config', real], capture().io)).toBe(0);
+    const id = readClaudeCodeHookConfig(real)!.registration.id;
+    await mkdir(join(dir, 'links'));
+    await symlink('../real/hook.json', link);
+
+    expect(await runCli([...base, '--remove', '--config', link], capture().io)).toBe(0);
+    expect(readClaudeCodeHookConfig(real)).toBeNull();
+    expect(await runCli([...install, '--config', link], capture().io)).toBe(0);
+    expect((await lstat(link)).isSymbolicLink()).toBe(true);
+    const config = readClaudeCodeHookConfig(real);
+    expect(config).not.toBeNull();
+    expect(config!.registration.id).not.toBe(id);
+    expect(await readFile(settings, 'utf8')).toContain(config!.registration.id);
+  });
+
   it('invalidates the registration in the real file', async () => {
     const dir = await tempDir();
     const settings = join(dir, 'settings.json');

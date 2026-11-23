@@ -12,7 +12,7 @@ import {
   selectLocalMemories
 } from './personal-memory-handover.js';
 import { createHash, randomBytes } from 'node:crypto';
-import { constants, realpathSync } from 'node:fs';
+import { constants, readlinkSync, realpathSync } from 'node:fs';
 import { access, chmod, link, lstat, mkdir, open, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
@@ -336,6 +336,25 @@ function assertClaudeCodeInstallOptions(parsed: ParsedArgs): void {
   }
 }
 
+// Removal leaves the config link in place. Resolve its missing target before
+// checking for file conflicts and taking the install locks.
+function resolveHookConfigPath(path: string): string {
+  try {
+    return realpathSync.native(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+  const canonical = canonicalFilePath(path);
+  let target: string;
+  try {
+    target = readlinkSync(canonical);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return canonical;
+    throw error;
+  }
+  return resolveHookConfigPath(resolve(dirname(canonical), target));
+}
+
 async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise<number> {
   assertClaudeCodeInstallOptions(parsed);
   // `--opt=value` or a bare `--opt` would otherwise fall back to the default
@@ -345,7 +364,7 @@ async function judgmentInstallClaudeCode(parsed: ParsedArgs, io: CliIo): Promise
   // Absolute, because the registered command carries it to every hook run.
   const configPath = resolve(explicitValue(parsed, 'config', '--config <path>') ?? defaultClaudeCodeHookConfigPath());
   const settingsReal = canonicalFilePath(settingsPath);
-  const configReal = canonicalFilePath(configPath);
+  const configReal = resolveHookConfigPath(configPath);
   if (settingsReal === configReal) {
     throw new Error('judgment:install --settings and --config must be different files');
   }
@@ -527,7 +546,7 @@ async function applyClaudeCodeRegistration(plan: ClaudeCodeRegistrationPlan, io:
   // The installer only overwrites or removes a config file it wrote itself.
   // Read once, as a regular file; the checks below use this text and do not
   // open the path again.
-  const previousConfig = await readRegularFile(configPath, '--config');
+  const previousConfig = await readRegularFile(configReal, '--config');
   const configExists = previousConfig !== null;
   const configOwned = configExists && isClaudeCodeHookConfigText(previousConfig);
   if (!remove && configExists && !configOwned) {
@@ -580,14 +599,14 @@ async function applyClaudeCodeRegistration(plan: ClaudeCodeRegistrationPlan, io:
   // old registration id) sends nothing rather than to the new destination.
   // When writing the settings fails, the earlier config is put back, so the
   // earlier registration keeps auditing where it did.
-  await mkdir(dirname(configPath), { recursive: true, mode: 0o700 });
-  await replaceFileFollowingLinks(configPath, `${JSON.stringify(config, null, 2)}\n`, 0o600);
+  await mkdir(dirname(configReal), { recursive: true, mode: 0o700 });
+  await replaceFileFollowingLinks(configReal, `${JSON.stringify(config, null, 2)}\n`, 0o600);
   try {
     await replaceFileFollowingLinks(settingsPath, `${JSON.stringify(next, null, 2)}\n`, 0o600, settingsText);
   } catch (error) {
     try {
-      if (previousConfig === null) await rm(configPath, { force: true });
-      else await replaceFileFollowingLinks(configPath, previousConfig, 0o600);
+      if (previousConfig === null) await rm(configReal, { force: true });
+      else await replaceFileFollowingLinks(configReal, previousConfig, 0o600);
     } catch {
       throw new Error(`${error instanceof Error ? error.message : String(error)}; ${configPath} could not be put back, run judgment:install again`);
     }
