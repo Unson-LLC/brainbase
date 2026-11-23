@@ -85,6 +85,10 @@ export interface GraphRetrievalResponse {
   };
   candidates: GraphRetrievalCandidate[];
   results: GraphRetrievalCandidate[];
+  /** Total number of active entities in the resolved retrieval scope (denominator). Always set by retrieveGraph; optional for backward compatibility with older responses. */
+  totalScopedCount?: number;
+  /** Number of candidate results actually returned in this response. Always set by retrieveGraph; optional for backward compatibility with older responses. */
+  returnedCount?: number;
   observedRelations: ObservedRelation[];
   /** Alias kept explicit for consumers that call this a relation catalog. */
   observedRelationCatalog: ObservedRelation[];
@@ -225,6 +229,8 @@ export async function retrieveGraph(
     },
     candidates,
     results: candidates,
+    totalScopedCount: scoped.length,
+    returnedCount: candidates.length,
     observedRelations,
     observedRelationCatalog,
     traversal: {
@@ -552,6 +558,8 @@ function migrationResponse(input: GraphRetrievalInput & { asOf: string; limit: n
     semantic: { available: false, method: 'seed' },
     candidates: empty,
     results: empty,
+    totalScopedCount: 0,
+    returnedCount: 0,
     observedRelations: [],
     observedRelationCatalog: [],
     traversal: { seedIds: [], steps: input.steps, maxSeeds: GRAPH_RETRIEVAL_MAX_SEEDS, maxSteps: GRAPH_RETRIEVAL_MAX_STEPS, maxLimit: GRAPH_RETRIEVAL_MAX_LIMIT },

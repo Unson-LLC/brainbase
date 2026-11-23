@@ -19,6 +19,21 @@ import {
   type ServerRequest,
   type Tool
 } from '@modelcontextprotocol/sdk/types.js';
+import {
+  assertMcpToolSchemasPortable,
+  normalizeMcpToolForPortability,
+  normalizeMcpToolInputSchemaForPortability,
+  validateMcpToolSchemaPortability,
+  type McpToolSchemaPortabilityIssue
+} from './mcp-tool-schema-portability.js';
+
+export {
+  assertMcpToolSchemasPortable,
+  normalizeMcpToolForPortability,
+  normalizeMcpToolInputSchemaForPortability,
+  validateMcpToolSchemaPortability,
+  type McpToolSchemaPortabilityIssue
+};
 
 export const MCP_RUNTIME_CONTRACT_VERSION = 'mcp_runtime.v1' as const;
 
@@ -103,7 +118,7 @@ function cloneToolDefinition(definition: Tool): Tool {
     throw new McpRuntimeContractError('tool.definition.inputSchema');
   }
   try {
-    return structuredClone(definition);
+    return normalizeMcpToolForPortability(structuredClone(definition));
   } catch {
     throw new McpRuntimeContractError('tool.definition', 'tool definition must be structured-cloneable');
   }
