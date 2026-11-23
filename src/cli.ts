@@ -349,16 +349,19 @@ function settingsPathAsOpened(path: string): string {
   if (/[\\/]$/u.test(path)) {
     throw new Error(`--settings ${path} は末尾が / で、ファイルを指していないため止めました。settings.json のパスを指定してください。何も変えていません。`);
   }
-  const absolute = isAbsolute(path) ? path : `${process.cwd()}${sep}${path}`;
+  return pathAsOpened(isAbsolute(path) ? path : `${process.cwd()}${sep}${path}`, () => new Error(
+    `--settings ${path} の途中に、まだ無いディレクトリと .. があり、どのファイルを開くかを決められないため止めました。.. を含まないパスか、ディレクトリがそろったパスを指定してください。何も変えていません。`,
+  ));
+}
+
+function pathAsOpened(absolute: string, ambiguous: () => Error): string {
   const name = basename(absolute);
   if (name === '' || name === '.' || name === '..') return resolve(absolute);
   try {
     return join(realpathSync.native(dirname(absolute)), name);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    if (absolute.split(/[\\/]/u).includes('..')) {
-      throw new Error(`--settings ${path} の途中に、まだ無いディレクトリと .. があり、どのファイルを開くかを決められないため止めました。.. を含まないパスか、ディレクトリがそろったパスを指定してください。何も変えていません。`);
-    }
+    if (absolute.split(/[\\/]/u).includes('..')) throw ambiguous();
     return resolve(absolute);
   }
 }
@@ -491,8 +494,9 @@ const SETTINGS_CHANGED_ATTEMPTS = 3;
 const INSTALL_SETTINGS_BACKUP_SUFFIX = '.brainbase-install-previous';
 
 // A settings symlink can be dangling precisely because its target was moved aside.
-// Each link is followed the way the system does (settingsPathAsOpened), since a
-// link's text such as `sub/../settings.json` names a file next to sub's target.
+// Each link is followed the way the system does (pathAsOpened), since a link's
+// text such as `sub/../settings.json` or `link/../settings.json` names a file
+// reached through sub's or link's target (UNS-656, UNS-5603).
 async function installSettingsTarget(path: string): Promise<string> {
   try {
     return realpathSync.native(path);
@@ -508,7 +512,10 @@ async function installSettingsTarget(path: string): Promise<string> {
       throw error;
     });
     if (destination === null) return target;
-    target = settingsPathAsOpened(isAbsolute(destination) ? destination : `${dirname(target)}${sep}${destination}`);
+    target = canonicalFilePath(pathAsOpened(
+      isAbsolute(destination) ? destination : `${dirname(target)}${sep}${destination}`,
+      () => new Error(`${path} のリンクの先 ${destination} の途中に、まだ無いディレクトリと .. があり、どのファイルかを決められないため止めました。何も変えていません。`),
+    ));
   }
   throw new Error(`${path} has a symbolic link loop`);
 }
