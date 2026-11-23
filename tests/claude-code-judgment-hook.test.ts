@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Readable } from 'node:stream';
@@ -483,6 +483,39 @@ describe('judgment:install --target claude-code', () => {
     expect(out.stderr()).toContain('まだ無いディレクトリと ..');
     expect(JSON.parse(await readFile(join(dir, 'real', 'settings.json'), 'utf8'))).toEqual({ env: { PROFILE: 'selected' } });
     expect(JSON.parse(await readFile(join(dir, 'alias', 'settings.json'), 'utf8'))).toEqual({ env: { PROFILE: 'other' } });
+  });
+
+  it('recovers settings behind a link whose text has .. after another link', async () => {
+    const dir = await tempDir();
+    await mkdir(join(dir, 'alias'));
+    await mkdir(join(dir, 'real', 'child'), { recursive: true });
+    await symlink('../real/child', join(dir, 'alias', 'sub'));
+    await symlink('sub/../settings.json', join(dir, 'alias', 'link.json'));
+    const real = join(dir, 'real', 'settings.json');
+    await writeFile(real, JSON.stringify({ fixture: 'previous' }));
+    const args = [
+      'judgment:install', '--target', 'claude-code', '--origin', 'https://mcp.example.net', '--server', 'https://api.example.net',
+      '--settings', join(dir, 'alias', 'link.json'), '--config', join(dir, 'hook.json'),
+    ];
+    expect(await runCli(args, capture().io)).toBe(0);
+    // The state right after an install moved the settings aside and stopped.
+    await rename(real, `${real}.brainbase-install-previous`);
+    expect(await runCli(args, capture().io)).toBe(0);
+    expect(JSON.parse(await readFile(real, 'utf8')).fixture).toBe('previous');
+    await expect(readFile(`${real}.brainbase-install-previous`, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('stops on a --settings path that ends with a slash', async () => {
+    const dir = await tempDir();
+    const other = join(dir, 'other.json');
+    await writeFile(other, JSON.stringify({ env: { PROFILE: 'other' } }));
+    const out = capture();
+    expect(await runCli([
+      'judgment:install', '--target', 'claude-code', '--origin', 'https://mcp.example.net', '--server', 'https://api.example.net',
+      '--settings', `${other}/`, '--config', join(dir, 'hook.json'),
+    ], out.io)).toBe(1);
+    expect(out.stderr()).toContain('末尾が /');
+    expect(JSON.parse(await readFile(other, 'utf8'))).toEqual({ env: { PROFILE: 'other' } });
   });
 
   it('stops instead of writing over a settings backup left by an earlier run', async () => {
