@@ -4,6 +4,10 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
+## Candidate — v0.50.26（npm公開前）
+
+議事録がまだないとき、ホストが指定した案内を議事録テーブルに表示できるようにするパッチ更新候補です（#1039）。検索や絞り込みで該当する議事録がないときは、従来の文言を表示します。npm公開と利用ホストへの配備は別途確認します。
+
 ## Candidate — v0.50.25（npm公開前）
 
 0.50.24に、本人が端末から `brainbase login` でログインし、tokenを手元に保存して自動で更新する公開subpath `brainbase-login`（#1041）と、Claude Codeの判断フックを公開パッケージに入れて `judgment:install --target claude-code` で登録する公開subpath `claude-code-judgment-hook`（#1042）を加えるpatch更新候補です。既存の公開API、MCPツール、認証・権限の契約は変更しません。npm公開と利用ホストへの配備は別途確認します。

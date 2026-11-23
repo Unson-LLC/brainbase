@@ -2,6 +2,10 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
+## 0.50.26 candidate — npm公開前
+
+- 議事録テーブルで、議事録がまだないときの案内をホストから指定できるようにする（#1039）。検索や絞り込みで該当件数がゼロのときは、従来の文言を表示する。
+
 ## 0.50.25 candidate — npm公開前
 
 - 0.50.24に、`brainbase login` で本人のtokenを手元に保存して自動で更新する公開subpath `brainbase-login`（#1041）と、Claude Codeの判断フックを `judgment:install --target claude-code` で登録する公開subpath `claude-code-judgment-hook`（#1042）を加えるpatch更新候補。
