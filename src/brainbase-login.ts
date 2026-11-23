@@ -17,6 +17,16 @@ import { basename, dirname, join, sep } from 'node:path';
 import { promisify } from 'node:util';
 
 export const CREDENTIALS_SCHEMA_VERSION = 'brainbase-credentials-v1';
+export const MCP_OAUTH_DEFAULT_SCOPE = 'brainbase.graph.read';
+export const MCP_OAUTH_ALLOWED_SCOPES = ['brainbase.graph.read', 'brainbase.graph.directory'] as const;
+export const MCP_DEVICE_FLOW_CLIENT_ID = 'device_flow_mcp';
+export const MCP_TENANT_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/u;
+const MCP_RESOURCE_PATH_PATTERN = /^\/runtime-mcp(?:\/t\/([a-z0-9][a-z0-9_-]{0,63}))?\/mcp$/u;
+const MCP_OAUTH_ALLOWED_SCOPE_SET = new Set<string>(MCP_OAUTH_ALLOWED_SCOPES);
+const MCP_CLIENT_NAME_PREFIX = 'brainbase-cli';
+const MCP_CLIENT_NAME_MAX_LENGTH = 80;
+
+export type BrainbaseTokenKind = 'mcp_oauth';
 
 export interface BrainbaseCredentials {
   schema_version: typeof CREDENTIALS_SCHEMA_VERSION;
@@ -31,6 +41,30 @@ export interface BrainbaseCredentials {
   refresh_token?: string;
   /** ISO time at which the access token stops being accepted. */
   expires_at: string;
+  /** Present for remote MCP OAuth Device Flow logins; omitted for legacy person JWT logins. */
+  token_kind?: BrainbaseTokenKind;
+  organization_id?: string;
+  tenant_id?: string;
+  scope?: string;
+  resource?: string;
+}
+
+export interface McpLoginOptions {
+  /** Tenant slug or canonical `ten_...` identifier. */
+  tenant?: string;
+  /** Space-separated subset of allowed MCP OAuth scopes (defaults to `brainbase.graph.read`). */
+  scope?: string;
+  /** Explicit MCP resource URL (`/runtime-mcp/mcp` or `/runtime-mcp/t/<tenant>/mcp`). */
+  resource?: string;
+  /** Optional display name sent to `/api/auth/device/code` (1..80 chars). */
+  clientName?: string;
+}
+
+export interface ResolvedMcpLoginConfig {
+  scope: string;
+  resource: string;
+  clientName: string;
+  tenant?: string;
 }
 
 export interface DeviceAuthorizationPrompt {
@@ -45,6 +79,8 @@ type FetchLike = typeof fetch;
 export interface LoginOptions {
   serverUrl: string;
   credentialsPath?: string;
+  /** When set, uses the remote MCP OAuth Device Flow instead of the legacy person JWT flow. */
+  mcp?: boolean | McpLoginOptions;
   fetch?: FetchLike;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
@@ -102,6 +138,107 @@ export function normalizeServerUrl(value: string): string {
   return url.origin;
 }
 
+export function normalizeMcpTenant(value: string): string {
+  if (!MCP_TENANT_PATTERN.test(value)) {
+    throw new BrainbaseLoginError(
+      'login_mcp_tenant_invalid',
+      `Invalid --tenant value ${JSON.stringify(value)}. Expected /^[a-z0-9][a-z0-9_-]{0,63}$/.`,
+    );
+  }
+  return value;
+}
+
+export function normalizeMcpScope(value?: string): string {
+  if (value === undefined) return MCP_OAUTH_DEFAULT_SCOPE;
+  if (/[\u0000-\u001f\u007f]/u.test(value)) {
+    throw new BrainbaseLoginError(
+      'login_mcp_scope_invalid',
+      `Invalid --scope value. Allowed scopes: ${MCP_OAUTH_ALLOWED_SCOPES.join(', ')}.`,
+    );
+  }
+  const tokens = value.trim().split(/\s+/u).filter(Boolean);
+  if (tokens.length === 0 || tokens.some((token) => !MCP_OAUTH_ALLOWED_SCOPE_SET.has(token))) {
+    throw new BrainbaseLoginError(
+      'login_mcp_scope_invalid',
+      `Invalid --scope value ${JSON.stringify(value)}. Allowed scopes: ${MCP_OAUTH_ALLOWED_SCOPES.join(', ')}.`,
+    );
+  }
+  return [...new Set(tokens)].join(' ');
+}
+
+export function normalizeMcpResourceUrl(value: string): string {
+  const raw = value.trim();
+  if (!raw || /[\u0000-\u001f\u007f\\]/u.test(raw)) {
+    throw new BrainbaseLoginError('login_mcp_resource_invalid', `Invalid MCP resource URL: ${value}`);
+  }
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new BrainbaseLoginError('login_mcp_resource_invalid', `Not a URL: ${value}`);
+  }
+  const loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname);
+  if (!(url.protocol === 'https:' || (url.protocol === 'http:' && loopback))) {
+    throw new BrainbaseLoginError('login_mcp_resource_transport_unsafe', 'The MCP resource URL must use https (http is allowed only for localhost).');
+  }
+  if (url.username || url.password || url.search || url.hash || raw.includes('?') || raw.includes('#')) {
+    throw new BrainbaseLoginError('login_mcp_resource_invalid', 'The MCP resource URL must not contain credentials, query parameters, or fragments.');
+  }
+  const authorityMatch = /^https?:\/\/[^/?#]+(\/[^?#]*)?$/iu.exec(raw);
+  if (!authorityMatch || authorityMatch[1] !== url.pathname || !MCP_RESOURCE_PATH_PATTERN.test(url.pathname)) {
+    throw new BrainbaseLoginError(
+      'login_mcp_resource_invalid',
+      'The MCP resource URL path must be /runtime-mcp/mcp or /runtime-mcp/t/<tenant>/mcp.',
+    );
+  }
+  return `${url.origin}${url.pathname}`;
+}
+
+export function buildMcpClientName(customName?: string): string {
+  const sanitize = (raw: string) => raw.replace(/[\u0000-\u001f\u007f]+/gu, ' ').replace(/\s+/gu, ' ').trim();
+  if (customName !== undefined) {
+    const cleaned = sanitize(customName);
+    if (!cleaned) {
+      throw new BrainbaseLoginError('login_mcp_client_name_invalid', 'MCP client_name must not be empty.');
+    }
+    return cleaned.slice(0, MCP_CLIENT_NAME_MAX_LENGTH);
+  }
+  const host = sanitize(hostname());
+  if (!host) return MCP_CLIENT_NAME_PREFIX;
+  const maxHostLength = MCP_CLIENT_NAME_MAX_LENGTH - MCP_CLIENT_NAME_PREFIX.length - 3;
+  return `${MCP_CLIENT_NAME_PREFIX} (${host.slice(0, maxHostLength)})`;
+}
+
+export function resolveMcpLoginConfig(serverUrl: string, options: McpLoginOptions = {}): ResolvedMcpLoginConfig {
+  const origin = normalizeServerUrl(serverUrl);
+  const tenant = options.tenant !== undefined ? normalizeMcpTenant(options.tenant) : undefined;
+  const scope = normalizeMcpScope(options.scope);
+  let resource: string;
+  if (options.resource !== undefined) {
+    resource = normalizeMcpResourceUrl(options.resource);
+    if (tenant !== undefined) {
+      const resourceTenant = MCP_RESOURCE_PATH_PATTERN.exec(new URL(resource).pathname)?.[1];
+      if (resourceTenant !== tenant) {
+        throw new BrainbaseLoginError(
+          'login_mcp_resource_tenant_mismatch',
+          `--resource (${resource}) does not match --tenant (${tenant}).`,
+        );
+      }
+    }
+  } else if (tenant !== undefined) {
+    resource = `${origin}/runtime-mcp/t/${tenant}/mcp`;
+  } else {
+    resource = `${origin}/runtime-mcp/mcp`;
+  }
+  const clientName = buildMcpClientName(options.clientName);
+  return {
+    scope,
+    resource,
+    clientName,
+    ...(tenant !== undefined ? { tenant } : {}),
+  };
+}
+
 function defaultSleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -141,6 +278,22 @@ async function postJson(
     method: 'POST',
     headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify(body),
+    redirect: 'error',
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  return readJson(response);
+}
+
+async function postForm(
+  fetchImpl: FetchLike,
+  url: string,
+  params: Record<string, string>,
+  headers: Record<string, string> = {},
+): Promise<JsonResult> {
+  const response = await fetchImpl(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', ...headers },
+    body: new URLSearchParams(params).toString(),
     redirect: 'error',
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
   });
@@ -196,7 +349,7 @@ export function jwtExpiryMs(token: string): number | undefined {
 function expiryIso(token: string, expiresInSeconds: unknown, now: number): string {
   const fromToken = jwtExpiryMs(token);
   if (fromToken !== undefined) return new Date(fromToken).toISOString();
-  if (typeof expiresInSeconds === 'number' && expiresInSeconds > 0) {
+  if (typeof expiresInSeconds === 'number' && Number.isFinite(expiresInSeconds) && expiresInSeconds > 0) {
     return new Date(now + expiresInSeconds * 1000).toISOString();
   }
   throw new BrainbaseLoginError('login_token_expiry_missing', 'The server did not say when the token expires. Nothing was saved.');
@@ -330,6 +483,21 @@ function parseCredentials(text: string, path: string): BrainbaseCredentials {
     throw unusable();
   }
   if (normalized !== value.server_url) throw unusable();
+  if (value.token_kind !== undefined && value.token_kind !== 'mcp_oauth') throw unusable();
+  for (const key of ['organization_id', 'tenant_id', 'scope'] as const) {
+    const field = value[key];
+    if (field !== undefined && (typeof field !== 'string' || !field.trim())) throw unusable();
+  }
+  if (value.resource !== undefined) {
+    if (typeof value.resource !== 'string') throw unusable();
+    let normalizedResource: string;
+    try {
+      normalizedResource = normalizeMcpResourceUrl(value.resource);
+    } catch {
+      throw unusable();
+    }
+    if (normalizedResource !== value.resource) throw unusable();
+  }
   return value as BrainbaseCredentials;
 }
 
@@ -1314,6 +1482,9 @@ export async function loginWithDeviceCode(options: LoginOptions): Promise<Brainb
   const now = options.now ?? Date.now;
   const sleep = options.sleep ?? defaultSleep;
   const serverUrl = normalizeServerUrl(options.serverUrl);
+  const mcpConfig = options.mcp
+    ? resolveMcpLoginConfig(serverUrl, options.mcp === true ? {} : options.mcp)
+    : undefined;
   const credentialsPath = options.credentialsPath ?? defaultCredentialsPath();
   const codeVerifier = randomBytes(32).toString('base64url');
   // A folder that cannot hold the lock would only fail after the approval.
@@ -1328,12 +1499,23 @@ export async function loginWithDeviceCode(options: LoginOptions): Promise<Brainb
     start = await postJson(fetchImpl, `${serverUrl}/api/auth/device/code`, {
       code_verifier: codeVerifier,
       receipt_required: true,
+      ...(mcpConfig ? {
+        scope: mcpConfig.scope,
+        resource: mcpConfig.resource,
+        client_name: mcpConfig.clientName,
+      } : {}),
     });
   } catch {
     throw new BrainbaseLoginError('login_server_unreachable', `Cannot reach ${serverUrl}. Nothing was saved.`);
   }
   if (start.status === 404) {
     throw new BrainbaseLoginError('login_device_flow_unavailable', `${serverUrl} does not offer terminal login (HTTP 404). Nothing was saved.`);
+  }
+  if (start.json?.error === 'device_mcp_flow_disabled') {
+    throw new BrainbaseLoginError(
+      'login_device_mcp_flow_disabled',
+      'このサーバーでは遠隔 MCP Device Flow ログインが無効になっています（device_mcp_flow_disabled）。サーバー管理者に BRAINBASE_MCP_OAUTH_DEVICE_FLOW_ENABLED の設定を確認してください。何も保存していません。',
+    );
   }
   const deviceCode = start.json?.device_code;
   const verificationUri = start.json?.verification_uri;
@@ -1379,6 +1561,12 @@ export async function loginWithDeviceCode(options: LoginOptions): Promise<Brainb
       if (error === 'expired_token') {
         throw new BrainbaseLoginError('login_expired', 'The login code expired or was already used. Run brainbase login again.');
       }
+      if (error === 'device_mcp_flow_disabled') {
+        throw new BrainbaseLoginError(
+          'login_device_mcp_flow_disabled',
+          'このサーバーでは遠隔 MCP Device Flow ログインが無効になっています（device_mcp_flow_disabled）。サーバー管理者に BRAINBASE_MCP_OAUTH_DEVICE_FLOW_ENABLED の設定を確認してください。何も保存していません。',
+        );
+      }
       if (poll.status >= 500) {
         continue; // A passing server error is retried until the code expires.
       }
@@ -1392,6 +1580,33 @@ export async function loginWithDeviceCode(options: LoginOptions): Promise<Brainb
       throw new BrainbaseLoginError('login_token_response_invalid', 'The server answered without a token. Nothing was saved.');
     }
     const refreshToken = poll.json?.refresh_token;
+    let mcpFields: Partial<BrainbaseCredentials> = {};
+    if (mcpConfig) {
+      const responseOrgId = typeof poll.json?.organization_id === 'string' && poll.json.organization_id.trim()
+        ? poll.json.organization_id.trim()
+        : undefined;
+      const responseTenantId = typeof poll.json?.tenant_id === 'string' && poll.json.tenant_id.trim()
+        ? poll.json.tenant_id.trim()
+        : undefined;
+      const responseScope = typeof poll.json?.scope === 'string' && poll.json.scope.trim()
+        ? poll.json.scope.trim()
+        : mcpConfig.scope;
+      let responseResource = mcpConfig.resource;
+      if (typeof poll.json?.resource === 'string' && poll.json.resource.trim()) {
+        try {
+          responseResource = normalizeMcpResourceUrl(poll.json.resource);
+        } catch {
+          throw new BrainbaseLoginError('login_token_response_invalid', 'The server returned an invalid MCP resource URL. Nothing was saved.');
+        }
+      }
+      mcpFields = {
+        token_kind: 'mcp_oauth',
+        ...(responseOrgId ? { organization_id: responseOrgId } : {}),
+        ...(responseTenantId ? { tenant_id: responseTenantId } : {}),
+        scope: responseScope,
+        resource: responseResource,
+      };
+    }
     const credentials: BrainbaseCredentials = {
       schema_version: CREDENTIALS_SCHEMA_VERSION,
       login_id: newLoginId(),
@@ -1399,6 +1614,7 @@ export async function loginWithDeviceCode(options: LoginOptions): Promise<Brainb
       access_token: accessToken,
       ...(typeof refreshToken === 'string' && refreshToken ? { refresh_token: refreshToken } : {}),
       expires_at: expiryIso(accessToken, poll.json?.expires_in, now()),
+      ...mcpFields,
     };
     // The receipt lets the server forget the token, so it goes out only once
     // the file is known to be on disk. Where a directory cannot be flushed,
@@ -1428,11 +1644,62 @@ export async function loginWithDeviceCode(options: LoginOptions): Promise<Brainb
   throw new BrainbaseLoginError('login_timeout', 'The login was not approved in time. Run brainbase login again.');
 }
 
+async function requestMcpOAuthRenewal(
+  credentials: BrainbaseCredentials & { refresh_token: string },
+  fetchImpl: FetchLike,
+  now: () => number,
+): Promise<BrainbaseCredentials> {
+  let result: JsonResult;
+  try {
+    result = await postForm(fetchImpl, `${credentials.server_url}/api/auth/mcp/token`, {
+      grant_type: 'refresh_token',
+      client_id: MCP_DEVICE_FLOW_CLIENT_ID,
+      refresh_token: credentials.refresh_token,
+    });
+  } catch {
+    throw new BrainbaseLoginError('login_refresh_unreachable', `Cannot reach ${credentials.server_url} to renew the login.`);
+  }
+  const token = result.json?.access_token;
+  if (!result.ok || typeof token !== 'string' || !token) {
+    if (
+      result.status === 429
+      || result.status >= 500
+      || result.bodyLost
+      || result.json?.error === 'temporarily_unavailable'
+    ) {
+      throw new BrainbaseLoginError('login_refresh_unavailable', 'The server could not renew the login right now. Try again.');
+    }
+    throw new BrainbaseLoginError('login_expired', 'The saved login can no longer be renewed. Run brainbase login again.');
+  }
+  const nextRefresh = result.json?.refresh_token;
+  const nextScope = result.json?.scope;
+  const nextResource = result.json?.resource;
+  let validatedResource: string | undefined;
+  if (typeof nextResource === 'string' && nextResource.trim()) {
+    try {
+      validatedResource = normalizeMcpResourceUrl(nextResource);
+    } catch {
+      throw new BrainbaseLoginError('login_token_response_invalid', 'The server returned an invalid MCP resource URL. Nothing was saved.');
+    }
+  }
+  return {
+    ...credentials,
+    access_token: token,
+    ...(typeof nextRefresh === 'string' && nextRefresh ? { refresh_token: nextRefresh } : {}),
+    ...(typeof nextScope === 'string' && nextScope.trim() ? { scope: nextScope.trim() } : {}),
+    ...(validatedResource ? { resource: validatedResource } : {}),
+    expires_at: expiryIso(token, result.json?.expires_in, now()),
+  };
+}
+
 async function requestRenewal(
   credentials: BrainbaseCredentials & { refresh_token: string },
   fetchImpl: FetchLike,
   now: () => number,
 ): Promise<BrainbaseCredentials> {
+  if (credentials.token_kind === 'mcp_oauth') {
+    return requestMcpOAuthRenewal(credentials, fetchImpl, now);
+  }
   const refresh = async () => {
     const headers = await csrfHeaders(fetchImpl, credentials.server_url);
     try {
