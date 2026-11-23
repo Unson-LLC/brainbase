@@ -468,6 +468,39 @@ describe('judgment:install --target claude-code', () => {
     expect(JSON.parse(await readFile(config, 'utf8')).registration.settings).toBe(await realpath(join(dir, 'real', 'settings.json')));
   });
 
+  it('stops when a path with .. passes through a directory that does not exist yet', async () => {
+    const dir = await tempDir();
+    await mkdir(join(dir, 'real', 'child'), { recursive: true });
+    await mkdir(join(dir, 'alias'));
+    await symlink(join(dir, 'real', 'child'), join(dir, 'alias', 'link'));
+    await writeFile(join(dir, 'real', 'settings.json'), JSON.stringify({ env: { PROFILE: 'selected' } }));
+    await writeFile(join(dir, 'alias', 'settings.json'), JSON.stringify({ env: { PROFILE: 'other' } }));
+    const out = capture();
+    expect(await runCli([
+      'judgment:install', '--target', 'claude-code', '--origin', 'https://mcp.example.net', '--server', 'https://api.example.net',
+      '--settings', `${join(dir, 'alias', 'link')}/../missing/../settings.json`, '--config', join(dir, 'hook.json'),
+    ], out.io)).toBe(1);
+    expect(out.stderr()).toContain('まだ無いディレクトリと ..');
+    expect(JSON.parse(await readFile(join(dir, 'real', 'settings.json'), 'utf8'))).toEqual({ env: { PROFILE: 'selected' } });
+    expect(JSON.parse(await readFile(join(dir, 'alias', 'settings.json'), 'utf8'))).toEqual({ env: { PROFILE: 'other' } });
+  });
+
+  it('stops instead of writing over a settings backup left by an earlier run', async () => {
+    const dir = await tempDir();
+    const settings = join(dir, 'settings.json');
+    const backup = `${settings}.brainbase-install-previous`;
+    await writeFile(settings, JSON.stringify({ env: { PROFILE: 'current' } }));
+    await writeFile(backup, JSON.stringify({ env: { PROFILE: 'backup' } }));
+    const out = capture();
+    expect(await runCli([
+      'judgment:install', '--target', 'claude-code', '--origin', 'https://mcp.example.net', '--server', 'https://api.example.net',
+      '--settings', settings, '--config', join(dir, 'hook.json'),
+    ], out.io)).toBe(1);
+    expect(out.stderr()).toContain('上書きせずに止めました');
+    expect(JSON.parse(await readFile(backup, 'utf8'))).toEqual({ env: { PROFILE: 'backup' } });
+    expect(JSON.parse(await readFile(settings, 'utf8'))).toEqual({ env: { PROFILE: 'current' } });
+  });
+
   it('refuses settings and config that are the same file, also through a symlink, and a bare repository name', async () => {
     const dir = await tempDir();
     const settings = join(dir, 'claude', 'settings.json');

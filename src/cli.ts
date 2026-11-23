@@ -339,9 +339,11 @@ function assertClaudeCodeInstallOptions(parsed: ParsedArgs): void {
 // The file the system opens for `path`. resolve() drops `link/..` as text, but
 // the system follows `link` first, so `alias/link/../settings.json` is a file
 // next to the link's target, not in `alias`. The parent directory is resolved
-// by the system and the last name added back; a missing parent has no links
-// left to follow, so the text form is used. realpathSync.native, because the
-// JavaScript realpathSync also normalizes the text before following links.
+// by the system and the last name added back. realpathSync.native, because
+// the JavaScript realpathSync also normalizes the text before following links.
+// When the parent does not exist yet, the text form opens the same file only
+// if the path has no `..`; with one, a link before it could lead elsewhere,
+// so the install stops instead of guessing.
 function settingsPathAsOpened(path: string): string {
   const absolute = isAbsolute(path) ? path : `${process.cwd()}${sep}${path}`;
   const name = basename(absolute);
@@ -349,8 +351,11 @@ function settingsPathAsOpened(path: string): string {
   try {
     return join(realpathSync.native(dirname(absolute)), name);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return resolve(absolute);
-    throw error;
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    if (absolute.split(/[\\/]/u).includes('..')) {
+      throw new Error(`--settings ${path} の途中に、まだ無いディレクトリと .. があり、どのファイルを開くかを決められないため止めました。.. を含まないパスか、ディレクトリがそろったパスを指定してください。何も変えていません。`);
+    }
+    return resolve(absolute);
   }
 }
 
@@ -875,6 +880,14 @@ async function swapInIfUnchanged(path: string, target: string, temporary: string
     if (!(await placeOurs())) throw changed();
   } else {
     const aside = target + INSTALL_SETTINGS_BACKUP_SUFFIX;
+    // rename() replaces whatever is at `aside`. A file already there is a
+    // backup from an earlier run that someone may still need; keep it.
+    if (await lstat(aside).then(() => true, (error) => {
+      if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return false;
+      throw error;
+    })) {
+      throw new Error(`${aside} が残っているため、上書きせずに止めました。中身を確かめて、要らなければ消してから、もう一度実行してください。${path} は変えていません。`);
+    }
     try {
       await rename(target, aside);
     } catch (error) {

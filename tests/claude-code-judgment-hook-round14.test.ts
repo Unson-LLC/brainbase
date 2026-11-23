@@ -177,13 +177,20 @@ describe('judgment:install recovers settings moved aside by an interrupted run',
     expect(await leftovers(dir)).toEqual([]);
   });
 
-  it('keeps a Claude Code save that arrives during recovery', async () => {
+  // The save stays and so does the backup: installing would have to move the
+  // save aside onto the backup's name, so the install stops instead.
+  it('keeps a Claude Code save that arrives during recovery, and the backup too', async () => {
     const { dir, settings } = await home();
-    await rename(settings, settings + '.brainbase-install-previous');
+    const backup = settings + '.brainbase-install-previous';
+    await rename(settings, backup);
+    const before = await readFile(backup, 'utf8');
     Object.assign(saves, { settings, moment: 'during-recovery', remaining: 1, content: saved });
-    expect(await runCli([...base, '--settings', settings, '--config', join(dir, 'hook.json')], capture().io)).toBe(0);
+    const out = capture();
+    expect(await runCli([...base, '--settings', settings, '--config', join(dir, 'hook.json')], out.io)).toBe(1);
+    expect(out.stderr()).toContain('上書きせずに止めました');
     expect(saves.remaining).toBe(0);
     expect(commands(JSON.parse(await readFile(settings, 'utf8')))).toContain('echo saved');
+    expect(await readFile(backup, 'utf8')).toBe(before);
   });
 
   it('leaves both backups in place when recovery is ambiguous', async () => {
