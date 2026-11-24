@@ -78,6 +78,27 @@ function commandsOf(settings: Record<string, unknown>, event = 'UserPromptSubmit
   return groups.flatMap((group) => group.hooks.map((hook) => hook.command));
 }
 
+it('does not send later events under a new registration for the same config', async () => {
+  const home = await tempDir();
+  const repo = await checkout(home, 'app', 'git@github.com:acme/app.git');
+  const config = await writeConfig(join(home, 'hook.json'), {});
+  const { fetchImpl, sent } = host();
+  const options = { env: { HOME: home }, fetch: fetchImpl, accessToken: token, registrationId: REG, configPath: config };
+  await handleClaudeCodeJudgmentHook(submit(repo), options);
+
+  const registrationId = 'b'.repeat(32);
+  await writeConfig(config, { registration: { id: registrationId, settings: '/home/me/.claude/settings.json' } });
+  const reinstalled = { ...options, registrationId };
+  for (const event of [lookup(repo), tool(repo), tool(repo, 'PostToolUseFailure'), stop(repo)]) {
+    await handleClaudeCodeJudgmentHook(event, reinstalled);
+  }
+  expect(sent.map((body) => body.hook_event_name)).toEqual(['UserPromptSubmit']);
+
+  await handleClaudeCodeJudgmentHook({ ...submit(repo), prompt_id: 'p2' }, reinstalled);
+  await handleClaudeCodeJudgmentHook({ ...stop(repo), prompt_id: 'p2' }, reinstalled);
+  expect(sent.map((body) => body.hook_event_name)).toEqual(['UserPromptSubmit', 'UserPromptSubmit', 'Stop']);
+});
+
 describe('a repository taken off the list mid-turn', () => {
   it('sends nothing more from it, though the registration and destination stay the same', async () => {
     const home = await tempDir();

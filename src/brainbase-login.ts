@@ -1363,6 +1363,7 @@ export async function loginWithDeviceCode(options: LoginOptions): Promise<Brainb
     } catch {
       continue; // A dropped poll is retried until the code expires.
     }
+    if (poll.bodyLost) continue;
     const error = poll.json?.error;
     if (!poll.ok) {
       if (error === 'authorization_pending') {

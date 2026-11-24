@@ -32,7 +32,7 @@ function jwt(expSeconds: number, sub = 'person-1'): string {
 
 interface Call { url: string; body: Record<string, unknown> }
 
-function fakeServer(routes: Record<string, Array<{ status: number; body: unknown } | Error>>) {
+function fakeServer(routes: Record<string, Array<{ status: number; body: unknown } | Error | Response>>) {
   const calls: Call[] = [];
   const fetchImpl = (async (input: string | URL, init?: RequestInit) => {
     const url = String(input);
@@ -42,6 +42,7 @@ function fakeServer(routes: Record<string, Array<{ status: number; body: unknown
     const next = queue && queue.length > 1 ? queue.shift()! : queue?.[0];
     if (!next) return new Response('{}', { status: 404 });
     if (next instanceof Error) throw next;
+    if (next instanceof Response) return next;
     return new Response(JSON.stringify(next.body), { status: next.status });
   }) as typeof fetch;
   return { fetchImpl, calls };
@@ -149,6 +150,36 @@ describe('loginWithDeviceCode', () => {
     });
     expect(credentials.access_token).toBe(access);
     expect(storedAtReceipt).toBe(access);
+  });
+
+  it.each([2, 3])('retries an interrupted token body only before the %ss deadline', async (expiresIn) => {
+    let clock = NOW;
+    const path = await credentialsFile();
+    const interrupted = new Response(new ReadableStream({
+      start(controller) {
+        controller.error(new TypeError('connection closed before the response body finished'));
+      },
+    }), { status: 200 });
+    const { fetchImpl, calls } = fakeServer({
+      '/api/auth/device/code': [{ status: 200, body: {
+        device_code: 'dev-1', verification_uri: 'https://x.example/d', expires_in: expiresIn, interval: 1,
+      } }],
+      '/api/auth/device/token': [interrupted, { status: 200, body: { access_token: 'received-token', expires_in: 3600 } }],
+    });
+
+    const login = loginWithDeviceCode({
+      serverUrl: 'https://api.example.net', credentialsPath: path, fetch: fetchImpl,
+      now: () => clock, sleep: async (ms) => { clock += ms; }, onPrompt: () => {},
+    });
+
+    if (expiresIn === 3) {
+      await expect(login).resolves.toMatchObject({ access_token: 'received-token' });
+      expect(calls).toHaveLength(3);
+    } else {
+      await expect(login).rejects.toMatchObject({ code: 'login_timeout' });
+      expect(await readCredentials(path)).toBeNull();
+      expect(calls).toHaveLength(2);
+    }
   });
 
   it('says terminal login is unavailable on a server without the device flow', async () => {

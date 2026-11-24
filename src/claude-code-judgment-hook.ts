@@ -101,6 +101,8 @@ interface TurnState {
   checkout?: string | null;
   /** Where the turn's events go; a config that changes mid-turn stops them. */
   destination?: string;
+  /** The hook registration that opened the turn. Older state cannot verify it. */
+  registration_id?: string;
   /**
    * The saved login (its login_id, kept across renewals) the turn's first
    * event was sent with. A login as someone else mid-turn stops the turn.
@@ -406,8 +408,8 @@ function destinationOf(context: Context): string {
   return JSON.stringify([context.configPath, context.config.origin, context.config.project_code ?? null]);
 }
 
-function sameDestination(state: TurnState, context: Context): boolean {
-  return state.destination === destinationOf(context);
+function sameDestinationAndRegistration(state: TurnState, context: Context): boolean {
+  return state.destination === destinationOf(context) && state.registration_id === context.config.registration.id;
 }
 
 // ---- Turn state ----
@@ -767,6 +769,7 @@ async function handleUserPromptSubmit(payload: ClaudeCodeHookPayload, context: C
     repository: context.scope.repository,
     checkout: context.scope.checkout,
     destination: destinationOf(context),
+    registration_id: context.config.registration.id,
   };
   if (!isAuditedRepository(context.scope, context.config)) {
     writeState(env, sessionId, { ...state, start_status: 'out_of_scope' });
@@ -802,7 +805,7 @@ function turnLogin(state: TurnState): LoginPin {
 async function handlePostToolUse(payload: ClaudeCodeHookPayload, context: Context, eventName: string): Promise<ClaudeCodeHookOutput> {
   const state = currentTurn(payload, context);
   if (!state) return unannouncedTurn(payload, context);
-  if (state.start_status !== 'started' || !sameScope(state, context.scope) || !sameDestination(state, context)
+  if (state.start_status !== 'started' || !sameScope(state, context.scope) || !sameDestinationAndRegistration(state, context)
     || !isAuditedRepository(context.scope, context.config)) return {};
   try {
     return documentedOutput(
@@ -836,7 +839,7 @@ async function handlePreToolUse(payload: ClaudeCodeHookPayload, context: Context
   if (typeof payload.tool_name !== 'string' || !PRE_TOOL_USE_TOOLS.has(payload.tool_name)) return {};
   const state = currentTurn(payload, context);
   if (!state) return unannouncedTurn(payload, context);
-  if (state.start_status !== 'started' || !sameScope(state, context.scope) || !sameDestination(state, context)
+  if (state.start_status !== 'started' || !sameScope(state, context.scope) || !sameDestinationAndRegistration(state, context)
     || !isAuditedRepository(context.scope, context.config)) return {};
   try {
     return preToolUseOutput(await forward({ ...payload, turn_id: state.turn_id }, context, state.repository ?? null, turnLogin(state)));
@@ -852,8 +855,8 @@ async function handleStop(payload: ClaudeCodeHookPayload, context: Context): Pro
   if (!sameScope(state, context.scope)) {
     return warning('ターンの途中で別のリポジトリに移ったため、回答を送らずに監査未完了のまま終了します（judgment_turn_repository_changed）。');
   }
-  if (!sameDestination(state, context)) {
-    return warning('ターンの途中で判断フックの送り先が変わったため、回答を送らずに監査未完了のまま終了します（judgment_turn_destination_changed）。');
+  if (!sameDestinationAndRegistration(state, context)) {
+    return warning('ターンの途中で判断フックの登録または送り先が変わったため、回答を送らずに監査未完了のまま終了します（judgment_turn_destination_changed）。');
   }
   // The config is read again for every event: a repository taken off the list
   // mid-turn sends nothing more, though the destination stays the same.
