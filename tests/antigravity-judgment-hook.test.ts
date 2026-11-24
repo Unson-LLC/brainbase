@@ -2062,13 +2062,52 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
     expect(darwinSystemOnly).toEqual({});
     expect(sent).toHaveLength(0);
 
-    // Explicit lastUserInput + Stop on darwin: hook runs fail-open without throwing and omits transcript-derived last_assistant_message.
+    const darwinExplicitTranscript = await canonicalTranscriptPath(home, 'conv-darwin-explicit');
+    await writeFile(darwinExplicitTranscript, [
+      JSON.stringify({ step_index: 0, source: 'USER_EXPLICIT', type: 'USER_INPUT', content: 'DARWIN_TRANSCRIPT_PROMPT' }),
+      JSON.stringify({ step_index: 2, source: 'MODEL', type: 'PLANNER_RESPONSE', content: 'DARWIN_TRANSCRIPT_ANSWER' }),
+    ].join('\n') + '\n');
+
+    // Linux control with matching conversationId + canonical transcript: Stop extracts last_assistant_message.
+    const { fetchImpl: linuxFetchImpl, sent: linuxSent } = mockHost();
+    const linuxOpts = {
+      env: { ...env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: join(home, 'turns-linux-control') } as NodeJS.ProcessEnv,
+      fetch: linuxFetchImpl,
+      accessToken: token,
+      configPath,
+      registrationId: REG,
+      platform: 'linux' as NodeJS.Platform,
+    };
+    const linuxPre = await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-darwin-explicit',
+      invocationNum: 1,
+      cwd: repo,
+      transcriptPath: darwinExplicitTranscript,
+      lastUserInput: 'Direct prompt on macOS',
+    }, linuxOpts);
+    expect(Array.isArray(linuxPre.injectSteps)).toBe(true);
+    expect(linuxSent).toHaveLength(1);
+
+    const linuxStop = await handleAntigravityJudgmentHook({
+      hookEventName: 'Stop',
+      conversationId: 'conv-darwin-explicit',
+      cwd: repo,
+      transcriptPath: darwinExplicitTranscript,
+      terminationReason: 'NO_TOOL_CALL',
+    }, linuxOpts);
+    expect(linuxStop).toEqual({ decision: '' });
+    expect(linuxSent).toHaveLength(2);
+    expect(linuxSent[1].body.last_assistant_message).toBe('DARWIN_TRANSCRIPT_ANSWER');
+
+    // Explicit lastUserInput + Stop on darwin with the same conversationId-matched canonical transcript:
+    // hook runs fail-open without throwing and omits transcript-derived last_assistant_message solely due to platform.
     const darwinPre = await handleAntigravityJudgmentHook({
       hookEventName: 'PreInvocation',
       conversationId: 'conv-darwin-explicit',
       invocationNum: 1,
       cwd: repo,
-      transcriptPath: darwinTranscript,
+      transcriptPath: darwinExplicitTranscript,
       lastUserInput: 'Direct prompt on macOS',
     }, darwinOpts);
     expect(Array.isArray(darwinPre.injectSteps)).toBe(true);
@@ -2079,7 +2118,7 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
       hookEventName: 'Stop',
       conversationId: 'conv-darwin-explicit',
       cwd: repo,
-      transcriptPath: darwinTranscript,
+      transcriptPath: darwinExplicitTranscript,
       terminationReason: 'NO_TOOL_CALL',
     }, darwinOpts);
     expect(darwinStop).toEqual({ decision: '' });
