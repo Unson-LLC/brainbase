@@ -138,6 +138,43 @@ function inferTypeFromValue(value: unknown): string {
   return 'string';
 }
 
+function finalizeNormalizedSchema(node: JsonObject, isRoot: boolean): void {
+  if (isPlainObject(node.properties)) {
+    for (const child of Object.values(node.properties)) {
+      if (isPlainObject(child)) {
+        finalizeNormalizedSchema(child, false);
+      }
+    }
+  }
+  if (isPlainObject(node.items)) {
+    finalizeNormalizedSchema(node.items, false);
+  }
+  if (isPlainObject(node.additionalProperties)) {
+    finalizeNormalizedSchema(node.additionalProperties, false);
+  }
+  if (node.type === 'object') {
+    if (Array.isArray(node.required)) {
+      const props = isPlainObject(node.properties) ? node.properties : {};
+      const filtered = uniqueStrings(
+        node.required.filter(
+          (key): key is string => typeof key === 'string' && Object.hasOwn(props, key),
+        ),
+      );
+      if (filtered.length > 0) {
+        node.required = filtered;
+      } else {
+        delete node.required;
+      }
+    }
+    if (!isRoot) {
+      const hasProperties = isPlainObject(node.properties) && Object.keys(node.properties).length > 0;
+      if (!hasProperties && !isPlainObject(node.additionalProperties) && node.additionalProperties !== true) {
+        node.additionalProperties = true;
+      }
+    }
+  }
+}
+
 function pruneUndeclaredRequired(node: JsonObject): void {
   if (isPlainObject(node.properties)) {
     for (const child of Object.values(node.properties)) {
@@ -299,7 +336,17 @@ function mergeObjectSchemas(
     }
   }
 
+  const closedBranches = mode === 'intersection'
+    ? branches.filter((branch) => branch.additionalProperties === false)
+    : [];
+
   for (const [key, list] of propertyBranches.entries()) {
+    if (
+      closedBranches.length > 0
+      && closedBranches.some((branch) => !isPlainObject(branch.properties) || !Object.hasOwn(branch.properties, key))
+    ) {
+      continue;
+    }
     let mergedProp: JsonObject;
     if (list.length === 1) {
       mergedProp = structuredClone(list[0]);
@@ -470,7 +517,11 @@ function normalizeSchemaNode(
         ? appendDescriptions(outerDescription, mergedNotes)
         : (typeof combined.description === 'string' ? combined.description : undefined);
       const nextWorking: JsonObject = { ...working };
+      delete nextWorking.properties;
       delete nextWorking.required;
+      if (isPlainObject(nextWorking.additionalProperties) || nextWorking.additionalProperties === false) {
+        delete nextWorking.additionalProperties;
+      }
       working = {
         ...nextWorking,
         ...combined,
@@ -597,6 +648,7 @@ function normalizeSchemaNode(
       isPlainObject(working.properties)
       || Array.isArray(working.required)
       || isPlainObject(working.additionalProperties)
+      || typeof working.additionalProperties === 'boolean'
     ) {
       working.type = 'object';
     } else if (working.items !== undefined || Array.isArray(working.prefixItems)) {
@@ -688,13 +740,6 @@ function normalizeSchemaNode(
       );
     }
 
-    if (!isRoot) {
-      const hasProperties = isPlainObject(working.properties) && Object.keys(working.properties).length > 0;
-      if (!hasProperties && !isPlainObject(working.additionalProperties) && working.additionalProperties !== true) {
-        working.additionalProperties = true;
-      }
-    }
-
     if (Array.isArray(working.required)) {
       const props = isPlainObject(working.properties) ? working.properties : {};
       const filtered = uniqueStrings(
@@ -754,7 +799,7 @@ export function normalizeMcpToolInputSchemaForPortability(
 ): Tool['inputSchema'] {
   const cloned = isPlainObject(schema) ? (structuredClone(schema) as JsonObject) : { type: 'object', properties: {} };
   const normalized = normalizeSchemaNode(cloned, cloned, new Set<string>(), true);
-  pruneUndeclaredRequired(normalized);
+  finalizeNormalizedSchema(normalized, true);
   return normalized as Tool['inputSchema'];
 }
 

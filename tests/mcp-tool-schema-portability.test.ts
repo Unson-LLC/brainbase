@@ -926,9 +926,8 @@ describe('MCP tool inputSchema cross-client portability contract (Gemini / OpenA
     });
   });
 
-  it('preserves additionalProperties: false across allOf intersections with schema branches while keeping union semantics for oneOf/anyOf', () => {
-    // Exact repro from cross-model review #5 in both branch orders ([false, schema] and [schema, false]),
-    // plus outer sibling additionalProperties: false combined with allOf schema branch.
+  it('preserves additionalProperties: false and closed key intersections across allOf branches while keeping union semantics for oneOf/anyOf', () => {
+    // Same declared key with mixed [false, schema] and [schema, false] preserves additionalProperties: false.
     const falseFirst = {
       type: 'object',
       allOf: [
@@ -945,15 +944,42 @@ describe('MCP tool inputSchema cross-client portability contract (Gemini / OpenA
       ],
     } as unknown as Tool['inputSchema'];
 
-    const outerFalseWithAllOf = {
+    // Outer additionalProperties: false with outer properties: { id } intersects with allOf properties,
+    // keeping only keys allowed by the closed outer schema (dropping allOf-only `extra`).
+    const outerClosedWithDeclaredKey = {
       type: 'object',
+      properties: { id: { type: 'string' } },
       additionalProperties: false,
       allOf: [
-        { properties: { id: { type: 'string' } }, additionalProperties: { type: 'string' } },
+        { properties: { id: { type: 'string' }, extra: { type: 'string' } }, additionalProperties: { type: 'string' } },
       ],
     } as unknown as Tool['inputSchema'];
 
-    for (const candidate of [falseFirst, schemaFirst, outerFalseWithAllOf]) {
+    // Closed branch + closed branch with disjoint extras keeps only the intersection (`id`).
+    const twoClosedBranches = {
+      type: 'object',
+      allOf: [
+        { properties: { id: { type: 'string' }, a: { type: 'string' } }, additionalProperties: false },
+        { properties: { id: { type: 'string' }, b: { type: 'integer' } }, additionalProperties: false },
+      ],
+    } as unknown as Tool['inputSchema'];
+
+    // Closed branch + open branch drops keys forbidden by the closed branch.
+    const closedAndOpenBranch = {
+      type: 'object',
+      allOf: [
+        { properties: { id: { type: 'string' } }, additionalProperties: false },
+        { properties: { id: { type: 'string' }, extra: { type: 'string' } } },
+      ],
+    } as unknown as Tool['inputSchema'];
+
+    for (const candidate of [
+      falseFirst,
+      schemaFirst,
+      outerClosedWithDeclaredKey,
+      twoClosedBranches,
+      closedAndOpenBranch,
+    ]) {
       const normalized = normalizeMcpToolInputSchemaForPortability(candidate);
       expect(validateMcpToolInputSchemaPortability(normalized, 'closed_allof_tool')).toEqual([]);
       expect(normalized).toEqual({
@@ -963,10 +989,171 @@ describe('MCP tool inputSchema cross-client portability contract (Gemini / OpenA
       });
     }
 
+    // Closed branch + open branch with required forbidden key drops both the property and its required entry,
+    // while retaining declared required keys.
+    const closedWithRequiredForbidden = {
+      type: 'object',
+      allOf: [
+        { properties: { id: { type: 'string' } }, additionalProperties: false },
+        { properties: { id: { type: 'string' }, extra: { type: 'string' } }, required: ['id', 'extra'] },
+      ],
+    } as unknown as Tool['inputSchema'];
+    const normalizedClosedRequired = normalizeMcpToolInputSchemaForPortability(closedWithRequiredForbidden);
+    expect(validateMcpToolInputSchemaPortability(normalizedClosedRequired, 'closed_req_tool')).toEqual([]);
+    expect(normalizedClosedRequired).toEqual({
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      required: ['id'],
+      additionalProperties: false,
+    });
+
+    // Outer additionalProperties: false without outer properties forbids all keys (including allOf-only `id`),
+    // as do property-less closed allOf branches combined with additionalProperties schema branches (both orders,
+    // nested allOf, untyped { additionalProperties: false }, and outer properties + closed empty allOf).
+    const outerFalseNoOuterProps = {
+      type: 'object',
+      additionalProperties: false,
+      allOf: [
+        { properties: { id: { type: 'string' } }, additionalProperties: { type: 'string' } },
+      ],
+    } as unknown as Tool['inputSchema'];
+
+    const emptyClosedFirst = {
+      type: 'object',
+      allOf: [
+        { type: 'object', additionalProperties: false },
+        { type: 'object', additionalProperties: { type: 'string' } },
+      ],
+    } as unknown as Tool['inputSchema'];
+
+    const emptyClosedSecond = {
+      type: 'object',
+      allOf: [
+        { type: 'object', additionalProperties: { type: 'string' } },
+        { type: 'object', additionalProperties: false },
+      ],
+    } as unknown as Tool['inputSchema'];
+
+    const nestedEmptyClosedFirst = {
+      type: 'object',
+      allOf: [
+        {
+          allOf: [
+            { type: 'object', additionalProperties: false },
+            { type: 'object', additionalProperties: { type: 'string' } },
+          ],
+        },
+        { type: 'object', additionalProperties: { type: 'integer' } },
+      ],
+    } as unknown as Tool['inputSchema'];
+
+    const nestedEmptyClosedSecond = {
+      type: 'object',
+      allOf: [
+        { type: 'object', additionalProperties: { type: 'integer' } },
+        {
+          allOf: [
+            { type: 'object', additionalProperties: { type: 'string' } },
+            { type: 'object', additionalProperties: false },
+          ],
+        },
+      ],
+    } as unknown as Tool['inputSchema'];
+
+    const untypedClosedBranch = {
+      type: 'object',
+      allOf: [
+        { additionalProperties: false },
+        { properties: { id: { type: 'string' } }, additionalProperties: { type: 'string' } },
+      ],
+    } as unknown as Tool['inputSchema'];
+
+    const outerPropsWithEmptyClosedAllOf = {
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      allOf: [
+        { type: 'object', additionalProperties: false },
+      ],
+    } as unknown as Tool['inputSchema'];
+
+    for (const candidate of [
+      outerFalseNoOuterProps,
+      emptyClosedFirst,
+      emptyClosedSecond,
+      nestedEmptyClosedFirst,
+      nestedEmptyClosedSecond,
+      untypedClosedBranch,
+      outerPropsWithEmptyClosedAllOf,
+    ]) {
+      const normalized = normalizeMcpToolInputSchemaForPortability(candidate);
+      expect(validateMcpToolInputSchemaPortability(normalized, 'empty_closed_allof_tool')).toEqual([]);
+      expect(normalized).toEqual({
+        type: 'object',
+        properties: {},
+        additionalProperties: false,
+      });
+    }
+
+    // Nested property cases (both branch orders):
+    // 1) Closed branch declaring `id` + schema/open branch declaring `extra` preserves only `id` and `additionalProperties: false`.
+    // 2) Property-less closed branch + schema branch does NOT adopt `{ type: 'string' }` during merge; final Gemini
+    //    non-root empty-object portability applies only after merging (matching closed_empty_nested_object).
+    const nestedClosedCases = {
+      type: 'object',
+      properties: {
+        nested_closed_with_key_first: {
+          allOf: [
+            { type: 'object', properties: { id: { type: 'string' } }, additionalProperties: false },
+            { type: 'object', properties: { id: { type: 'string' }, extra: { type: 'string' } }, additionalProperties: { type: 'string' } },
+          ],
+        },
+        nested_closed_with_key_second: {
+          allOf: [
+            { type: 'object', properties: { id: { type: 'string' }, extra: { type: 'string' } }, additionalProperties: { type: 'string' } },
+            { type: 'object', properties: { id: { type: 'string' } }, additionalProperties: false },
+          ],
+        },
+        nested_empty_closed_first: {
+          allOf: [
+            { type: 'object', additionalProperties: false },
+            { type: 'object', additionalProperties: { type: 'string' } },
+          ],
+        },
+        nested_empty_closed_second: {
+          allOf: [
+            { type: 'object', additionalProperties: { type: 'string' } },
+            { type: 'object', additionalProperties: false },
+          ],
+        },
+      },
+    } as unknown as Tool['inputSchema'];
+
+    const normalizedNestedClosed = normalizeMcpToolInputSchemaForPortability(nestedClosedCases);
+    expect(validateMcpToolInputSchemaPortability(normalizedNestedClosed, 'nested_closed_tool')).toEqual([]);
+    const nestedClosedProps = normalizedNestedClosed.properties as Record<string, Record<string, unknown>>;
+    expect(nestedClosedProps.nested_closed_with_key_first).toEqual({
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      additionalProperties: false,
+    });
+    expect(nestedClosedProps.nested_closed_with_key_second).toEqual({
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      additionalProperties: false,
+    });
+    expect(nestedClosedProps.nested_empty_closed_first).toEqual({
+      type: 'object',
+      additionalProperties: true,
+    });
+    expect(nestedClosedProps.nested_empty_closed_second).toEqual({
+      type: 'object',
+      additionalProperties: true,
+    });
+
     // Union combinators (oneOf / anyOf) must keep the looser constraint:
     // - [false, schema] -> schema
     // - [false, open] -> open (additionalProperties omitted)
-    // - [false, false] -> false
+    // - [false, false] -> false (and union of properties { a, b })
     const unionAdditional = {
       type: 'object',
       properties: {
