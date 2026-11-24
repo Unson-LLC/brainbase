@@ -2,6 +2,12 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
+## 0.50.31 candidate — npm公開前
+
+- 0.50.30に、持込記録の一覧を重複させず、共有部品の右詳細・手順の帯・候補の選択で組み立てられる明示選択を追加する（#1081）。個人版の既定の一覧と詳細は維持する。
+- 詳細の取得先IDと取り込みの識別情報を照合し、古い応答や閲覧できなくなった記録を残さない。候補の操作欄は中間幅でも読める形へ切り替える。持込記録に関する表示語をそろえる。
+- 今回の更新は取得・認可・保存の契約を変更しない。npm公開と利用ホストへの配備は別途確認する。
+
 ## 0.50.30 candidate — npm公開前
 
 - 0.50.29に、Antigravity CLI判断フック（公開subpath `antigravity-judgment-hook`・CLI `judgment:antigravity-hook` / `judgment:install --target antigravity`、#1077）と本人JWTのホスト側project解決（#1032）、RFC-002 PR-1の `judgment-event-adapter` `project_code` マルチプロジェクト伝播と outbox `projectCodes` スコーピング（#1070）、および RFC-001 v2.0（既定OFFのライブ推論ゲート v3.1・セッション内ミニ世界モデル v2 と非digestテレメトリ・公開subpath `judgment-reasoning-audit` とオフライン7項目二値監査 / PoLL 2-of-3 審査、#1045・#1047・#1061・#1062・#1069）を加える更新候補。
