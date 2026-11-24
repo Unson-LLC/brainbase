@@ -518,7 +518,7 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
       },
     });
 
-    // PostToolUse for Brainbase tool with missing transcript step -> fallback digest + success.
+    // PostToolUse for Brainbase tool with missing transcript step -> fallback digest + success (both success and failure).
     await handleAntigravityJudgmentHook({
       hookEventName: 'PostToolUse',
       conversationId: 'conv-full',
@@ -528,6 +528,21 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
       toolCall: { id: 't5', name: 'mcp_brainbase-unson_get_entity', args: { id: 'ent_1' } },
     }, options);
     expect(sent[4].body.tool_response).toMatchObject({ success: true, digest: expect.stringMatching(/^sha256:/u) });
+    expect(sent[4].body.tool_response).not.toHaveProperty('content');
+
+    await handleAntigravityJudgmentHook({
+      hookEventName: 'PostToolUse',
+      conversationId: 'conv-full',
+      cwd: repo,
+      stepIdx: 100,
+      transcriptPath,
+      error: 'mcp timeout',
+      toolCall: { id: 't6', name: 'mcp_brainbase-unson_search', args: { query: 'missing' } },
+    }, options);
+    expect(sent[5].body.hook_event_name).toBe('PostToolUseFailure');
+    expect(sent[5].body.tool_response).toMatchObject({ success: false, digest: expect.stringMatching(/^sha256:/u) });
+    expect(sent[5].body.tool_response).not.toHaveProperty('content');
+    expect(sent[5].body.error).toBe('mcp timeout');
 
     // Stop with NO_TOOL_CALL -> extracts last_assistant_message, ALWAYS returns {"decision":""}.
     const stopOut = await handleAntigravityJudgmentHook({
@@ -539,7 +554,7 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
       continuationActive: false,
     }, options);
     expect(stopOut).toEqual({ decision: '' });
-    expect(sent[5].body).toMatchObject({
+    expect(sent[6].body).toMatchObject({
       hook_event_name: 'Stop',
       last_assistant_message: 'Final verified answer.',
       stop_hook_active: false,
@@ -553,7 +568,7 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
       cwd: repo,
       lastUserInput: 'Another prompt',
     }, options);
-    expect(sent).toHaveLength(7);
+    expect(sent).toHaveLength(8);
 
     const canceledStop = await handleAntigravityJudgmentHook({
       hookEventName: 'Stop',
@@ -562,7 +577,7 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
       terminationReason: 'USER_CANCELED',
     }, options);
     expect(canceledStop).toEqual({ decision: '' });
-    expect(sent).toHaveLength(7);
+    expect(sent).toHaveLength(8);
 
     // Since USER_CANCELED cleared turn_active, next PreInvocation opens a fresh turn.
     await handleAntigravityJudgmentHook({
@@ -572,7 +587,7 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
       cwd: repo,
       lastUserInput: 'Another prompt',
     }, options);
-    expect(sent).toHaveLength(8);
+    expect(sent).toHaveLength(9);
   });
 
   it('extracts last_assistant_message and non-system USER_INPUT from bounded tail of large transcripts', async () => {

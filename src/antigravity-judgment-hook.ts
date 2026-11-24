@@ -1017,15 +1017,10 @@ async function handlePostToolUse(
         content: [{ type: 'text', text: transcriptText }],
         isError: hasError,
       };
-    } else if (hasError) {
-      toolResponse = {
-        content: [{ type: 'text', text: errorText }],
-        isError: true,
-      };
     } else {
       toolResponse = {
-        ...digestSummary({ tool_use_id: toolUseId, tool_name: normalizedName, error: null }),
-        success: true,
+        ...digestSummary({ tool_use_id: toolUseId, tool_name: normalizedName, error: hasError ? errorText : null }),
+        success: !hasError,
       };
     }
     if (hasError) errorField = errorText;
