@@ -485,10 +485,11 @@ function nextWorkspaceSequence() {
 const workspaceHelpDismissers = new WeakMap();
 
 /** Shared explanatory help: hover/focus above the control, click for touch. */
-export function workspaceHelp(doc, { text, label, content, icon = 'i', placement } = {}) {
+export function workspaceHelp(doc, { text, label, content, icon = 'i', placement, appearance } = {}) {
   const wrap = el(doc, content === undefined ? 'span' : 'div', { className: 'bb-ws-help' });
   const control = workspaceButton(doc, { text: icon, attrs: { 'aria-label': `${label}の説明`, 'aria-expanded': 'false' } });
   control.className = 'bb-ws-help-button';
+  if (appearance === 'toolbar') { toggleWorkspaceClass(wrap, 'bb-ws-help--toolbar', true); control.textContent = ''; control.append(workspaceActionIcon(doc, 'help')); }
   const bubble = el(doc, content === undefined ? 'span' : 'div', { className: 'bb-ws-help-bubble', text, attrs: { id: `bb-ws-help-${nextWorkspaceSequence()}`, role: 'tooltip' } });
   if (content !== undefined) { bubble.textContent = ''; appendContent(bubble, doc, content); }
   if (placement === 'bottom-end') toggleWorkspaceClass(wrap, 'bb-ws-help--bottom-end', true);
@@ -1428,6 +1429,8 @@ export function workspaceActionIcon(doc, name) {
   const paths = { edit: 'M4 20h4L19 9l-4-4L4 16z M13.5 6.5l4 4', undo: 'M4 5v5h5 M4.6 10A8 8 0 1 1 6.3 17.7', check: 'M5 12l5 5 9-10', sliders: 'M4 8h8M18 8h2M4 16h2M12 16h8 M17.4 8a2.4 2.4 0 1 1-4.8 0 2.4 2.4 0 0 1 4.8 0 M11.4 16a2.4 2.4 0 1 1-4.8 0 2.4 2.4 0 0 1 4.8 0', plus: 'M12 5v14M5 12h14', search: 'M21 21l-4.35-4.35M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0', filter: 'M4 7h16M7 12h10M10 17h4', sort: 'M8 4v16m-3-3 3 3 3-3M16 20V4m-3 3 3-3 3 3', close: 'M6 6l12 12M18 6L6 18', sparkles: 'M12 3l1.8 6.7 6.7 1.8-6.7 1.8L12 20l-1.8-6.7-6.7-1.8 6.7-1.8z M19 2v4 M17 4h4' };
   Object.assign(paths, {
     copy: 'M9 9h12v12H9z M5 15H3V3h12v2',
+    help: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M9.6 9.3a2.5 2.5 0 0 1 4.8.8c0 1.7-2.4 2.1-2.4 3.7 M12 17h.01',
+    'arrow-right': 'M5 12h14m-5-5 5 5-5 5',
     star: 'M12 3.5l2.6 5.3 5.9.9-4.2 4.1 1 5.8-5.3-2.8-5.3 2.8 1-5.8-4.2-4.1 5.9-.9z',
     lock: 'M6 10h12v11H6z M8 10V7a4 4 0 1 1 8 0v3',
     clock: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M12 7v5l3 2',
@@ -1852,4 +1855,50 @@ export function workspaceDotPill(doc, { label, color } = {}) {
   const root = el(doc, 'span', { className: 'bb-ws-dot-pill' });
   if (color) { const dot = el(doc, 'i', { attrs: { 'aria-hidden': 'true' } }); dot.style?.setProperty('--bb-pill-dot', color); root.append(dot); }
   root.append(el(doc, 'span', { text: label })); return root;
+}
+
+/** A controlled sequence of steps beside host-owned identifying facts. */
+export function workspaceStepBand(doc, { facts, label, steps = [], value, onChange } = {}) {
+  const root = el(doc, 'section', { className: 'bb-ws-step-band' });
+  const identity = el(doc, 'div', { className: 'bb-ws-step-facts' });
+  appendContent(identity, doc, facts);
+  const list = el(doc, 'ol', { className: 'bb-ws-steps', attrs: { 'aria-label': label } });
+  const controls = [];
+  for (const [index, step] of steps.entries()) {
+    const item = el(doc, 'li');
+    const control = workspaceButton(doc, { attrs: { disabled: step.disabled, 'aria-current': step.id === value ? 'step' : 'false' }, onClick: () => { if (!control.disabled) onChange?.(step.id, step); } });
+    control.className = `bb-ws-step${step.complete === true ? ' is-complete' : ''}`;
+    control.disabled = Boolean(step.disabled);
+    const number = el(doc, 'i', { attrs: { 'aria-hidden': 'true' } });
+    if (step.complete === true) number.append(workspaceActionIcon(doc, 'check')); else number.textContent = String(index + 1);
+    const copy = el(doc, 'span');
+    copy.append(el(doc, 'b', { text: step.label }), el(doc, 'small', { text: step.status }));
+    control.append(number, copy); item.append(control); list.append(item);
+    controls.push({ id: step.id, control });
+  }
+  root.append(identity, list);
+  root.update = next => { for (const { id, control } of controls) control.setAttribute('aria-current', id === next ? 'step' : 'false'); };
+  return root;
+}
+
+/** Candidate buttons only select a supplied value; the host owns confirmation. */
+export function workspaceCandidateChoices(doc, { label, items = [], value, disabled = false, onChange } = {}) {
+  const root = el(doc, 'div', { className: 'bb-ws-candidate-choices', attrs: { role: 'group', 'aria-label': label } });
+  const controls = [];
+  for (const item of items) {
+    const control = workspaceButton(doc, { disabled: disabled || item.disabled, onClick: () => { if (!control.disabled) onChange?.(item.value, item); }, attrs: { 'aria-pressed': String(item.value === value) } });
+    control.className = `bb-ws-candidate-choice${item.quiet ? ' is-quiet' : ''}`;
+    control.disabled = Boolean(disabled || item.disabled);
+    const check = workspaceActionIcon(doc, 'check'); check.classList?.add('bb-ws-candidate-check');
+    control.append(check, el(doc, 'span', { text: item.label }));
+    if (item.reason) control.append(el(doc, 'small', { text: item.reason }));
+    root.append(control); controls.push({ item, control });
+  }
+  root.update = (next, options = {}) => {
+    for (const { item, control } of controls) {
+      control.setAttribute('aria-pressed', String(item.value === next));
+      control.disabled = Boolean((options.disabled ?? disabled) || item.disabled);
+    }
+  };
+  return root;
 }

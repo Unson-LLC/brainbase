@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import {
   workspaceButton,
+  workspaceCandidateChoices,
+  workspaceStepBand,
   workspaceSummaryCard,
   workspaceIdentityChip,
   workspaceViewMotion,
@@ -50,6 +52,37 @@ const findAll = (node, predicate, found = []) => {
   return found;
 };
 const byClass = (node, className) => findAll(node, (item) => String(item.className).split(' ').includes(className));
+
+describe('controlled workflow presentation', () => {
+  it('shows only supplied choices and waits for the host to accept a selection', () => {
+    const change = vi.fn();
+    const root = workspaceCandidateChoices(doc, { label: 'Record choices', value: 'a', items: [{ value: 'a', label: 'Alpha', reason: 'Same alias' }, { value: 'b', label: 'Beta' }, { value: 'c', label: 'Unavailable', disabled: true }], onChange: change });
+    expect(root.children).toHaveLength(3);
+    root.children[1].listeners.get('click')();
+    expect(change).toHaveBeenCalledWith('b', expect.objectContaining({ label: 'Beta' }));
+    expect(root.children[0].attributes['aria-pressed']).toBe('true');
+    root.update('b');
+    expect(root.children.map(button => button.attributes['aria-pressed'])).toEqual(['false', 'true', 'false']);
+    root.children[2].listeners.get('click')();
+    expect(change).toHaveBeenCalledTimes(1);
+    root.update('b', { disabled: true }); root.children[0].listeners.get('click')();
+    expect(change).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps step completion separate from selection and preserves unknown status text', () => {
+    const change = vi.fn();
+    const root = workspaceStepBand(doc, { label: 'Steps', value: 'one', steps: [{ id: 'one', label: 'Inspect', status: 'Not confirmed' }, { id: 'two', label: 'Apply', status: 'Complete', complete: true }, { id: 'three', label: 'Locked', disabled: true }], onChange: change });
+    const controls = byClass(root, 'bb-ws-step');
+    expect(text(root)).toContain('Not confirmed');
+    expect(controls[0].className).not.toContain('is-complete');
+    expect(controls[1].className).toContain('is-complete');
+    controls[1].listeners.get('click')();
+    expect(change).toHaveBeenCalledWith('two', expect.objectContaining({ label: 'Apply' }));
+    expect(controls[0].attributes['aria-current']).toBe('step');
+    root.update('two'); expect(controls[1].attributes['aria-current']).toBe('step');
+    controls[2].listeners.get('click')(); expect(change).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('compact list presentation primitives', () => {
   it('keeps confirmed segment proportions and puts review last without changing caller data', () => {
