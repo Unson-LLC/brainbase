@@ -36,7 +36,7 @@ const narrow: 'remote' | 'claude-code' = host; // TS2322
   `registerAntigravityJudgmentHooks`, `normalizeAntigravityToolName`,
   `resolveAntigravityHookEndpoint`, `normalizeAntigravityHookBaseUrl`, config and
   transcript extraction helpers).
-- New CLI commands:
+- New CLI commands (also recorded in `contracts/brainbase-public-contract.v1.json`):
   - `brainbase judgment:antigravity-hook [--config path] [--registration id]`
   - `brainbase judgment:install --target antigravity --origin <baseUrl> [--server <url>] [--project <code>] [--allow-non-git] [--cwd-prefix <path>] [--repositories <host/owner/name,...>] [--settings <hooks.json>] [--config <path>] [--dry-run] [--remove]`
 - Additive exports on `@unson/brainbase-mcp/claude-code-judgment-hook`
