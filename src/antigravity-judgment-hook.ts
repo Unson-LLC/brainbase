@@ -6,8 +6,9 @@
 // Key protocol differences from Claude Code handled here:
 // 1. PreInvocation fires before EVERY model call in a turn (including tool-call loops),
 //    and Reason Network may inject system USER_INPUT messages. Local turn state tracks
-//    `turn_active`, `turn_id`, and `last_opened_user_step_index` so UserPromptSubmit is
-//    forwarded strictly once per user turn, while draining turn-scoped pending messages.
+//    `turn_active`, `turn_id`, `current_turn_user_step_index`, and `last_closed_user_step_index`
+//    so UserPromptSubmit is forwarded strictly once per user turn while rejecting delayed
+//    events from closed/older steps and draining turn-scoped pending messages safely.
 // 2. Non-git workspaces (e.g. Orca bot homes) are supported when `project_code` is set
 //    and either `allow_non_git: true` or `cwd_prefixes` matches.
 // 3. PostToolUse stdin omits `tool_response` and Stop stdin omits `last_assistant_message`.
@@ -22,7 +23,7 @@
 //    - PostToolUse: ALWAYS `{}` (any follow-up context is queued with `turn_id` for next PreInvocation)
 //    - Stop: ALWAYS `{ decision: '' }` (never `"continue"`)
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   accessSync,
@@ -33,8 +34,6 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
-  readlinkSync,
-  readSync,
   realpathSync,
   renameSync,
   unlinkSync,
@@ -124,17 +123,22 @@ export interface AntigravityHookOptions {
   allowedTranscriptRoots?: readonly string[];
   /** Optional OS turn-state lock overrides (primarily for tests). */
   turnLock?: TurnStateLockOptions;
+  /** Optional POSIX `openat` helper executable override for transcript reads (strictly for tests). */
+  transcriptOpenatBinary?: string;
 }
 
 export interface TranscriptReadOptions {
   conversationId: string;
   allowedTranscriptRoots?: readonly string[];
   env?: NodeJS.ProcessEnv;
+  /** Override for the POSIX `openat` helper executable path (strictly for tests). */
+  openatHelperBinary?: string;
 }
 
 const TURN_SCHEMA = 'brainbase-antigravity-judgment-turn-v1';
 const PROJECT_CODE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/u;
 const TRANSCRIPT_TAIL_MAX_BYTES = 256 * 1024;
+const TRANSCRIPT_OPENAT_TIMEOUT_MS = 1_500;
 const MAX_PENDING_MESSAGES = 8;
 const DEFAULT_STALE_TURN_MS = 30 * 60 * 1000;
 const MAX_CONFIG_TIMEOUT_MS = 60_000;
@@ -156,6 +160,8 @@ interface AntigravityTurnState {
   turn_generation: number;
   turn_active: boolean;
   started_at: string;
+  current_turn_user_step_index: number | null;
+  last_closed_user_step_index: number | null;
   last_opened_user_step_index: number | null;
   last_prompt_digest: string | null;
   start_status: 'failed' | 'started' | 'out_of_scope';
@@ -187,6 +193,7 @@ interface Context {
   staleTurnMs: number;
   allowedTranscriptRoots?: readonly string[];
   turnLock?: TurnStateLockOptions;
+  transcriptOpenatBinary?: string;
 }
 
 type LoginPin = { expected?: string | null; used?: string | null };
@@ -789,9 +796,27 @@ function matchesConversationTranscriptStructure(
 
 interface TranscriptOpenTestHooks {
   onBeforeOpen?: (canonicalPath: string) => void;
-  onAfterOpen?: (canonicalPath: string) => void;
-  /** Test hook to simulate kernel `/proc/self/fd/${fd}` lookup unavailability. */
-  readProcFdPath?: (fd: number) => string | null;
+  /** Override for the POSIX `openat` helper executable path (strictly for tests). */
+  openatHelperBinary?: string;
+  /** Override timeout in ms for the POSIX `openat` helper (strictly for tests). */
+  helperTimeoutMs?: number;
+  /** Override platform check to test non-POSIX fail-closed behavior. */
+  platform?: NodeJS.Platform;
+}
+
+interface AuthorizedTranscriptTarget {
+  canonicalRoot: string;
+  canonicalPath: string;
+  segments: string[];
+}
+
+function isSafePathSegment(segment: string): boolean {
+  return segment.length > 0
+    && segment !== '.'
+    && segment !== '..'
+    && !segment.includes('/')
+    && !segment.includes('\\')
+    && !segment.includes('\0');
 }
 
 function verifyNoSymlinkPathUnderRoot(
@@ -807,6 +832,9 @@ function verifyNoSymlinkPathUnderRoot(
     }
     const rel = relative(canonicalRoot, canonicalTarget);
     const segments = rel.split(sep);
+    if (segments.length === 0 || !segments.every(isSafePathSegment)) {
+      return { ok: false };
+    }
     let current = canonicalRoot;
     for (let i = 0; i < segments.length - 1; i += 1) {
       current = join(current, segments[i]);
@@ -822,63 +850,10 @@ function verifyNoSymlinkPathUnderRoot(
   }
 }
 
-function verifyOpenedTranscriptFd(
-  fd: number,
-  canonicalPath: string,
-  options: TranscriptReadOptions,
-  testHooks?: TranscriptOpenTestHooks,
-): { size: number } | null {
-  try {
-    const fdStat = fstatSync(fd, { bigint: true });
-    if (!fdStat.isFile()) return null;
-    const conversationId = options.conversationId.trim();
-    if (!isSafeConversationIdSegment(conversationId)) return null;
-    const postRoots = canonicalTranscriptRoots(options);
-    if (postRoots.length === 0) return null;
-
-    // Require kernel-level open-fd path resolution via `/proc/self/fd/${fd}` with NO fallback.
-    // Environments that cannot prove the opened fd's canonical path fail closed.
-    let procFdPath: string | null;
-    try {
-      if (testHooks?.readProcFdPath) {
-        procFdPath = testHooks.readProcFdPath(fd);
-      } else if (process.platform === 'linux') {
-        procFdPath = readlinkSync(`/proc/self/fd/${fd}`);
-      } else {
-        return null;
-      }
-    } catch {
-      return null;
-    }
-
-    if (typeof procFdPath !== 'string'
-      || !procFdPath
-      || procFdPath.includes('\0')
-      || procFdPath.includes(' (deleted)')) {
-      return null;
-    }
-    if (procFdPath !== canonicalPath) {
-      return null;
-    }
-    const matchedProcRoot = postRoots.find((root) => (
-      isStrictDescendantPath(root, procFdPath)
-      && matchesConversationTranscriptStructure(root, procFdPath, conversationId)
-    ));
-    if (!matchedProcRoot) return null;
-    const procWalk = verifyNoSymlinkPathUnderRoot(matchedProcRoot, procFdPath);
-    if (!procWalk.ok || procWalk.dev !== fdStat.dev || procWalk.ino !== fdStat.ino) {
-      return null;
-    }
-    return { size: Number(fdStat.size) };
-  } catch {
-    return null;
-  }
-}
-
-function resolveAuthorizedTranscriptPath(
+function resolveAuthorizedTranscriptTarget(
   transcriptPath: unknown,
   options?: TranscriptReadOptions,
-): string | null {
+): AuthorizedTranscriptTarget | null {
   if (typeof transcriptPath !== 'string' || !transcriptPath.trim() || transcriptPath.includes('\0')) {
     return null;
   }
@@ -892,10 +867,171 @@ function resolveAuthorizedTranscriptPath(
     const canonicalPath = realpathSync(rawPath);
     const roots = canonicalTranscriptRoots(options!);
     if (roots.length === 0) return null;
-    const matchedRoot = roots.find((root) => matchesConversationTranscriptStructure(root, canonicalPath, conversationId));
+    const matchedRoot = roots.find((root) => (
+      root !== sep
+      && root !== '/'
+      && matchesConversationTranscriptStructure(root, canonicalPath, conversationId)
+    ));
     if (!matchedRoot) return null;
     if (!verifyNoSymlinkPathUnderRoot(matchedRoot, canonicalPath).ok) return null;
-    return canonicalPath;
+    const segments = relative(matchedRoot, canonicalPath).split(sep);
+    if (segments.length === 0 || !segments.every(isSafePathSegment)) return null;
+    return { canonicalRoot: matchedRoot, canonicalPath, segments };
+  } catch {
+    return null;
+  }
+}
+
+function resolveAuthorizedTranscriptPath(
+  transcriptPath: unknown,
+  options?: TranscriptReadOptions,
+): string | null {
+  return resolveAuthorizedTranscriptTarget(transcriptPath, options)?.canonicalPath ?? null;
+}
+
+const PYTHON_OPENAT_TAIL_READER = [
+  'import os, stat, sys',
+  'def fail(): sys.exit(1)',
+  'if len(sys.argv) < 4: fail()',
+  'if not (hasattr(os, "O_NOFOLLOW") and hasattr(os, "O_DIRECTORY") and hasattr(os, "O_NONBLOCK") and (os.open in getattr(os, "supports_dir_fd", ()))): fail()',
+  'root = sys.argv[1]',
+  'try: max_bytes = int(sys.argv[2])',
+  'except ValueError: fail()',
+  'segments = sys.argv[3:]',
+  'if max_bytes <= 0 or not root or not os.path.isabs(root) or "\\x00" in root: fail()',
+  'root_parts = [p for p in root.split("/") if p]',
+  'if not root_parts or os.path.realpath(root) != root: fail()',
+  'if not segments: fail()',
+  'for seg in segments:',
+  '    if not seg or seg in (".", "..") or "/" in seg or "\\\\" in seg or "\\x00" in seg: fail()',
+  'cloexec = getattr(os, "O_CLOEXEC", 0)',
+  'dir_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_NONBLOCK | cloexec',
+  'root_walk_flags = getattr(os, "O_PATH", os.O_RDONLY) | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_NONBLOCK | cloexec',
+  'file_flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | cloexec',
+  'cur_fd = -1',
+  'file_fd = -1',
+  'try:',
+  '    cur_fd = os.open("/", root_walk_flags)',
+  '    for idx, part in enumerate(root_parts):',
+  '        flags = dir_flags if idx == len(root_parts) - 1 else root_walk_flags',
+  '        next_fd = os.open(part, flags, dir_fd=cur_fd)',
+  '        os.close(cur_fd)',
+  '        cur_fd = next_fd',
+  '    root_st = os.fstat(cur_fd)',
+  '    if not stat.S_ISDIR(root_st.st_mode): fail()',
+  '    if os.path.realpath(root) != root: fail()',
+  '    root_lstat = os.lstat(root)',
+  '    if root_lstat.st_dev != root_st.st_dev or root_lstat.st_ino != root_st.st_ino: fail()',
+  '    for seg in segments[:-1]:',
+  '        next_fd = os.open(seg, dir_flags, dir_fd=cur_fd)',
+  '        os.close(cur_fd)',
+  '        cur_fd = next_fd',
+  '        if not stat.S_ISDIR(os.fstat(cur_fd).st_mode): fail()',
+  '    file_fd = os.open(segments[-1], file_flags, dir_fd=cur_fd)',
+  '    os.close(cur_fd)',
+  '    cur_fd = -1',
+  '    st = os.fstat(file_fd)',
+  '    if not stat.S_ISREG(st.st_mode): fail()',
+  '    size = st.st_size',
+  '    if size <= 0: sys.exit(0)',
+  '    read_size = min(size, max_bytes)',
+  '    offset = size - read_size',
+  '    chunks = []',
+  '    remaining = read_size',
+  '    pos = offset',
+  '    has_pread = hasattr(os, "pread")',
+  '    if not has_pread: os.lseek(file_fd, offset, os.SEEK_SET)',
+  '    while remaining > 0:',
+  '        chunk = os.pread(file_fd, remaining, pos) if has_pread else os.read(file_fd, remaining)',
+  '        if not chunk: break',
+  '        chunks.append(chunk)',
+  '        n = len(chunk)',
+  '        remaining -= n',
+  '        pos += n',
+  '    data = b"".join(chunks)',
+  '    if offset > 0:',
+  '        nl = data.find(b"\\n")',
+  '        if nl < 0: sys.exit(0)',
+  '        data = data[nl + 1:]',
+  '    if data:',
+  '        sys.stdout.buffer.write(data)',
+  '        sys.stdout.buffer.flush()',
+  'except OSError:',
+  '    fail()',
+  'finally:',
+  '    if cur_fd >= 0:',
+  '        try: os.close(cur_fd)',
+  '        except OSError: pass',
+  '    if file_fd >= 0:',
+  '        try: os.close(file_fd)',
+  '        except OSError: pass',
+].join('\n');
+
+function resolveOpenatHelperBinary(
+  override?: string,
+  platform: NodeJS.Platform = process.platform,
+): string | null {
+  if (platform === 'win32') {
+    return null;
+  }
+  if (override !== undefined) {
+    return override.trim() ? override : null;
+  }
+  for (const candidate of ['/usr/bin/python3', '/usr/local/bin/python3', '/bin/python3']) {
+    try {
+      accessSync(candidate, fsConstants.X_OK);
+      return candidate;
+    } catch {}
+  }
+  return 'python3';
+}
+
+/**
+ * Reads up to `maxBytes` from the tail of a transcript file strictly via
+ * kernel-enforced component-by-component `openat(dir_fd, seg, O_NOFOLLOW)`.
+ * Fails closed (`null`) if the helper cannot run or any kernel check rejects;
+ * NEVER falls back to path-based `openSync`.
+ */
+function readTailViaKernelOpenat(
+  canonicalRoot: string,
+  segments: readonly string[],
+  maxBytes: number,
+  options?: {
+    openatHelperBinary?: string;
+    helperTimeoutMs?: number;
+    platform?: NodeJS.Platform;
+  },
+): Buffer | null {
+  if (!canonicalRoot || !isAbsolute(canonicalRoot) || canonicalRoot === '/' || canonicalRoot.includes('\0')) {
+    return null;
+  }
+  if (segments.length === 0 || !segments.every(isSafePathSegment)) {
+    return null;
+  }
+  const helperBin = resolveOpenatHelperBinary(options?.openatHelperBinary, options?.platform);
+  if (!helperBin) {
+    return null;
+  }
+  const timeoutMs = options?.helperTimeoutMs ?? TRANSCRIPT_OPENAT_TIMEOUT_MS;
+  try {
+    const result = spawnSync(
+      helperBin,
+      ['-I', '-c', PYTHON_OPENAT_TAIL_READER, canonicalRoot, String(maxBytes), ...segments],
+      {
+        encoding: 'buffer',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: timeoutMs,
+        maxBuffer: maxBytes + 4096,
+        windowsHide: true,
+      },
+    );
+    if (result.error || result.signal !== null || result.status !== 0) {
+      return null;
+    }
+    if (!Buffer.isBuffer(result.stdout)) {
+      return null;
+    }
+    return result.stdout;
   } catch {
     return null;
   }
@@ -906,31 +1042,22 @@ function readTranscriptTailEntries(
   options?: TranscriptReadOptions,
   testHooks?: TranscriptOpenTestHooks,
 ): TranscriptEntry[] {
-  const canonicalPath = resolveAuthorizedTranscriptPath(transcriptPath, options);
-  if (!canonicalPath || !options) return [];
-  let fd: number | undefined;
+  const target = resolveAuthorizedTranscriptTarget(transcriptPath, options);
+  if (!target || !options) return [];
   try {
-    testHooks?.onBeforeOpen?.(canonicalPath);
-    if (!lstatSync(canonicalPath).isFile()) return [];
-    const openFlags = fsConstants.O_RDONLY
-      | (fsConstants.O_NONBLOCK ?? 0)
-      | (fsConstants.O_NOFOLLOW ?? 0);
-    fd = openSync(canonicalPath, openFlags);
-    testHooks?.onAfterOpen?.(canonicalPath);
-    const verified = verifyOpenedTranscriptFd(fd, canonicalPath, options, testHooks);
-    if (!verified) return [];
-    const size = verified.size;
-    if (size <= 0) return [];
-    const readSize = Math.min(size, TRANSCRIPT_TAIL_MAX_BYTES);
-    const offset = size - readSize;
-    const buffer = Buffer.allocUnsafe(readSize);
-    const bytesRead = readSync(fd, buffer, 0, readSize, offset);
-    let text = buffer.subarray(0, bytesRead).toString('utf8');
-    if (offset > 0) {
-      const firstNewline = text.indexOf('\n');
-      if (firstNewline < 0) return [];
-      text = text.slice(firstNewline + 1);
-    }
+    testHooks?.onBeforeOpen?.(target.canonicalPath);
+    const rawTail = readTailViaKernelOpenat(
+      target.canonicalRoot,
+      target.segments,
+      TRANSCRIPT_TAIL_MAX_BYTES,
+      {
+        openatHelperBinary: testHooks?.openatHelperBinary ?? options.openatHelperBinary,
+        helperTimeoutMs: testHooks?.helperTimeoutMs,
+        platform: testHooks?.platform,
+      },
+    );
+    if (rawTail === null || rawTail.length === 0) return [];
+    const text = rawTail.toString('utf8');
     const entries: TranscriptEntry[] = [];
     for (const line of text.split(/\r?\n/u)) {
       const trimmed = line.trim();
@@ -947,12 +1074,6 @@ function readTranscriptTailEntries(
     return entries;
   } catch {
     return [];
-  } finally {
-    if (fd !== undefined) {
-      try {
-        closeSync(fd);
-      } catch {}
-    }
   }
 }
 
@@ -1226,6 +1347,16 @@ async function withTurnStateLock<T>(
   }
 }
 
+function parseOptionalStepIndex(value: unknown): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) ? value : null;
+}
+
+function maxStepIndex(a: number | null, b: number | null): number | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  return Math.max(a, b);
+}
+
 function readState(env: NodeJS.ProcessEnv, key: string): AntigravityTurnState | null {
   try {
     const parsed = JSON.parse(readFileSync(statePath(env, key), 'utf8')) as Partial<AntigravityTurnState> | null;
@@ -1241,14 +1372,29 @@ function readState(env: NodeJS.ProcessEnv, key: string): AntigravityTurnState | 
       && Number.isSafeInteger(parsed.turn_generation) && parsed.turn_generation > 0
       ? parsed.turn_generation
       : 0;
+    const turnActive = parsed.turn_active === true;
+    const lastOpened = parseOptionalStepIndex(parsed.last_opened_user_step_index);
+    const hasCurrentStepField = Object.prototype.hasOwnProperty.call(parsed, 'current_turn_user_step_index');
+    const hasLastClosedField = Object.prototype.hasOwnProperty.call(parsed, 'last_closed_user_step_index');
+    let currentTurnUserStepIndex = hasCurrentStepField
+      ? parseOptionalStepIndex(parsed.current_turn_user_step_index)
+      : (turnActive ? lastOpened : null);
+    let lastClosedUserStepIndex = hasLastClosedField
+      ? parseOptionalStepIndex(parsed.last_closed_user_step_index)
+      : (!turnActive ? lastOpened : null);
+    if (!turnActive && currentTurnUserStepIndex !== null) {
+      lastClosedUserStepIndex = maxStepIndex(lastClosedUserStepIndex, currentTurnUserStepIndex);
+      currentTurnUserStepIndex = null;
+    }
     return {
       schema_version: TURN_SCHEMA,
       turn_id: parsed.turn_id,
       turn_generation: generation,
-      turn_active: parsed.turn_active === true,
+      turn_active: turnActive,
       started_at: typeof parsed.started_at === 'string' ? parsed.started_at : new Date(0).toISOString(),
-      last_opened_user_step_index: typeof parsed.last_opened_user_step_index === 'number'
-        ? parsed.last_opened_user_step_index : null,
+      current_turn_user_step_index: currentTurnUserStepIndex,
+      last_closed_user_step_index: lastClosedUserStepIndex,
+      last_opened_user_step_index: lastOpened,
       last_prompt_digest: typeof parsed.last_prompt_digest === 'string' ? parsed.last_prompt_digest : null,
       start_status: parsed.start_status === 'started' || parsed.start_status === 'out_of_scope'
         ? parsed.start_status : 'failed',
@@ -1433,14 +1579,19 @@ function isStaleOrAlreadyClosedStep(
   state: AntigravityTurnState,
   currentUserStepIndex: number | null,
 ): boolean {
-  if (state.last_opened_user_step_index === null || currentUserStepIndex === null) {
+  if (currentUserStepIndex === null) {
     return false;
   }
-  if (currentUserStepIndex < state.last_opened_user_step_index) {
+  if (state.last_closed_user_step_index !== null && currentUserStepIndex <= state.last_closed_user_step_index) {
     return true;
   }
-  if (!state.turn_active && currentUserStepIndex <= state.last_opened_user_step_index) {
-    return true;
+  if (state.current_turn_user_step_index !== null) {
+    if (currentUserStepIndex < state.current_turn_user_step_index) {
+      return true;
+    }
+    if (!state.turn_active && currentUserStepIndex <= state.current_turn_user_step_index) {
+      return true;
+    }
   }
   return false;
 }
@@ -1459,8 +1610,8 @@ function shouldRecoverNewTurn(
     return false;
   }
   if (!state.turn_active) return true;
-  if (currentUserStepIndex !== null && state.last_opened_user_step_index !== null) {
-    if (currentUserStepIndex > state.last_opened_user_step_index) {
+  if (currentUserStepIndex !== null && state.current_turn_user_step_index !== null) {
+    if (currentUserStepIndex > state.current_turn_user_step_index) {
       return true;
     }
   }
@@ -1482,6 +1633,8 @@ function transcriptOptionsFor(conversationId: string, context: Context): Transcr
     env: context.env,
     ...(context.allowedTranscriptRoots !== undefined
       ? { allowedTranscriptRoots: context.allowedTranscriptRoots } : {}),
+    ...(context.transcriptOpenatBinary !== undefined
+      ? { openatHelperBinary: context.transcriptOpenatBinary } : {}),
   };
 }
 
@@ -1548,18 +1701,38 @@ async function handlePreInvocation(
     }
     if (!prompt) {
       if (latest && latest.pending_messages.length > 0) {
-        writeState(context.env, key, { ...latest, turn_active: false, pending_messages: [] });
+        writeState(context.env, key, {
+          ...latest,
+          turn_active: false,
+          current_turn_user_step_index: null,
+          last_closed_user_step_index: maxStepIndex(
+            latest.last_closed_user_step_index,
+            latest.current_turn_user_step_index,
+          ),
+          pending_messages: [],
+        });
       }
       return { kind: 'no_prompt' };
     }
     const nextGeneration = (latest?.turn_generation ?? 0) + 1;
+    const closingPreviousStep = latest
+      && latest.current_turn_user_step_index !== null
+      && (!latest.turn_active || latest.current_turn_user_step_index !== currentUserStepIndex)
+      ? latest.current_turn_user_step_index
+      : null;
+    const nextLastClosedUserStepIndex = maxStepIndex(
+      latest?.last_closed_user_step_index ?? null,
+      closingPreviousStep,
+    );
     const state: AntigravityTurnState = {
       schema_version: TURN_SCHEMA,
       turn_id: randomUUID(),
       turn_generation: nextGeneration,
       turn_active: true,
       started_at: new Date(nowMs).toISOString(),
-      last_opened_user_step_index: currentUserStepIndex ?? latest?.last_opened_user_step_index ?? null,
+      current_turn_user_step_index: currentUserStepIndex,
+      last_closed_user_step_index: nextLastClosedUserStepIndex,
+      last_opened_user_step_index: currentUserStepIndex,
       last_prompt_digest: promptDigest,
       start_status: inScope ? 'failed' : 'out_of_scope',
       in_git: context.scope.inGit,
@@ -1924,7 +2097,16 @@ async function handleStop(
       await withTurnStateLock(context.env, key, () => {
         const latest = readState(context.env, key);
         if (latest && latest.turn_id === state.turn_id && latest.turn_generation === state.turn_generation) {
-          writeState(context.env, key, { ...latest, turn_active: false, pending_messages: [] });
+          writeState(context.env, key, {
+            ...latest,
+            turn_active: false,
+            current_turn_user_step_index: null,
+            last_closed_user_step_index: maxStepIndex(
+              latest.last_closed_user_step_index,
+              latest.current_turn_user_step_index,
+            ),
+            pending_messages: [],
+          });
         }
       }, context.turnLock);
     } catch {}
@@ -2003,6 +2185,8 @@ export async function handleAntigravityJudgmentHook(
       ...(options.allowedTranscriptRoots !== undefined
         ? { allowedTranscriptRoots: options.allowedTranscriptRoots } : {}),
       ...(options.turnLock !== undefined ? { turnLock: options.turnLock } : {}),
+      ...(options.transcriptOpenatBinary !== undefined
+        ? { transcriptOpenatBinary: options.transcriptOpenatBinary } : {}),
     };
 
     if (eventName === 'PreInvocation') return await handlePreInvocation(payload, conversationId, context);

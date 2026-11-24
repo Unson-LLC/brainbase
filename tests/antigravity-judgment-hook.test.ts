@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { lstatSync, renameSync, symlinkSync } from 'node:fs';
+import { chmodSync, lstatSync, renameSync, symlinkSync, unlinkSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -1164,7 +1164,218 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
     const reopenedState = JSON.parse(await readFile(stateFile, 'utf8'));
     expect(reopenedState.turn_active).toBe(true);
     expect(reopenedState.turn_generation).toBe(2);
+    expect(reopenedState.current_turn_user_step_index).toBe(11);
+    expect(reopenedState.last_closed_user_step_index).toBe(10);
     expect(reopenedState.last_opened_user_step_index).toBe(11);
+  });
+
+  it('keeps closed step index separate from an active unnumbered turn and rejects delayed closed-step PreInvocation without draining pending context', async () => {
+    const { home, repo, configPath, env } = await setupConfig({ project_code: 'proj-step-sep' });
+    const turnDir = join(home, 'turns');
+    const testEnv = { ...env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir };
+    const { fetchImpl, sent } = mockHost((body) => ({
+      status: 200,
+      body: {
+        schema_version: '1',
+        accepted: true,
+        hook_event_name: body.hook_event_name,
+        session_id: body.session_id,
+        turn_id: body.turn_id,
+        output: body.hook_event_name === 'PostToolUse'
+          ? {
+            systemMessage: 'NEW_UNNUMBERED_TURN_BANNER',
+            hookSpecificOutput: { additionalContext: 'NEW_UNNUMBERED_TURN_PENDING_CONTEXT' },
+          }
+          : body.hook_event_name === 'UserPromptSubmit'
+            ? {
+              systemMessage: 'init-banner',
+              hookSpecificOutput: { additionalContext: 'init-context' },
+            }
+            : {},
+      },
+    }));
+    const options = { env: testEnv, fetch: fetchImpl, accessToken: token, configPath, registrationId: REG };
+    const key = __antigravityHookTestInternals.turnKey('conv-step-sep', configPath);
+    const stateFile = __antigravityHookTestInternals.statePath(testEnv, key);
+
+    // 1. Open turn at step_index 10 and close it via Stop.
+    const transcriptPath = await canonicalTranscriptPath(home, 'conv-step-sep');
+    await writeFile(transcriptPath, JSON.stringify({
+      step_index: 10,
+      source: 'USER_EXPLICIT',
+      type: 'USER_INPUT',
+      content: 'Step 10 prompt',
+    }) + '\n');
+
+    await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-step-sep',
+      invocationNum: 1,
+      cwd: repo,
+      transcriptPath,
+      lastUserInput: 'Step 10 prompt',
+    }, options);
+    expect(sent).toHaveLength(1);
+
+    const activeStep10 = JSON.parse(await readFile(stateFile, 'utf8'));
+    expect(activeStep10.current_turn_user_step_index).toBe(10);
+    expect(activeStep10.last_closed_user_step_index).toBeNull();
+
+    const stopOut = await handleAntigravityJudgmentHook({
+      hookEventName: 'Stop',
+      conversationId: 'conv-step-sep',
+      cwd: repo,
+      transcriptPath,
+      terminationReason: 'NO_TOOL_CALL',
+    }, options);
+    expect(stopOut).toEqual({ decision: '' });
+    expect(sent).toHaveLength(2);
+
+    const closedStep10 = JSON.parse(await readFile(stateFile, 'utf8'));
+    expect(closedStep10.turn_active).toBe(false);
+    expect(closedStep10.current_turn_user_step_index).toBeNull();
+    expect(closedStep10.last_closed_user_step_index).toBe(10);
+
+    // 2. Open a new UNNUMBERED turn (no transcriptPath -> currentUserStepIndex === null).
+    const unnumberedOpen = await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-step-sep',
+      invocationNum: 1,
+      cwd: repo,
+      lastUserInput: 'Unnumbered Turn 2 prompt',
+    }, options);
+    expect(Array.isArray(unnumberedOpen.injectSteps)).toBe(true);
+    expect(sent).toHaveLength(3);
+    expect(sent[2].body.hook_event_name).toBe('UserPromptSubmit');
+    expect(sent[2].body.prompt).toBe('Unnumbered Turn 2 prompt');
+
+    const unnumberedState = JSON.parse(await readFile(stateFile, 'utf8'));
+    expect(unnumberedState.turn_active).toBe(true);
+    expect(unnumberedState.turn_generation).toBe(2);
+    expect(unnumberedState.current_turn_user_step_index).toBeNull();
+    expect(unnumberedState.last_closed_user_step_index).toBe(10);
+    expect(unnumberedState.last_opened_user_step_index).toBeNull();
+
+    // 3. Queue pending context on the active unnumbered Turn 2 via PostToolUse.
+    const postOut = await handleAntigravityJudgmentHook({
+      hookEventName: 'PostToolUse',
+      conversationId: 'conv-step-sep',
+      cwd: repo,
+      stepIdx: 2,
+      toolCall: { id: 'toolu_unnum_1', name: 'run_command', args: { CommandLine: 'ls' } },
+    }, options);
+    expect(postOut).toEqual({});
+    expect(sent).toHaveLength(4);
+
+    const withPending = JSON.parse(await readFile(stateFile, 'utf8'));
+    expect(withPending.pending_messages).toHaveLength(1);
+    expect(withPending.pending_messages[0].additional_context).toBe('NEW_UNNUMBERED_TURN_PENDING_CONTEXT');
+
+    // 4. Delayed step 10 PreInvocation arrives (both invocationNum 2 and invocationNum 1) ->
+    //    MUST be unconditionally rejected ({}), MUST NOT open a new turn, and MUST NOT drain or consume pending_messages.
+    for (const invNum of [2, 1]) {
+      const delayedStep10 = await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId: 'conv-step-sep',
+        invocationNum: invNum,
+        cwd: repo,
+        transcriptPath,
+        lastUserInput: 'Step 10 prompt',
+      }, options);
+      expect(delayedStep10).toEqual({});
+      expect(sent).toHaveLength(4);
+      const persistedAfterDelayed = JSON.parse(await readFile(stateFile, 'utf8'));
+      expect(persistedAfterDelayed.turn_id).toBe(unnumberedState.turn_id);
+      expect(persistedAfterDelayed.turn_generation).toBe(2);
+      expect(persistedAfterDelayed.current_turn_user_step_index).toBeNull();
+      expect(persistedAfterDelayed.last_closed_user_step_index).toBe(10);
+      expect(persistedAfterDelayed.pending_messages).toHaveLength(1);
+    }
+
+    // 5. Delayed older step 5 PreInvocation is also rejected without touching pending_messages.
+    await writeFile(transcriptPath, JSON.stringify({
+      step_index: 5,
+      source: 'USER_EXPLICIT',
+      type: 'USER_INPUT',
+      content: 'Delayed step 5 prompt',
+    }) + '\n');
+    const delayedStep5 = await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-step-sep',
+      invocationNum: 2,
+      cwd: repo,
+      transcriptPath,
+      lastUserInput: 'Delayed step 5 prompt',
+    }, options);
+    expect(delayedStep5).toEqual({});
+    expect(sent).toHaveLength(4);
+    expect(JSON.parse(await readFile(stateFile, 'utf8')).pending_messages).toHaveLength(1);
+
+    // 6. Legitimate next PreInvocation of the active unnumbered Turn 2 drains and injects its untouched pending context.
+    const drained = await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-step-sep',
+      invocationNum: 2,
+      cwd: repo,
+      lastUserInput: 'Unnumbered Turn 2 prompt',
+    }, options);
+    const serialized = JSON.stringify(drained);
+    expect(serialized).toContain('NEW_UNNUMBERED_TURN_PENDING_CONTEXT');
+    expect(serialized).toContain('NEW_UNNUMBERED_TURN_BANNER');
+    expect(JSON.parse(await readFile(stateFile, 'utf8')).pending_messages).toEqual([]);
+
+    // 7. Superseding an active numbered turn (step 12 -> step 15 without Stop) monotonically updates last_closed_user_step_index to 12.
+    await writeFile(transcriptPath, JSON.stringify({
+      step_index: 12,
+      source: 'USER_EXPLICIT',
+      type: 'USER_INPUT',
+      content: 'Step 12 prompt',
+    }) + '\n');
+    await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-step-sep',
+      invocationNum: 1,
+      cwd: repo,
+      transcriptPath,
+      lastUserInput: 'Step 12 prompt',
+    }, options);
+    const step12State = JSON.parse(await readFile(stateFile, 'utf8'));
+    expect(step12State.current_turn_user_step_index).toBe(12);
+    expect(step12State.last_closed_user_step_index).toBe(10);
+
+    await writeFile(transcriptPath, JSON.stringify({
+      step_index: 15,
+      source: 'USER_EXPLICIT',
+      type: 'USER_INPUT',
+      content: 'Step 15 prompt',
+    }) + '\n');
+    await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-step-sep',
+      invocationNum: 1,
+      cwd: repo,
+      transcriptPath,
+      lastUserInput: 'Step 15 prompt',
+    }, options);
+    const step15State = JSON.parse(await readFile(stateFile, 'utf8'));
+    expect(step15State.current_turn_user_step_index).toBe(15);
+    expect(step15State.last_closed_user_step_index).toBe(12);
+
+    // Delayed step 12 after supersession is rejected.
+    await writeFile(transcriptPath, JSON.stringify({
+      step_index: 12,
+      source: 'USER_EXPLICIT',
+      type: 'USER_INPUT',
+      content: 'Step 12 prompt',
+    }) + '\n');
+    expect(await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-step-sep',
+      invocationNum: 2,
+      cwd: repo,
+      transcriptPath,
+      lastUserInput: 'Step 12 prompt',
+    }, options)).toEqual({});
   });
 
   it('does not inject initial context when Stop closes or a new turn supersedes the turn during UserPromptSubmit HTTP wait', async () => {
@@ -1438,7 +1649,7 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
     expect(await readFile(hookStatePath, 'utf8')).toBe(persistedBefore);
   });
 
-  it('rejects transcript reads on parent-directory symlink swap TOCTOU and fails closed when /proc/self/fd verification is unavailable', async () => {
+  it('enforces kernel openat + O_NOFOLLOW per component under allowed root, rejects symlink/FIFO swaps without blocking, and fails closed when helper is unavailable', async () => {
     const dir = await tempDir();
     const allowedRoot = join(dir, 'brain');
     const outsideDir = join(dir, 'outside-secret');
@@ -1451,7 +1662,8 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
       content: 'OUTSIDE_SECRET_PROMPT',
     }) + '\n');
 
-    const logsDir = join(allowedRoot, 'conv-toctou', '.system_generated', 'logs');
+    const sysGenDir = join(allowedRoot, 'conv-toctou', '.system_generated');
+    const logsDir = join(sysGenDir, 'logs');
     await mkdir(logsDir, { recursive: true });
     const insideTranscript = join(logsDir, 'transcript.jsonl');
     await writeFile(insideTranscript, JSON.stringify({
@@ -1462,53 +1674,125 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
     }) + '\n');
 
     const readOpts = { conversationId: 'conv-toctou', allowedTranscriptRoots: [allowedRoot] };
-    // Baseline legitimate read succeeds.
-    expect(__antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts)).toHaveLength(1);
+    // Baseline legitimate read succeeds through kernel openat helper.
+    const baseline = __antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts);
+    expect(baseline).toHaveLength(1);
+    expect(baseline[0].content).toBe('LEGITIMATE_INSIDE_PROMPT');
 
-    // Case 4a: Parent dir `logs` is swapped to a symlink pointing outside right after validation and before open().
-    const backupLogsDir = join(allowedRoot, 'conv-toctou', '.system_generated', 'logs-backup');
-    const entriesAfterSwap = __antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
+    // Case 4a: Parent dir `logs` is swapped to an outside symlink right after validation and before openat().
+    const backupLogsDir = join(sysGenDir, 'logs-backup');
+    const entriesAfterParentSwap = __antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
       onBeforeOpen: () => {
         renameSync(logsDir, backupLogsDir);
         symlinkSync(outsideDir, logsDir);
       },
     });
-    expect(entriesAfterSwap).toEqual([]);
-
-    // Restore legitimate logs dir for Case 4b.
+    expect(entriesAfterParentSwap).toEqual([]);
     await rm(logsDir, { force: true });
     renameSync(backupLogsDir, logsDir);
 
-    // Case 4b: Parent dir is swapped to outside symlink before open() AND immediately swapped back after open()
-    // before post-open verification runs (proves mandatory /proc/self/fd + (dev, ino) verification catches it).
-    const entriesSwapAndRevert = __antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
+    // Case 4b: Higher intermediate dir `.system_generated` is swapped to a symlink pointing outside right before openat().
+    const outsideSysGen = join(outsideDir, 'fake-sysgen');
+    await mkdir(join(outsideSysGen, 'logs'), { recursive: true });
+    await writeFile(join(outsideSysGen, 'logs', 'transcript.jsonl'), JSON.stringify({
+      step_index: 0,
+      source: 'USER_EXPLICIT',
+      type: 'USER_INPUT',
+      content: 'OUTSIDE_INTERMEDIATE_SYMLINK_SECRET',
+    }) + '\n');
+    const backupSysGenDir = join(allowedRoot, 'conv-toctou', '.system_generated-backup');
+    const entriesAfterIntermediateSwap = __antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
       onBeforeOpen: () => {
-        renameSync(logsDir, backupLogsDir);
-        symlinkSync(outsideDir, logsDir);
-      },
-      onAfterOpen: () => {
-        // Restore symlink back to original directory immediately after openSync returned fd for outside file.
-        renameSync(logsDir, `${logsDir}.used-symlink`);
-        renameSync(backupLogsDir, logsDir);
+        renameSync(sysGenDir, backupSysGenDir);
+        symlinkSync(outsideSysGen, sysGenDir);
       },
     });
-    expect(entriesSwapAndRevert).toEqual([]);
+    expect(entriesAfterIntermediateSwap).toEqual([]);
+    await rm(sysGenDir, { force: true });
+    renameSync(backupSysGenDir, sysGenDir);
 
-    // Case 4c: When `/proc/self/fd/${fd}` cannot be read (unavailable procfs / non-Linux), fail closed with [] (NO realpath fallback).
-    expect(__antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
-      readProcFdPath: () => null,
-    })).toEqual([]);
-    expect(__antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
-      readProcFdPath: () => {
-        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+    // Case 4c: Leaf file `transcript.jsonl` is swapped to a symlink pointing outside right before openat().
+    const backupFile = join(logsDir, 'transcript.jsonl.backup');
+    const entriesAfterLeafSymlinkSwap = __antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
+      onBeforeOpen: () => {
+        renameSync(insideTranscript, backupFile);
+        symlinkSync(outsideTranscript, insideTranscript);
       },
+    });
+    expect(entriesAfterLeafSymlinkSwap).toEqual([]);
+    unlinkSync(insideTranscript);
+    renameSync(backupFile, insideTranscript);
+
+    // Case 4d: Leaf file is swapped to a FIFO right before openat() -> O_NONBLOCK + fstat(S_ISREG) rejects immediately without blocking.
+    const fifoStart = Date.now();
+    const entriesAfterFifoSwap = __antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
+      onBeforeOpen: () => {
+        renameSync(insideTranscript, backupFile);
+        const mk = spawnSync('mkfifo', [insideTranscript]);
+        if (mk.status !== 0) throw new Error('mkfifo failed');
+      },
+    });
+    const fifoElapsedMs = Date.now() - fifoStart;
+    expect(entriesAfterFifoSwap).toEqual([]);
+    expect(fifoElapsedMs).toBeLessThan(1_000);
+    unlinkSync(insideTranscript);
+    renameSync(backupFile, insideTranscript);
+
+    // Case 4e: Fail-closed when kernel openat helper is unavailable, non-POSIX, exits non-zero, or times out (NO openSync fallback).
+    expect(__antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
+      openatHelperBinary: '/nonexistent/python3-openat-helper-unavailable',
+    })).toEqual([]);
+    expect(__antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
+      openatHelperBinary: '',
+    })).toEqual([]);
+    expect(__antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
+      platform: 'win32',
     })).toEqual([]);
 
-    // Case 4d: Deleted open fd reported by `/proc/self/fd/${fd}` is rejected.
-    const realInside = await realpath(insideTranscript);
+    const failingHelper = join(dir, 'fail-helper.sh');
+    await writeFile(failingHelper, '#!/bin/sh\nexit 1\n');
+    chmodSync(failingHelper, 0o755);
     expect(__antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
-      readProcFdPath: () => `${realInside} (deleted)`,
+      openatHelperBinary: failingHelper,
     })).toEqual([]);
+
+    const slowHelper = join(dir, 'slow-helper.sh');
+    await writeFile(slowHelper, '#!/bin/sh\nsleep 2\n');
+    chmodSync(slowHelper, 0o755);
+    const timeoutStart = Date.now();
+    expect(__antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
+      openatHelperBinary: slowHelper,
+      helperTimeoutMs: 80,
+    })).toEqual([]);
+    expect(Date.now() - timeoutStart).toBeLessThan(1_000);
+
+    // End-to-end hook fail-closed check when openat helper binary is unavailable.
+    const { home, repo, configPath, env } = await setupConfig();
+    const hookTranscript = await canonicalTranscriptPath(home, 'conv-no-helper');
+    await writeFile(hookTranscript, JSON.stringify({
+      step_index: 0,
+      source: 'USER_EXPLICIT',
+      type: 'USER_INPUT',
+      content: 'TRANSCRIPT_ONLY_PROMPT',
+    }) + '\n');
+    const { fetchImpl, sent } = mockHost();
+    const noHelperOut = await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-no-helper',
+      invocationNum: 1,
+      cwd: repo,
+      transcriptPath: hookTranscript,
+      lastUserInput: 'Reason Network: system only',
+    }, {
+      env,
+      fetch: fetchImpl,
+      accessToken: token,
+      configPath,
+      registrationId: REG,
+      transcriptOpenatBinary: '/nonexistent/python3-unavailable',
+    });
+    expect(noHelperOut).toEqual({});
+    expect(sent).toHaveLength(0);
   });
 
   it('strictly binds pending context re-authorization to bearer token fingerprint, non-null loginId, and confirmed effective project_code', async () => {
