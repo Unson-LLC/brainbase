@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { chmodSync, lstatSync, renameSync, symlinkSync, unlinkSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, renameSync, symlinkSync, unlinkSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -1378,6 +1378,98 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
     }, options)).toEqual({});
   });
 
+  it('migrates legacy turn state fail-closed so delayed step 10 is rejected without consuming pending_messages', async () => {
+    const { home, repo, configPath, env } = await setupConfig({ project_code: 'proj-legacy-mig' });
+    const turnDir = join(home, 'turns');
+    const testEnv = { ...env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir };
+    const { fetchImpl, sent } = mockHost((body) => ({
+      status: 200,
+      body: {
+        schema_version: '1',
+        accepted: true,
+        hook_event_name: body.hook_event_name,
+        session_id: body.session_id,
+        turn_id: body.turn_id,
+        output: body.hook_event_name === 'PostToolUse'
+          ? {
+            systemMessage: 'LEGACY_ACTIVE_TURN_BANNER',
+            hookSpecificOutput: { additionalContext: 'LEGACY_ACTIVE_TURN_PENDING_CONTEXT' },
+          }
+          : {},
+      },
+    }));
+    const options = { env: testEnv, fetch: fetchImpl, accessToken: token, configPath, registrationId: REG };
+    const key = __antigravityHookTestInternals.turnKey('conv-legacy-mig', configPath);
+    const stateFile = __antigravityHookTestInternals.statePath(testEnv, key);
+
+    // 1. Open an active unnumbered turn and queue pending context via PostToolUse.
+    await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-legacy-mig',
+      invocationNum: 1,
+      cwd: repo,
+      lastUserInput: 'Active unnumbered turn prompt',
+    }, options);
+    await handleAntigravityJudgmentHook({
+      hookEventName: 'PostToolUse',
+      conversationId: 'conv-legacy-mig',
+      cwd: repo,
+      stepIdx: 2,
+      toolCall: { id: 'toolu_legacy_1', name: 'run_command', args: { CommandLine: 'ls' } },
+    }, options);
+    expect(sent).toHaveLength(2);
+
+    // 2. Rewrite persisted state into the legacy JSON format:
+    //    turn_active: true, last_opened_user_step_index: 10, pending_messages present,
+    //    and WITHOUT current_turn_user_step_index / last_closed_user_step_index keys.
+    const rawState = JSON.parse(await readFile(stateFile, 'utf8')) as Record<string, unknown>;
+    delete rawState.current_turn_user_step_index;
+    delete rawState.last_closed_user_step_index;
+    rawState.turn_active = true;
+    rawState.last_opened_user_step_index = 10;
+    await writeFile(stateFile, JSON.stringify(rawState));
+
+    // 3. Delayed step 10 PreInvocation arrives -> MUST be rejected ({}) and MUST preserve pending_messages.
+    const transcriptPath = await canonicalTranscriptPath(home, 'conv-legacy-mig');
+    await writeFile(transcriptPath, JSON.stringify({
+      step_index: 10,
+      source: 'USER_EXPLICIT',
+      type: 'USER_INPUT',
+      content: 'Delayed step 10 prompt',
+    }) + '\n');
+
+    for (const invNum of [2, 1]) {
+      const delayedStep10 = await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId: 'conv-legacy-mig',
+        invocationNum: invNum,
+        cwd: repo,
+        transcriptPath,
+        lastUserInput: 'Delayed step 10 prompt',
+      }, options);
+      expect(delayedStep10).toEqual({});
+      expect(sent).toHaveLength(2);
+      const afterDelayed = JSON.parse(await readFile(stateFile, 'utf8'));
+      expect(afterDelayed.pending_messages).toHaveLength(1);
+      expect(afterDelayed.pending_messages[0].additional_context).toBe('LEGACY_ACTIVE_TURN_PENDING_CONTEXT');
+    }
+
+    // 4. Legitimate unnumbered PreInvocation for the active turn still drains and injects the preserved pending_messages.
+    const drained = await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-legacy-mig',
+      invocationNum: 2,
+      cwd: repo,
+      lastUserInput: 'Active unnumbered turn prompt',
+    }, options);
+    expect(JSON.stringify(drained)).toContain('LEGACY_ACTIVE_TURN_PENDING_CONTEXT');
+    expect(JSON.stringify(drained)).toContain('LEGACY_ACTIVE_TURN_BANNER');
+    const afterDrain = JSON.parse(await readFile(stateFile, 'utf8'));
+    expect(afterDrain.pending_messages).toEqual([]);
+    expect(afterDrain.current_turn_user_step_index).toBeNull();
+    expect(afterDrain.last_closed_user_step_index).toBe(10);
+  });
+
   it('does not inject initial context when Stop closes or a new turn supersedes the turn during UserPromptSubmit HTTP wait', async () => {
     const { home, repo, configPath, env } = await setupConfig({ project_code: 'proj-closed' });
     const turnDir = join(home, 'turns');
@@ -1793,6 +1885,145 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
     });
     expect(noHelperOut).toEqual({});
     expect(sent).toHaveLength(0);
+  });
+
+  it('never falls back to PATH python3 when fixed absolute candidates are unavailable', async () => {
+    const dir = await tempDir();
+    const allowedRoot = join(dir, 'brain');
+    const logsDir = join(allowedRoot, 'conv-no-path-fallback', '.system_generated', 'logs');
+    await mkdir(logsDir, { recursive: true });
+    const insideTranscript = join(logsDir, 'transcript.jsonl');
+    await writeFile(insideTranscript, JSON.stringify({
+      step_index: 0,
+      source: 'USER_EXPLICIT',
+      type: 'USER_INPUT',
+      content: 'LEGITIMATE_PROMPT',
+    }) + '\n');
+
+    // Place a malicious fake `python3` on PATH that writes a marker file and emits valid JSONL.
+    const fakeBinDir = join(dir, 'fake-path-bin');
+    await mkdir(fakeBinDir, { recursive: true });
+    const markerPath = join(dir, 'fake-python3-executed.marker');
+    const fakePython = join(fakeBinDir, 'python3');
+    await writeFile(
+      fakePython,
+      [
+        '#!/bin/sh',
+        `printf 'executed' > '${markerPath.replace(/'/g, "'\\''")}'`,
+        'printf \'{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","content":"POISONED_PATH_PYTHON3"}\\n\'',
+        'exit 0',
+      ].join('\n') + '\n',
+    );
+    chmodSync(fakePython, 0o755);
+
+    const originalPath = process.env.PATH;
+    process.env.PATH = `${fakeBinDir}:${originalPath ?? ''}`;
+    try {
+      // Confirm PATH genuinely resolves bare `python3` to our fake binary.
+      const resolvedOnPath = spawnSync('/bin/sh', ['-c', 'command -v python3'], { encoding: 'utf8' });
+      expect(resolvedOnPath.status).toBe(0);
+      expect(resolvedOnPath.stdout.trim()).toBe(fakePython);
+
+      // Direct resolver checks: empty/missing/relative/directory candidates all fail closed (null).
+      expect(__antigravityHookTestInternals.resolveOpenatHelperBinary(undefined, 'linux', [])).toBeNull();
+      expect(__antigravityHookTestInternals.resolveOpenatHelperBinary(
+        undefined,
+        'linux',
+        ['/nonexistent/a/python3', '/nonexistent/b/python3'],
+      )).toBeNull();
+      expect(__antigravityHookTestInternals.resolveOpenatHelperBinary(undefined, 'linux', ['python3'])).toBeNull();
+      expect(__antigravityHookTestInternals.resolveOpenatHelperBinary('python3', 'linux')).toBeNull();
+      expect(__antigravityHookTestInternals.resolveOpenatHelperBinary(fakeBinDir, 'linux')).toBeNull();
+
+      const readOpts = { conversationId: 'conv-no-path-fallback', allowedTranscriptRoots: [allowedRoot] };
+
+      // Empty or nonexistent fixed candidates MUST return [] and MUST NOT execute fake PATH python3.
+      expect(__antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
+        openatHelperCandidates: [],
+      })).toEqual([]);
+      expect(__antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
+        openatHelperCandidates: ['/nonexistent/a/python3', '/nonexistent/b/python3'],
+      })).toEqual([]);
+      expect(__antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
+        openatHelperCandidates: ['python3'],
+      })).toEqual([]);
+      expect(__antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
+        openatHelperBinary: 'python3',
+      })).toEqual([]);
+
+      expect(existsSync(markerPath)).toBe(false);
+    } finally {
+      if (originalPath === undefined) {
+        delete process.env.PATH;
+      } else {
+        process.env.PATH = originalPath;
+      }
+    }
+  });
+
+  it('blocks intermediate directory rename escapes outside allowed root via openat2 and mandatory /proc/self/fd verification', async () => {
+    const dir = await tempDir();
+    const allowedRoot = join(dir, 'brain');
+    const outsideDir = join(dir, 'outside-escape');
+    await mkdir(outsideDir, { recursive: true });
+
+    const convDir = join(allowedRoot, 'conv-rename-escape');
+    const logsDir = join(convDir, '.system_generated', 'logs');
+    await mkdir(logsDir, { recursive: true });
+    const insideTranscript = join(logsDir, 'transcript.jsonl');
+    await writeFile(insideTranscript, JSON.stringify({
+      step_index: 0,
+      source: 'USER_EXPLICIT',
+      type: 'USER_INPUT',
+      content: 'SECRET_ESCAPED_CONTENT',
+    }) + '\n');
+
+    const escapedConvDir = join(outsideDir, 'escaped-conv');
+    const readOpts = { conversationId: 'conv-rename-escape', allowedTranscriptRoots: [allowedRoot] };
+
+    // Baseline: both Linux openat2(RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS) and staged openat succeed when unmoved.
+    expect(__antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts)).toHaveLength(1);
+    expect(__antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
+      openatTestFaults: { forceStagedOpenat: true },
+    })).toHaveLength(1);
+
+    // Case 1: Intermediate conversation directory is renamed outside allowedRoot right after cur_fd opens it (staged openat).
+    const afterFirstDirEscape = __antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
+      openatTestFaults: {
+        forceStagedOpenat: true,
+        renameAfterFirstDirOpen: { from: convDir, to: escapedConvDir },
+      },
+    });
+    expect(afterFirstDirEscape).toEqual([]);
+    renameSync(escapedConvDir, convDir);
+
+    // Case 2: Intermediate conversation directory is renamed outside allowedRoot right before opening the leaf via held cur_fd.
+    const beforeLeafEscape = __antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
+      openatTestFaults: {
+        forceStagedOpenat: true,
+        renameBeforeLeafOpen: { from: convDir, to: escapedConvDir },
+      },
+    });
+    expect(beforeLeafEscape).toEqual([]);
+    renameSync(escapedConvDir, convDir);
+
+    // Case 3: Conversation directory is renamed outside allowedRoot after openat2 opens and reads the tail (before stdout flush).
+    const afterReadEscape = __antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
+      openatTestFaults: {
+        renameAfterTailRead: { from: convDir, to: escapedConvDir },
+      },
+    });
+    expect(afterReadEscape).toEqual([]);
+    renameSync(escapedConvDir, convDir);
+
+    // Case 4: Conversation directory is renamed outside allowedRoot right before helper opens via openat2.
+    const beforeOpenEscape = __antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
+      onBeforeOpen: () => {
+        renameSync(convDir, escapedConvDir);
+      },
+    });
+    expect(beforeOpenEscape).toEqual([]);
+    renameSync(escapedConvDir, convDir);
   });
 
   it('strictly binds pending context re-authorization to bearer token fingerprint, non-null loginId, and confirmed effective project_code', async () => {

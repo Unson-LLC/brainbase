@@ -36,6 +36,7 @@ import {
   readFileSync,
   realpathSync,
   renameSync,
+  statSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -794,14 +795,29 @@ function matchesConversationTranscriptStructure(
   return false;
 }
 
+interface TranscriptOpenatTestFaults {
+  /** Skip Linux openat2(2) to exercise the staged openat + /proc/self/fd path deterministically. */
+  forceStagedOpenat?: boolean;
+  /** Rename a path inside the helper right after opening the first intermediate directory fd. */
+  renameAfterFirstDirOpen?: { from: string; to: string };
+  /** Rename a path inside the helper right before opening the leaf file via dir_fd. */
+  renameBeforeLeafOpen?: { from: string; to: string };
+  /** Rename a path inside the helper right after reading tail bytes from file_fd. */
+  renameAfterTailRead?: { from: string; to: string };
+}
+
 interface TranscriptOpenTestHooks {
   onBeforeOpen?: (canonicalPath: string) => void;
   /** Override for the POSIX `openat` helper executable path (strictly for tests). */
   openatHelperBinary?: string;
+  /** Override fixed absolute candidate binaries searched when no explicit binary override is set (strictly for tests). */
+  openatHelperCandidates?: readonly string[];
   /** Override timeout in ms for the POSIX `openat` helper (strictly for tests). */
   helperTimeoutMs?: number;
   /** Override platform check to test non-POSIX fail-closed behavior. */
   platform?: NodeJS.Platform;
+  /** Deterministic race-condition fault injection inside the openat helper (strictly for tests). */
+  openatTestFaults?: TranscriptOpenatTestFaults;
 }
 
 interface AuthorizedTranscriptTarget {
@@ -889,108 +905,209 @@ function resolveAuthorizedTranscriptPath(
   return resolveAuthorizedTranscriptTarget(transcriptPath, options)?.canonicalPath ?? null;
 }
 
-const PYTHON_OPENAT_TAIL_READER = [
-  'import os, stat, sys',
-  'def fail(): sys.exit(1)',
-  'if len(sys.argv) < 4: fail()',
-  'if not (hasattr(os, "O_NOFOLLOW") and hasattr(os, "O_DIRECTORY") and hasattr(os, "O_NONBLOCK") and (os.open in getattr(os, "supports_dir_fd", ()))): fail()',
-  'root = sys.argv[1]',
-  'try: max_bytes = int(sys.argv[2])',
-  'except ValueError: fail()',
-  'segments = sys.argv[3:]',
-  'if max_bytes <= 0 or not root or not os.path.isabs(root) or "\\x00" in root: fail()',
-  'root_parts = [p for p in root.split("/") if p]',
-  'if not root_parts or os.path.realpath(root) != root: fail()',
-  'if not segments: fail()',
-  'for seg in segments:',
-  '    if not seg or seg in (".", "..") or "/" in seg or "\\\\" in seg or "\\x00" in seg: fail()',
-  'cloexec = getattr(os, "O_CLOEXEC", 0)',
-  'dir_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_NONBLOCK | cloexec',
-  'root_walk_flags = getattr(os, "O_PATH", os.O_RDONLY) | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_NONBLOCK | cloexec',
-  'file_flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | cloexec',
-  'cur_fd = -1',
-  'file_fd = -1',
-  'try:',
-  '    cur_fd = os.open("/", root_walk_flags)',
-  '    for idx, part in enumerate(root_parts):',
-  '        flags = dir_flags if idx == len(root_parts) - 1 else root_walk_flags',
-  '        next_fd = os.open(part, flags, dir_fd=cur_fd)',
-  '        os.close(cur_fd)',
-  '        cur_fd = next_fd',
-  '    root_st = os.fstat(cur_fd)',
-  '    if not stat.S_ISDIR(root_st.st_mode): fail()',
-  '    if os.path.realpath(root) != root: fail()',
-  '    root_lstat = os.lstat(root)',
-  '    if root_lstat.st_dev != root_st.st_dev or root_lstat.st_ino != root_st.st_ino: fail()',
-  '    for seg in segments[:-1]:',
-  '        next_fd = os.open(seg, dir_flags, dir_fd=cur_fd)',
-  '        os.close(cur_fd)',
-  '        cur_fd = next_fd',
-  '        if not stat.S_ISDIR(os.fstat(cur_fd).st_mode): fail()',
-  '    file_fd = os.open(segments[-1], file_flags, dir_fd=cur_fd)',
-  '    os.close(cur_fd)',
-  '    cur_fd = -1',
-  '    st = os.fstat(file_fd)',
-  '    if not stat.S_ISREG(st.st_mode): fail()',
-  '    size = st.st_size',
-  '    if size <= 0: sys.exit(0)',
-  '    read_size = min(size, max_bytes)',
-  '    offset = size - read_size',
-  '    chunks = []',
-  '    remaining = read_size',
-  '    pos = offset',
-  '    has_pread = hasattr(os, "pread")',
-  '    if not has_pread: os.lseek(file_fd, offset, os.SEEK_SET)',
-  '    while remaining > 0:',
-  '        chunk = os.pread(file_fd, remaining, pos) if has_pread else os.read(file_fd, remaining)',
-  '        if not chunk: break',
-  '        chunks.append(chunk)',
-  '        n = len(chunk)',
-  '        remaining -= n',
-  '        pos += n',
-  '    data = b"".join(chunks)',
-  '    if offset > 0:',
-  '        nl = data.find(b"\\n")',
-  '        if nl < 0: sys.exit(0)',
-  '        data = data[nl + 1:]',
-  '    if data:',
-  '        sys.stdout.buffer.write(data)',
-  '        sys.stdout.buffer.flush()',
-  'except OSError:',
-  '    fail()',
-  'finally:',
-  '    if cur_fd >= 0:',
-  '        try: os.close(cur_fd)',
-  '        except OSError: pass',
-  '    if file_fd >= 0:',
-  '        try: os.close(file_fd)',
-  '        except OSError: pass',
-].join('\n');
+function buildPythonOpenatTailReader(faults?: TranscriptOpenatTestFaults): string {
+  const forceStaged = faults?.forceStagedOpenat === true;
+  const renameAfterFirstDir = faults?.renameAfterFirstDirOpen;
+  const renameBeforeLeaf = faults?.renameBeforeLeafOpen;
+  const renameAfterRead = faults?.renameAfterTailRead;
+
+  const lines: string[] = [
+    'import ctypes, errno, os, platform, stat, sys',
+    'def fail(): sys.exit(1)',
+    'if len(sys.argv) < 4: fail()',
+    'if not (hasattr(os, "O_NOFOLLOW") and hasattr(os, "O_DIRECTORY") and hasattr(os, "O_NONBLOCK") and (os.open in getattr(os, "supports_dir_fd", ()))): fail()',
+    'root = sys.argv[1]',
+    'try: max_bytes = int(sys.argv[2])',
+    'except ValueError: fail()',
+    'segments = sys.argv[3:]',
+    'if max_bytes <= 0 or not root or not os.path.isabs(root) or "\\x00" in root: fail()',
+    'root_parts = [p for p in root.split("/") if p]',
+    'if not root_parts or os.path.realpath(root) != root: fail()',
+    'if not segments: fail()',
+    'for seg in segments:',
+    '    if not seg or seg in (".", "..") or "/" in seg or "\\\\" in seg or "\\x00" in seg: fail()',
+    'expected_exact_path = root.rstrip("/") + "/" + "/".join(segments)',
+    'def verify_fd_exact_path(fd, expected_path):',
+    '    try:',
+    '        actual = os.readlink(f"/proc/self/fd/{fd}")',
+    '    except OSError:',
+    '        fail()',
+    '    if not actual or actual.endswith(" (deleted)") or actual != expected_path:',
+    '        fail()',
+    'def try_openat2_beneath(root_fd, rel_bytes, flags):',
+    ...(forceStaged
+      ? ['    return None']
+      : [
+        '    if not sys.platform.startswith("linux"):',
+        '        return None',
+        '    arch = platform.machine().lower()',
+        '    if arch not in ("x86_64", "amd64", "aarch64", "arm64", "i386", "i686", "armv7l", "armv6l", "riscv64", "s390x", "ppc64le", "ppc64", "loongarch64"):',
+        '        return None',
+        '    class OpenHow(ctypes.Structure):',
+        '        _fields_ = [("flags", ctypes.c_uint64), ("mode", ctypes.c_uint64), ("resolve", ctypes.c_uint64)]',
+        '    try:',
+        '        libc = ctypes.CDLL(None, use_errno=True)',
+        '        syscall_fn = libc.syscall',
+        '        syscall_fn.restype = ctypes.c_long',
+        '    except (OSError, AttributeError):',
+        '        return None',
+        '    RESOLVE_NO_SYMLINKS = 0x04',
+        '    RESOLVE_BENEATH = 0x08',
+        '    how = OpenHow(flags, 0, RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS)',
+        '    ctypes.set_errno(0)',
+        '    res = syscall_fn(ctypes.c_long(437), ctypes.c_int(root_fd), ctypes.c_char_p(rel_bytes), ctypes.byref(how), ctypes.c_size_t(ctypes.sizeof(how)))',
+        '    if res >= 0:',
+        '        return int(res)',
+        '    err = ctypes.get_errno()',
+        '    if err in (errno.ENOSYS, errno.EPERM):',
+        '        return None',
+        '    fail()',
+      ]),
+    'cloexec = getattr(os, "O_CLOEXEC", 0)',
+    'dir_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_NONBLOCK | cloexec',
+    'root_walk_flags = getattr(os, "O_PATH", os.O_RDONLY) | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_NONBLOCK | cloexec',
+    'file_flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | cloexec',
+    'cur_fd = -1',
+    'file_fd = -1',
+    'try:',
+    '    cur_fd = os.open("/", root_walk_flags)',
+    '    for idx, part in enumerate(root_parts):',
+    '        flags = dir_flags if idx == len(root_parts) - 1 else root_walk_flags',
+    '        next_fd = os.open(part, flags, dir_fd=cur_fd)',
+    '        os.close(cur_fd)',
+    '        cur_fd = next_fd',
+    '    root_st = os.fstat(cur_fd)',
+    '    if not stat.S_ISDIR(root_st.st_mode): fail()',
+    '    verify_fd_exact_path(cur_fd, root)',
+    '    if os.path.realpath(root) != root: fail()',
+    '    root_lstat = os.lstat(root)',
+    '    if root_lstat.st_dev != root_st.st_dev or root_lstat.st_ino != root_st.st_ino: fail()',
+    '    rel_bytes = os.fsencode("/".join(segments))',
+    '    opened_via_openat2 = try_openat2_beneath(cur_fd, rel_bytes, file_flags)',
+    '    if opened_via_openat2 is not None:',
+    '        file_fd = opened_via_openat2',
+    '        verify_fd_exact_path(cur_fd, root)',
+    '        os.close(cur_fd)',
+    '        cur_fd = -1',
+    '    else:',
+    '        expected_dir = root',
+    '        for seg_idx, seg in enumerate(segments[:-1]):',
+    '            next_fd = os.open(seg, dir_flags, dir_fd=cur_fd)',
+    '            os.close(cur_fd)',
+    '            cur_fd = next_fd',
+    '            if not stat.S_ISDIR(os.fstat(cur_fd).st_mode): fail()',
+    '            expected_dir = expected_dir + "/" + seg',
+    ...(renameAfterFirstDir
+      ? [
+        '            if seg_idx == 0:',
+        `                os.rename(${JSON.stringify(renameAfterFirstDir.from)}, ${JSON.stringify(renameAfterFirstDir.to)})`,
+      ]
+      : []),
+    '            verify_fd_exact_path(cur_fd, expected_dir)',
+    ...(renameBeforeLeaf
+      ? [`        os.rename(${JSON.stringify(renameBeforeLeaf.from)}, ${JSON.stringify(renameBeforeLeaf.to)})`]
+      : []),
+    '        file_fd = os.open(segments[-1], file_flags, dir_fd=cur_fd)',
+    '        verify_fd_exact_path(cur_fd, expected_dir)',
+    '        os.close(cur_fd)',
+    '        cur_fd = -1',
+    '    st = os.fstat(file_fd)',
+    '    if not stat.S_ISREG(st.st_mode): fail()',
+    '    verify_fd_exact_path(file_fd, expected_exact_path)',
+    '    size = st.st_size',
+    '    if size <= 0: sys.exit(0)',
+    '    read_size = min(size, max_bytes)',
+    '    offset = size - read_size',
+    '    chunks = []',
+    '    remaining = read_size',
+    '    pos = offset',
+    '    has_pread = hasattr(os, "pread")',
+    '    if not has_pread: os.lseek(file_fd, offset, os.SEEK_SET)',
+    '    while remaining > 0:',
+    '        chunk = os.pread(file_fd, remaining, pos) if has_pread else os.read(file_fd, remaining)',
+    '        if not chunk: break',
+    '        chunks.append(chunk)',
+    '        n = len(chunk)',
+    '        remaining -= n',
+    '        pos += n',
+    ...(renameAfterRead
+      ? [`    os.rename(${JSON.stringify(renameAfterRead.from)}, ${JSON.stringify(renameAfterRead.to)})`]
+      : []),
+    '    verify_fd_exact_path(file_fd, expected_exact_path)',
+    '    if not stat.S_ISREG(os.fstat(file_fd).st_mode): fail()',
+    '    data = b"".join(chunks)',
+    '    if offset > 0:',
+    '        nl = data.find(b"\\n")',
+    '        if nl < 0: sys.exit(0)',
+    '        data = data[nl + 1:]',
+    '    if data:',
+    '        sys.stdout.buffer.write(data)',
+    '        sys.stdout.buffer.flush()',
+    'except OSError:',
+    '    fail()',
+    'finally:',
+    '    if cur_fd >= 0:',
+    '        try: os.close(cur_fd)',
+    '        except OSError: pass',
+    '    if file_fd >= 0:',
+    '        try: os.close(file_fd)',
+    '        except OSError: pass',
+  ];
+  return lines.join('\n');
+}
+
+const PYTHON_OPENAT_TAIL_READER = buildPythonOpenatTailReader();
+
+const DEFAULT_OPENAT_HELPER_CANDIDATES: readonly string[] = [
+  '/usr/bin/python3',
+  '/usr/local/bin/python3',
+  '/opt/homebrew/bin/python3',
+  '/bin/python3',
+];
+
+function isExecutableRegularFileAbsolute(candidate: string): boolean {
+  if (!candidate || !isAbsolute(candidate) || candidate.includes('\0')) {
+    return false;
+  }
+  try {
+    const resolved = realpathSync(candidate);
+    if (!isAbsolute(resolved) || !statSync(resolved).isFile()) {
+      return false;
+    }
+    accessSync(resolved, fsConstants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function resolveOpenatHelperBinary(
   override?: string,
   platform: NodeJS.Platform = process.platform,
+  candidates: readonly string[] = DEFAULT_OPENAT_HELPER_CANDIDATES,
 ): string | null {
   if (platform === 'win32') {
     return null;
   }
   if (override !== undefined) {
-    return override.trim() ? override : null;
+    const trimmed = override.trim();
+    return isExecutableRegularFileAbsolute(trimmed) ? trimmed : null;
   }
-  for (const candidate of ['/usr/bin/python3', '/usr/local/bin/python3', '/bin/python3']) {
-    try {
-      accessSync(candidate, fsConstants.X_OK);
+  for (const candidate of candidates) {
+    if (isExecutableRegularFileAbsolute(candidate)) {
       return candidate;
-    } catch {}
+    }
   }
-  return 'python3';
+  return null;
 }
 
 /**
  * Reads up to `maxBytes` from the tail of a transcript file strictly via
- * kernel-enforced component-by-component `openat(dir_fd, seg, O_NOFOLLOW)`.
+ * kernel-enforced `openat2(RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS)` (or staged
+ * `openat(dir_fd, seg, O_NOFOLLOW)`) plus mandatory `/proc/self/fd/{fd}` exact
+ * path verification before and after reading.
  * Fails closed (`null`) if the helper cannot run or any kernel check rejects;
- * NEVER falls back to path-based `openSync`.
+ * NEVER falls back to path-based `openSync` or bare `PATH` lookups.
  */
 function readTailViaKernelOpenat(
   canonicalRoot: string,
@@ -998,8 +1115,10 @@ function readTailViaKernelOpenat(
   maxBytes: number,
   options?: {
     openatHelperBinary?: string;
+    openatHelperCandidates?: readonly string[];
     helperTimeoutMs?: number;
     platform?: NodeJS.Platform;
+    openatTestFaults?: TranscriptOpenatTestFaults;
   },
 ): Buffer | null {
   if (!canonicalRoot || !isAbsolute(canonicalRoot) || canonicalRoot === '/' || canonicalRoot.includes('\0')) {
@@ -1008,15 +1127,22 @@ function readTailViaKernelOpenat(
   if (segments.length === 0 || !segments.every(isSafePathSegment)) {
     return null;
   }
-  const helperBin = resolveOpenatHelperBinary(options?.openatHelperBinary, options?.platform);
+  const helperBin = resolveOpenatHelperBinary(
+    options?.openatHelperBinary,
+    options?.platform,
+    options?.openatHelperCandidates,
+  );
   if (!helperBin) {
     return null;
   }
   const timeoutMs = options?.helperTimeoutMs ?? TRANSCRIPT_OPENAT_TIMEOUT_MS;
+  const helperScript = options?.openatTestFaults
+    ? buildPythonOpenatTailReader(options.openatTestFaults)
+    : PYTHON_OPENAT_TAIL_READER;
   try {
     const result = spawnSync(
       helperBin,
-      ['-I', '-c', PYTHON_OPENAT_TAIL_READER, canonicalRoot, String(maxBytes), ...segments],
+      ['-I', '-c', helperScript, canonicalRoot, String(maxBytes), ...segments],
       {
         encoding: 'buffer',
         stdio: ['ignore', 'pipe', 'ignore'],
@@ -1052,8 +1178,10 @@ function readTranscriptTailEntries(
       TRANSCRIPT_TAIL_MAX_BYTES,
       {
         openatHelperBinary: testHooks?.openatHelperBinary ?? options.openatHelperBinary,
+        openatHelperCandidates: testHooks?.openatHelperCandidates,
         helperTimeoutMs: testHooks?.helperTimeoutMs,
         platform: testHooks?.platform,
+        openatTestFaults: testHooks?.openatTestFaults,
       },
     );
     if (rawTail === null || rawTail.length === 0) return [];
@@ -1374,14 +1502,16 @@ function readState(env: NodeJS.ProcessEnv, key: string): AntigravityTurnState | 
       : 0;
     const turnActive = parsed.turn_active === true;
     const lastOpened = parseOptionalStepIndex(parsed.last_opened_user_step_index);
+    const isLegacyStepState = parsed.current_turn_user_step_index === undefined
+      && parsed.last_closed_user_step_index === undefined;
     const hasCurrentStepField = Object.prototype.hasOwnProperty.call(parsed, 'current_turn_user_step_index');
     const hasLastClosedField = Object.prototype.hasOwnProperty.call(parsed, 'last_closed_user_step_index');
-    let currentTurnUserStepIndex = hasCurrentStepField
-      ? parseOptionalStepIndex(parsed.current_turn_user_step_index)
-      : (turnActive ? lastOpened : null);
-    let lastClosedUserStepIndex = hasLastClosedField
-      ? parseOptionalStepIndex(parsed.last_closed_user_step_index)
-      : (!turnActive ? lastOpened : null);
+    let currentTurnUserStepIndex = isLegacyStepState
+      ? null
+      : (hasCurrentStepField ? parseOptionalStepIndex(parsed.current_turn_user_step_index) : null);
+    let lastClosedUserStepIndex = isLegacyStepState
+      ? lastOpened
+      : (hasLastClosedField ? parseOptionalStepIndex(parsed.last_closed_user_step_index) : lastOpened);
     if (!turnActive && currentTurnUserStepIndex !== null) {
       lastClosedUserStepIndex = maxStepIndex(lastClosedUserStepIndex, currentTurnUserStepIndex);
       currentTurnUserStepIndex = null;
@@ -2330,6 +2460,7 @@ export function registerAntigravityJudgmentHooks(
 export const __antigravityHookTestInternals = {
   withTurnStateLock,
   readTranscriptTailEntries,
+  resolveOpenatHelperBinary,
   turnKey,
   lockPathFor,
   statePath,
