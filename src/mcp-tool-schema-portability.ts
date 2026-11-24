@@ -29,6 +29,8 @@ export interface McpToolSchemaPortabilityIssue {
 const SUPPORTED_TYPES = new Set(['object', 'array', 'string', 'number', 'integer', 'boolean']);
 
 const NULL_NOTE = 'null is also accepted.';
+const CLOSED_EMPTY_OBJECT_NOTE =
+  'Must be an empty object ({}); additionalProperties: false was relaxed to additionalProperties: true for Gemini schema compatibility.';
 
 /**
  * JSON Schema keywords rejected or mis-rendered by Gemini FunctionDeclaration
@@ -169,7 +171,12 @@ function finalizeNormalizedSchema(node: JsonObject, isRoot: boolean): void {
     if (!isRoot) {
       const hasProperties = isPlainObject(node.properties) && Object.keys(node.properties).length > 0;
       if (!hasProperties && !isPlainObject(node.additionalProperties) && node.additionalProperties !== true) {
+        const wasClosedEmpty = node.additionalProperties === false;
         node.additionalProperties = true;
+        if (wasClosedEmpty) {
+          node.maxProperties = 0;
+          node.description = appendDescription(node.description, CLOSED_EMPTY_OBJECT_NOTE);
+        }
       }
     }
   }
@@ -236,18 +243,56 @@ function mergeNormalizedSchemas(
       const notes: string[] = [];
       const description = nonNull.find((branch) => typeof branch.description === 'string')?.description;
       if (typeof description === 'string') result.description = description;
-      const allHaveEnum = nonNull.every((branch) => Array.isArray(branch.enum) && branch.enum.length > 0);
-      if (allHaveEnum) {
-        const mergedEnums = uniqueStrings(
-          nonNull.flatMap((branch) => (branch.enum as unknown[]).filter((item): item is string => typeof item === 'string')),
+      if (mode === 'intersection') {
+        const minLengths = nonNull
+          .map((branch) => branch.minLength)
+          .filter((value): value is number => typeof value === 'number');
+        if (minLengths.length > 0) result.minLength = Math.max(...minLengths);
+        const maxLengths = nonNull
+          .map((branch) => branch.maxLength)
+          .filter((value): value is number => typeof value === 'number');
+        if (maxLengths.length > 0) result.maxLength = Math.min(...maxLengths);
+        const format = nonNull.find((branch) => typeof branch.format === 'string')?.format;
+        if (typeof format === 'string') result.format = format;
+        const patterns = uniqueStrings(
+          nonNull
+            .map((branch) => branch.pattern)
+            .filter((value): value is string => typeof value === 'string'),
         );
-        if (mergedEnums.length > 0) {
-          if (anyNullable) {
-            const note = `Allowed values: ${mergedEnums.map((value) => JSON.stringify(value)).join(', ')}.`;
-            notes.push(note);
-            result.description = appendDescription(result.description, note);
-          } else {
-            result.enum = mergedEnums;
+        if (patterns.length > 0) {
+          result.pattern = patterns[0];
+          if (patterns.length > 1) {
+            const patternNote = `Must also match pattern: ${patterns.slice(1).map((p) => JSON.stringify(p)).join(', ')}.`;
+            notes.push(patternNote);
+            result.description = appendDescription(result.description, patternNote);
+          }
+        }
+        const enumLists = nonNull
+          .filter((branch) => Array.isArray(branch.enum) && branch.enum.length > 0)
+          .map((branch) => (branch.enum as unknown[]).filter((item): item is string => typeof item === 'string'));
+        if (enumLists.length > 0) {
+          const [firstEnum, ...restEnums] = enumLists;
+          const intersectedEnums = uniqueStrings(
+            firstEnum.filter((value) => restEnums.every((list) => list.includes(value))),
+          );
+          if (intersectedEnums.length > 0) {
+            result.enum = intersectedEnums;
+          }
+        }
+      } else {
+        const allHaveEnum = nonNull.every((branch) => Array.isArray(branch.enum) && branch.enum.length > 0);
+        if (allHaveEnum) {
+          const mergedEnums = uniqueStrings(
+            nonNull.flatMap((branch) => (branch.enum as unknown[]).filter((item): item is string => typeof item === 'string')),
+          );
+          if (mergedEnums.length > 0) {
+            if (anyNullable) {
+              const note = `Allowed values: ${mergedEnums.map((value) => JSON.stringify(value)).join(', ')}.`;
+              notes.push(note);
+              result.description = appendDescription(result.description, note);
+            } else {
+              result.enum = mergedEnums;
+            }
           }
         }
       }
@@ -265,6 +310,19 @@ function mergeNormalizedSchemas(
         ? mergeNormalizedSchemas(itemSchemas, mode, preserveUndeclaredRequired).schema
         : { type: 'string' };
       const result: JsonObject = { type: 'array', items: mergedItems };
+      if (mode === 'intersection') {
+        const minItemsList = nonNull
+          .map((branch) => branch.minItems)
+          .filter((value): value is number => typeof value === 'number');
+        if (minItemsList.length > 0) result.minItems = Math.max(...minItemsList);
+        const maxItemsList = nonNull
+          .map((branch) => branch.maxItems)
+          .filter((value): value is number => typeof value === 'number');
+        if (maxItemsList.length > 0) result.maxItems = Math.min(...maxItemsList);
+        if (nonNull.some((branch) => branch.uniqueItems === true)) {
+          result.uniqueItems = true;
+        }
+      }
       const description = nonNull.find((branch) => typeof branch.description === 'string')?.description;
       if (typeof description === 'string') result.description = description;
       if (anyNullable) {
@@ -274,6 +332,24 @@ function mergeNormalizedSchemas(
       return { schema: result, notes: [] };
     }
     const base = structuredClone(nonNull[0]);
+    if (mode === 'intersection' && (singleType === 'number' || singleType === 'integer')) {
+      const minimums = nonNull
+        .map((branch) => branch.minimum)
+        .filter((value): value is number => typeof value === 'number');
+      if (minimums.length > 0) base.minimum = Math.max(...minimums);
+      const maximums = nonNull
+        .map((branch) => branch.maximum)
+        .filter((value): value is number => typeof value === 'number');
+      if (maximums.length > 0) base.maximum = Math.min(...maximums);
+      const exclusiveMinimums = nonNull
+        .map((branch) => branch.exclusiveMinimum)
+        .filter((value): value is number => typeof value === 'number');
+      if (exclusiveMinimums.length > 0) base.exclusiveMinimum = Math.max(...exclusiveMinimums);
+      const exclusiveMaximums = nonNull
+        .map((branch) => branch.exclusiveMaximum)
+        .filter((value): value is number => typeof value === 'number');
+      if (exclusiveMaximums.length > 0) base.exclusiveMaximum = Math.min(...exclusiveMaximums);
+    }
     if (anyNullable) {
       base.nullable = true;
       base.description = appendDescription(base.description, NULL_NOTE);
@@ -284,9 +360,27 @@ function mergeNormalizedSchemas(
   if (types.size === 2 && types.has('integer') && types.has('number')) {
     const description = nonNull.find((branch) => typeof branch.description === 'string')?.description;
     const result: JsonObject = {
-      type: 'number',
+      type: mode === 'intersection' ? 'integer' : 'number',
       ...(typeof description === 'string' ? { description } : {}),
     };
+    if (mode === 'intersection') {
+      const minimums = nonNull
+        .map((branch) => branch.minimum)
+        .filter((value): value is number => typeof value === 'number');
+      if (minimums.length > 0) result.minimum = Math.max(...minimums);
+      const maximums = nonNull
+        .map((branch) => branch.maximum)
+        .filter((value): value is number => typeof value === 'number');
+      if (maximums.length > 0) result.maximum = Math.min(...maximums);
+      const exclusiveMinimums = nonNull
+        .map((branch) => branch.exclusiveMinimum)
+        .filter((value): value is number => typeof value === 'number');
+      if (exclusiveMinimums.length > 0) result.exclusiveMinimum = Math.max(...exclusiveMinimums);
+      const exclusiveMaximums = nonNull
+        .map((branch) => branch.exclusiveMaximum)
+        .filter((value): value is number => typeof value === 'number');
+      if (exclusiveMaximums.length > 0) result.exclusiveMaximum = Math.min(...exclusiveMaximums);
+    }
     if (anyNullable) {
       result.nullable = true;
       result.description = appendDescription(result.description, NULL_NOTE);
@@ -347,14 +441,26 @@ function mergeObjectSchemas(
     ) {
       continue;
     }
+    const effectiveList = mode === 'intersection'
+      ? [
+          ...list,
+          ...branches
+            .filter(
+              (branch) =>
+                isPlainObject(branch.additionalProperties)
+                && (!isPlainObject(branch.properties) || !Object.hasOwn(branch.properties, key)),
+            )
+            .map((branch) => branch.additionalProperties as JsonObject),
+        ]
+      : list;
     let mergedProp: JsonObject;
-    if (list.length === 1) {
-      mergedProp = structuredClone(list[0]);
+    if (effectiveList.length === 1) {
+      mergedProp = structuredClone(effectiveList[0]);
       if (!preserveUndeclaredRequired) {
         pruneUndeclaredRequired(mergedProp);
       }
     } else {
-      mergedProp = mergeNormalizedSchemas(list, mode, preserveUndeclaredRequired).schema;
+      mergedProp = mergeNormalizedSchemas(effectiveList, mode, preserveUndeclaredRequired).schema;
     }
     setOwnProperty(properties, key, mergedProp);
   }

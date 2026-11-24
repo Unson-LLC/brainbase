@@ -349,6 +349,9 @@ describe('MCP tool inputSchema cross-client portability contract (Gemini / OpenA
       type: 'object',
       properties: {},
       additionalProperties: true,
+      maxProperties: 0,
+      description:
+        'Must be an empty object ({}); additionalProperties: false was relaxed to additionalProperties: true for Gemini schema compatibility.',
     });
     expect(props.typed_map).toEqual({
       type: 'object',
@@ -1144,10 +1147,96 @@ describe('MCP tool inputSchema cross-client portability contract (Gemini / OpenA
     expect(nestedClosedProps.nested_empty_closed_first).toEqual({
       type: 'object',
       additionalProperties: true,
+      maxProperties: 0,
+      description:
+        'Must be an empty object ({}); additionalProperties: false was relaxed to additionalProperties: true for Gemini schema compatibility.',
     });
     expect(nestedClosedProps.nested_empty_closed_second).toEqual({
       type: 'object',
       additionalProperties: true,
+      maxProperties: 0,
+      description:
+        'Must be an empty object ({}); additionalProperties: false was relaxed to additionalProperties: true for Gemini schema compatibility.',
+    });
+
+    // Idempotent on second pass for relaxed closed empty nested objects.
+    const secondPassNestedClosed = normalizeMcpToolInputSchemaForPortability(normalizedNestedClosed);
+    expect(validateMcpToolInputSchemaPortability(secondPassNestedClosed, 'nested_closed_tool')).toEqual([]);
+    expect(secondPassNestedClosed).toEqual(normalizedNestedClosed);
+
+    // Typed additionalProperties from a branch that does NOT declare `id` must intersect into `properties.id`
+    // in both branch orders (Codex review #7 repro), without affecting keys declared by the same branch.
+    const typedAdditionalFirst = {
+      type: 'object',
+      allOf: [
+        { properties: { id: { type: 'string' } }, additionalProperties: false },
+        { additionalProperties: { type: 'string', minLength: 1 } },
+      ],
+    } as unknown as Tool['inputSchema'];
+
+    const typedAdditionalSecond = {
+      type: 'object',
+      allOf: [
+        { additionalProperties: { type: 'string', minLength: 1 } },
+        { properties: { id: { type: 'string' } }, additionalProperties: false },
+      ],
+    } as unknown as Tool['inputSchema'];
+
+    const typedAdditionalOuterAndAllOf = {
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      additionalProperties: false,
+      allOf: [
+        { additionalProperties: { type: 'string', minLength: 1 } },
+      ],
+    } as unknown as Tool['inputSchema'];
+
+    for (const candidate of [typedAdditionalFirst, typedAdditionalSecond, typedAdditionalOuterAndAllOf]) {
+      const normalized = normalizeMcpToolInputSchemaForPortability(candidate);
+      expect(validateMcpToolInputSchemaPortability(normalized, 'typed_additional_intersection_tool')).toEqual([]);
+      expect(normalized).toEqual({
+        type: 'object',
+        properties: { id: { type: 'string', minLength: 1 } },
+        additionalProperties: false,
+      });
+    }
+
+    // Typed additionalProperties on a branch that DOES declare `id` must NOT apply to `id` itself,
+    // while another branch's typed additionalProperties (which omits `id`) DOES intersect into `id`,
+    // and object-valued additionalProperties intersects required/properties into undeclared keys.
+    const typedAdditionalScopedAndObject = {
+      type: 'object',
+      allOf: [
+        {
+          properties: {
+            id: { type: 'string' },
+            meta: { type: 'object', properties: { tag: { type: 'string' } } },
+          },
+          additionalProperties: { type: 'integer' },
+        },
+        {
+          properties: {
+            meta: { type: 'object', properties: { tag: { type: 'string' } } },
+          },
+          additionalProperties: { type: 'string', minLength: 1, maxLength: 32 },
+        },
+        {
+          properties: {
+            id: { type: 'string' },
+          },
+          additionalProperties: { type: 'object', required: ['tag'] },
+        },
+      ],
+    } as unknown as Tool['inputSchema'];
+
+    const normalizedScoped = normalizeMcpToolInputSchemaForPortability(typedAdditionalScopedAndObject);
+    expect(validateMcpToolInputSchemaPortability(normalizedScoped, 'typed_additional_scoped_tool')).toEqual([]);
+    const scopedProps = normalizedScoped.properties as Record<string, Record<string, unknown>>;
+    expect(scopedProps.id).toEqual({ type: 'string', minLength: 1, maxLength: 32 });
+    expect(scopedProps.meta).toEqual({
+      type: 'object',
+      properties: { tag: { type: 'string' } },
+      required: ['tag'],
     });
 
     // Union combinators (oneOf / anyOf) must keep the looser constraint:
