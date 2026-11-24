@@ -58,11 +58,7 @@ export function createJudgmentJournalTurnPublisher(options: JudgmentJournalTurnP
         || ('owner_person_id' in episode && episode.owner_person_id !== input.trustedPrincipal.personId)
         || ('tenant_id' in episode && episode.tenant_id !== input.trustedPrincipal.tenantId)) throw new Error('invalid');
       const final = (await read(`${prefix}.final.json`))!;
-      const receipt = episode.initial_route_receipt;
-      if (!object(receipt) || typeof receipt.resolution_id !== 'string' || !receipt.resolution_id
-        || receipt.project_code !== input.projectCode
-        || (receipt.turn_id !== undefined && receipt.turn_id !== input.turnId)
-        || (episode.turn_id !== undefined && episode.turn_id !== input.turnId)
+      if ((episode.turn_id !== undefined && episode.turn_id !== input.turnId)
         || (episode.session_ref !== undefined && episode.session_ref !== sessionRef)
         || (final.turn_id !== undefined && final.turn_id !== input.turnId)
         || (final.session_ref !== undefined && final.session_ref !== sessionRef)
@@ -86,6 +82,18 @@ export function createJudgmentJournalTurnPublisher(options: JudgmentJournalTurnP
           tool_use_id: event.tool_use_id, event };
       });
       if (final.event_count !== events.length) throw new Error('invalid');
+      // The Host finalizes against the last successful brainbase_resolve_turn TurnContract,
+      // falling back to the episode's bootstrap route receipt; the history reader binds the same way.
+      const resolved = [...rawEvents].reverse().find(event => event.success === true
+        && Array.isArray(event.satisfies) && event.satisfies.includes('judgment.resolve_turn')
+        && object(event.safe_metadata) && object(event.safe_metadata.turn_contract));
+      const receipt = resolved ? (resolved.safe_metadata as Record<string, unknown>).turn_contract
+        : episode.initial_route_receipt;
+      if (!object(receipt) || typeof receipt.resolution_id !== 'string' || !receipt.resolution_id
+        || receipt.project_code !== input.projectCode
+        || (receipt.turn_id !== undefined && receipt.turn_id !== input.turnId)
+        || ('owner_person_id' in receipt && receipt.owner_person_id !== input.trustedPrincipal.personId)
+        || ('tenant_id' in receipt && receipt.tenant_id !== input.trustedPrincipal.tenantId)) throw new Error('invalid');
       const turnInput = await read(`${prefix}.turn-input.json`, true);
       const valueProof = await read(`${prefix}.value-proof.json`, true);
       body = {

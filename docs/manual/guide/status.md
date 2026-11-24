@@ -4,9 +4,13 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
-## Candidate — v0.50.25（npm公開前）
+## Candidate — v0.50.26（npm公開前）
 
-0.50.24に、本人が端末から `brainbase login` でログインし、tokenを手元に保存して自動で更新する公開subpath `brainbase-login`（#1041）と、Claude Codeの判断フックを公開パッケージに入れて `judgment:install --target claude-code` で登録する公開subpath `claude-code-judgment-hook`（#1042）を加えるpatch更新候補です。既存の公開API、MCPツール、認証・権限の契約は変更しません。npm公開と利用ホストへの配備は別途確認します。
+0.50.25のClaude Codeの判断フックで、`brainbase_resolve_turn`が通ったターンの記録を、組織版の判断の履歴に出せるようにするpatch更新候補です（#1065）。これまでは、ターンの記録に最初の受け取りを付けて送っていたため、履歴の読み口が受け取りの食い違いとして捨てていました。最後に成功したresolve_turnの契約を付けて送り、別の人・別のテナントの契約には付けません。既存の公開API、MCPツール、認証・権限の契約は変更しません。npm公開と利用ホストへの配備は別途確認します。
+
+## Released — v0.50.25
+
+0.50.24に、本人が端末から `brainbase login` でログインし、tokenを手元に保存して自動で更新する公開subpath `brainbase-login`（#1041）と、Claude Codeの判断フックを公開パッケージに入れて `judgment:install --target claude-code` で登録する公開subpath `claude-code-judgment-hook`（#1042）を加えるpatch更新候補です。既存の公開API、MCPツール、認証・権限の契約は変更しません。npmには2026-11-24 02:40:55 JSTに公開しました。利用ホストへの配備は、この記録だけでは確認できません。
 
 ## Released — v0.50.24
 
