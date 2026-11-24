@@ -4,11 +4,14 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
-## Candidate — v0.50.29（npm公開前）
+## Candidate — v0.50.30（npm公開前）
 
+0.50.29に、Antigravity CLIの判断フック対応（公開subpath `antigravity-judgment-hook`・CLI `judgment:antigravity-hook` / `judgment:install --target antigravity`・`'antigravity'` ホスト対応、#1077）と本人JWTのホスト側project解決（#1032）、`judgment-event-adapter` の `project_code` ハードコード解消と outbox の `projectCodes` スコーピング整合（RFC-002 PR-1、#1070）、および RFC-001 v2.0 の推論品質基盤（既定OFFのライブ推論ゲート v3.1・セッション内ミニ世界モデル v2 と非digestテレメトリ・公開subpath `judgment-reasoning-audit` とオフライン7項目二値監査 / PoLL 2-of-3 審査、#1045・#1047・#1061・#1062・#1069）を加える更新候補です。TypeScriptの公開型で `JudgmentKnowledgeEvent['applicability_scope']['project_code']` を `'brainbase'` から `string` へ拡張し、`RemoteJudgmentHookHost`・`JudgmentExecutionHostType`・`JudgmentRuntimeRuntimeContext['host']`・`JudgmentRuntimeRuntimeContext['entrypoint']` に `'antigravity'` を追加するため、厳格な型検査を使う呼び出し側は移行が必要です（詳細は `docs/releases/0.50.30.md` を参照）。また、本人JWT認証の `claude-code` 呼び出しで `project` を省略した場合の挙動は、従来の `invalid_project_code` からHost側での自動解決（`resolveProjectCode` または本人の単一project）または新規エラー（`judgment_project_unresolved` / `judgment_project_lookup_failed`）へ変わります（#1032）。Antigravity CLI判断フックの `transcriptPath` 読み取り（`last_assistant_message` / 非システム `USER_INPUT` 補完）は、カーネル強制のルート境界・シンボリックリンク禁止保証のため Linux 5.6+（`openat2(RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS)`・対応アーキテクチャ `platform.machine()` 許可リスト: `x86_64` / `amd64` / `aarch64` / `arm64` / `i386` / `i686` / `armv7l` / `armv6l` / `riscv64` / `s390x` / `ppc64le` / `ppc64` / `loongarch64`・`/proc/self/fd`・固定パス `python3`）および OS `flock` 環境を対象とし、macOS / Windows や未対応アーキテクチャ等の非対応環境（または `openat2` が制限されたコンテナ環境）ではフォールバックせず安全側（fail-closed）で transcript 読み取りを拒否（空扱い）し、フック本体は fail-open 応答（`{}` / `{"decision":""}`）を維持します。それ以外の既存のランタイム既定動作・MCPツール・認証・権限の境界は維持します。npm公開と利用ホストへの配備は別途確認します。
 議事録がまだないとき、ホストが指定した案内を議事録テーブルに表示できるようにするパッチ更新候補です（#1039）。検索や絞り込みで該当する議事録がないときは、従来の文言を表示します。npm公開と利用ホストへの配備は別途確認します。
 
-0.50.28に、Gemini / OpenAI / Claude / Codex 間でMCPツールの `inputSchema` を正規化・検証する公開subpath `mcp-tool-schema-portability`（#1046、#1063）を最小差分で加えるpatch更新候補です。既存の公開API、MCPツール、既定の振る舞い、認証・権限の契約は変更しません。npm公開と利用ホストへの配備は別途確認します。
+## Released — v0.50.29
+
+0.50.28に、Gemini / OpenAI / Claude / Codex 間でMCPツールの `inputSchema` を正規化・検証する公開subpath `mcp-tool-schema-portability`（#1046、#1063）を最小差分で加えたpatch更新です（#1076）。既存の公開API、MCPツール、既定の振る舞い、認証・権限の契約は変更しません。npmには2026-11-25 03:48:12 JSTに公開しました。利用ホストへの配備は、この記録だけでは確認できません。
 
 ## Released — v0.50.28
 

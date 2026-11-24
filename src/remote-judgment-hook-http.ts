@@ -1,4 +1,6 @@
 import type { JudgmentJournalTurnInput } from './judgment-journal-turn-publisher.js';
+import type { ReasoningGateMode } from './judgment-reasoning-gate-prompt.js';
+import type { SessionWorldModelUpdaterV2 } from './judgment-session-world-model.js';
 
 /** Minimal identity verified by the consuming host's authentication boundary. */
 export interface RemoteJudgmentHookPrincipal {
@@ -15,13 +17,16 @@ export interface RemoteJudgmentHookDispatchResult {
   output: Record<string, unknown>;
   receiptId?: string;
   routeResolutionSha256?: string;
+  /** Optional non-digest reasoning gate telemetry surfaced by the Host dispatcher. */
+  reasoningGateApplied?: boolean;
+  reasoningGateMode?: ReasoningGateMode;
 }
 
 /**
- * `remote`: a remote runtime. `claude-code`: Claude Code on
- * the owner's loopback bridge or authenticated with a person's hosted JWT.
+ * `remote`: a remote runtime. `claude-code` / `antigravity`: interactive CLI
+ * hosts on the owner's loopback bridge or authenticated with a person's hosted JWT.
  */
-export type RemoteJudgmentHookHost = 'remote' | 'claude-code';
+export type RemoteJudgmentHookHost = 'remote' | 'claude-code' | 'antigravity';
 
 /**
  * Authentication context verified by the Host before it reaches the hook
@@ -51,6 +56,8 @@ export interface RemoteJudgmentHookDispatchOptions {
   trustedAuthKind?: RemoteJudgmentHookAuthKind;
   /** Raw encoded Company Authority response verified by the canonical API. */
   companyAuthorityResponse?: string;
+  /** Optional PR-B ephemeral session mini world model v2 updater forwarded to the Host. */
+  sessionWorldModelUpdater?: SessionWorldModelUpdaterV2;
 }
 
 export type RemoteJudgmentHookDispatch = (
@@ -80,10 +87,36 @@ export interface RemoteJudgmentHookRequest {
   localClaudeCodeAllowed?: boolean;
   /** True only for a person authenticated by the hosted MCP's JWT boundary. */
   personHostedClaudeCodeAllowed?: boolean;
+  /**
+   * The x-brainbase-repository header of a person-hosted Claude Code turn.
+   * Caller-declared, so it is only a lookup key for `resolveProjectCode`;
+   * the resolved project must still be inside the verified principal scope.
+   */
+  repository?: string;
+  /**
+   * Host-owned repository-to-project mapping, consulted only when a
+   * person-hosted Claude Code turn sent no project code. Return undefined
+   * when the host has no mapping for the repository.
+   */
+  resolveProjectCode?: (input: {
+    repository: string;
+    principal: RemoteJudgmentHookPrincipal;
+  }) => Promise<string | undefined> | string | undefined;
   isAuthorized: (authorization: string | undefined, expectedToken: string) => boolean;
   dispatch: RemoteJudgmentHookDispatch;
   /** Optional HTTP publisher for person-authenticated hosted Claude Code Stop events. */
   journalTurnPublisher?: (input: JudgmentJournalTurnInput) => Promise<void>;
+  /** Optional PR-B ephemeral session mini world model v2 updater forwarded to dispatch. */
+  sessionWorldModelUpdater?: SessionWorldModelUpdaterV2;
+  /** Optional non-digest reasoning gate telemetry observer (fail-open). */
+  onReasoningGateTelemetry?: (details: {
+    eventName: string;
+    sessionId: string;
+    turnId: string;
+    projectCode?: string;
+    reasoning_gate_applied: boolean;
+    reasoning_gate_mode: ReasoningGateMode;
+  }) => void;
   onDispatchError?: (details: {
     eventName: string;
     reason: string;
@@ -123,6 +156,21 @@ function isInternalJudgmentControlTool(payload: Record<string, unknown>): boolea
       'mcp__brainbase__brainbase_judgment_repair_read'].includes(toolName);
 }
 
+function invokeFailOpenObserver<T>(observer: ((details: T) => void) | undefined, details: T): void {
+  if (!observer) return;
+  try {
+    const result: unknown = observer(details);
+    if (result !== null && (typeof result === 'object' || typeof result === 'function')
+      && typeof (result as PromiseLike<unknown>).then === 'function') {
+      Promise.resolve(result).catch(() => {
+        /* Fail-open observer cannot affect the hook response or emit unhandled rejections. */
+      });
+    }
+  } catch {
+    /* Fail-open observer cannot affect the hook response. */
+  }
+}
+
 function safeCauseReasonCode(error: unknown): string | undefined {
   let current = typeof error === 'object' && error && 'cause' in error ? error.cause : undefined;
   const visited = new Set<unknown>();
@@ -132,6 +180,35 @@ function safeCauseReasonCode(error: unknown): string | undefined {
     current = typeof current === 'object' && 'cause' in current ? current.cause : undefined;
   }
   return undefined;
+}
+
+const REPOSITORY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$/;
+
+type HostedProjectResolution =
+  | { kind: 'resolved'; projectCode: string }
+  | { kind: 'unresolved' }
+  | { kind: 'lookup_failed' };
+
+async function resolveHostedProjectCode(
+  request: RemoteJudgmentHookRequest,
+  principal: RemoteJudgmentHookPrincipal,
+): Promise<HostedProjectResolution> {
+  const repository = request.repository?.trim();
+  if (repository && REPOSITORY_PATTERN.test(repository) && request.resolveProjectCode) {
+    let mapped: string | undefined;
+    try {
+      mapped = await request.resolveProjectCode({ repository, principal });
+    } catch {
+      // A failed lookup is not "no mapping": the repository may belong to a
+      // project outside the person's scope. Record nothing; the caller retries.
+      return { kind: 'lookup_failed' };
+    }
+    if (typeof mapped === 'string' && mapped) return { kind: 'resolved', projectCode: mapped };
+  }
+  const projects = [...new Set(principal.projectCodes)];
+  return projects.length === 1
+    ? { kind: 'resolved', projectCode: projects[0] }
+    : { kind: 'unresolved' };
 }
 
 export async function handleRemoteJudgmentHookRequest(
@@ -167,28 +244,49 @@ export async function handleRemoteJudgmentHookRequest(
 
   const personHostedClaudeCode = request.personHostedClaudeCodeAllowed === true
     && request.trustedAuthKind === 'brainbase-jwt';
-  const host: RemoteJudgmentHookHost = request.declaredHost === undefined || request.declaredHost === ''
-    ? 'remote' : 'claude-code';
-  if (host === 'claude-code'
-    && (request.declaredHost !== 'claude-code' || (request.localClaudeCodeAllowed !== true && !personHostedClaudeCode))) {
+  let host: RemoteJudgmentHookHost;
+  if (request.declaredHost === undefined || request.declaredHost === '') {
+    host = 'remote';
+  } else if (request.declaredHost === 'claude-code' || request.declaredHost === 'antigravity') {
+    host = request.declaredHost;
+  } else {
+    return { status: 400, body: { error: 'judgment_hook_host_unsupported' } };
+  }
+  const isInteractiveHost = host === 'claude-code' || host === 'antigravity';
+  if (isInteractiveHost && (request.localClaudeCodeAllowed !== true && !personHostedClaudeCode)) {
     return { status: 400, body: { error: 'judgment_hook_host_unsupported' } };
   }
   if (host === 'remote' && !SUPPORTED_HOOK_EVENTS.has(eventName)) {
     return { status: 400, body: { error: 'unsupported_hook_event' } };
   }
-  // A local Claude Code turn may leave the project to the Host, which derives
+  // A local interactive turn may leave the project to the Host, which derives
   // it from the turn's cwd exactly as for Codex.
-  const requiresProjectScope = host === 'remote' || (host === 'claude-code' && personHostedClaudeCode);
-  if (host === 'claude-code' && personHostedClaudeCode
+  const requiresProjectScope = host === 'remote' || (isInteractiveHost && personHostedClaudeCode);
+  if (isInteractiveHost && personHostedClaudeCode
     && !request.trustedPrincipal?.tenantId?.trim()) {
     return { status: 403, body: { error: 'authenticated_history_principal_unavailable' } };
   }
-  if ((requiresProjectScope || request.projectCode !== undefined)
-    && (!request.projectCode || !PROJECT_CODE_PATTERN.test(request.projectCode))) {
+  let projectCode = request.projectCode;
+  if (isInteractiveHost && personHostedClaudeCode && request.trustedPrincipal
+    && (projectCode === undefined || projectCode === '')) {
+    // A person's Claude Code need not name the project. The Host decides it:
+    // its own repository mapping first, then the person's only project. When
+    // neither decides, nothing is recorded and the caller is told why.
+    const resolution = await resolveHostedProjectCode(request, request.trustedPrincipal);
+    if (resolution.kind === 'lookup_failed') {
+      return { status: 503, body: { error: 'judgment_project_lookup_failed' } };
+    }
+    if (resolution.kind === 'unresolved') {
+      return { status: 400, body: { error: 'judgment_project_unresolved' } };
+    }
+    projectCode = resolution.projectCode;
+  }
+  if ((requiresProjectScope || projectCode !== undefined)
+    && (!projectCode || !PROJECT_CODE_PATTERN.test(projectCode))) {
     return { status: 400, body: { error: 'invalid_project_code' } };
   }
   if (requiresProjectScope && request.trustedPrincipal
-    && (!request.projectCode || !request.trustedPrincipal.projectCodes.includes(request.projectCode))) {
+    && (!projectCode || !request.trustedPrincipal.projectCodes.includes(projectCode))) {
     return { status: 403, body: { error: 'project_not_authorized' } };
   }
   if (request.trustedPrincipal && !request.trustedPrincipal.tenantId?.trim()) {
@@ -209,12 +307,31 @@ export async function handleRemoteJudgmentHookRequest(
         ...(request.companyAuthorityResponse
           ? { companyAuthorityResponse: request.companyAuthorityResponse }
           : {}),
+        ...(request.sessionWorldModelUpdater
+          ? { sessionWorldModelUpdater: request.sessionWorldModelUpdater }
+          : {}),
       }
-      : { host };
-    const dispatchResult = await request.dispatch(hookPayload, request.projectCode, dispatchOptions);
+      : {
+        host,
+        ...(request.sessionWorldModelUpdater
+          ? { sessionWorldModelUpdater: request.sessionWorldModelUpdater }
+          : {}),
+      };
+    const dispatchResult = await request.dispatch(hookPayload, projectCode, dispatchOptions);
     const { output } = dispatchResult;
     if (!output || typeof output !== 'object' || Array.isArray(output)) {
       return { status: 503, body: { error: 'judgment_hook_output_invalid' } };
+    }
+    if (typeof dispatchResult.reasoningGateApplied === 'boolean'
+      && dispatchResult.reasoningGateMode !== undefined) {
+      invokeFailOpenObserver(request.onReasoningGateTelemetry, {
+        eventName,
+        sessionId,
+        turnId,
+        ...(projectCode ? { projectCode } : {}),
+        reasoning_gate_applied: dispatchResult.reasoningGateApplied,
+        reasoning_gate_mode: dispatchResult.reasoningGateMode,
+      });
     }
     // The remote runtime's stream validator needs an audit line per tool. A
     // local Claude Code turn has no such validator; the Host decides alone.
@@ -229,7 +346,7 @@ export async function handleRemoteJudgmentHookRequest(
         || !/^[a-f0-9]{64}$/.test(dispatchResult.routeResolutionSha256))) {
       return { status: 503, body: { error: 'judgment_hook_route_receipt_missing' } };
     }
-    if (eventName === 'Stop' && host === 'claude-code' && personHostedClaudeCode
+    if (eventName === 'Stop' && isInteractiveHost && personHostedClaudeCode
       && request.localClaudeCodeAllowed !== true) {
       const report = (reason: string) => {
         try { console.warn(reason); } catch { /* Logging cannot affect the hook response. */ }
@@ -241,7 +358,7 @@ export async function handleRemoteJudgmentHookRequest(
         try {
           await Promise.race([
             Promise.resolve().then(() => request.journalTurnPublisher!({
-              sessionId, turnId, projectCode: request.projectCode!, trustedToken: request.trustedToken!,
+              sessionId, turnId, projectCode: projectCode!, trustedToken: request.trustedToken!,
               trustedPrincipal: { personId: request.trustedPrincipal!.personId, tenantId: request.trustedPrincipal!.tenantId! },
             })),
             new Promise<never>((_resolve, reject) => {
@@ -279,7 +396,7 @@ export async function handleRemoteJudgmentHookRequest(
       ? error.code
       : undefined;
     const causeReasonCode = safeCauseReasonCode(error);
-    request.onDispatchError?.({
+    invokeFailOpenObserver(request.onDispatchError, {
       eventName,
       reason,
       errorName: error instanceof Error ? error.name : 'UnknownError',

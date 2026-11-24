@@ -5,6 +5,12 @@ import {
   type JudgmentExecutionOutcome
 } from './judgment-execution-outcome.js';
 
+/** Default fallback project_code when an episode omits project binding. */
+export const DEFAULT_JUDGMENT_EVENT_PROJECT_CODE = 'brainbase' as const;
+
+/** Canonical project_code syntax shared with hook/relay/downstream API contracts. */
+export const JUDGMENT_EVENT_PROJECT_CODE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/u;
+
 /** Input boundary for a completed Host episode. Private runtime fields are ignored. */
 export interface JudgmentEpisode {
   episode_id?: unknown;
@@ -19,7 +25,30 @@ export interface JudgmentEpisode {
   payload?: unknown;
   redaction_status?: unknown;
   execution_outcome?: unknown;
+  project_code?: unknown;
+  applicability_scope?: unknown;
   [key: string]: unknown;
+}
+
+export interface JudgmentKnowledgeEventAdapterOptions {
+  /**
+   * Fallback `project_code` when the episode does not carry one.
+   * Defaults to `'brainbase'` to preserve backward compatibility with callers
+   * and outbox readback contracts that require a non-empty `project_code`.
+   */
+  fallbackProjectCode?: string;
+  /**
+   * Optional allowlist matching the delivery token's `projectCodes` claim
+   * (downstream `requireProjectAccess`). When provided, an event is emitted
+   * only if its resolved `project_code` is included in this list.
+   */
+  allowedProjectCodes?: readonly string[];
+  /**
+   * Behavior when the resolved `project_code` is outside `allowedProjectCodes`.
+   * - `'skip'` (default): return `null` so an out-of-scope event is not queued.
+   * - `'reject'`: throw an Error with `code = 'knowledge_project_access_denied'`.
+   */
+  onProjectOutOfScope?: 'skip' | 'reject';
 }
 
 export interface JudgmentKnowledgeEventPayload {
@@ -46,7 +75,7 @@ export interface JudgmentKnowledgeEvent {
   };
   applicability_scope: {
     scope: 'judgment_episode';
-    project_code: 'brainbase';
+    project_code: string;
   };
   permission_snapshot: {
     knowledge_registration: true;
@@ -107,6 +136,92 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+/** Validate and trim a portable knowledge event project_code. */
+export function normalizeJudgmentEventProjectCode(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return JUDGMENT_EVENT_PROJECT_CODE_PATTERN.test(trimmed) ? trimmed : null;
+}
+
+/**
+ * Exact-match check aligned with downstream `requireProjectAccess`
+ * (`allowed.includes(projectCode)`). Neither `projectCode` nor entries in
+ * `allowedProjectCodes` are implicitly trimmed; wildcards and invalid codes
+ * fail closed.
+ */
+export function isProjectCodeAllowed(
+  projectCode: string | null | undefined,
+  allowedProjectCodes: readonly string[] | null | undefined
+): boolean {
+  if (
+    typeof projectCode !== 'string'
+    || !JUDGMENT_EVENT_PROJECT_CODE_PATTERN.test(projectCode)
+    || !Array.isArray(allowedProjectCodes)
+    || allowedProjectCodes.length === 0
+  ) {
+    return false;
+  }
+  return allowedProjectCodes.some(
+    (entry) => typeof entry === 'string'
+      && JUDGMENT_EVENT_PROJECT_CODE_PATTERN.test(entry)
+      && entry === projectCode
+  );
+}
+
+function isMissingProjectCode(value: unknown): boolean {
+  return value === undefined || value === null || (typeof value === 'string' && value.trim().length === 0);
+}
+
+function rawEpisodeProjectCode(episode: JudgmentEpisode): unknown {
+  if (!isMissingProjectCode(episode.project_code)) return episode.project_code;
+  if (isRecord(episode.applicability_scope) && !isMissingProjectCode(episode.applicability_scope.project_code)) {
+    return episode.applicability_scope.project_code;
+  }
+  if (isRecord(episode.payload) && !isMissingProjectCode(episode.payload.project_code)) {
+    return episode.payload.project_code;
+  }
+  if (isRecord(episode.adoption)) {
+    const requestCode = isRecord(episode.adoption.request) ? episode.adoption.request.project_code : undefined;
+    if (!isMissingProjectCode(requestCode)) return requestCode;
+    const receiptCode = isRecord(episode.adoption.receipt) ? episode.adoption.receipt.project_code : undefined;
+    if (!isMissingProjectCode(receiptCode)) return receiptCode;
+  }
+  return undefined;
+}
+
+function resolveEpisodeProjectCode(
+  episode: JudgmentEpisode,
+  options: JudgmentKnowledgeEventAdapterOptions = {}
+): string | null {
+  const fallback = options.fallbackProjectCode === undefined
+    ? DEFAULT_JUDGMENT_EVENT_PROJECT_CODE
+    : normalizeJudgmentEventProjectCode(options.fallbackProjectCode);
+  if (!fallback) {
+    throw new Error('fallbackProjectCode is invalid');
+  }
+  const raw = rawEpisodeProjectCode(episode);
+  let resolved: string;
+  if (isMissingProjectCode(raw)) {
+    resolved = fallback;
+  } else {
+    const normalized = normalizeJudgmentEventProjectCode(raw);
+    if (!normalized) {
+      throw new Error('project_code is invalid');
+    }
+    resolved = normalized;
+  }
+  if (options.allowedProjectCodes !== undefined && !isProjectCodeAllowed(resolved, options.allowedProjectCodes)) {
+    if (options.onProjectOutOfScope === 'reject') {
+      const error = new Error(`knowledge_project_access_denied:${resolved}`) as Error & { code?: string };
+      error.code = 'knowledge_project_access_denied';
+      throw error;
+    }
+    return null;
+  }
+  return resolved;
+}
+
 /**
  * Project a completed Host episode into a non-authoritative knowledge event.
  *
@@ -114,7 +229,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * transcript storage, and delivery/outbox behavior remain adapter concerns.
  */
 export function toKnowledgeEventFromJudgmentEpisode(
-  episode: JudgmentEpisode | null | undefined
+  episode: JudgmentEpisode | null | undefined,
+  options: JudgmentKnowledgeEventAdapterOptions = {}
 ): JudgmentKnowledgeEvent | null {
   if (!episode || episode.completion_status !== 'complete') return null;
   const payload = isRecord(episode.payload) ? episode.payload : undefined;
@@ -135,7 +251,10 @@ export function toKnowledgeEventFromJudgmentEpisode(
     ? normalizeJudgmentExecutionOutcome(episode.execution_outcome)
     : null;
   if (outcome && outcome.status !== 'completed') return null;
-  const sourceType = outcome?.host.type === 'claude-code' ? 'agent_judgment' : 'codex_judgment';
+  const projectCode = resolveEpisodeProjectCode(episode, options);
+  if (!projectCode) return null;
+  const sourceType = outcome?.host.type === 'claude-code' || outcome?.host.type === 'antigravity'
+    ? 'agent_judgment' : 'codex_judgment';
 
   return {
     schema_version: 'knowledge_event.v1',
@@ -153,7 +272,7 @@ export function toKnowledgeEventFromJudgmentEpisode(
       authorized: false,
       graph_promotion_allowed: false
     },
-    applicability_scope: { scope: 'judgment_episode', project_code: 'brainbase' },
+    applicability_scope: { scope: 'judgment_episode', project_code: projectCode },
     permission_snapshot: { knowledge_registration: true, external_action: false },
     source_pointer: {
       uri: outcome

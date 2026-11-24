@@ -1,0 +1,2134 @@
+{
+  "schema_version": "judgment-reasoning-distortion-cases.v1",
+  "cases": [
+    {
+      "id": "counterexample_scope_mismatch__healthy_representative_refutation",
+      "target_pattern": "counterexample_scope_mismatch",
+      "kind": "healthy",
+      "description": "Probabilistic claim failed on representative cohort evidence; rejected option avoids failed model.",
+      "input": {
+        "catalog": {
+          "catalog_version": "judgment-frame-catalog.v1",
+          "digest": "sha256:2d6866589c6ba90a5461451b8ca387011cc36dac3c109cb676788e2ec85b45c8",
+          "items": [
+            {
+              "id": "phi_purpose_first",
+              "kind": "philosophy",
+              "revision": "1",
+              "status": "active",
+              "text": "目的を先に固定する：最適化の前に目的と守る条件を決める。"
+            },
+            {
+              "id": "obj_profit_headroom",
+              "kind": "objective",
+              "revision": "1",
+              "status": "active",
+              "text": "再現性のある収益改善余地を最大化する。"
+            },
+            {
+              "id": "mod_priority_cleaning",
+              "kind": "model",
+              "revision": "2",
+              "status": "verified",
+              "text": "繁忙期は高価格室優先の清掃順で平均売上が改善する。",
+              "applies_when": "繁忙期・全施設"
+            }
+          ]
+        },
+        "frame": {
+          "record_version": "judgment-frame-record.v1",
+          "catalog_digest": "sha256:2d6866589c6ba90a5461451b8ca387011cc36dac3c109cb676788e2ec85b45c8",
+          "selections": [
+            {
+              "ref": "phi_purpose_first",
+              "kind": "philosophy",
+              "why": "制約確認"
+            },
+            {
+              "ref": "obj_profit_headroom",
+              "kind": "objective",
+              "why": "基準比較"
+            },
+            {
+              "ref": "mod_priority_cleaning",
+              "kind": "model",
+              "why": "傾向モデルの妥当性確認"
+            }
+          ],
+          "options": [
+            {
+              "label": "現行の固定清掃順を維持する",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "反証済み施策を避ける"
+                }
+              ]
+            },
+            {
+              "label": "高価格室優先へ切り替える",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "代表サンプルで逆転"
+                },
+                {
+                  "ref": "mod_priority_cleaning",
+                  "role": "prediction",
+                  "note": "全12施設代表サンプルで予測不成立のため不採用",
+                  "check": {
+                    "falsified_if": "全12施設の代表サンプルで売上が低下する",
+                    "status": "failed",
+                    "evidence": "全12施設・30日間の層化抽出集計",
+                    "balance": {
+                      "claim_scope": "probabilistic",
+                      "population": "全12施設・30日（360施設日）",
+                      "supporting_summary": "4施設では微増",
+                      "counter_summary": "8施設で売上が平均-2.4%低下",
+                      "counter_representativeness": "representative"
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "chosen_option": "現行の固定清掃順を維持する"
+        }
+      },
+      "expected": {
+        "overall_status": "pass",
+        "target_status": "pass",
+        "target_score": 1,
+        "required_signals": []
+      }
+    },
+    {
+      "id": "counterexample_scope_mismatch__healthy_universal_single_counterexample",
+      "target_pattern": "counterexample_scope_mismatch",
+      "kind": "healthy",
+      "description": "Universal claim validly failed by a single anecdotal counterexample.",
+      "input": {
+        "catalog": {
+          "catalog_version": "judgment-frame-catalog.v1",
+          "digest": "sha256:2d6866589c6ba90a5461451b8ca387011cc36dac3c109cb676788e2ec85b45c8",
+          "items": [
+            {
+              "id": "phi_purpose_first",
+              "kind": "philosophy",
+              "revision": "1",
+              "status": "active",
+              "text": "目的を先に固定する：最適化の前に目的と守る条件を決める。"
+            },
+            {
+              "id": "obj_profit_headroom",
+              "kind": "objective",
+              "revision": "1",
+              "status": "active",
+              "text": "再現性のある収益改善余地を最大化する。"
+            },
+            {
+              "id": "mod_priority_cleaning",
+              "kind": "model",
+              "revision": "2",
+              "status": "verified",
+              "text": "繁忙期は高価格室優先の清掃順で平均売上が改善する。",
+              "applies_when": "繁忙期・全施設"
+            }
+          ]
+        },
+        "frame": {
+          "record_version": "judgment-frame-record.v1",
+          "catalog_digest": "sha256:2d6866589c6ba90a5461451b8ca387011cc36dac3c109cb676788e2ec85b45c8",
+          "selections": [
+            {
+              "ref": "phi_purpose_first",
+              "kind": "philosophy",
+              "why": "制約確認"
+            },
+            {
+              "ref": "obj_profit_headroom",
+              "kind": "objective",
+              "why": "基準比較"
+            },
+            {
+              "ref": "mod_priority_cleaning",
+              "kind": "model",
+              "why": "全称主張の反証検証"
+            }
+          ],
+          "options": [
+            {
+              "label": "現行の固定清掃順を維持する",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "全称主張の反証を踏まえ維持"
+                }
+              ]
+            },
+            {
+              "label": "例外なく全施設で高価格室優先を強制する",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "反例ありのため不採用"
+                },
+                {
+                  "ref": "mod_priority_cleaning",
+                  "role": "prediction",
+                  "note": "全称主張に対して確証反例1件を確認",
+                  "check": {
+                    "falsified_if": "1施設でも売上が低下する",
+                    "status": "failed",
+                    "evidence": "施設Bの検証ログ",
+                    "balance": {
+                      "claim_scope": "universal",
+                      "population": "全12施設",
+                      "supporting_summary": "11施設では成立",
+                      "counter_summary": "施設Bで明確な反例を確認",
+                      "counter_representativeness": "anecdotal"
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "chosen_option": "現行の固定清掃順を維持する"
+        }
+      },
+      "expected": {
+        "overall_status": "pass",
+        "target_status": "pass",
+        "target_score": 1,
+        "required_signals": []
+      }
+    },
+    {
+      "id": "counterexample_scope_mismatch__distorted_probabilistic_anecdotal",
+      "target_pattern": "counterexample_scope_mismatch",
+      "kind": "distorted",
+      "description": "Probabilistic claim marked failed solely on anecdotal counter-evidence.",
+      "input": {
+        "catalog": {
+          "catalog_version": "judgment-frame-catalog.v1",
+          "digest": "sha256:2d6866589c6ba90a5461451b8ca387011cc36dac3c109cb676788e2ec85b45c8",
+          "items": [
+            {
+              "id": "phi_purpose_first",
+              "kind": "philosophy",
+              "revision": "1",
+              "status": "active",
+              "text": "目的を先に固定する：最適化の前に目的と守る条件を決める。"
+            },
+            {
+              "id": "obj_profit_headroom",
+              "kind": "objective",
+              "revision": "1",
+              "status": "active",
+              "text": "再現性のある収益改善余地を最大化する。"
+            },
+            {
+              "id": "mod_priority_cleaning",
+              "kind": "model",
+              "revision": "2",
+              "status": "verified",
+              "text": "繁忙期は高価格室優先の清掃順で平均売上が改善する。",
+              "applies_when": "繁忙期・全施設"
+            }
+          ]
+        },
+        "frame": {
+          "record_version": "judgment-frame-record.v1",
+          "catalog_digest": "sha256:2d6866589c6ba90a5461451b8ca387011cc36dac3c109cb676788e2ec85b45c8",
+          "selections": [
+            {
+              "ref": "phi_purpose_first",
+              "kind": "philosophy",
+              "why": "制約確認"
+            },
+            {
+              "ref": "obj_profit_headroom",
+              "kind": "objective",
+              "why": "基準比較"
+            },
+            {
+              "ref": "mod_priority_cleaning",
+              "kind": "model",
+              "why": "傾向モデルの評価"
+            }
+          ],
+          "options": [
+            {
+              "label": "現行の固定清掃順を維持する",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "現行維持"
+                }
+              ]
+            },
+            {
+              "label": "高価格室優先へ切り替える",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "単発反例で却下"
+                },
+                {
+                  "ref": "mod_priority_cleaning",
+                  "role": "prediction",
+                  "note": "施設Bの単日例外を理由に傾向モデル全体を不成立扱い",
+                  "check": {
+                    "falsified_if": "全体傾向として売上が低下する",
+                    "status": "failed",
+                    "evidence": "施設Bの1日分ログ",
+                    "balance": {
+                      "claim_scope": "probabilistic",
+                      "population": "全12施設・30日",
+                      "supporting_summary": "11施設では改善傾向",
+                      "counter_summary": "施設Bの単日のみ低下",
+                      "counter_representativeness": "anecdotal"
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "chosen_option": "現行の固定清掃順を維持する"
+        }
+      },
+      "expected": {
+        "overall_status": "fail",
+        "target_status": "fail",
+        "target_score": 0,
+        "required_signals": [
+          "escalation:prediction_scope_mismatch",
+          "probabilistic_failed_by_anecdotal"
+        ]
+      }
+    },
+    {
+      "id": "base_rate_neglect__healthy_partial_retrieval_with_population",
+      "target_pattern": "base_rate_neglect",
+      "kind": "healthy",
+      "description": "Partial retrieval (4/40) explicitly compensated by population denominator and support/counter balance.",
+      "input": {
+        "catalog": {
+          "catalog_version": "judgment-frame-catalog.v1",
+          "digest": "sha256:2d6866589c6ba90a5461451b8ca387011cc36dac3c109cb676788e2ec85b45c8",
+          "items": [
+            {
+              "id": "phi_purpose_first",
+              "kind": "philosophy",
+              "revision": "1",
+              "status": "active",
+              "text": "目的を先に固定する：最適化の前に目的と守る条件を決める。"
+            },
+            {
+              "id": "obj_profit_headroom",
+              "kind": "objective",
+              "revision": "1",
+              "status": "active",
+              "text": "再現性のある収益改善余地を最大化する。"
+            },
+            {
+              "id": "mod_priority_cleaning",
+              "kind": "model",
+              "revision": "2",
+              "status": "verified",
+              "text": "繁忙期は高価格室優先の清掃順で平均売上が改善する。",
+              "applies_when": "繁忙期・全施設"
+            }
+          ]
+        },
+        "retrieval": [
+          {
+            "coverage": "partial",
+            "returnedCount": 4,
+            "totalScopedCount": 40
+          }
+        ],
+        "frame": {
+          "record_version": "judgment-frame-record.v1",
+          "catalog_digest": "sha256:2d6866589c6ba90a5461451b8ca387011cc36dac3c109cb676788e2ec85b45c8",
+          "selections": [
+            {
+              "ref": "phi_purpose_first",
+              "kind": "philosophy",
+              "why": "制約確認"
+            },
+            {
+              "ref": "obj_profit_headroom",
+              "kind": "objective",
+              "why": "基準比較"
+            },
+            {
+              "ref": "mod_priority_cleaning",
+              "kind": "model",
+              "why": "母集団込みで検証"
+            }
+          ],
+          "options": [
+            {
+              "label": "高価格室優先を採用する",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "母集団全体で改善確認"
+                },
+                {
+                  "ref": "mod_priority_cleaning",
+                  "role": "prediction",
+                  "note": "部分検索の分母を確認し全件集計と突合",
+                  "check": {
+                    "falsified_if": "全40件の母集団で改善率が50%を下回る",
+                    "status": "held",
+                    "evidence": "全40件コホート集計表",
+                    "balance": {
+                      "claim_scope": "probabilistic",
+                      "population": "対象スコープ全40施設（検索取得4件に加え全件集計を参照）",
+                      "supporting_summary": "31/40施設で売上改善",
+                      "counter_summary": "9/40施設は横ばい"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "label": "現行維持",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "現状維持"
+                }
+              ]
+            }
+          ],
+          "chosen_option": "高価格室優先を採用する"
+        }
+      },
+      "expected": {
+        "overall_status": "pass",
+        "target_status": "pass",
+        "target_score": 1,
+        "required_signals": []
+      }
+    },
+    {
+      "id": "base_rate_neglect__distorted_missing_balance_fields",
+      "target_pattern": "base_rate_neglect",
+      "kind": "distorted",
+      "description": "Balance attached on held prediction with blank population and counter_summary.",
+      "input": {
+        "catalog": {
+          "catalog_version": "judgment-frame-catalog.v1",
+          "digest": "sha256:2d6866589c6ba90a5461451b8ca387011cc36dac3c109cb676788e2ec85b45c8",
+          "items": [
+            {
+              "id": "phi_purpose_first",
+              "kind": "philosophy",
+              "revision": "1",
+              "status": "active",
+              "text": "目的を先に固定する：最適化の前に目的と守る条件を決める。"
+            },
+            {
+              "id": "obj_profit_headroom",
+              "kind": "objective",
+              "revision": "1",
+              "status": "active",
+              "text": "再現性のある収益改善余地を最大化する。"
+            },
+            {
+              "id": "mod_priority_cleaning",
+              "kind": "model",
+              "revision": "2",
+              "status": "verified",
+              "text": "繁忙期は高価格室優先の清掃順で平均売上が改善する。",
+              "applies_when": "繁忙期・全施設"
+            }
+          ]
+        },
+        "frame": {
+          "record_version": "judgment-frame-record.v1",
+          "catalog_digest": "sha256:2d6866589c6ba90a5461451b8ca387011cc36dac3c109cb676788e2ec85b45c8",
+          "selections": [
+            {
+              "ref": "phi_purpose_first",
+              "kind": "philosophy",
+              "why": "制約確認"
+            },
+            {
+              "ref": "obj_profit_headroom",
+              "kind": "objective",
+              "why": "基準比較"
+            },
+            {
+              "ref": "mod_priority_cleaning",
+              "kind": "model",
+              "why": "予測検証"
+            }
+          ],
+          "options": [
+            {
+              "label": "高価格室優先を採用する",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "成功事例のみで判断"
+                },
+                {
+                  "ref": "mod_priority_cleaning",
+                  "role": "prediction",
+                  "note": "支持事例のみ記載して母集団・反例を空白のまま採用",
+                  "check": {
+                    "falsified_if": "全体傾向が悪化する",
+                    "status": "held",
+                    "evidence": "施設Aの成功報告",
+                    "balance": {
+                      "claim_scope": "probabilistic",
+                      "population": "   ",
+                      "supporting_summary": "施設Aで+8%改善",
+                      "counter_summary": ""
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "label": "現行維持",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "現状維持"
+                }
+              ]
+            }
+          ],
+          "chosen_option": "高価格室優先を採用する"
+        }
+      },
+      "expected": {
+        "overall_status": "fail",
+        "target_status": "fail",
+        "target_score": 0,
+        "required_signals": [
+          "escalation:prediction_unbalanced_evidence",
+          "balance_missing_population",
+          "balance_missing_counter_summary"
+        ]
+      }
+    },
+    {
+      "id": "base_rate_neglect__distorted_partial_retrieval_without_population",
+      "target_pattern": "base_rate_neglect",
+      "kind": "distorted",
+      "description": "Retrieval returned 5 of 50 scoped records (partial) while prediction check omits balance.population.",
+      "input": {
+        "catalog": {
+          "catalog_version": "judgment-frame-catalog.v1",
+          "digest": "sha256:2d6866589c6ba90a5461451b8ca387011cc36dac3c109cb676788e2ec85b45c8",
+          "items": [
+            {
+              "id": "phi_purpose_first",
+              "kind": "philosophy",
+              "revision": "1",
+              "status": "active",
+              "text": "目的を先に固定する：最適化の前に目的と守る条件を決める。"
+            },
+            {
+              "id": "obj_profit_headroom",
+              "kind": "objective",
+              "revision": "1",
+              "status": "active",
+              "text": "再現性のある収益改善余地を最大化する。"
+            },
+            {
+              "id": "mod_priority_cleaning",
+              "kind": "model",
+              "revision": "2",
+              "status": "verified",
+              "text": "繁忙期は高価格室優先の清掃順で平均売上が改善する。",
+              "applies_when": "繁忙期・全施設"
+            }
+          ]
+        },
+        "retrieval": [
+          {
+            "coverage": "partial",
+            "returnedCount": 5,
+            "totalScopedCount": 50
+          }
+        ],
+        "frame": {
+          "record_version": "judgment-frame-record.v1",
+          "catalog_digest": "sha256:2d6866589c6ba90a5461451b8ca387011cc36dac3c109cb676788e2ec85b45c8",
+          "selections": [
+            {
+              "ref": "phi_purpose_first",
+              "kind": "philosophy",
+              "why": "制約確認"
+            },
+            {
+              "ref": "obj_profit_headroom",
+              "kind": "objective",
+              "why": "基準比較"
+            },
+            {
+              "ref": "mod_priority_cleaning",
+              "kind": "model",
+              "why": "予測検証"
+            }
+          ],
+          "options": [
+            {
+              "label": "高価格室優先を採用する",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "検索上位5件のみで成立扱い"
+                },
+                {
+                  "ref": "mod_priority_cleaning",
+                  "role": "prediction",
+                  "note": "母集団を確認せず成立扱い",
+                  "check": {
+                    "falsified_if": "全体傾向が悪化する",
+                    "status": "held",
+                    "evidence": "検索上位5件のメモ"
+                  }
+                }
+              ]
+            },
+            {
+              "label": "現行維持",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "現状維持"
+                }
+              ]
+            }
+          ],
+          "chosen_option": "高価格室優先を採用する"
+        }
+      },
+      "expected": {
+        "overall_status": "fail",
+        "target_status": "fail",
+        "target_score": 0,
+        "required_signals": [
+          "partial_retrieval_missing_population"
+        ]
+      }
+    },
+    {
+      "id": "layer_conflation__healthy_unverified_model_checked",
+      "target_pattern": "layer_conflation",
+      "kind": "healthy",
+      "description": "Adopted-unverified model is explicitly tested via prediction check with falsified_if and held status.",
+      "input": {
+        "catalog": {
+          "catalog_version": "judgment-frame-catalog.v1",
+          "digest": "sha256:421df26937a47327d467854d55353055bb20f431e7f314d378d68053714bf8eb",
+          "items": [
+            {
+              "id": "phi_purpose_first",
+              "kind": "philosophy",
+              "revision": "1",
+              "status": "active",
+              "text": "目的を先に固定する：最適化の前に目的と守る条件を決める。"
+            },
+            {
+              "id": "obj_profit_headroom",
+              "kind": "objective",
+              "revision": "1",
+              "status": "active",
+              "text": "再現性のある収益改善余地を最大化する。"
+            },
+            {
+              "id": "mod_early_discount",
+              "kind": "model",
+              "revision": "1",
+              "status": "adopted_unverified",
+              "text": "新規施設は初月割引でリピート率が上がる。",
+              "applies_when": "新規施設"
+            }
+          ]
+        },
+        "frame": {
+          "record_version": "judgment-frame-record.v1",
+          "catalog_digest": "sha256:421df26937a47327d467854d55353055bb20f431e7f314d378d68053714bf8eb",
+          "selections": [
+            {
+              "ref": "phi_purpose_first",
+              "kind": "philosophy",
+              "why": "制約確認"
+            },
+            {
+              "ref": "obj_profit_headroom",
+              "kind": "objective",
+              "why": "基準比較"
+            },
+            {
+              "ref": "mod_early_discount",
+              "kind": "model",
+              "why": "未検証仮説をデータで検証"
+            }
+          ],
+          "options": [
+            {
+              "label": "初月割引をパイロット導入する",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "パイロット結果で改善"
+                },
+                {
+                  "ref": "mod_early_discount",
+                  "role": "prediction",
+                  "note": "未検証仮説を事前実験で検証済み",
+                  "check": {
+                    "falsified_if": "パイロット6店舗で2ヶ月目リピート率が対照群を下回る",
+                    "status": "held",
+                    "evidence": "パイロット6店舗ABテスト結果",
+                    "balance": {
+                      "claim_scope": "probabilistic",
+                      "population": "新規6店舗・420顧客",
+                      "supporting_summary": "割引群のリピート率が+6.5pt上昇",
+                      "counter_summary": "1店舗では差が統計的に有意でない"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "label": "通常価格で開始する",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "リピート率が低位"
+                }
+              ]
+            }
+          ],
+          "chosen_option": "初月割引をパイロット導入する"
+        }
+      },
+      "expected": {
+        "overall_status": "pass",
+        "target_status": "pass",
+        "target_score": 1,
+        "required_signals": []
+      }
+    },
+    {
+      "id": "layer_conflation__distorted_unverified_model_unchecked",
+      "target_pattern": "layer_conflation",
+      "kind": "distorted",
+      "description": "Chosen option relies on an adopted_unverified model with check.status === unchecked.",
+      "input": {
+        "catalog": {
+          "catalog_version": "judgment-frame-catalog.v1",
+          "digest": "sha256:421df26937a47327d467854d55353055bb20f431e7f314d378d68053714bf8eb",
+          "items": [
+            {
+              "id": "phi_purpose_first",
+              "kind": "philosophy",
+              "revision": "1",
+              "status": "active",
+              "text": "目的を先に固定する：最適化の前に目的と守る条件を決める。"
+            },
+            {
+              "id": "obj_profit_headroom",
+              "kind": "objective",
+              "revision": "1",
+              "status": "active",
+              "text": "再現性のある収益改善余地を最大化する。"
+            },
+            {
+              "id": "mod_early_discount",
+              "kind": "model",
+              "revision": "1",
+              "status": "adopted_unverified",
+              "text": "新規施設は初月割引でリピート率が上がる。",
+              "applies_when": "新規施設"
+            }
+          ]
+        },
+        "frame": {
+          "record_version": "judgment-frame-record.v1",
+          "catalog_digest": "sha256:421df26937a47327d467854d55353055bb20f431e7f314d378d68053714bf8eb",
+          "selections": [
+            {
+              "ref": "phi_purpose_first",
+              "kind": "philosophy",
+              "why": "制約確認"
+            },
+            {
+              "ref": "obj_profit_headroom",
+              "kind": "objective",
+              "why": "基準比較"
+            },
+            {
+              "ref": "mod_early_discount",
+              "kind": "model",
+              "why": "未検証モデルを参照"
+            }
+          ],
+          "options": [
+            {
+              "label": "初月割引を全面導入する",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "未検証モデルを前提に採用"
+                },
+                {
+                  "ref": "mod_early_discount",
+                  "role": "prediction",
+                  "note": "未検証のまま既定事実として依存",
+                  "check": {
+                    "falsified_if": "2ヶ月目リピート率が上がらない",
+                    "status": "unchecked"
+                  }
+                }
+              ]
+            },
+            {
+              "label": "通常価格で開始する",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "比較案"
+                }
+              ]
+            }
+          ],
+          "chosen_option": "初月割引を全面導入する"
+        }
+      },
+      "expected": {
+        "overall_status": "fail",
+        "target_status": "fail",
+        "target_score": 0,
+        "required_signals": [
+          "chosen_unverified_model_unchecked"
+        ]
+      }
+    },
+    {
+      "id": "layer_conflation__distorted_role_and_falsified_if_conflation",
+      "target_pattern": "layer_conflation",
+      "kind": "distorted",
+      "description": "Model misused with constraint role and prediction check missing falsified_if.",
+      "input": {
+        "catalog": {
+          "catalog_version": "judgment-frame-catalog.v1",
+          "digest": "sha256:421df26937a47327d467854d55353055bb20f431e7f314d378d68053714bf8eb",
+          "items": [
+            {
+              "id": "phi_purpose_first",
+              "kind": "philosophy",
+              "revision": "1",
+              "status": "active",
+              "text": "目的を先に固定する：最適化の前に目的と守る条件を決める。"
+            },
+            {
+              "id": "obj_profit_headroom",
+              "kind": "objective",
+              "revision": "1",
+              "status": "active",
+              "text": "再現性のある収益改善余地を最大化する。"
+            },
+            {
+              "id": "mod_early_discount",
+              "kind": "model",
+              "revision": "1",
+              "status": "adopted_unverified",
+              "text": "新規施設は初月割引でリピート率が上がる。",
+              "applies_when": "新規施設"
+            }
+          ]
+        },
+        "frame": {
+          "record_version": "judgment-frame-record.v1",
+          "catalog_digest": "sha256:421df26937a47327d467854d55353055bb20f431e7f314d378d68053714bf8eb",
+          "selections": [
+            {
+              "ref": "phi_purpose_first",
+              "kind": "philosophy",
+              "why": "制約確認"
+            },
+            {
+              "ref": "obj_profit_headroom",
+              "kind": "objective",
+              "why": "基準比較"
+            },
+            {
+              "ref": "mod_early_discount",
+              "kind": "model",
+              "why": "仮説参照"
+            }
+          ],
+          "options": [
+            {
+              "label": "初月割引を全面導入する",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "基準"
+                },
+                {
+                  "ref": "mod_early_discount",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "因果仮説を価値制約として混同"
+                }
+              ]
+            },
+            {
+              "label": "通常価格で開始する",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "基準"
+                },
+                {
+                  "ref": "mod_early_discount",
+                  "role": "prediction",
+                  "note": "反証条件なしのチェック",
+                  "check": {
+                    "falsified_if": "",
+                    "status": "held",
+                    "evidence": "過去メモ",
+                    "balance": {
+                      "claim_scope": "bounded_case",
+                      "population": "1店舗",
+                      "supporting_summary": "改善あり",
+                      "counter_summary": "反例なし"
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "chosen_option": "初月割引を全面導入する"
+        }
+      },
+      "expected": {
+        "overall_status": "fail",
+        "target_status": "fail",
+        "target_score": 0,
+        "required_signals": [
+          "role_kind_conflation",
+          "prediction_check_missing_falsified_if"
+        ]
+      }
+    },
+    {
+      "id": "conclusion_lock_cherry_picking__healthy_multi_option_competing_and_verified",
+      "target_pattern": "conclusion_lock_cherry_picking",
+      "kind": "healthy",
+      "description": "Two options compared, same-scope competing model addressed in competing_hypotheses, and verify node has evidence.",
+      "input": {
+        "catalog": {
+          "catalog_version": "judgment-frame-catalog.v1",
+          "digest": "sha256:1ba81847e205672f4fc954ac20a2441f274d527db481e44f9e6b985265fbd48a",
+          "items": [
+            {
+              "id": "phi_purpose_first",
+              "kind": "philosophy",
+              "revision": "1",
+              "status": "active",
+              "text": "目的を先に固定する：最適化の前に目的と守る条件を決める。"
+            },
+            {
+              "id": "obj_profit_headroom",
+              "kind": "objective",
+              "revision": "1",
+              "status": "active",
+              "text": "再現性のある収益改善余地を最大化する。"
+            },
+            {
+              "id": "mod_priority_cleaning",
+              "kind": "model",
+              "revision": "2",
+              "status": "verified",
+              "text": "繁忙期は高価格室優先の清掃順で平均売上が改善する。",
+              "applies_when": "繁忙期・全施設"
+            },
+            {
+              "id": "mod_start_time_shift",
+              "kind": "model",
+              "revision": "1",
+              "status": "verified",
+              "text": "繁忙期は清掃開始時刻の前倒しで平均売上が改善する。",
+              "applies_when": "繁忙期・全施設"
+            }
+          ]
+        },
+        "nodeResults": [
+          {
+            "schema_version": "brainbase-judgment-node-result-v1",
+            "node_id": "verify",
+            "status": "supported",
+            "finding": "競合仮説との層別比較を実施し優位を確認した。",
+            "evidence_fit": "全12施設30日ログの層別集計に基づく。",
+            "unknowns": [],
+            "evidence_tool_use_ids": [
+              "tool_verify_cohort_1"
+            ],
+            "previous_result_tool_use_id": "tool_hypothesis_1",
+            "next_action": "判断記録を確定する。"
+          }
+        ],
+        "frame": {
+          "record_version": "judgment-frame-record.v1",
+          "catalog_digest": "sha256:1ba81847e205672f4fc954ac20a2441f274d527db481e44f9e6b985265fbd48a",
+          "selections": [
+            {
+              "ref": "phi_purpose_first",
+              "kind": "philosophy",
+              "why": "制約確認"
+            },
+            {
+              "ref": "obj_profit_headroom",
+              "kind": "objective",
+              "why": "基準比較"
+            },
+            {
+              "ref": "mod_priority_cleaning",
+              "kind": "model",
+              "why": "主力予測仮説の検証"
+            }
+          ],
+          "options": [
+            {
+              "label": "高価格室優先の清掃順を採用する",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "最も改善幅が大きい"
+                },
+                {
+                  "ref": "mod_priority_cleaning",
+                  "role": "prediction",
+                  "note": "同スコープ競合仮説と層別比較して確認",
+                  "check": {
+                    "falsified_if": "開始時刻を固定した比較で優位が消える",
+                    "status": "held",
+                    "evidence": "層別比較集計ログ",
+                    "balance": {
+                      "claim_scope": "probabilistic",
+                      "population": "全12施設・30日",
+                      "supporting_summary": "開始時刻固定下でも+3.1%改善",
+                      "counter_summary": "人員欠員日は効果なし",
+                      "competing_hypotheses": [
+                        {
+                          "hypothesis": "清掃開始時刻の前倒しだけで説明できる",
+                          "ref": "mod_start_time_shift",
+                          "comparison": "開始時刻同一条件で比較しても高価格室優先が+3.1%上回った"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "label": "清掃開始時刻の前倒しのみ行う",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "効果は限定的"
+                }
+              ]
+            }
+          ],
+          "chosen_option": "高価格室優先の清掃順を採用する"
+        }
+      },
+      "expected": {
+        "overall_status": "pass",
+        "target_status": "pass",
+        "target_score": 1,
+        "required_signals": []
+      }
+    },
+    {
+      "id": "conclusion_lock_cherry_picking__distorted_single_option",
+      "target_pattern": "conclusion_lock_cherry_picking",
+      "kind": "distorted",
+      "description": "Only one option evaluated (options.length === 1), locking the conclusion without alternatives.",
+      "input": {
+        "catalog": {
+          "catalog_version": "judgment-frame-catalog.v1",
+          "digest": "sha256:2d6866589c6ba90a5461451b8ca387011cc36dac3c109cb676788e2ec85b45c8",
+          "items": [
+            {
+              "id": "phi_purpose_first",
+              "kind": "philosophy",
+              "revision": "1",
+              "status": "active",
+              "text": "目的を先に固定する：最適化の前に目的と守る条件を決める。"
+            },
+            {
+              "id": "obj_profit_headroom",
+              "kind": "objective",
+              "revision": "1",
+              "status": "active",
+              "text": "再現性のある収益改善余地を最大化する。"
+            },
+            {
+              "id": "mod_priority_cleaning",
+              "kind": "model",
+              "revision": "2",
+              "status": "verified",
+              "text": "繁忙期は高価格室優先の清掃順で平均売上が改善する。",
+              "applies_when": "繁忙期・全施設"
+            }
+          ]
+        },
+        "frame": {
+          "record_version": "judgment-frame-record.v1",
+          "catalog_digest": "sha256:2d6866589c6ba90a5461451b8ca387011cc36dac3c109cb676788e2ec85b45c8",
+          "selections": [
+            {
+              "ref": "phi_purpose_first",
+              "kind": "philosophy",
+              "why": "制約確認"
+            },
+            {
+              "ref": "obj_profit_headroom",
+              "kind": "objective",
+              "why": "基準比較"
+            },
+            {
+              "ref": "mod_priority_cleaning",
+              "kind": "model",
+              "why": "予測確認"
+            }
+          ],
+          "options": [
+            {
+              "label": "高価格室優先のみを前提に進める",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "代替案なし"
+                },
+                {
+                  "ref": "mod_priority_cleaning",
+                  "role": "prediction",
+                  "note": "単一案で成立確認",
+                  "check": {
+                    "falsified_if": "全体集計で悪化",
+                    "status": "held",
+                    "evidence": "全件集計",
+                    "balance": {
+                      "claim_scope": "probabilistic",
+                      "population": "全12施設・30日",
+                      "supporting_summary": "10施設で改善",
+                      "counter_summary": "2施設は横ばい"
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "chosen_option": "高価格室優先のみを前提に進める"
+        }
+      },
+      "expected": {
+        "overall_status": "fail",
+        "target_status": "fail",
+        "target_score": 0,
+        "required_signals": [
+          "single_option_no_alternative"
+        ]
+      }
+    },
+    {
+      "id": "conclusion_lock_cherry_picking__distorted_ignored_competing_and_unverified_node",
+      "target_pattern": "conclusion_lock_cherry_picking",
+      "kind": "distorted",
+      "description": "Same-scope competing model in catalog ignored with empty competing_hypotheses and counter_summary, plus verify node lacks evidence IDs.",
+      "input": {
+        "catalog": {
+          "catalog_version": "judgment-frame-catalog.v1",
+          "digest": "sha256:1ba81847e205672f4fc954ac20a2441f274d527db481e44f9e6b985265fbd48a",
+          "items": [
+            {
+              "id": "phi_purpose_first",
+              "kind": "philosophy",
+              "revision": "1",
+              "status": "active",
+              "text": "目的を先に固定する：最適化の前に目的と守る条件を決める。"
+            },
+            {
+              "id": "obj_profit_headroom",
+              "kind": "objective",
+              "revision": "1",
+              "status": "active",
+              "text": "再現性のある収益改善余地を最大化する。"
+            },
+            {
+              "id": "mod_priority_cleaning",
+              "kind": "model",
+              "revision": "2",
+              "status": "verified",
+              "text": "繁忙期は高価格室優先の清掃順で平均売上が改善する。",
+              "applies_when": "繁忙期・全施設"
+            },
+            {
+              "id": "mod_start_time_shift",
+              "kind": "model",
+              "revision": "1",
+              "status": "verified",
+              "text": "繁忙期は清掃開始時刻の前倒しで平均売上が改善する。",
+              "applies_when": "繁忙期・全施設"
+            }
+          ]
+        },
+        "nodeResults": [
+          {
+            "schema_version": "brainbase-judgment-node-result-v1",
+            "node_id": "verify",
+            "status": "supported",
+            "finding": "問題ないと判断した。",
+            "evidence_fit": "既存知見に一致。",
+            "unknowns": [],
+            "evidence_tool_use_ids": [],
+            "previous_result_tool_use_id": "tool_hypothesis_1",
+            "next_action": "そのまま採用する。"
+          }
+        ],
+        "frame": {
+          "record_version": "judgment-frame-record.v1",
+          "catalog_digest": "sha256:1ba81847e205672f4fc954ac20a2441f274d527db481e44f9e6b985265fbd48a",
+          "selections": [
+            {
+              "ref": "phi_purpose_first",
+              "kind": "philosophy",
+              "why": "制約確認"
+            },
+            {
+              "ref": "obj_profit_headroom",
+              "kind": "objective",
+              "why": "基準比較"
+            },
+            {
+              "ref": "mod_priority_cleaning",
+              "kind": "model",
+              "why": "予測参照"
+            }
+          ],
+          "options": [
+            {
+              "label": "高価格室優先を採用する",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "採用"
+                },
+                {
+                  "ref": "mod_priority_cleaning",
+                  "role": "prediction",
+                  "note": "競合モデルや反例に触れず採用",
+                  "check": {
+                    "falsified_if": "全体集計で悪化",
+                    "status": "held",
+                    "evidence": "抜粋レポート",
+                    "balance": {
+                      "claim_scope": "probabilistic",
+                      "population": "全12施設・30日",
+                      "supporting_summary": "一部施設で改善",
+                      "counter_summary": "",
+                      "competing_hypotheses": []
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "label": "現行維持",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "比較案"
+                }
+              ]
+            }
+          ],
+          "chosen_option": "高価格室優先を採用する"
+        }
+      },
+      "expected": {
+        "overall_status": "fail",
+        "target_status": "fail",
+        "target_score": 0,
+        "required_signals": [
+          "unaddressed_competing_or_refuted_models",
+          "verify_node_without_evidence"
+        ]
+      }
+    },
+    {
+      "id": "local_patch_without_model_update__healthy_switched_option_with_learning_candidate",
+      "target_pattern": "local_patch_without_model_update",
+      "kind": "healthy",
+      "description": "Refuted model with 2 structural refutations is avoided in chosen option AND paired with a LearningCandidate addressing both refutation IDs.",
+      "input": {
+        "catalog": {
+          "catalog_version": "judgment-frame-catalog.v1",
+          "digest": "sha256:1ba81847e205672f4fc954ac20a2441f274d527db481e44f9e6b985265fbd48a",
+          "items": [
+            {
+              "id": "phi_purpose_first",
+              "kind": "philosophy",
+              "revision": "1",
+              "status": "active",
+              "text": "目的を先に固定する：最適化の前に目的と守る条件を決める。"
+            },
+            {
+              "id": "obj_profit_headroom",
+              "kind": "objective",
+              "revision": "1",
+              "status": "active",
+              "text": "再現性のある収益改善余地を最大化する。"
+            },
+            {
+              "id": "mod_priority_cleaning",
+              "kind": "model",
+              "revision": "2",
+              "status": "verified",
+              "text": "繁忙期は高価格室優先の清掃順で平均売上が改善する。",
+              "applies_when": "繁忙期・全施設"
+            },
+            {
+              "id": "mod_start_time_shift",
+              "kind": "model",
+              "revision": "1",
+              "status": "verified",
+              "text": "繁忙期は清掃開始時刻の前倒しで平均売上が改善する。",
+              "applies_when": "繁忙期・全施設"
+            }
+          ]
+        },
+        "outcomes": [
+          {
+            "record_version": "judgment-model-outcome.v1",
+            "model": {
+              "id": "mod_priority_cleaning",
+              "revision": "2"
+            },
+            "verdict": "refutes",
+            "prediction": "高価格室優先で平均売上が改善する",
+            "observed": "全12施設×10月集計で平均売上が-2.1%低下",
+            "conditions": "全12施設・10月繁忙期",
+            "evidence_refs": [
+              {
+                "kind": "query",
+                "ref": "sql://oct-busy-cohort",
+                "label": "10月繁忙期全施設集計"
+              }
+            ],
+            "ruled_out": {
+              "measurement_error": "売上ログの欠損なしを確認",
+              "execution_difference": "全施設で手順遵守率98%",
+              "external_change": "需要指数は前年同月比横ばい"
+            },
+            "scope_metrics": {
+              "claim_type": "tendency",
+              "sample_size": 360,
+              "population_size": 360,
+              "effect_magnitude": "-2.1%",
+              "representativeness": "census"
+            },
+            "id": "out_struct_1",
+            "recorded_at": "2026-11-18T00:00:00.000Z",
+            "digest": "sha256:87dc3f79326bce75868164f830aeadff9844080781cf3dcca20da772a3807580"
+          },
+          {
+            "record_version": "judgment-model-outcome.v1",
+            "model": {
+              "id": "mod_priority_cleaning",
+              "revision": "2"
+            },
+            "verdict": "refutes",
+            "prediction": "高価格室優先で平均売上が改善する",
+            "observed": "全12施設×11月集計でも平均売上が-1.8%低下",
+            "conditions": "全12施設・11月繁忙期",
+            "evidence_refs": [
+              {
+                "kind": "query",
+                "ref": "sql://nov-busy-cohort",
+                "label": "11月繁忙期全施設集計"
+              }
+            ],
+            "ruled_out": {
+              "measurement_error": "再集計で一致を確認",
+              "execution_difference": "手順遵守率97%",
+              "external_change": "競合価格変動なし"
+            },
+            "scope_metrics": {
+              "claim_type": "tendency",
+              "sample_size": 360,
+              "population_size": 360,
+              "effect_magnitude": "-1.8%",
+              "representativeness": "census"
+            },
+            "id": "out_struct_2",
+            "recorded_at": "2026-11-19T00:00:00.000Z",
+            "digest": "sha256:7cce81490d7c285e987956e7ea0b34f3fc1f61501028447580638f97c104301e"
+          }
+        ],
+        "learningCandidates": [
+          {
+            "version": 1,
+            "id": "cand_revise_priority",
+            "sourceEvaluationRef": {
+              "id": "eval_cand_revise_priority",
+              "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+            },
+            "target": {
+              "kind": "world_model",
+              "id": "mod_priority_cleaning",
+              "revision": "2",
+              "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+              "foundationType": "model"
+            },
+            "proposedChange": {
+              "summary": "反証された条件を適用範囲から除外し、モデル前提を改訂する"
+            },
+            "grounds": [
+              "構造的反証2件により適用条件の誤りを確認"
+            ],
+            "counterexamples": [
+              "人員欠員時の高価格室優先は回転率を悪化させた"
+            ],
+            "uncertainty": [
+              "閑散期への波及は未検証"
+            ],
+            "applicability": {
+              "scope": "organization",
+              "id": "org_golden"
+            },
+            "createdAt": "2026-11-20T00:00:00.000Z",
+            "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+            "addressedRefutationIds": [
+              "out_struct_1",
+              "out_struct_2"
+            ]
+          }
+        ],
+        "frame": {
+          "record_version": "judgment-frame-record.v1",
+          "catalog_digest": "sha256:1ba81847e205672f4fc954ac20a2441f274d527db481e44f9e6b985265fbd48a",
+          "selections": [
+            {
+              "ref": "phi_purpose_first",
+              "kind": "philosophy",
+              "why": "制約確認"
+            },
+            {
+              "ref": "obj_profit_headroom",
+              "kind": "objective",
+              "why": "基準比較"
+            },
+            {
+              "ref": "mod_priority_cleaning",
+              "kind": "model",
+              "why": "反証済みモデルの却下根拠として明示"
+            },
+            {
+              "ref": "mod_start_time_shift",
+              "kind": "model",
+              "why": "代替モデルの予測確認"
+            }
+          ],
+          "options": [
+            {
+              "label": "清掃開始時刻の前倒しを採用する",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "反証されていないモデルで改善"
+                },
+                {
+                  "ref": "mod_start_time_shift",
+                  "role": "prediction",
+                  "note": "全施設集計で成立を確認",
+                  "check": {
+                    "falsified_if": "全12施設集計で平均売上が低下する",
+                    "status": "held",
+                    "evidence": "11月全施設集計",
+                    "balance": {
+                      "claim_scope": "probabilistic",
+                      "population": "全12施設・30日",
+                      "supporting_summary": "10施設で改善",
+                      "counter_summary": "2施設は横ばい",
+                      "competing_hypotheses": [
+                        {
+                          "hypothesis": "高価格室優先の清掃順",
+                          "ref": "mod_priority_cleaning",
+                          "comparison": "10月・11月の全社集計で2回連続の構造的反証が出ているため不採用とし改訂候補を起票"
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "label": "高価格室優先の清掃順を継続する",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "構造的反証ありのため不採用"
+                },
+                {
+                  "ref": "mod_priority_cleaning",
+                  "role": "prediction",
+                  "note": "2件の構造的反証により不成立",
+                  "check": {
+                    "falsified_if": "全12施設集計で売上が低下する",
+                    "status": "failed",
+                    "evidence": "10月・11月全施設集計",
+                    "balance": {
+                      "claim_scope": "probabilistic",
+                      "population": "全12施設・60日",
+                      "supporting_summary": "一部高単価日に限定的改善",
+                      "counter_summary": "全社集計で2ヶ月連続マイナス",
+                      "counter_representativeness": "census"
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "chosen_option": "清掃開始時刻の前倒しを採用する"
+        }
+      },
+      "expected": {
+        "overall_status": "pass",
+        "target_status": "pass",
+        "target_score": 1,
+        "required_signals": []
+      }
+    },
+    {
+      "id": "local_patch_without_model_update__distorted_refuted_model_no_candidate",
+      "target_pattern": "local_patch_without_model_update",
+      "kind": "distorted",
+      "description": "Chosen option continues using a model with 2 structural refutations and 0 LearningCandidates.",
+      "input": {
+        "catalog": {
+          "catalog_version": "judgment-frame-catalog.v1",
+          "digest": "sha256:2d6866589c6ba90a5461451b8ca387011cc36dac3c109cb676788e2ec85b45c8",
+          "items": [
+            {
+              "id": "phi_purpose_first",
+              "kind": "philosophy",
+              "revision": "1",
+              "status": "active",
+              "text": "目的を先に固定する：最適化の前に目的と守る条件を決める。"
+            },
+            {
+              "id": "obj_profit_headroom",
+              "kind": "objective",
+              "revision": "1",
+              "status": "active",
+              "text": "再現性のある収益改善余地を最大化する。"
+            },
+            {
+              "id": "mod_priority_cleaning",
+              "kind": "model",
+              "revision": "2",
+              "status": "verified",
+              "text": "繁忙期は高価格室優先の清掃順で平均売上が改善する。",
+              "applies_when": "繁忙期・全施設"
+            }
+          ]
+        },
+        "outcomes": [
+          {
+            "record_version": "judgment-model-outcome.v1",
+            "model": {
+              "id": "mod_priority_cleaning",
+              "revision": "2"
+            },
+            "verdict": "refutes",
+            "prediction": "高価格室優先で平均売上が改善する",
+            "observed": "全12施設×10月集計で平均売上が-2.1%低下",
+            "conditions": "全12施設・10月繁忙期",
+            "evidence_refs": [
+              {
+                "kind": "query",
+                "ref": "sql://oct-busy-cohort",
+                "label": "10月繁忙期全施設集計"
+              }
+            ],
+            "ruled_out": {
+              "measurement_error": "売上ログの欠損なしを確認",
+              "execution_difference": "全施設で手順遵守率98%",
+              "external_change": "需要指数は前年同月比横ばい"
+            },
+            "scope_metrics": {
+              "claim_type": "tendency",
+              "sample_size": 360,
+              "population_size": 360,
+              "effect_magnitude": "-2.1%",
+              "representativeness": "census"
+            },
+            "id": "out_struct_1",
+            "recorded_at": "2026-11-18T00:00:00.000Z",
+            "digest": "sha256:87dc3f79326bce75868164f830aeadff9844080781cf3dcca20da772a3807580"
+          },
+          {
+            "record_version": "judgment-model-outcome.v1",
+            "model": {
+              "id": "mod_priority_cleaning",
+              "revision": "2"
+            },
+            "verdict": "refutes",
+            "prediction": "高価格室優先で平均売上が改善する",
+            "observed": "全12施設×11月集計でも平均売上が-1.8%低下",
+            "conditions": "全12施設・11月繁忙期",
+            "evidence_refs": [
+              {
+                "kind": "query",
+                "ref": "sql://nov-busy-cohort",
+                "label": "11月繁忙期全施設集計"
+              }
+            ],
+            "ruled_out": {
+              "measurement_error": "再集計で一致を確認",
+              "execution_difference": "手順遵守率97%",
+              "external_change": "競合価格変動なし"
+            },
+            "scope_metrics": {
+              "claim_type": "tendency",
+              "sample_size": 360,
+              "population_size": 360,
+              "effect_magnitude": "-1.8%",
+              "representativeness": "census"
+            },
+            "id": "out_struct_2",
+            "recorded_at": "2026-11-19T00:00:00.000Z",
+            "digest": "sha256:7cce81490d7c285e987956e7ea0b34f3fc1f61501028447580638f97c104301e"
+          }
+        ],
+        "learningCandidates": [],
+        "frame": {
+          "record_version": "judgment-frame-record.v1",
+          "catalog_digest": "sha256:2d6866589c6ba90a5461451b8ca387011cc36dac3c109cb676788e2ec85b45c8",
+          "selections": [
+            {
+              "ref": "phi_purpose_first",
+              "kind": "philosophy",
+              "why": "制約確認"
+            },
+            {
+              "ref": "obj_profit_headroom",
+              "kind": "objective",
+              "why": "基準比較"
+            },
+            {
+              "ref": "mod_priority_cleaning",
+              "kind": "model",
+              "why": "反証済みモデルを継続利用"
+            }
+          ],
+          "options": [
+            {
+              "label": "高価格室優先を運用微調整で継続する",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "局所対処で継続"
+                },
+                {
+                  "ref": "mod_priority_cleaning",
+                  "role": "prediction",
+                  "note": "構造的反証が出ているがモデル改訂せず継続",
+                  "check": {
+                    "falsified_if": "全12施設集計で売上が低下する",
+                    "status": "failed",
+                    "evidence": "10月・11月全施設集計",
+                    "balance": {
+                      "claim_scope": "probabilistic",
+                      "population": "全12施設・60日",
+                      "supporting_summary": "2施設で横ばい",
+                      "counter_summary": "10施設で低下",
+                      "counter_representativeness": "census"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "label": "現行の固定順へ戻す",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "比較案"
+                }
+              ]
+            }
+          ],
+          "chosen_option": "高価格室優先を運用微調整で継続する"
+        }
+      },
+      "expected": {
+        "overall_status": "fail",
+        "target_status": "fail",
+        "target_score": 0,
+        "required_signals": [
+          "escalation:chosen_uses_refuted_model",
+          "escalation:chosen_relies_on_failed_prediction",
+          "accumulated_structural_refutations_without_learning_candidate"
+        ]
+      }
+    },
+    {
+      "id": "local_patch_without_model_update__distorted_candidate_empty_addressed_refutations",
+      "target_pattern": "local_patch_without_model_update",
+      "kind": "distorted",
+      "description": "LearningCandidate targets refuted model but leaves addressedRefutationIds empty.",
+      "input": {
+        "catalog": {
+          "catalog_version": "judgment-frame-catalog.v1",
+          "digest": "sha256:1ba81847e205672f4fc954ac20a2441f274d527db481e44f9e6b985265fbd48a",
+          "items": [
+            {
+              "id": "phi_purpose_first",
+              "kind": "philosophy",
+              "revision": "1",
+              "status": "active",
+              "text": "目的を先に固定する：最適化の前に目的と守る条件を決める。"
+            },
+            {
+              "id": "obj_profit_headroom",
+              "kind": "objective",
+              "revision": "1",
+              "status": "active",
+              "text": "再現性のある収益改善余地を最大化する。"
+            },
+            {
+              "id": "mod_priority_cleaning",
+              "kind": "model",
+              "revision": "2",
+              "status": "verified",
+              "text": "繁忙期は高価格室優先の清掃順で平均売上が改善する。",
+              "applies_when": "繁忙期・全施設"
+            },
+            {
+              "id": "mod_start_time_shift",
+              "kind": "model",
+              "revision": "1",
+              "status": "verified",
+              "text": "繁忙期は清掃開始時刻の前倒しで平均売上が改善する。",
+              "applies_when": "繁忙期・全施設"
+            }
+          ]
+        },
+        "outcomes": [
+          {
+            "record_version": "judgment-model-outcome.v1",
+            "model": {
+              "id": "mod_priority_cleaning",
+              "revision": "2"
+            },
+            "verdict": "refutes",
+            "prediction": "高価格室優先で平均売上が改善する",
+            "observed": "全12施設×10月集計で平均売上が-2.1%低下",
+            "conditions": "全12施設・10月繁忙期",
+            "evidence_refs": [
+              {
+                "kind": "query",
+                "ref": "sql://oct-busy-cohort",
+                "label": "10月繁忙期全施設集計"
+              }
+            ],
+            "ruled_out": {
+              "measurement_error": "売上ログの欠損なしを確認",
+              "execution_difference": "全施設で手順遵守率98%",
+              "external_change": "需要指数は前年同月比横ばい"
+            },
+            "scope_metrics": {
+              "claim_type": "tendency",
+              "sample_size": 360,
+              "population_size": 360,
+              "effect_magnitude": "-2.1%",
+              "representativeness": "census"
+            },
+            "id": "out_struct_1",
+            "recorded_at": "2026-11-18T00:00:00.000Z",
+            "digest": "sha256:87dc3f79326bce75868164f830aeadff9844080781cf3dcca20da772a3807580"
+          },
+          {
+            "record_version": "judgment-model-outcome.v1",
+            "model": {
+              "id": "mod_priority_cleaning",
+              "revision": "2"
+            },
+            "verdict": "refutes",
+            "prediction": "高価格室優先で平均売上が改善する",
+            "observed": "全12施設×11月集計でも平均売上が-1.8%低下",
+            "conditions": "全12施設・11月繁忙期",
+            "evidence_refs": [
+              {
+                "kind": "query",
+                "ref": "sql://nov-busy-cohort",
+                "label": "11月繁忙期全施設集計"
+              }
+            ],
+            "ruled_out": {
+              "measurement_error": "再集計で一致を確認",
+              "execution_difference": "手順遵守率97%",
+              "external_change": "競合価格変動なし"
+            },
+            "scope_metrics": {
+              "claim_type": "tendency",
+              "sample_size": 360,
+              "population_size": 360,
+              "effect_magnitude": "-1.8%",
+              "representativeness": "census"
+            },
+            "id": "out_struct_2",
+            "recorded_at": "2026-11-19T00:00:00.000Z",
+            "digest": "sha256:7cce81490d7c285e987956e7ea0b34f3fc1f61501028447580638f97c104301e"
+          }
+        ],
+        "learningCandidates": [
+          {
+            "version": 1,
+            "id": "cand_empty_refs",
+            "sourceEvaluationRef": {
+              "id": "eval_cand_empty_refs",
+              "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+            },
+            "target": {
+              "kind": "world_model",
+              "id": "mod_priority_cleaning",
+              "revision": "2",
+              "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+              "foundationType": "model"
+            },
+            "proposedChange": {
+              "summary": "反証された条件を適用範囲から除外し、モデル前提を改訂する"
+            },
+            "grounds": [
+              "構造的反証2件により適用条件の誤りを確認"
+            ],
+            "counterexamples": [
+              "人員欠員時の高価格室優先は回転率を悪化させた"
+            ],
+            "uncertainty": [
+              "閑散期への波及は未検証"
+            ],
+            "applicability": {
+              "scope": "organization",
+              "id": "org_golden"
+            },
+            "createdAt": "2026-11-20T00:00:00.000Z",
+            "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+            "addressedRefutationIds": []
+          }
+        ],
+        "frame": {
+          "record_version": "judgment-frame-record.v1",
+          "catalog_digest": "sha256:1ba81847e205672f4fc954ac20a2441f274d527db481e44f9e6b985265fbd48a",
+          "selections": [
+            {
+              "ref": "phi_purpose_first",
+              "kind": "philosophy",
+              "why": "制約確認"
+            },
+            {
+              "ref": "obj_profit_headroom",
+              "kind": "objective",
+              "why": "基準比較"
+            },
+            {
+              "ref": "mod_priority_cleaning",
+              "kind": "model",
+              "why": "不採用理由として参照"
+            },
+            {
+              "ref": "mod_start_time_shift",
+              "kind": "model",
+              "why": "代替モデル検証"
+            }
+          ],
+          "options": [
+            {
+              "label": "清掃開始時刻の前倒しを採用する",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "代替モデル採用"
+                },
+                {
+                  "ref": "mod_start_time_shift",
+                  "role": "prediction",
+                  "note": "全施設集計で成立",
+                  "check": {
+                    "falsified_if": "全12施設集計で低下",
+                    "status": "held",
+                    "evidence": "11月全施設集計",
+                    "balance": {
+                      "claim_scope": "probabilistic",
+                      "population": "全12施設・30日",
+                      "supporting_summary": "10施設で改善",
+                      "counter_summary": "2施設は横ばい"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "label": "高価格室優先を継続する",
+              "uses": [
+                {
+                  "ref": "phi_purpose_first",
+                  "role": "constraint",
+                  "verdict": "satisfied",
+                  "note": "制約充足"
+                },
+                {
+                  "ref": "obj_profit_headroom",
+                  "role": "criterion",
+                  "note": "不採用"
+                },
+                {
+                  "ref": "mod_priority_cleaning",
+                  "role": "prediction",
+                  "note": "構造的反証により不採用",
+                  "check": {
+                    "falsified_if": "全12施設集計で低下",
+                    "status": "failed",
+                    "evidence": "10月・11月全施設集計",
+                    "balance": {
+                      "claim_scope": "probabilistic",
+                      "population": "全12施設・60日",
+                      "supporting_summary": "限定的改善",
+                      "counter_summary": "全社集計で2ヶ月連続マイナス",
+                      "counter_representativeness": "census"
+                    }
+                  }
+                }
+              ]
+            }
+          ],
+          "chosen_option": "清掃開始時刻の前倒しを採用する"
+        }
+      },
+      "expected": {
+        "overall_status": "fail",
+        "target_status": "fail",
+        "target_score": 0,
+        "required_signals": [
+          "learning_candidate_empty_addressed_refutation_ids"
+        ]
+      }
+    }
+  ]
+}
