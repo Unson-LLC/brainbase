@@ -9,7 +9,14 @@
 ```ts
 type MeetingLabel = (meeting: Record<string, unknown>) => string | undefined;
 type CanCreateMeeting = boolean | (() => boolean);
-type CanEditMinutes = boolean | (() => boolean);
+type MinutesEditDecision = {
+  allowed: boolean;
+  reason?: 'permission_denied' | 'project_selection_required';
+};
+type CanEditMinutes = boolean | ((target: {
+  meeting: Record<string, unknown> | null;
+  document: Record<string, unknown> | null;
+}) => boolean | MinutesEditDecision);
 
 interface MeetingMinutesUIOptions {
   meetingLabel?: MeetingLabel;
@@ -40,7 +47,10 @@ interface MeetingMinutesUIOptions {
 
 - `canEditMinutes` が省略または `true` の場合、版保存・議事録文書追加のフォームと未確認版の確認ボタンを表示・有効化し、既存の保存POSTを維持する。
 - `false` の場合、版保存と議事録文書追加のフォームを表示せず、未確認版の確認ボタンを無効化し、「この画面では議事録を編集できません。」という理由を表示する。
-- 関数の場合はフォーム・確認ボタンを表示するときと各書き込み操作の直前に評価する。戻り値が厳密な `true` のときだけ許可し、`false` または評価例外は拒否として扱う。
+- 関数の場合は対象の `{ meeting, document }` を渡し、フォーム・確認ボタンの表示時と各書き込み操作の直前に評価する。文書がない場合は `document: null`。引数を使わない既存の関数とbooleanの戻り値はそのまま使える。
+- booleanの厳密な `true`、または構造化結果の `allowed === true` のときだけ許可する。例外、値不明、不正な構造は拒否として扱う。Promiseは許可しない同期契約とする。
+- 拒否理由 `project_selection_required` は「確認・編集するには、プロジェクトを1つ選んでください。」と表示する。`permission_denied` または理由未指定は従来の編集権限の案内を維持する。本文の外部参照の案内はどちらでも維持する。
+- 複数文書の編集可否が異なる場合、それぞれの文書の操作と拒否理由を表示する。ホストが既存APIの認可結果を反映し、OSSがACLやプロジェクトアクセスを解釈・変更することはない。
 - 拒否状態でフォームまたは確認ボタンのハンドラが呼ばれても保存リクエストを送らない。表示後に拒否へ変わった場合も同じく送信を防ぐ。
 - 編集ガードは会議一覧・詳細の取得を制御せず、ホストの認可判断を共有UIが推測することもない。
 
