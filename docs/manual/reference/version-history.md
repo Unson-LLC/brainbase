@@ -6,10 +6,13 @@
 
 - 議事録テーブルで、議事録がまだないときの案内をホストから指定できるようにする（#1039）。検索や絞り込みで該当件数がゼロのときは、従来の文言を表示する。
 
-## 0.50.25 candidate — npm公開前
+- 0.50.25のClaude Codeの判断フックで、ターンの記録に最後に成功した`brainbase_resolve_turn`の契約を付けて送るpatch更新候補（#1065）。これまでは最初の受け取りを付けていたため、組織版の判断の履歴に出なかった。resolve_turnが無いターンは今までどおり最初の受け取りを付ける。別の人・別のテナント・別のproject・別のturnの契約は送らない。
+- 公開APIと既定の振る舞いは変更しない。npm公開と利用ホストへの配備は別途確認する。
+
+## 0.50.25
 
 - 0.50.24に、`brainbase login` で本人のtokenを手元に保存して自動で更新する公開subpath `brainbase-login`（#1041）と、Claude Codeの判断フックを `judgment:install --target claude-code` で登録する公開subpath `claude-code-judgment-hook`（#1042）を加えるpatch更新候補。
-- 追加だけで、既存のsubpathと既定の振る舞いは変更しない。npm公開と利用ホストへの配備は別途確認する。
+- 追加だけで、既存のsubpathと既定の振る舞いは変更しない。npmには2026-11-24 02:40:55 JSTに公開した。
 
 ## 0.50.24
 
