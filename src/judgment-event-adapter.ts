@@ -146,21 +146,27 @@ export function normalizeJudgmentEventProjectCode(value: unknown): string | null
 
 /**
  * Exact-match check aligned with downstream `requireProjectAccess`
- * (`allowed.includes(projectCode)`). Wildcards and invalid codes fail closed.
+ * (`allowed.includes(projectCode)`). Neither `projectCode` nor entries in
+ * `allowedProjectCodes` are implicitly trimmed; wildcards and invalid codes
+ * fail closed.
  */
 export function isProjectCodeAllowed(
   projectCode: string | null | undefined,
   allowedProjectCodes: readonly string[] | null | undefined
 ): boolean {
-  const normalized = normalizeJudgmentEventProjectCode(projectCode);
-  if (!normalized || !Array.isArray(allowedProjectCodes) || allowedProjectCodes.length === 0) {
+  if (
+    typeof projectCode !== 'string'
+    || !JUDGMENT_EVENT_PROJECT_CODE_PATTERN.test(projectCode)
+    || !Array.isArray(allowedProjectCodes)
+    || allowedProjectCodes.length === 0
+  ) {
     return false;
   }
-  for (const entry of allowedProjectCodes) {
-    const allowed = normalizeJudgmentEventProjectCode(entry);
-    if (allowed !== null && allowed === normalized) return true;
-  }
-  return false;
+  return allowedProjectCodes.some(
+    (entry) => typeof entry === 'string'
+      && JUDGMENT_EVENT_PROJECT_CODE_PATTERN.test(entry)
+      && entry === projectCode
+  );
 }
 
 function isMissingProjectCode(value: unknown): boolean {

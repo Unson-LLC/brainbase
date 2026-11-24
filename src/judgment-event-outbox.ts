@@ -13,6 +13,7 @@ import {
 import { basename, dirname, join } from 'node:path';
 
 import {
+  JUDGMENT_EVENT_PROJECT_CODE_PATTERN,
   isProjectCodeAllowed,
   type JudgmentKnowledgeEvent
 } from './judgment-event-adapter.js';
@@ -352,26 +353,48 @@ function confirmedReceipt(
     && readback.semantic_state === 'active';
 }
 
+type ParsedEventProjectCodeField =
+  | { kind: 'missing' }
+  | { kind: 'valid'; value: string }
+  | { kind: 'invalid' };
+
+function parseEventProjectCodeField(value: unknown): ParsedEventProjectCodeField {
+  if (value === undefined) return { kind: 'missing' };
+  if (typeof value !== 'string') return { kind: 'invalid' };
+  if (!JUDGMENT_EVENT_PROJECT_CODE_PATTERN.test(value)) return { kind: 'invalid' };
+  return { kind: 'valid', value };
+}
+
 /**
- * Extract the effective project_code using the same precedence as downstream
- * `requireProjectAccess` (`applicability_scope.project_code` before top-level
- * `project_code`), and flag conflicting values when both are set.
+ * Extract the effective project_code using the same precedence and strict
+ * validation as downstream `requireProjectAccess`
+ * (`applicability_scope.project_code` before top-level `project_code`).
+ * Explicitly present non-strings, untrimmed/malformed strings, or non-object
+ * `applicability_scope` values are flagged as `invalid` instead of missing.
  */
 function eventProjectCodes(event: JudgmentKnowledgeEvent): {
   effective: string | null;
   conflict: boolean;
+  invalid: boolean;
 } {
   const candidate = event as unknown as Record<string, unknown>;
   const scope = candidate.applicability_scope;
-  const scopeRaw = scope && typeof scope === 'object' && !Array.isArray(scope)
-    ? (scope as Record<string, unknown>).project_code
-    : undefined;
-  const topRaw = candidate.project_code;
-  const scopeCode = typeof scopeRaw === 'string' && scopeRaw.trim() ? scopeRaw.trim() : null;
-  const topCode = typeof topRaw === 'string' && topRaw.trim() ? topRaw.trim() : null;
+  if (scope !== undefined && (!scope || typeof scope !== 'object' || Array.isArray(scope))) {
+    return { effective: null, conflict: false, invalid: true };
+  }
+  const scopeField = parseEventProjectCodeField(
+    scope ? (scope as Record<string, unknown>).project_code : undefined
+  );
+  const topField = parseEventProjectCodeField(candidate.project_code);
+  if (scopeField.kind === 'invalid' || topField.kind === 'invalid') {
+    return { effective: null, conflict: false, invalid: true };
+  }
+  const scopeCode = scopeField.kind === 'valid' ? scopeField.value : null;
+  const topCode = topField.kind === 'valid' ? topField.value : null;
   return {
     effective: scopeCode ?? topCode,
-    conflict: Boolean(scopeCode && topCode && scopeCode !== topCode)
+    conflict: Boolean(scopeCode && topCode && scopeCode !== topCode),
+    invalid: false
   };
 }
 
@@ -463,9 +486,9 @@ function deliverCore(options: Required<Pick<JudgmentOutboxDeliveryOptions, 'path
         deferred += 1;
         continue;
       }
-      const { effective: code, conflict: projectCodeConflict } = eventProjectCodes(queued.event);
+      const { effective: code, conflict: projectCodeConflict, invalid: projectCodeInvalid } = eventProjectCodes(queued.event);
       if (options.allowedProjectCodes !== undefined) {
-        if (projectCodeConflict || !isProjectCodeAllowed(code, options.allowedProjectCodes)) {
+        if (projectCodeInvalid || projectCodeConflict || !isProjectCodeAllowed(code, options.allowedProjectCodes)) {
           deferred += 1;
           outOfScope += 1;
           continue;

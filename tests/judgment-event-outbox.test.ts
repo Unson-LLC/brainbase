@@ -459,13 +459,36 @@ describe('portable judgment knowledge event outbox', () => {
       ...event('event-d-conflict', 'denied-project'),
       project_code: 'itsaplan'
     } as JudgmentKnowledgeEvent;
+    const numericScopeProjectEvent = {
+      ...event('event-d2-numeric', 'itsaplan'),
+      applicability_scope: {
+        scope: 'judgment_episode',
+        project_code: 123
+      } as unknown as JudgmentKnowledgeEvent['applicability_scope'],
+      project_code: 'itsaplan'
+    } as JudgmentKnowledgeEvent;
+    const objectScopeProjectEvent = {
+      ...event('event-d3-object', 'itsaplan'),
+      applicability_scope: {
+        scope: 'judgment_episode',
+        project_code: { code: 'itsaplan' }
+      } as unknown as JudgmentKnowledgeEvent['applicability_scope'],
+      project_code: 'itsaplan'
+    } as JudgmentKnowledgeEvent;
+    const paddedScopeProjectEvent = {
+      ...event('event-d4-padded', ' itsaplan '),
+      project_code: 'itsaplan'
+    } as JudgmentKnowledgeEvent;
     enqueueJudgmentKnowledgeEvent(missingProjectEvent, { directory: paths.outboxDir });
     enqueueJudgmentKnowledgeEvent(conflictingProjectEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(numericScopeProjectEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(objectScopeProjectEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(paddedScopeProjectEvent, { directory: paths.outboxDir });
     const scopedCheck = await deliverJudgmentKnowledgeEventOutbox({
       paths,
       allowedProjectCodes: ['itsaplan'],
       delivery: {
-        post: async () => { throw new Error('out-of-scope or missing project_code should not be posted'); },
+        post: async () => { throw new Error('out-of-scope, missing, or invalid project_code should not be posted'); },
         readback: async () => { throw new Error('unreachable'); }
       }
     });
@@ -474,9 +497,30 @@ describe('portable judgment knowledge event outbox', () => {
       delivered: 0,
       failed: 0,
       dead_lettered: 0,
-      deferred: 2,
-      out_of_scope: 2,
-      pending: 2
+      deferred: 5,
+      out_of_scope: 5,
+      pending: 5
+    });
+
+    // Padded entries in allowedProjectCodes must NOT be implicitly trimmed (exact downstream includes parity).
+    const strictAllowlistPaths = pathsFor(join(root, 'strict-allowlist'));
+    enqueueJudgmentKnowledgeEvent(event('event-strict-1', 'itsaplan'), { directory: strictAllowlistPaths.outboxDir });
+    const paddedAllowlistResult = await deliverJudgmentKnowledgeEventOutbox({
+      paths: strictAllowlistPaths,
+      allowedProjectCodes: [' itsaplan '],
+      delivery: {
+        post: async () => { throw new Error('padded allowlist entry must not match exact project_code'); },
+        readback: async () => { throw new Error('unreachable'); }
+      }
+    });
+    expect(paddedAllowlistResult).toMatchObject({
+      status: 'processed',
+      delivered: 0,
+      failed: 0,
+      dead_lettered: 0,
+      deferred: 1,
+      out_of_scope: 1,
+      pending: 1
     });
 
     // Critical PR-1 invariant: non-empty candidate_id remains required on post ack for non-brainbase events.

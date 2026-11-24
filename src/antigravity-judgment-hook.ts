@@ -23,9 +23,23 @@
 //    - Stop: ALWAYS `{ decision: '' }` (never `"continue"`)
 
 import { createHash, randomUUID } from 'node:crypto';
-import { closeSync, fstatSync, mkdirSync, openSync, readFileSync, readSync, renameSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  constants as fsConstants,
+  fstatSync,
+  lstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readSync,
+  realpathSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve, sep } from 'node:path';
+import { delimiter, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { BrainbaseLoginError, getAccessTokenOfLogin, type AccessTokenOptions } from './brainbase-login.js';
 import {
   PRE_TOOL_USE_TOOLS,
@@ -100,6 +114,18 @@ export interface AntigravityHookOptions {
   now?: () => number;
   /** Stale active turn threshold in ms (default 30 minutes). */
   staleTurnMs?: number;
+  /**
+   * Explicit allowed transcript root directories (primarily for tests).
+   * When omitted, defaults to Antigravity / Gemini conversation brain directories
+   * (or `BRAINBASE_ANTIGRAVITY_TRANSCRIPT_ROOTS`).
+   */
+  allowedTranscriptRoots?: readonly string[];
+}
+
+export interface TranscriptReadOptions {
+  conversationId: string;
+  allowedTranscriptRoots?: readonly string[];
+  env?: NodeJS.ProcessEnv;
 }
 
 const TURN_SCHEMA = 'brainbase-antigravity-judgment-turn-v1';
@@ -107,9 +133,13 @@ const TRANSCRIPT_TAIL_MAX_BYTES = 256 * 1024;
 const MAX_PENDING_MESSAGES = 8;
 const DEFAULT_STALE_TURN_MS = 30 * 60 * 1000;
 const MAX_CONFIG_TIMEOUT_MS = 60_000;
+const TURN_STATE_LOCK_STALE_MS = 10_000;
+const TURN_STATE_LOCK_TIMEOUT_MS = 2_000;
+const TURN_STATE_LOCK_RETRY_MS = 10;
 
 interface PendingContextMessage {
   turn_id: string;
+  turn_generation?: number;
   additional_context?: string;
   system_message?: string;
   created_at: string;
@@ -118,6 +148,7 @@ interface PendingContextMessage {
 interface AntigravityTurnState {
   schema_version: typeof TURN_SCHEMA;
   turn_id: string;
+  turn_generation: number;
   turn_active: boolean;
   started_at: string;
   last_opened_user_step_index: number | null;
@@ -127,8 +158,10 @@ interface AntigravityTurnState {
   repository: string | null;
   checkout: string | null;
   non_git_scope_root: string | null;
+  matched_cwd_prefix: string | null;
   destination: string;
   login: string | null;
+  auth_fingerprint: string | null;
   pending_messages: PendingContextMessage[];
 }
 
@@ -146,6 +179,7 @@ interface Context {
   configPath: string;
   now: () => number;
   staleTurnMs: number;
+  allowedTranscriptRoots?: readonly string[];
 }
 
 type LoginPin = { expected?: string | null; used?: string | null };
@@ -438,6 +472,7 @@ function isAuditedAntigravityScope(scope: AntigravityScope, config: AntigravityH
 }
 
 function sameTurnScope(state: AntigravityTurnState, scope: AntigravityScope): boolean {
+  if (state.matched_cwd_prefix !== scope.matchedCwdPrefix) return false;
   if (state.in_git) {
     if (!scope.inGit) return false;
     if (typeof state.repository === 'string') return state.repository === scope.repository;
@@ -448,16 +483,87 @@ function sameTurnScope(state: AntigravityTurnState, scope: AntigravityScope): bo
   return matchesCwdPrefix(scope.cwd, state.non_git_scope_root);
 }
 
+function resolvedEndpointString(config: Pick<AntigravityHookConfig, 'origin' | 'endpoint'>): string | null {
+  try {
+    return resolveAntigravityHookEndpoint(config).toString();
+  } catch {
+    return null;
+  }
+}
+
 function destinationOf(context: Context): string {
   return JSON.stringify([
     context.configPath,
-    context.config.endpoint ?? context.config.origin,
+    resolvedEndpointString(context.config) ?? '',
+    context.config.login_server,
     context.config.project_code ?? null,
+    context.config.allow_non_git === true,
+    context.config.cwd_prefixes ?? null,
+    context.config.repositories ?? null,
   ]);
 }
 
 function sameDestination(state: AntigravityTurnState, context: Context): boolean {
   return state.destination === destinationOf(context);
+}
+
+function computeAuthFingerprint(
+  context: Context,
+  nonGitScopeRoot: string | null,
+  loginId: string | null,
+): string | null {
+  const endpoint = resolvedEndpointString(context.config);
+  if (!endpoint) return null;
+  if (!isAuditedAntigravityScope(context.scope, context.config)
+    || !hostCanMapRepository(context.scope.repository, context.config)) {
+    return null;
+  }
+  return sha256(JSON.stringify({
+    schema: TURN_SCHEMA,
+    config_path: context.configPath,
+    endpoint,
+    login_server: context.config.login_server,
+    project_code: context.config.project_code ?? null,
+    allow_non_git: context.config.allow_non_git === true,
+    cwd_prefixes: context.config.cwd_prefixes ?? null,
+    repositories: context.config.repositories ?? null,
+    in_git: context.scope.inGit,
+    repository: context.scope.repository,
+    checkout: context.scope.inGit ? context.scope.checkout : null,
+    matched_cwd_prefix: context.scope.matchedCwdPrefix,
+    non_git_scope_root: context.scope.inGit ? null : nonGitScopeRoot,
+    login: loginId,
+  }));
+}
+
+function isTurnStaticAuthorized(state: AntigravityTurnState, context: Context): boolean {
+  if (!state.turn_active || state.start_status !== 'started' || state.turn_generation <= 0) {
+    return false;
+  }
+  if (typeof state.auth_fingerprint !== 'string' || !state.auth_fingerprint) {
+    return false;
+  }
+  if (!isAuditedAntigravityScope(context.scope, context.config)
+    || !hostCanMapRepository(context.scope.repository, context.config)) {
+    return false;
+  }
+  if (!sameTurnScope(state, context.scope) || !sameDestination(state, context)) {
+    return false;
+  }
+  const expectedFingerprint = computeAuthFingerprint(context, state.non_git_scope_root, state.login);
+  return expectedFingerprint !== null && expectedFingerprint === state.auth_fingerprint;
+}
+
+async function resolveCurrentLoginId(
+  context: Context,
+): Promise<{ ok: true; loginId: string | null } | { ok: false }> {
+  try {
+    const obtained = await context.accessToken();
+    const loginId = typeof obtained === 'string' ? null : obtained.loginId;
+    return { ok: true, loginId };
+  } catch {
+    return { ok: false };
+  }
 }
 
 // ---- Transcript tail reader & extractors ----
@@ -469,12 +575,122 @@ interface TranscriptEntry {
   content?: unknown;
 }
 
-function readTranscriptTailEntries(transcriptPath: unknown): TranscriptEntry[] {
-  if (typeof transcriptPath !== 'string' || !transcriptPath.trim()) return [];
+const ALLOWED_TRANSCRIPT_FILENAMES = new Set(['transcript.jsonl', 'transcript_full.jsonl']);
+
+function isSafeConversationIdSegment(conversationId: string): boolean {
+  return conversationId.length > 0
+    && conversationId !== '.'
+    && conversationId !== '..'
+    && !conversationId.includes('/')
+    && !conversationId.includes('\\')
+    && !conversationId.includes('\0');
+}
+
+function defaultAntigravityTranscriptRoots(env: NodeJS.ProcessEnv): string[] {
+  const configured = (env.BRAINBASE_ANTIGRAVITY_TRANSCRIPT_ROOTS ?? '')
+    .split(delimiter)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  if (configured.length > 0) return configured;
+  const home = env.HOME || homedir();
+  return [
+    join(home, '.gemini', 'antigravity-cli', 'brain'),
+    join(home, '.gemini', 'antigravity', 'brain'),
+  ];
+}
+
+function canonicalTranscriptRoots(options: TranscriptReadOptions): string[] {
+  const rawRoots = options.allowedTranscriptRoots !== undefined
+    ? [...options.allowedTranscriptRoots]
+    : defaultAntigravityTranscriptRoots(options.env ?? process.env);
+  const resolved: string[] = [];
+  for (const root of rawRoots) {
+    if (typeof root !== 'string' || !root.trim()) continue;
+    try {
+      resolved.push(realpathSync(root.trim()));
+    } catch {
+      // Missing root cannot contain any authorized transcript file.
+    }
+  }
+  return resolved;
+}
+
+function matchesConversationTranscriptStructure(
+  canonicalRoot: string,
+  canonicalFile: string,
+  conversationId: string,
+): boolean {
+  const rel = relative(canonicalRoot, canonicalFile);
+  if (!rel || rel === '.' || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+    return false;
+  }
+  const segments = rel.split(sep);
+  if (segments.length === 4
+    && segments[0] === conversationId
+    && segments[1] === '.system_generated'
+    && segments[2] === 'logs'
+    && ALLOWED_TRANSCRIPT_FILENAMES.has(segments[3])) {
+    return true;
+  }
+  if (segments.length === 5
+    && segments[0] === 'brain'
+    && segments[1] === conversationId
+    && segments[2] === '.system_generated'
+    && segments[3] === 'logs'
+    && ALLOWED_TRANSCRIPT_FILENAMES.has(segments[4])) {
+    return true;
+  }
+  if (segments.length === 2
+    && segments[0] === conversationId
+    && ALLOWED_TRANSCRIPT_FILENAMES.has(segments[1])) {
+    return true;
+  }
+  if (segments.length === 1 && segments[0] === `${conversationId}.jsonl`) {
+    return true;
+  }
+  return false;
+}
+
+function resolveAuthorizedTranscriptPath(
+  transcriptPath: unknown,
+  options?: TranscriptReadOptions,
+): string | null {
+  if (typeof transcriptPath !== 'string' || !transcriptPath.trim() || transcriptPath.includes('\0')) {
+    return null;
+  }
+  const conversationId = options?.conversationId?.trim() ?? '';
+  if (!isSafeConversationIdSegment(conversationId)) return null;
+
+  const rawPath = transcriptPath.trim();
+  try {
+    // Reject symlinks, FIFOs, sockets, devices, and directories before resolving or opening.
+    if (!lstatSync(rawPath).isFile()) return null;
+    const canonicalPath = realpathSync(rawPath);
+    const roots = canonicalTranscriptRoots(options!);
+    if (roots.length === 0) return null;
+    const allowed = roots.some((root) => matchesConversationTranscriptStructure(root, canonicalPath, conversationId));
+    return allowed ? canonicalPath : null;
+  } catch {
+    return null;
+  }
+}
+
+function readTranscriptTailEntries(
+  transcriptPath: unknown,
+  options?: TranscriptReadOptions,
+): TranscriptEntry[] {
+  const canonicalPath = resolveAuthorizedTranscriptPath(transcriptPath, options);
+  if (!canonicalPath) return [];
   let fd: number | undefined;
   try {
-    fd = openSync(transcriptPath, 'r');
-    const size = fstatSync(fd).size;
+    if (!lstatSync(canonicalPath).isFile()) return [];
+    const openFlags = fsConstants.O_RDONLY
+      | (fsConstants.O_NONBLOCK ?? 0)
+      | (fsConstants.O_NOFOLLOW ?? 0);
+    fd = openSync(canonicalPath, openFlags);
+    const stat = fstatSync(fd);
+    if (!stat.isFile()) return [];
+    const size = stat.size;
     if (size <= 0) return [];
     const readSize = Math.min(size, TRANSCRIPT_TAIL_MAX_BYTES);
     const offset = size - readSize;
@@ -536,8 +752,9 @@ export function isSystemInjectedUserInput(text: string, source?: unknown): boole
 
 export function extractLatestNonSystemUserInput(
   transcriptPath: unknown,
+  options?: TranscriptReadOptions,
 ): { stepIndex: number | null; content: string } | null {
-  const entries = readTranscriptTailEntries(transcriptPath);
+  const entries = readTranscriptTailEntries(transcriptPath, options);
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index];
     if (entry.type !== 'USER_INPUT' || typeof entry.content !== 'string') continue;
@@ -552,8 +769,11 @@ export function extractLatestNonSystemUserInput(
   return null;
 }
 
-export function extractLastAssistantMessage(transcriptPath: unknown): string | undefined {
-  const entries = readTranscriptTailEntries(transcriptPath);
+export function extractLastAssistantMessage(
+  transcriptPath: unknown,
+  options?: TranscriptReadOptions,
+): string | undefined {
+  const entries = readTranscriptTailEntries(transcriptPath, options);
   for (let index = entries.length - 1; index >= 0; index -= 1) {
     const entry = entries[index];
     if (entry.type !== 'PLANNER_RESPONSE' || typeof entry.content !== 'string') continue;
@@ -573,9 +793,13 @@ function stripToolTimestampHeader(text: string): string {
   return body || text.trim();
 }
 
-export function extractToolResultFromTranscript(transcriptPath: unknown, stepIdx: unknown): string | null {
+export function extractToolResultFromTranscript(
+  transcriptPath: unknown,
+  stepIdx: unknown,
+  options?: TranscriptReadOptions,
+): string | null {
   if (typeof stepIdx !== 'number' || !Number.isSafeInteger(stepIdx)) return null;
-  const entries = readTranscriptTailEntries(transcriptPath);
+  const entries = readTranscriptTailEntries(transcriptPath, options);
   // Prefer exact step_index match, then immediate neighbor (+1) if wrapper shifted index.
   for (const targetStep of [stepIdx, stepIdx + 1]) {
     for (let index = entries.length - 1; index >= 0; index -= 1) {
@@ -589,7 +813,7 @@ export function extractToolResultFromTranscript(transcriptPath: unknown, stepIdx
   return null;
 }
 
-// ---- Turn state persistence ----
+// ---- Turn state persistence & exclusive lock ----
 
 function turnDirectory(env: NodeJS.ProcessEnv): string {
   return env.BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR
@@ -604,6 +828,62 @@ function statePath(env: NodeJS.ProcessEnv, key: string): string {
   return join(turnDirectory(env), `${key}.json`);
 }
 
+function lockPathFor(env: NodeJS.ProcessEnv, key: string): string {
+  return `${statePath(env, key)}.lock`;
+}
+
+async function withTurnStateLock<T>(
+  env: NodeJS.ProcessEnv,
+  key: string,
+  fn: () => T,
+): Promise<T> {
+  mkdirSync(turnDirectory(env), { recursive: true, mode: 0o700 });
+  const lockPath = lockPathFor(env, key);
+  const lockToken = `${process.pid}:${randomUUID()}`;
+  const deadline = Date.now() + TURN_STATE_LOCK_TIMEOUT_MS;
+
+  for (;;) {
+    try {
+      const fd = openSync(lockPath, fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY, 0o600);
+      try {
+        writeFileSync(fd, `${lockToken}\n`);
+      } finally {
+        closeSync(fd);
+      }
+      break;
+    } catch (error) {
+      const code = (error as { code?: unknown })?.code;
+      if (code !== 'EEXIST') throw error;
+      let stale = false;
+      try {
+        const stat = statSync(lockPath);
+        stale = (Date.now() - stat.mtimeMs) > TURN_STATE_LOCK_STALE_MS;
+      } catch (statError) {
+        if ((statError as { code?: unknown })?.code === 'ENOENT') continue;
+      }
+      if (stale) {
+        try { unlinkSync(lockPath); } catch {}
+        continue;
+      }
+      if (Date.now() >= deadline) {
+        throw new Error('antigravity_turn_state_lock_timeout');
+      }
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, TURN_STATE_LOCK_RETRY_MS));
+    }
+  }
+
+  try {
+    return fn();
+  } finally {
+    try {
+      const owner = readFileSync(lockPath, 'utf8').trim();
+      if (owner === lockToken) {
+        unlinkSync(lockPath);
+      }
+    } catch {}
+  }
+}
+
 function readState(env: NodeJS.ProcessEnv, key: string): AntigravityTurnState | null {
   try {
     const parsed = JSON.parse(readFileSync(statePath(env, key), 'utf8')) as Partial<AntigravityTurnState> | null;
@@ -615,9 +895,14 @@ function readState(env: NodeJS.ProcessEnv, key: string): AntigravityTurnState | 
         !!item && typeof item === 'object' && typeof (item as PendingContextMessage).turn_id === 'string'
       ))
       : [];
+    const generation = typeof parsed.turn_generation === 'number'
+      && Number.isSafeInteger(parsed.turn_generation) && parsed.turn_generation > 0
+      ? parsed.turn_generation
+      : 0;
     return {
       schema_version: TURN_SCHEMA,
       turn_id: parsed.turn_id,
+      turn_generation: generation,
       turn_active: parsed.turn_active === true,
       started_at: typeof parsed.started_at === 'string' ? parsed.started_at : new Date(0).toISOString(),
       last_opened_user_step_index: typeof parsed.last_opened_user_step_index === 'number'
@@ -629,8 +914,11 @@ function readState(env: NodeJS.ProcessEnv, key: string): AntigravityTurnState | 
       repository: typeof parsed.repository === 'string' ? parsed.repository : null,
       checkout: typeof parsed.checkout === 'string' ? parsed.checkout : null,
       non_git_scope_root: typeof parsed.non_git_scope_root === 'string' ? parsed.non_git_scope_root : null,
+      matched_cwd_prefix: typeof parsed.matched_cwd_prefix === 'string' ? parsed.matched_cwd_prefix : null,
       destination: typeof parsed.destination === 'string' ? parsed.destination : '',
       login: typeof parsed.login === 'string' ? parsed.login : null,
+      auth_fingerprint: typeof parsed.auth_fingerprint === 'string' && parsed.auth_fingerprint
+        ? parsed.auth_fingerprint : null,
       pending_messages: pending,
     };
   } catch {
@@ -641,9 +929,14 @@ function readState(env: NodeJS.ProcessEnv, key: string): AntigravityTurnState | 
 function writeState(env: NodeJS.ProcessEnv, key: string, state: AntigravityTurnState): void {
   mkdirSync(turnDirectory(env), { recursive: true, mode: 0o700 });
   const target = statePath(env, key);
-  const temporary = `${target}.${process.pid}.tmp`;
-  writeFileSync(temporary, JSON.stringify(state), { mode: 0o600 });
-  renameSync(temporary, target);
+  const temporary = `${target}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    writeFileSync(temporary, JSON.stringify(state), { mode: 0o600 });
+    renameSync(temporary, target);
+  } catch (error) {
+    try { unlinkSync(temporary); } catch {}
+    throw error;
+  }
 }
 
 // ---- Transport ----
@@ -811,15 +1104,30 @@ function shouldRecoverNewTurn(
   return false;
 }
 
+function transcriptOptionsFor(conversationId: string, context: Context): TranscriptReadOptions {
+  return {
+    conversationId,
+    env: context.env,
+    ...(context.allowedTranscriptRoots !== undefined
+      ? { allowedTranscriptRoots: context.allowedTranscriptRoots } : {}),
+  };
+}
+
+function matchesPendingEntry(entry: PendingContextMessage, state: AntigravityTurnState): boolean {
+  if (entry.turn_id !== state.turn_id) return false;
+  if (entry.turn_generation !== undefined && entry.turn_generation !== state.turn_generation) return false;
+  return true;
+}
+
 async function handlePreInvocation(
   payload: AntigravityHookPayload,
   conversationId: string,
   context: Context,
 ): Promise<AntigravityHookOutput> {
   const key = turnKey(conversationId, context.configPath);
-  const previous = readState(context.env, key);
-
-  const transcriptUser = extractLatestNonSystemUserInput(payload.transcriptPath);
+  const transcriptOpts = transcriptOptionsFor(conversationId, context);
+  const authorizedTranscriptPath = resolveAuthorizedTranscriptPath(payload.transcriptPath, transcriptOpts);
+  const transcriptUser = extractLatestNonSystemUserInput(payload.transcriptPath, transcriptOpts);
   const rawLastUserInput = typeof payload.lastUserInput === 'string' ? payload.lastUserInput : '';
   const prompt = rawLastUserInput && !isSystemInjectedUserInput(rawLastUserInput)
     ? stripUserRequestWrapper(rawLastUserInput)
@@ -828,6 +1136,8 @@ async function handlePreInvocation(
   const promptDigest = prompt ? sha256(prompt) : null;
   const invocationNum = typeof payload.invocationNum === 'number' && Number.isSafeInteger(payload.invocationNum)
     ? payload.invocationNum : null;
+
+  const previous = await withTurnStateLock(context.env, key, () => readState(context.env, key));
 
   if (previous && !shouldRecoverNewTurn(
     previous,
@@ -838,15 +1148,63 @@ async function handlePreInvocation(
     context.staleTurnMs,
   )) {
     // Same active turn (2nd+ PreInvocation in tool loop or duplicate):
-    // NEVER fire a new UserPromptSubmit; drain only pending messages matching current turn_id.
-    const matching = previous.pending_messages.filter((entry) => entry.turn_id === previous.turn_id);
-    if (previous.pending_messages.length > 0) {
-      try {
-        writeState(context.env, key, { ...previous, pending_messages: [] });
-      } catch {}
+    // NEVER fire a new UserPromptSubmit. Re-authorize started state, scope,
+    // destination, project, and current login BEFORE draining or injecting.
+    if (previous.pending_messages.length === 0) {
+      return {};
     }
+
+    const staticAuthorized = isTurnStaticAuthorized(previous, context);
+    if (!staticAuthorized) {
+      try {
+        await withTurnStateLock(context.env, key, () => {
+          const latest = readState(context.env, key);
+          if (latest && latest.turn_id === previous.turn_id
+            && latest.turn_generation === previous.turn_generation
+            && latest.pending_messages.length > 0) {
+            writeState(context.env, key, { ...latest, pending_messages: [] });
+          }
+        });
+      } catch {}
+      return {};
+    }
+
+    const currentLogin = await resolveCurrentLoginId(context);
+    const expectedFingerprint = currentLogin.ok
+      ? computeAuthFingerprint(context, previous.non_git_scope_root, currentLogin.loginId)
+      : null;
+    const loginAuthorized = currentLogin.ok
+      && currentLogin.loginId === previous.login
+      && expectedFingerprint !== null
+      && expectedFingerprint === previous.auth_fingerprint;
+
+    const drained = await withTurnStateLock(context.env, key, (): PendingContextMessage[] => {
+      const latest = readState(context.env, key);
+      if (!latest || latest.turn_id !== previous.turn_id || latest.turn_generation !== previous.turn_generation) {
+        return [];
+      }
+      if (!latest.turn_active) {
+        return [];
+      }
+      const stillAuthorized = loginAuthorized
+        && isTurnStaticAuthorized(latest, context)
+        && latest.login === (currentLogin.ok ? currentLogin.loginId : null)
+        && latest.auth_fingerprint === expectedFingerprint;
+      if (!stillAuthorized) {
+        if (latest.pending_messages.length > 0) {
+          writeState(context.env, key, { ...latest, pending_messages: [] });
+        }
+        return [];
+      }
+      const matching = latest.pending_messages.filter((entry) => matchesPendingEntry(entry, latest));
+      if (latest.pending_messages.length > 0) {
+        writeState(context.env, key, { ...latest, pending_messages: [] });
+      }
+      return matching;
+    });
+
     const steps: Array<Record<string, unknown>> = [];
-    for (const entry of matching) {
+    for (const entry of drained) {
       const step = buildSystemMessageStep(previous.turn_id, entry.additional_context, entry.system_message);
       if (step) steps.push(step);
     }
@@ -857,7 +1215,14 @@ async function handlePreInvocation(
   if (!prompt) {
     if (previous && previous.pending_messages.length > 0) {
       try {
-        writeState(context.env, key, { ...previous, turn_active: false, pending_messages: [] });
+        await withTurnStateLock(context.env, key, () => {
+          const latest = readState(context.env, key);
+          if (latest && latest.turn_id === previous.turn_id
+            && latest.turn_generation === previous.turn_generation
+            && latest.pending_messages.length > 0) {
+            writeState(context.env, key, { ...latest, turn_active: false, pending_messages: [] });
+          }
+        });
       } catch {}
     }
     return {};
@@ -866,54 +1231,72 @@ async function handlePreInvocation(
   const nonGitRoot = context.scope.inGit
     ? null
     : (context.scope.matchedCwdPrefix ?? context.scope.cwd);
-  const state: AntigravityTurnState = {
-    schema_version: TURN_SCHEMA,
-    turn_id: randomUUID(),
-    turn_active: true,
-    started_at: new Date(context.now()).toISOString(),
-    last_opened_user_step_index: currentUserStepIndex,
-    last_prompt_digest: promptDigest,
-    start_status: 'failed',
-    in_git: context.scope.inGit,
-    repository: context.scope.repository,
-    checkout: context.scope.checkout,
-    non_git_scope_root: nonGitRoot,
-    destination: destinationOf(context),
-    login: null,
-    pending_messages: [],
-  };
+  const inScope = isAuditedAntigravityScope(context.scope, context.config)
+    && hostCanMapRepository(context.scope.repository, context.config);
+  const newTurnId = randomUUID();
 
-  if (!isAuditedAntigravityScope(context.scope, context.config)
-    || !hostCanMapRepository(context.scope.repository, context.config)) {
-    try {
-      writeState(context.env, key, { ...state, start_status: 'out_of_scope' });
-    } catch {}
+  const openedState = await withTurnStateLock(context.env, key, () => {
+    const latest = readState(context.env, key);
+    const nextGeneration = (latest?.turn_generation ?? 0) + 1;
+    const state: AntigravityTurnState = {
+      schema_version: TURN_SCHEMA,
+      turn_id: newTurnId,
+      turn_generation: nextGeneration,
+      turn_active: true,
+      started_at: new Date(context.now()).toISOString(),
+      last_opened_user_step_index: currentUserStepIndex,
+      last_prompt_digest: promptDigest,
+      start_status: inScope ? 'failed' : 'out_of_scope',
+      in_git: context.scope.inGit,
+      repository: context.scope.repository,
+      checkout: context.scope.checkout,
+      non_git_scope_root: nonGitRoot,
+      matched_cwd_prefix: context.scope.matchedCwdPrefix,
+      destination: destinationOf(context),
+      login: null,
+      auth_fingerprint: null,
+      pending_messages: [],
+    };
+    writeState(context.env, key, state);
+    return state;
+  });
+
+  if (!inScope) {
     return {};
   }
-
-  try {
-    writeState(context.env, key, state);
-  } catch {}
 
   try {
     const login: LoginPin = {};
     const hostPayload: Record<string, unknown> = {
       hook_event_name: 'UserPromptSubmit',
       session_id: conversationId,
-      turn_id: state.turn_id,
+      turn_id: openedState.turn_id,
       prompt,
       cwd: context.scope.cwd,
-      ...(typeof payload.transcriptPath === 'string' && payload.transcriptPath
-        ? { transcript_path: payload.transcriptPath } : {}),
+      ...(authorizedTranscriptPath ? { transcript_path: authorizedTranscriptPath } : {}),
       ...(typeof payload.modelName === 'string' && payload.modelName
         ? { model: payload.modelName } : {}),
     };
-    const output = await forward(hostPayload, context, state.repository, login, 'PreInvocation');
+    const output = await forward(hostPayload, context, openedState.repository, login, 'PreInvocation');
+    const loginId = login.used ?? null;
+    const authFingerprint = computeAuthFingerprint(context, openedState.non_git_scope_root, loginId);
     try {
-      writeState(context.env, key, { ...state, start_status: 'started', login: login.used ?? null });
+      await withTurnStateLock(context.env, key, () => {
+        const latest = readState(context.env, key);
+        if (latest && latest.turn_active === true
+          && latest.turn_id === openedState.turn_id
+          && latest.turn_generation === openedState.turn_generation) {
+          writeState(context.env, key, {
+            ...latest,
+            start_status: 'started',
+            login: loginId,
+            auth_fingerprint: authFingerprint,
+          });
+        }
+      });
     } catch {}
     const { additionalContext, systemMessage } = extractHostMessages(output);
-    const step = buildSystemMessageStep(state.turn_id, additionalContext, systemMessage);
+    const step = buildSystemMessageStep(openedState.turn_id, additionalContext, systemMessage);
     return step ? preInvocationOutputFromSteps([step]) : {};
   } catch {
     // Fail-open: keep turn_active=true with start_status='failed' so subsequent invocations
@@ -935,13 +1318,13 @@ async function handlePreToolUse(
   }
 
   const key = turnKey(conversationId, context.configPath);
-  const state = readState(context.env, key);
-  if (!state || !state.turn_active || state.start_status !== 'started'
-    || !sameTurnScope(state, context.scope) || !sameDestination(state, context)
-    || !isAuditedAntigravityScope(context.scope, context.config)) {
+  const state = await withTurnStateLock(context.env, key, () => readState(context.env, key));
+  if (!state || !isTurnStaticAuthorized(state, context)) {
     return { decision: 'allow' };
   }
 
+  const transcriptOpts = transcriptOptionsFor(conversationId, context);
+  const authorizedTranscriptPath = resolveAuthorizedTranscriptPath(payload.transcriptPath, transcriptOpts);
   const toolUseId = typeof toolCall?.id === 'string' && toolCall.id.trim()
     ? toolCall.id.trim()
     : (typeof payload.stepIdx === 'number' ? `step-${payload.stepIdx}` : randomUUID());
@@ -955,8 +1338,7 @@ async function handlePreToolUse(
         tool_use_id: toolUseId,
         tool_input: normalizedToolInput(rawName, normalizedName, toolCall?.args),
         cwd: context.scope.cwd,
-        ...(typeof payload.transcriptPath === 'string' && payload.transcriptPath
-          ? { transcript_path: payload.transcriptPath } : {}),
+        ...(authorizedTranscriptPath ? { transcript_path: authorizedTranscriptPath } : {}),
         ...(typeof payload.modelName === 'string' && payload.modelName
           ? { model: payload.modelName } : {}),
       },
@@ -985,12 +1367,13 @@ async function handlePostToolUse(
   context: Context,
 ): Promise<AntigravityHookOutput> {
   const key = turnKey(conversationId, context.configPath);
-  const state = readState(context.env, key);
-  if (!state || !state.turn_active || state.start_status !== 'started'
-    || !sameTurnScope(state, context.scope) || !sameDestination(state, context)
-    || !isAuditedAntigravityScope(context.scope, context.config)) {
+  const state = await withTurnStateLock(context.env, key, () => readState(context.env, key));
+  if (!state || !isTurnStaticAuthorized(state, context)) {
     return {};
   }
+  const startedTurnId = state.turn_id;
+  const startedGeneration = state.turn_generation;
+  const startedAuthFingerprint = state.auth_fingerprint;
 
   const toolCall = payload.toolCall as { id?: unknown; name?: unknown; args?: unknown } | undefined;
   const rawName = typeof toolCall?.name === 'string' ? toolCall.name : '';
@@ -1004,6 +1387,8 @@ async function handlePostToolUse(
     ? toolCall.id.trim()
     : (typeof payload.stepIdx === 'number' ? `step-${payload.stepIdx}` : randomUUID());
 
+  const transcriptOpts = transcriptOptionsFor(conversationId, context);
+  const authorizedTranscriptPath = resolveAuthorizedTranscriptPath(payload.transcriptPath, transcriptOpts);
   const isBrainbase = normalizedName.startsWith('mcp__brainbase__');
   let toolInput: unknown;
   let toolResponse: unknown;
@@ -1011,7 +1396,7 @@ async function handlePostToolUse(
 
   if (isBrainbase) {
     toolInput = normalizedToolInput(rawName, normalizedName, toolCall?.args);
-    const transcriptText = extractToolResultFromTranscript(payload.transcriptPath, payload.stepIdx);
+    const transcriptText = extractToolResultFromTranscript(payload.transcriptPath, payload.stepIdx, transcriptOpts);
     if (transcriptText !== null) {
       toolResponse = {
         content: [{ type: 'text', text: transcriptText }],
@@ -1038,15 +1423,14 @@ async function handlePostToolUse(
       {
         hook_event_name: hostEventName,
         session_id: conversationId,
-        turn_id: state.turn_id,
+        turn_id: startedTurnId,
         tool_name: normalizedName,
         tool_use_id: toolUseId,
         tool_input: toolInput,
         tool_response: toolResponse,
         ...(errorField !== undefined ? { error: errorField } : {}),
         cwd: context.scope.cwd,
-        ...(typeof payload.transcriptPath === 'string' && payload.transcriptPath
-          ? { transcript_path: payload.transcriptPath } : {}),
+        ...(authorizedTranscriptPath ? { transcript_path: authorizedTranscriptPath } : {}),
         ...(typeof payload.modelName === 'string' && payload.modelName
           ? { model: payload.modelName } : {}),
       },
@@ -1057,17 +1441,29 @@ async function handlePostToolUse(
     );
     const { additionalContext, systemMessage } = extractHostMessages(output);
     if (additionalContext || systemMessage) {
-      const nextPending: PendingContextMessage[] = [
-        ...state.pending_messages.filter((entry) => entry.turn_id === state.turn_id),
-        {
-          turn_id: state.turn_id,
-          ...(additionalContext ? { additional_context: additionalContext } : {}),
-          ...(systemMessage ? { system_message: systemMessage } : {}),
-          created_at: new Date(context.now()).toISOString(),
-        },
-      ].slice(-MAX_PENDING_MESSAGES);
       try {
-        writeState(context.env, key, { ...state, pending_messages: nextPending });
+        await withTurnStateLock(context.env, key, () => {
+          const latest = readState(context.env, key);
+          if (!latest
+            || latest.turn_active !== true
+            || latest.turn_id !== startedTurnId
+            || latest.turn_generation !== startedGeneration
+            || latest.auth_fingerprint !== startedAuthFingerprint
+            || !isTurnStaticAuthorized(latest, context)) {
+            return;
+          }
+          const nextPending: PendingContextMessage[] = [
+            ...latest.pending_messages.filter((entry) => matchesPendingEntry(entry, latest)),
+            {
+              turn_id: latest.turn_id,
+              turn_generation: latest.turn_generation,
+              ...(additionalContext ? { additional_context: additionalContext } : {}),
+              ...(systemMessage ? { system_message: systemMessage } : {}),
+              created_at: new Date(context.now()).toISOString(),
+            },
+          ].slice(-MAX_PENDING_MESSAGES);
+          writeState(context.env, key, { ...latest, pending_messages: nextPending });
+        });
       } catch {}
     }
   } catch {
@@ -1083,37 +1479,41 @@ async function handleStop(
   context: Context,
 ): Promise<AntigravityHookOutput> {
   const key = turnKey(conversationId, context.configPath);
-  const state = readState(context.env, key);
+  const state = await withTurnStateLock(context.env, key, () => readState(context.env, key));
   const terminationReason = typeof payload.terminationReason === 'string' ? payload.terminationReason : '';
 
-  const clearTurn = () => {
+  const clearTurn = async () => {
     if (!state) return;
     try {
-      writeState(context.env, key, { ...state, turn_active: false, pending_messages: [] });
+      await withTurnStateLock(context.env, key, () => {
+        const latest = readState(context.env, key);
+        if (latest && latest.turn_id === state.turn_id && latest.turn_generation === state.turn_generation) {
+          writeState(context.env, key, { ...latest, turn_active: false, pending_messages: [] });
+        }
+      });
     } catch {}
   };
 
   if (terminationReason !== 'NO_TOOL_CALL') {
-    clearTurn();
+    await clearTurn();
     return { decision: '' };
   }
 
-  if (!state || !state.turn_active || state.start_status !== 'started'
-    || !sameTurnScope(state, context.scope) || !sameDestination(state, context)
-    || !isAuditedAntigravityScope(context.scope, context.config)) {
-    clearTurn();
+  if (!state || !isTurnStaticAuthorized(state, context)) {
+    await clearTurn();
     return { decision: '' };
   }
 
-  const lastAssistantMessage = extractLastAssistantMessage(payload.transcriptPath);
+  const transcriptOpts = transcriptOptionsFor(conversationId, context);
+  const authorizedTranscriptPath = resolveAuthorizedTranscriptPath(payload.transcriptPath, transcriptOpts);
+  const lastAssistantMessage = extractLastAssistantMessage(payload.transcriptPath, transcriptOpts);
   try {
     const stopPayload = forwardedStopPayload({
       hook_event_name: 'Stop',
       session_id: conversationId,
       turn_id: state.turn_id,
       cwd: context.scope.cwd,
-      ...(typeof payload.transcriptPath === 'string' && payload.transcriptPath
-        ? { transcript_path: payload.transcriptPath } : {}),
+      ...(authorizedTranscriptPath ? { transcript_path: authorizedTranscriptPath } : {}),
       ...(typeof payload.modelName === 'string' && payload.modelName
         ? { model: payload.modelName } : {}),
       ...(lastAssistantMessage !== undefined ? { last_assistant_message: lastAssistantMessage } : {}),
@@ -1123,7 +1523,7 @@ async function handleStop(
   } catch {
     // Fail-open.
   } finally {
-    clearTurn();
+    await clearTurn();
   }
   // Never return `"continue"` from Stop.
   return { decision: '' };
@@ -1164,6 +1564,8 @@ export async function handleAntigravityJudgmentHook(
       configPath,
       now: options.now ?? Date.now,
       staleTurnMs: options.staleTurnMs ?? DEFAULT_STALE_TURN_MS,
+      ...(options.allowedTranscriptRoots !== undefined
+        ? { allowedTranscriptRoots: options.allowedTranscriptRoots } : {}),
     };
 
     if (eventName === 'PreInvocation') return await handlePreInvocation(payload, conversationId, context);

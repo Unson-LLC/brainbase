@@ -5,7 +5,8 @@
 ## 0.50.30 candidate — npm公開前
 
 - 0.50.29に、Antigravity CLI判断フック（公開subpath `antigravity-judgment-hook`・CLI `judgment:antigravity-hook` / `judgment:install --target antigravity`、#1077）と本人JWTのホスト側project解決（#1032）、RFC-002 PR-1の `judgment-event-adapter` `project_code` マルチプロジェクト伝播と outbox `projectCodes` スコーピング（#1070）、および RFC-001 v2.0（既定OFFのライブ推論ゲート v3.1・セッション内ミニ世界モデル v2 と非digestテレメトリ・公開subpath `judgment-reasoning-audit` とオフライン7項目二値監査 / PoLL 2-of-3 審査、#1045・#1047・#1061・#1062・#1069）を加える更新候補。
-- TypeScriptの公開型破壊的変更を含む: `JudgmentKnowledgeEvent['applicability_scope']['project_code']` を `'brainbase'` リテラルから `string` へ拡張（#1070）し、`RemoteJudgmentHookHost`・`JudgmentExecutionHostType`・`JudgmentRuntimeRuntimeContext['host']` に `'antigravity'` を追加（#1077）。移行手順は `docs/releases/0.50.30.md` に記録する。既存のランタイム既定動作と認証・権限の境界は維持する。npm公開と利用ホストへの配備は別途確認する。
+- TypeScriptの公開型破壊的変更を含む: `JudgmentKnowledgeEvent['applicability_scope']['project_code']` を `'brainbase'` リテラルから `string` へ拡張（#1070）し、`RemoteJudgmentHookHost`・`JudgmentExecutionHostType`・`JudgmentRuntimeRuntimeContext['host']`・`JudgmentRuntimeRuntimeContext['entrypoint']` に `'antigravity'` を追加（#1077）。移行手順は `docs/releases/0.50.30.md` に記録する。
+- 本人JWT認証の `claude-code` 呼び出しで `project` を省略した場合の挙動は、従来の `invalid_project_code` からHost側での自動解決（`resolveProjectCode` または本人の単一project）または新規エラー（`judgment_project_unresolved` / `judgment_project_lookup_failed`）へ変わる（#1032）。それ以外の既存のランタイム既定動作と認証・権限の境界は維持する。npm公開と利用ホストへの配備は別途確認する。
 
 ## 0.50.29
 

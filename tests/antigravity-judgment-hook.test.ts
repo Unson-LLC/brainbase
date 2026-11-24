@@ -1,6 +1,7 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { Readable } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
@@ -42,6 +43,21 @@ async function tempDir(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'brainbase-antigravity-hook-'));
   dirs.push(dir);
   return dir;
+}
+
+async function canonicalTranscriptPath(home: string, conversationId: string): Promise<string> {
+  const filePath = join(
+    home,
+    '.gemini',
+    'antigravity-cli',
+    'brain',
+    conversationId,
+    '.system_generated',
+    'logs',
+    'transcript.jsonl',
+  );
+  await mkdir(dirname(filePath), { recursive: true });
+  return filePath;
 }
 
 async function gitCheckout(root: string, name: string, origin = 'git@github.com:acme/growin-app.git'): Promise<string> {
@@ -170,7 +186,7 @@ describe('normalizeAntigravityToolName', () => {
 describe('handleAntigravityJudgmentHook lifecycle', () => {
   it('fires UserPromptSubmit once per turn across repeated PreInvocation + Reason Network injections, adds turn_id guard, and formats injectSteps', async () => {
     const { home, repo, configPath, env } = await setupConfig();
-    const transcriptPath = join(home, 'transcript.jsonl');
+    const transcriptPath = await canonicalTranscriptPath(home, 'conv-1');
     await writeFile(transcriptPath, [
       JSON.stringify({
         step_index: 0,
@@ -209,7 +225,7 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
       session_id: antigravityNamespacedId('conv-1', { registration: REGISTRATION }),
       prompt: 'Implement PR-A cleanly',
       model: 'gemini-pro',
-      transcript_path: transcriptPath,
+      transcript_path: await realpath(transcriptPath),
     });
 
     // Verify nested injectSteps[].systemMessage + turn_id guard + metadata.user_markdown
@@ -246,7 +262,7 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
 
   it('skips PreInvocation as no-op when only Reason Network system input exists', async () => {
     const { home, repo, configPath, env } = await setupConfig();
-    const transcriptPath = join(home, 'transcript.jsonl');
+    const transcriptPath = await canonicalTranscriptPath(home, 'conv-sys');
     await writeFile(transcriptPath, JSON.stringify({
       step_index: 0,
       source: 'SYSTEM_SDK',
@@ -346,7 +362,7 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
 
   it('recovers cleanly to a new turn after a crash without Stop when step_index advances or stale threshold passes', async () => {
     const { home, repo, configPath, env } = await setupConfig();
-    const transcriptPath = join(home, 'transcript.jsonl');
+    const transcriptPath = await canonicalTranscriptPath(home, 'conv-crash');
     await writeFile(transcriptPath, JSON.stringify({
       step_index: 0,
       source: 'USER_EXPLICIT',
@@ -410,7 +426,7 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
 
   it('handles PreToolUse (lookup only), PostToolUse (non-Brainbase digest vs Brainbase transcript extraction + failure), and Stop (last_assistant_message & USER_CANCELED)', async () => {
     const { home, repo, configPath, env } = await setupConfig();
-    const transcriptPath = join(home, 'transcript.jsonl');
+    const transcriptPath = await canonicalTranscriptPath(home, 'conv-full');
     await writeFile(transcriptPath, [
       JSON.stringify({ step_index: 0, source: 'USER_EXPLICIT', type: 'USER_INPUT', content: 'Search knowledge' }),
       JSON.stringify({
@@ -592,7 +608,8 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
 
   it('extracts last_assistant_message and non-system USER_INPUT from bounded tail of large transcripts', async () => {
     const dir = await tempDir();
-    const transcriptPath = join(dir, 'large-transcript.jsonl');
+    const transcriptPath = join(dir, 'conv-large', '.system_generated', 'logs', 'transcript.jsonl');
+    await mkdir(dirname(transcriptPath), { recursive: true });
     const filler = JSON.stringify({ step_index: 1, type: 'GENERIC', content: 'x'.repeat(10_000) });
     const lines = Array.from({ length: 35 }, () => filler);
     lines.push(JSON.stringify({ step_index: 50, source: 'USER_EXPLICIT', type: 'USER_INPUT', content: 'Tail user prompt' }));
@@ -600,8 +617,359 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
     lines.push(JSON.stringify({ step_index: 52, source: 'MODEL', type: 'PLANNER_RESPONSE', content: 'Tail assistant answer' }));
     await writeFile(transcriptPath, lines.join('\n') + '\n');
 
-    expect(extractLatestNonSystemUserInput(transcriptPath)).toEqual({ stepIndex: 50, content: 'Tail user prompt' });
-    expect(extractLastAssistantMessage(transcriptPath)).toBe('Tail assistant answer');
+    const readOpts = { conversationId: 'conv-large', allowedTranscriptRoots: [dir] };
+    expect(extractLatestNonSystemUserInput(transcriptPath, readOpts)).toEqual({ stepIndex: 50, content: 'Tail user prompt' });
+    expect(extractLastAssistantMessage(transcriptPath, readOpts)).toBe('Tail assistant answer');
+  });
+
+  it('re-authorizes pending context in PreInvocation and discards it on cwd, endpoint, project, or login changes', async () => {
+    const makePendingScenario = async (convId: string) => {
+      const setup = await setupConfig({ project_code: 'proj-a' });
+      const turnDir = join(setup.home, 'turns');
+      const testEnv = { ...setup.env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir };
+      let currentLoginId = 'login-1';
+      const dynamicToken = async () => ({ token: `jwt-${currentLoginId}`, loginId: currentLoginId });
+      const { fetchImpl } = mockHost((body) => ({
+        status: 200,
+        body: {
+          schema_version: '1',
+          accepted: true,
+          hook_event_name: body.hook_event_name,
+          session_id: body.session_id,
+          turn_id: body.turn_id,
+          output: body.hook_event_name === 'PostToolUse'
+            ? {
+              systemMessage: '📚 sensitive-pending-note',
+              hookSpecificOutput: { additionalContext: 'SENSITIVE_PENDING_CONTEXT' },
+            }
+            : {},
+        },
+      }));
+      const options = {
+        env: testEnv,
+        fetch: fetchImpl,
+        accessToken: dynamicToken,
+        configPath: setup.configPath,
+        registrationId: REG,
+      };
+      await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId: convId,
+        invocationNum: 1,
+        cwd: setup.repo,
+        lastUserInput: 'Start authorized turn',
+      }, options);
+      await handleAntigravityJudgmentHook({
+        hookEventName: 'PostToolUse',
+        conversationId: convId,
+        cwd: setup.repo,
+        stepIdx: 2,
+        toolCall: { id: 'toolu_p1', name: 'run_command', args: { CommandLine: 'ls' } },
+      }, options);
+      return {
+        ...setup,
+        turnDir,
+        options,
+        setLoginId: (id: string) => { currentLoginId = id; },
+      };
+    };
+
+    // 1a. Moving cwd out of scope in same conversation drops pending context and does not inject even if returning later.
+    {
+      const sc = await makePendingScenario('conv-reauth-cwd');
+      const outside = join(sc.home, 'outside-dir');
+      await mkdir(outside, { recursive: true });
+      const outScope = await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId: 'conv-reauth-cwd',
+        invocationNum: 2,
+        cwd: outside,
+        lastUserInput: 'Start authorized turn',
+      }, sc.options);
+      expect(outScope).toEqual({});
+
+      // Returning to repo must NOT inject discarded pending messages.
+      const backInScope = await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId: 'conv-reauth-cwd',
+        invocationNum: 3,
+        cwd: sc.repo,
+        lastUserInput: 'Start authorized turn',
+      }, sc.options);
+      expect(backInScope).toEqual({});
+    }
+
+    // 1b. Changing endpoint in config at same configPath drops pending context.
+    {
+      const sc = await makePendingScenario('conv-reauth-endpoint');
+      await writeFile(sc.configPath, JSON.stringify({
+        ...sc.config,
+        endpoint: 'https://other-host.example.net/host/judgment/hook',
+      }));
+      const out = await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId: 'conv-reauth-endpoint',
+        invocationNum: 2,
+        cwd: sc.repo,
+        lastUserInput: 'Start authorized turn',
+      }, sc.options);
+      expect(out).toEqual({});
+    }
+
+    // 1c. Changing project_code in config drops pending context.
+    {
+      const sc = await makePendingScenario('conv-reauth-project');
+      await writeFile(sc.configPath, JSON.stringify({
+        ...sc.config,
+        project_code: 'proj-b',
+      }));
+      const out = await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId: 'conv-reauth-project',
+        invocationNum: 2,
+        cwd: sc.repo,
+        lastUserInput: 'Start authorized turn',
+      }, sc.options);
+      expect(out).toEqual({});
+    }
+
+    // 1d. Changing login_server or loginId drops pending context.
+    {
+      const sc = await makePendingScenario('conv-reauth-login');
+      sc.setLoginId('login-2');
+      const out = await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId: 'conv-reauth-login',
+        invocationNum: 2,
+        cwd: sc.repo,
+        lastUserInput: 'Start authorized turn',
+      }, sc.options);
+      expect(out).toEqual({});
+      // Even switching back to login-1 must not resurrect discarded messages.
+      sc.setLoginId('login-1');
+      const after = await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId: 'conv-reauth-login',
+        invocationNum: 3,
+        cwd: sc.repo,
+        lastUserInput: 'Start authorized turn',
+      }, sc.options);
+      expect(after).toEqual({});
+    }
+  });
+
+  it('prevents slow PostToolUse from resurrecting a Stop-closed turn or overwriting a newly opened turn', async () => {
+    const { home, repo, configPath, env } = await setupConfig();
+    const turnDir = join(home, 'turns');
+    const testEnv = { ...env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir };
+
+    let releaseSlowPost!: () => void;
+    let postEntered!: () => void;
+    const slowPostGate = new Promise<void>((resolveGate) => { releaseSlowPost = resolveGate; });
+    const postEnteredPromise = new Promise<void>((resolveEntered) => { postEntered = resolveEntered; });
+
+    const fetchImpl = (async (_input: string | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      if (body.hook_event_name === 'PostToolUse') {
+        postEntered();
+        await slowPostGate;
+        return new Response(JSON.stringify({
+          schema_version: '1',
+          accepted: true,
+          hook_event_name: body.hook_event_name,
+          session_id: body.session_id,
+          turn_id: body.turn_id,
+          output: {
+            systemMessage: 'LATE_POST_SYSTEM',
+            hookSpecificOutput: { additionalContext: 'LATE_POST_CONTEXT' },
+          },
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({
+        schema_version: '1',
+        accepted: true,
+        hook_event_name: body.hook_event_name,
+        session_id: body.session_id,
+        turn_id: body.turn_id,
+        output: {},
+      }), { status: 200 });
+    }) as typeof fetch;
+
+    const options = { env: testEnv, fetch: fetchImpl, accessToken: token, configPath, registrationId: REG };
+
+    // Case A: PostToolUse in flight while Stop closes the turn -> turn_active must stay false.
+    await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-race-stop',
+      invocationNum: 1,
+      cwd: repo,
+      lastUserInput: 'Turn 1 prompt',
+    }, options);
+
+    const postPromise = handleAntigravityJudgmentHook({
+      hookEventName: 'PostToolUse',
+      conversationId: 'conv-race-stop',
+      cwd: repo,
+      stepIdx: 2,
+      toolCall: { id: 'toolu_slow', name: 'run_command', args: { CommandLine: 'echo slow' } },
+    }, options);
+
+    await postEnteredPromise;
+
+    // Stop finishes while PostToolUse is waiting for HTTP.
+    const stopOut = await handleAntigravityJudgmentHook({
+      hookEventName: 'Stop',
+      conversationId: 'conv-race-stop',
+      cwd: repo,
+      terminationReason: 'NO_TOOL_CALL',
+    }, options);
+    expect(stopOut).toEqual({ decision: '' });
+
+    // Now let slow PostToolUse finish.
+    releaseSlowPost();
+    expect(await postPromise).toEqual({});
+
+    const { readdir } = await import('node:fs/promises');
+    const [stateFile] = (await readdir(turnDir)).filter((f) => f.endsWith('.json'));
+    const persistedAfterStop = JSON.parse(await readFile(join(turnDir, stateFile), 'utf8'));
+    expect(persistedAfterStop.turn_active).toBe(false);
+    expect(persistedAfterStop.pending_messages).toEqual([]);
+
+    // Case B: PostToolUse in flight while Stop closes Turn 1 AND Turn 2 opens -> Turn 2 state is untouched.
+    let releaseSlowPost2!: () => void;
+    let post2Entered!: () => void;
+    const slowPostGate2 = new Promise<void>((resolveGate) => { releaseSlowPost2 = resolveGate; });
+    const post2EnteredPromise = new Promise<void>((resolveEntered) => { post2Entered = resolveEntered; });
+    const fetchImpl2 = (async (_input: string | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      if (body.hook_event_name === 'PostToolUse') {
+        post2Entered();
+        await slowPostGate2;
+        return new Response(JSON.stringify({
+          schema_version: '1',
+          accepted: true,
+          hook_event_name: body.hook_event_name,
+          session_id: body.session_id,
+          turn_id: body.turn_id,
+          output: { hookSpecificOutput: { additionalContext: 'STALE_TURN1_LEAK' } },
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({
+        schema_version: '1',
+        accepted: true,
+        hook_event_name: body.hook_event_name,
+        session_id: body.session_id,
+        turn_id: body.turn_id,
+        output: {},
+      }), { status: 200 });
+    }) as typeof fetch;
+
+    const options2 = { env: testEnv, fetch: fetchImpl2, accessToken: token, configPath, registrationId: REG };
+    await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-race-newturn',
+      invocationNum: 1,
+      cwd: repo,
+      lastUserInput: 'Turn 1',
+    }, options2);
+
+    const post2Promise = handleAntigravityJudgmentHook({
+      hookEventName: 'PostToolUse',
+      conversationId: 'conv-race-newturn',
+      cwd: repo,
+      stepIdx: 2,
+      toolCall: { id: 'toolu_slow2', name: 'run_command', args: { CommandLine: 'echo slow2' } },
+    }, options2);
+
+    await post2EnteredPromise;
+
+    await handleAntigravityJudgmentHook({
+      hookEventName: 'Stop',
+      conversationId: 'conv-race-newturn',
+      cwd: repo,
+      terminationReason: 'NO_TOOL_CALL',
+    }, options2);
+
+    await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-race-newturn',
+      invocationNum: 1,
+      cwd: repo,
+      lastUserInput: 'Turn 2',
+    }, options2);
+
+    const stateFiles2 = (await readdir(turnDir)).filter((f) => f.endsWith('.json'));
+    const newTurnStateBefore = (await Promise.all(
+      stateFiles2.map(async (f) => ({ f, data: JSON.parse(await readFile(join(turnDir, f), 'utf8')) })),
+    )).find((entry) => entry.data.turn_active === true && entry.data.turn_generation === 2)!;
+    expect(newTurnStateBefore).toBeDefined();
+
+    // Slow PostToolUse from Turn 1 completes now.
+    releaseSlowPost2();
+    expect(await post2Promise).toEqual({});
+
+    const newTurnStateAfter = JSON.parse(await readFile(join(turnDir, newTurnStateBefore.f), 'utf8'));
+    expect(newTurnStateAfter.turn_id).toBe(newTurnStateBefore.data.turn_id);
+    expect(newTurnStateAfter.turn_generation).toBe(2);
+    expect(newTurnStateAfter.turn_active).toBe(true);
+    expect(newTurnStateAfter.pending_messages).toEqual([]);
+  });
+
+  it('rejects foreign-session transcripts, path traversal, symlinks, and non-regular FIFOs without blocking', async () => {
+    const { home, repo, configPath, env } = await setupConfig();
+    const otherTranscript = await canonicalTranscriptPath(home, 'conv-secret');
+    await writeFile(otherTranscript, [
+      JSON.stringify({ step_index: 0, source: 'USER_EXPLICIT', type: 'USER_INPUT', content: 'SECRET_OTHER_SESSION_PROMPT' }),
+      JSON.stringify({ step_index: 2, source: 'MODEL', type: 'PLANNER_RESPONSE', content: 'SECRET_OTHER_SESSION_ANSWER' }),
+    ].join('\n') + '\n');
+
+    const { fetchImpl, sent } = mockHost();
+    const options = { env, fetch: fetchImpl, accessToken: token, configPath, registrationId: REG };
+
+    // 3a. Foreign session transcriptPath rejected: no prompt extracted from other session.
+    const foreignOut = await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-current',
+      invocationNum: 1,
+      cwd: repo,
+      transcriptPath: otherTranscript,
+      lastUserInput: 'Reason Network: system injected',
+    }, options);
+    expect(foreignOut).toEqual({});
+    expect(sent).toHaveLength(0);
+
+    // 3b. Path traversal into another session rejected.
+    const currentLogsDir = dirname(await canonicalTranscriptPath(home, 'conv-current'));
+    const traversalPath = join(currentLogsDir, '..', '..', '..', 'conv-secret', '.system_generated', 'logs', 'transcript.jsonl');
+    expect(extractLatestNonSystemUserInput(traversalPath, { conversationId: 'conv-current', env })).toBeNull();
+    expect(extractLastAssistantMessage(traversalPath, { conversationId: 'conv-current', env })).toBeUndefined();
+
+    // 3c. Symlink inside current conversation pointing to foreign session rejected.
+    const symlinkTranscript = join(currentLogsDir, 'transcript.jsonl');
+    await symlink(otherTranscript, symlinkTranscript);
+    expect(extractLatestNonSystemUserInput(symlinkTranscript, { conversationId: 'conv-current', env })).toBeNull();
+
+    // 3d. FIFO (named pipe) at exact valid transcript path fails open immediately without blocking.
+    const fifoConvDir = dirname(await canonicalTranscriptPath(home, 'conv-fifo'));
+    const fifoPath = join(fifoConvDir, 'transcript.jsonl');
+    const mkfifoResult = spawnSync('mkfifo', [fifoPath]);
+    expect(mkfifoResult.status).toBe(0);
+
+    const startedAt = Date.now();
+    expect(extractLatestNonSystemUserInput(fifoPath, { conversationId: 'conv-fifo', env })).toBeNull();
+    expect(extractLastAssistantMessage(fifoPath, { conversationId: 'conv-fifo', env })).toBeUndefined();
+    const fifoHookOut = await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-fifo',
+      invocationNum: 1,
+      cwd: repo,
+      transcriptPath: fifoPath,
+      lastUserInput: 'Reason Network: system only',
+    }, options);
+    const elapsedMs = Date.now() - startedAt;
+    expect(fifoHookOut).toEqual({});
+    expect(elapsedMs).toBeLessThan(1_000);
+    expect(sent).toHaveLength(0);
   });
 
   it('fails open on HTTP errors and timeouts for all events', async () => {
@@ -798,6 +1166,23 @@ describe('registerAntigravityJudgmentHooks & CLI', () => {
 
     const writtenConfig = JSON.parse(await readFile(configPath, 'utf8')) as AntigravityHookConfig;
     expect(writtenConfig.schema_version).toBe(ANTIGRAVITY_HOOK_CONFIG_SCHEMA);
+    expect(installed.stdout()).toContain('送り先: https://bb.unson.jp/runtime-mcp/host/judgment/hook');
+
+    // Re-install with explicit --endpoint prints the resolved actual endpoint, not --origin
+    const withEndpoint = captureCli();
+    expect(await runCli([
+      'judgment:install', '--target', 'antigravity',
+      '--origin', 'https://ignored-origin.example.net',
+      '--endpoint', 'https://bb.unson.jp/runtime-mcp/custom/hook',
+      '--server', 'https://bb.unson.jp',
+      '--project', 'unson-lab',
+      '--allow-non-git',
+      '--cwd-prefix', botDir,
+      '--settings', hooksPath,
+      '--config', configPath,
+    ], withEndpoint.io)).toBe(0);
+    expect(withEndpoint.stdout()).toContain('送り先: https://bb.unson.jp/runtime-mcp/custom/hook');
+    expect(withEndpoint.stdout()).not.toContain('送り先: https://ignored-origin.example.net');
     expect(writtenConfig.origin).toBe('https://bb.unson.jp/runtime-mcp');
     expect(writtenConfig.project_code).toBe('unson-lab');
     expect(writtenConfig.allow_non_git).toBe(true);
