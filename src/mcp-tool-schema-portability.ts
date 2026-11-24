@@ -267,7 +267,7 @@ function mergeObjectSchemas(
       key,
       list.length === 1
         ? structuredClone(list[0])
-        : mergeNormalizedSchemas(list, mode).schema,
+        : mergeNormalizedSchemas(list, mode, preserveUndeclaredRequired).schema,
     );
   }
 
@@ -345,7 +345,7 @@ function normalizeSchemaNode(
 
     const mode = combinatorKey === 'allOf' ? 'intersection' : 'union';
     const hasOuterObjectFields = isPlainObject(working.properties) || Array.isArray(working.required);
-    const preserveBranchRequired = mode === 'intersection';
+    const preserveBranchRequired = preserveUndeclaredRequired || mode === 'intersection';
     const preserveMergedRequired = preserveUndeclaredRequired || (mode === 'intersection' && hasOuterObjectFields);
     const hasNullBranch = rawBranches.some((branch) => isPureNullSchema(branch));
     const normalizedBranches = rawBranches
@@ -369,7 +369,11 @@ function normalizeSchemaNode(
       if (isPlainObject(working.properties)) {
         const normalizedOuterProps: JsonObject = {};
         for (const [k, v] of Object.entries(working.properties)) {
-          setOwnProperty(normalizedOuterProps, k, normalizeSchemaNode(v, root, seenRefs, false));
+          setOwnProperty(
+            normalizedOuterProps,
+            k,
+            normalizeSchemaNode(v, root, seenRefs, false, preserveUndeclaredRequired || mode === 'intersection'),
+          );
         }
         outerCandidate.properties = normalizedOuterProps;
       }
@@ -539,7 +543,11 @@ function normalizeSchemaNode(
     if (isPlainObject(working.properties)) {
       const normalizedProperties: JsonObject = {};
       for (const [key, child] of Object.entries(working.properties)) {
-        setOwnProperty(normalizedProperties, key, normalizeSchemaNode(child, root, seenRefs, false));
+        setOwnProperty(
+          normalizedProperties,
+          key,
+          normalizeSchemaNode(child, root, seenRefs, false, preserveUndeclaredRequired),
+        );
       }
       working.properties = normalizedProperties;
     } else if (isRoot) {

@@ -571,6 +571,98 @@ describe('MCP tool inputSchema cross-client portability contract (Gemini / OpenA
     expect(outerBranchReq.required).toEqual(['__proto__']);
   });
 
+  it('preserves nested child required entries when allOf branches split child properties and required, while pruning truly undeclared keys', () => {
+    // Exact repro from cross-model review: root allOf splitting config.properties.id and config.required.
+    const directRepro = {
+      type: 'object',
+      allOf: [
+        { properties: { config: { properties: { id: { type: 'string' } } } } },
+        { properties: { config: { required: ['id'] } } },
+      ],
+    } as unknown as Tool['inputSchema'];
+
+    const normalizedDirect = normalizeMcpToolInputSchemaForPortability(directRepro);
+    expect(validateMcpToolInputSchemaPortability(normalizedDirect, 'config_repro_tool')).toEqual([]);
+    const directConfig = (normalizedDirect.properties as Record<string, Record<string, unknown>>).config;
+    expect(directConfig).toEqual({
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      required: ['id'],
+    });
+
+    // Multi-level nesting, __proto__ child keys, outer sibling properties, and orphan key pruning.
+    const deepSplit = JSON.parse(`{
+      "type": "object",
+      "properties": {
+        "outer_child": {
+          "required": ["id", "outer_orphan"]
+        }
+      },
+      "allOf": [
+        {
+          "properties": {
+            "outer_child": {
+              "properties": {
+                "id": { "type": "string" }
+              }
+            },
+            "deep": {
+              "properties": {
+                "inner": {
+                  "properties": {
+                    "id": { "type": "string" },
+                    "__proto__": { "type": "integer" }
+                  }
+                }
+              }
+            },
+            "single_branch_only": {
+              "type": "object",
+              "properties": {
+                "present": { "type": "boolean" }
+              },
+              "required": ["present", "branch_orphan"]
+            }
+          }
+        },
+        {
+          "properties": {
+            "deep": {
+              "properties": {
+                "inner": {
+                  "required": ["id", "__proto__", "deep_orphan"]
+                }
+              }
+            }
+          }
+        }
+      ]
+    }`) as Tool['inputSchema'];
+
+    const normalizedDeep = normalizeMcpToolInputSchemaForPortability(deepSplit);
+    expect(validateMcpToolInputSchemaPortability(normalizedDeep, 'deep_split_tool')).toEqual([]);
+    const deepProps = normalizedDeep.properties as Record<string, Record<string, unknown>>;
+
+    expect(deepProps.outer_child).toEqual({
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      required: ['id'],
+    });
+
+    const inner = (deepProps.deep.properties as Record<string, Record<string, unknown>>).inner;
+    const innerProps = inner.properties as Record<string, Record<string, unknown>>;
+    expect(Object.getPrototypeOf(innerProps)).toBe(Object.prototype);
+    expect(Object.hasOwn(innerProps, '__proto__')).toBe(true);
+    expect(Object.hasOwn(innerProps, 'id')).toBe(true);
+    expect(inner.required).toEqual(['id', '__proto__']);
+
+    expect(deepProps.single_branch_only).toEqual({
+      type: 'object',
+      properties: { present: { type: 'boolean' } },
+      required: ['present'],
+    });
+  });
+
   it('publishes ./mcp-tool-schema-portability with all 11 exported symbols (8 runtime functions + 3 types) matching dist output', async () => {
     const manifest = JSON.parse(await readFile(path.join(process.cwd(), 'package.json'), 'utf8'));
     expect(manifest.exports['./mcp-tool-schema-portability']).toEqual({
