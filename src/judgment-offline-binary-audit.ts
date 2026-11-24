@@ -335,14 +335,14 @@ export const OFFLINE_GRADED_DISTORTION_JUDGE_SCHEMA_V1 = deepFreeze({
       type: 'string',
       enum: ['pass', 'warn', 'fail'],
       description:
-        'Overall graded status aligned with score polarity: pass = 歪みなし (score 1), warn = 要注意 (score 0.5), fail = 歪みあり (score 0).',
+        'Overall graded status derived from patterns and aligned with score polarity (1 = pass / 歪みなし, 0.5 = warn, 0 = fail / 歪みあり): pass requires overall_score = 1 with no warn/fail patterns; warn requires 0.5 <= overall_score < 1 with >=1 warn and no fail patterns; fail requires 0 <= overall_score < 1 with >=1 fail pattern.',
     },
     overall_score: {
       type: 'number',
       minimum: 0,
       maximum: 1,
       description:
-        'Aggregate score across applicable patterns (strictly higher_is_better): 1 = pass / 歪みなし, 0.5 = warn, 0 = fail / 歪みあり.',
+        'Aggregate score across applicable patterns (strictly higher_is_better; never invert): 1 = pass / 歪みなし, 0.5 = warn, 0 = fail / 歪みあり (pass => 1, warn => [0.5, 1), fail => [0, 1)).',
     },
     patterns: {
       type: 'object',
@@ -572,17 +572,37 @@ export function parseGradedDistortionJudgeOutput(raw: unknown): OfflineGradedDis
     };
   }
 
-  // Overall status polarity sanity: pass cannot have score < 1, fail cannot have score === 1
-  if (overallStatus === 'pass' && overallScore < 1) {
+  // Enforce strict overall_status <-> patterns <-> overall_score polarity consistency:
+  // - pass: no warn/fail patterns and overall_score === 1
+  // - warn: >=1 warn pattern, no fail patterns, and 0.5 <= overall_score < 1 (never 0 or 1, before or after rounding)
+  // - fail: >=1 fail pattern and 0 <= overall_score < 1 (never 1, before or after rounding)
+  const patternValues = Object.values(normalizedPatterns);
+  const expectedOverallStatus: 'pass' | 'warn' | 'fail' = patternValues.some((p) => p.status === 'fail')
+    ? 'fail'
+    : patternValues.some((p) => p.status === 'warn')
+      ? 'warn'
+      : 'pass';
+  if (overallStatus !== expectedOverallStatus) {
     throw new Error('offline_graded_judge_overall_polarity_mismatch');
   }
-  if (overallStatus === 'fail' && overallScore === 1) {
+
+  const normalizedOverallScore = round4(overallScore);
+  if (overallStatus === 'pass' && (overallScore !== 1 || normalizedOverallScore !== 1)) {
+    throw new Error('offline_graded_judge_overall_polarity_mismatch');
+  }
+  if (
+    overallStatus === 'warn'
+    && (overallScore < 0.5 || overallScore >= 1 || normalizedOverallScore < 0.5 || normalizedOverallScore >= 1)
+  ) {
+    throw new Error('offline_graded_judge_overall_polarity_mismatch');
+  }
+  if (overallStatus === 'fail' && (overallScore >= 1 || normalizedOverallScore >= 1)) {
     throw new Error('offline_graded_judge_overall_polarity_mismatch');
   }
 
   return deepFreeze({
     overall_status: overallStatus,
-    overall_score: round4(overallScore),
+    overall_score: normalizedOverallScore,
     patterns: normalizedPatterns,
   });
 }

@@ -290,6 +290,131 @@ describe('LLM-as-a-Judge schemas, prompt builders, and explicit score polarity e
         },
       }),
     ).toThrow('offline_graded_judge_polarity_mismatch:counterexample_scope_mismatch');
+
+    // Per-pattern warn/not_applicable polarity mismatches must also throw
+    expect(() =>
+      parseGradedDistortionJudgeOutput({
+        overall_status: 'warn',
+        overall_score: 0.9,
+        patterns: {
+          counterexample_scope_mismatch: { status: 'warn', score: 1, rationale: 'warn scored as 1' },
+          base_rate_neglect: { status: 'pass', score: 1, rationale: 'ok' },
+          layer_conflation: { status: 'pass', score: 1, rationale: 'ok' },
+          conclusion_lock_cherry_picking: { status: 'pass', score: 1, rationale: 'ok' },
+          local_patch_without_model_update: { status: 'pass', score: 1, rationale: 'ok' },
+        },
+      }),
+    ).toThrow('offline_graded_judge_polarity_mismatch:counterexample_scope_mismatch');
+
+    expect(() =>
+      parseGradedDistortionJudgeOutput({
+        overall_status: 'pass',
+        overall_score: 1,
+        patterns: {
+          counterexample_scope_mismatch: { status: 'not_applicable', score: 0.5, rationale: 'na scored as 0.5' },
+          base_rate_neglect: { status: 'pass', score: 1, rationale: 'ok' },
+          layer_conflation: { status: 'pass', score: 1, rationale: 'ok' },
+          conclusion_lock_cherry_picking: { status: 'pass', score: 1, rationale: 'ok' },
+          local_patch_without_model_update: { status: 'pass', score: 1, rationale: 'ok' },
+        },
+      }),
+    ).toThrow('offline_graded_judge_polarity_mismatch:counterexample_scope_mismatch');
+  });
+
+  it('enforces strict overall_status <-> patterns <-> overall_score consistency across all boundaries', () => {
+    const allPassPatterns = {
+      counterexample_scope_mismatch: { status: 'pass', score: 1, rationale: 'ok' },
+      base_rate_neglect: { status: 'pass', score: 1, rationale: 'ok' },
+      layer_conflation: { status: 'pass', score: 1, rationale: 'ok' },
+      conclusion_lock_cherry_picking: { status: 'pass', score: 1, rationale: 'ok' },
+      local_patch_without_model_update: { status: 'pass', score: 1, rationale: 'ok' },
+    } as const;
+
+    const singleWarnPatterns = {
+      ...allPassPatterns,
+      base_rate_neglect: { status: 'warn', score: 0.5, rationale: 'minor omission' },
+    } as const;
+
+    const allWarnPatterns = {
+      counterexample_scope_mismatch: { status: 'warn', score: 0.5, rationale: 'warn' },
+      base_rate_neglect: { status: 'warn', score: 0.5, rationale: 'warn' },
+      layer_conflation: { status: 'warn', score: 0.5, rationale: 'warn' },
+      conclusion_lock_cherry_picking: { status: 'warn', score: 0.5, rationale: 'warn' },
+      local_patch_without_model_update: { status: 'warn', score: 0.5, rationale: 'warn' },
+    } as const;
+
+    const singleFailPatterns = {
+      ...allPassPatterns,
+      counterexample_scope_mismatch: { status: 'fail', score: 0, rationale: 'anecdotal refutation' },
+    } as const;
+
+    const allFailPatterns = {
+      counterexample_scope_mismatch: { status: 'fail', score: 0, rationale: 'fail' },
+      base_rate_neglect: { status: 'fail', score: 0, rationale: 'fail' },
+      layer_conflation: { status: 'fail', score: 0, rationale: 'fail' },
+      conclusion_lock_cherry_picking: { status: 'fail', score: 0, rationale: 'fail' },
+      local_patch_without_model_update: { status: 'fail', score: 0, rationale: 'fail' },
+    } as const;
+
+    // Valid boundary cases
+    expect(parseGradedDistortionJudgeOutput({ overall_status: 'pass', overall_score: 1, patterns: allPassPatterns }).overall_score).toBe(1);
+    expect(parseGradedDistortionJudgeOutput({ overall_status: 'warn', overall_score: 0.5, patterns: allWarnPatterns }).overall_score).toBe(0.5);
+    expect(parseGradedDistortionJudgeOutput({ overall_status: 'warn', overall_score: 0.875, patterns: singleWarnPatterns }).overall_score).toBe(0.875);
+    expect(parseGradedDistortionJudgeOutput({ overall_status: 'fail', overall_score: 0.8, patterns: singleFailPatterns }).overall_score).toBe(0.8);
+    expect(parseGradedDistortionJudgeOutput({ overall_status: 'fail', overall_score: 0, patterns: allFailPatterns }).overall_score).toBe(0);
+
+    // Regression (RUNNER_VERIFY): warn with score=1 (both with all-pass and with warn pattern) must throw
+    expect(() =>
+      parseGradedDistortionJudgeOutput({ overall_status: 'warn', overall_score: 1, patterns: allPassPatterns }),
+    ).toThrow('offline_graded_judge_overall_polarity_mismatch');
+    expect(() =>
+      parseGradedDistortionJudgeOutput({ overall_status: 'warn', overall_score: 1, patterns: singleWarnPatterns }),
+    ).toThrow('offline_graded_judge_overall_polarity_mismatch');
+    // Rounding edge: 0.99999 rounds to 1 via round4(), must not slip through as warn=1
+    expect(() =>
+      parseGradedDistortionJudgeOutput({ overall_status: 'warn', overall_score: 0.99999, patterns: singleWarnPatterns }),
+    ).toThrow('offline_graded_judge_overall_polarity_mismatch');
+
+    // Warn with score=0 or <0.5 must throw
+    expect(() =>
+      parseGradedDistortionJudgeOutput({ overall_status: 'warn', overall_score: 0, patterns: singleWarnPatterns }),
+    ).toThrow('offline_graded_judge_overall_polarity_mismatch');
+    expect(() =>
+      parseGradedDistortionJudgeOutput({ overall_status: 'warn', overall_score: 0.49, patterns: singleWarnPatterns }),
+    ).toThrow('offline_graded_judge_overall_polarity_mismatch');
+
+    // Pass with score < 1 (including 0.99999 and 0) or with warn/fail patterns must throw
+    expect(() =>
+      parseGradedDistortionJudgeOutput({ overall_status: 'pass', overall_score: 0.99999, patterns: allPassPatterns }),
+    ).toThrow('offline_graded_judge_overall_polarity_mismatch');
+    expect(() =>
+      parseGradedDistortionJudgeOutput({ overall_status: 'pass', overall_score: 0, patterns: allPassPatterns }),
+    ).toThrow('offline_graded_judge_overall_polarity_mismatch');
+    expect(() =>
+      parseGradedDistortionJudgeOutput({ overall_status: 'pass', overall_score: 1, patterns: singleWarnPatterns }),
+    ).toThrow('offline_graded_judge_overall_polarity_mismatch');
+    expect(() =>
+      parseGradedDistortionJudgeOutput({ overall_status: 'pass', overall_score: 1, patterns: singleFailPatterns }),
+    ).toThrow('offline_graded_judge_overall_polarity_mismatch');
+
+    // Fail with score=1, score rounding to 1, or with no fail patterns must throw
+    expect(() =>
+      parseGradedDistortionJudgeOutput({ overall_status: 'fail', overall_score: 1, patterns: singleFailPatterns }),
+    ).toThrow('offline_graded_judge_overall_polarity_mismatch');
+    expect(() =>
+      parseGradedDistortionJudgeOutput({ overall_status: 'fail', overall_score: 0.99999, patterns: singleFailPatterns }),
+    ).toThrow('offline_graded_judge_overall_polarity_mismatch');
+    expect(() =>
+      parseGradedDistortionJudgeOutput({ overall_status: 'fail', overall_score: 0, patterns: allPassPatterns }),
+    ).toThrow('offline_graded_judge_overall_polarity_mismatch');
+    expect(() =>
+      parseGradedDistortionJudgeOutput({ overall_status: 'fail', overall_score: 0.5, patterns: singleWarnPatterns }),
+    ).toThrow('offline_graded_judge_overall_polarity_mismatch');
+
+    // Warn cannot mask a failing pattern
+    expect(() =>
+      parseGradedDistortionJudgeOutput({ overall_status: 'warn', overall_score: 0.8, patterns: singleFailPatterns }),
+    ).toThrow('offline_graded_judge_overall_polarity_mismatch');
   });
 });
 
