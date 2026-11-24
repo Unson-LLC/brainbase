@@ -23,6 +23,7 @@ import {
   type JudgmentAutonomyResolver
 } from './judgment-autonomy.js';
 import {
+  normalizeJudgmentEventProjectCode,
   toKnowledgeEventFromJudgmentEpisode,
   type JudgmentKnowledgeEvent
 } from './judgment-event-adapter.js';
@@ -2225,7 +2226,8 @@ async function finalizeEpisode(
         sessionRef,
         turnId,
         existing,
-        answer
+        answer,
+        projectCode
       );
       return {
         output: existing,
@@ -2317,7 +2319,7 @@ async function finalizeEpisode(
       final_digest: sha256(canonicalJson(finalWithoutDigest))
     };
     writeImmutableJson(paths.final, final as unknown as Record<string, unknown>);
-    await enqueueFinalizedKnowledgeEvent(knowledgeEventSink, sessionRef, turnId, final, answer);
+    await enqueueFinalizedKnowledgeEvent(knowledgeEventSink, sessionRef, turnId, final, answer, projectCode);
     return {
       output: final,
       wmCandidate: {
@@ -2348,9 +2350,15 @@ async function enqueueFinalizedKnowledgeEvent(
   sessionRef: string,
   turnId: string,
   final: JudgmentFinalReceipt,
-  answer: string
+  answer: string,
+  projectCode?: string
 ): Promise<JudgmentKnowledgeEvent | null> {
   if (!sink) return null;
+  const hasExplicitProjectCode = typeof projectCode === 'string' && projectCode.trim().length > 0;
+  const normalizedProjectCode = hasExplicitProjectCode
+    ? normalizeJudgmentEventProjectCode(projectCode)
+    : undefined;
+  if (hasExplicitProjectCode && !normalizedProjectCode) return null;
   const event = toKnowledgeEventFromJudgmentEpisode({
     episode_id: `${sessionRef}:${turnId}`,
     session_id: sessionRef,
@@ -2358,7 +2366,8 @@ async function enqueueFinalizedKnowledgeEvent(
     finalized_at: final.finalized_at,
     answer_digest: final.answer_digest,
     completion_status: 'complete',
-    final_answer: answer
+    final_answer: answer,
+    ...(normalizedProjectCode ? { project_code: normalizedProjectCode } : {})
   });
   if (event) await sink.enqueue(event);
   return event;
