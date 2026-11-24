@@ -77,6 +77,15 @@ function isPlainObject(value: unknown): value is JsonObject {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+function setOwnProperty(target: JsonObject, key: string, value: unknown): void {
+  Object.defineProperty(target, key, {
+    value,
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
+}
+
 function appendDescription(existing: unknown, addition: string): string {
   const base = typeof existing === 'string' ? existing.trim() : '';
   if (!base) return addition;
@@ -248,9 +257,13 @@ function mergeObjectSchemas(branches: readonly JsonObject[], mode: 'union' | 'in
   }
 
   for (const [key, list] of propertyBranches.entries()) {
-    properties[key] = list.length === 1
-      ? structuredClone(list[0])
-      : mergeNormalizedSchemas(list, mode).schema;
+    setOwnProperty(
+      properties,
+      key,
+      list.length === 1
+        ? structuredClone(list[0])
+        : mergeNormalizedSchemas(list, mode).schema,
+    );
   }
 
   const branchRequiredLists = branches.map((branch) =>
@@ -336,7 +349,7 @@ function normalizeSchemaNode(
       if (isPlainObject(working.properties)) {
         const normalizedOuterProps: JsonObject = {};
         for (const [k, v] of Object.entries(working.properties)) {
-          normalizedOuterProps[k] = normalizeSchemaNode(v, root, seenRefs, false);
+          setOwnProperty(normalizedOuterProps, k, normalizeSchemaNode(v, root, seenRefs, false));
         }
         outerCandidate.properties = normalizedOuterProps;
       }
@@ -506,7 +519,7 @@ function normalizeSchemaNode(
     if (isPlainObject(working.properties)) {
       const normalizedProperties: JsonObject = {};
       for (const [key, child] of Object.entries(working.properties)) {
-        normalizedProperties[key] = normalizeSchemaNode(child, root, seenRefs, false);
+        setOwnProperty(normalizedProperties, key, normalizeSchemaNode(child, root, seenRefs, false));
       }
       working.properties = normalizedProperties;
     } else if (isRoot) {

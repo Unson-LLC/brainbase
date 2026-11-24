@@ -394,6 +394,109 @@ describe('MCP tool inputSchema cross-client portability contract (Gemini / OpenA
     ]);
   });
 
+  it('preserves own "__proto__" properties and required entries across root, nested, combinator merge, and outer-properties paths without prototype mutation', () => {
+    const schema = JSON.parse(`{
+      "type": "object",
+      "required": ["__proto__", "nested", "merged_union", "outer_with_combinator"],
+      "properties": {
+        "__proto__": { "type": ["string", "null"], "description": "Literal __proto__ key." },
+        "nested": {
+          "type": "object",
+          "required": ["__proto__"],
+          "properties": {
+            "__proto__": { "const": "nested-value" }
+          }
+        },
+        "merged_union": {
+          "oneOf": [
+            {
+              "type": "object",
+              "required": ["__proto__", "a"],
+              "properties": {
+                "__proto__": { "type": "string", "enum": ["alpha"] },
+                "a": { "type": "string" }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["__proto__", "b"],
+              "properties": {
+                "__proto__": { "type": "string", "enum": ["beta"] },
+                "b": { "type": "integer" }
+              }
+            }
+          ]
+        },
+        "outer_with_combinator": {
+          "type": "object",
+          "required": ["__proto__"],
+          "properties": {
+            "__proto__": { "type": "string", "minLength": 1 }
+          },
+          "allOf": [
+            {
+              "type": "object",
+              "required": ["extra"],
+              "properties": {
+                "extra": { "type": "boolean" }
+              }
+            }
+          ]
+        }
+      }
+    }`) as Tool['inputSchema'];
+
+    const normalized = normalizeMcpToolInputSchemaForPortability(schema);
+    expect(validateMcpToolInputSchemaPortability(normalized, 'proto_tool')).toEqual([]);
+
+    const rootProps = normalized.properties as Record<string, Record<string, unknown>>;
+    expect(Object.getPrototypeOf(rootProps)).toBe(Object.prototype);
+    expect(Object.hasOwn(rootProps, '__proto__')).toBe(true);
+    expect(Object.getOwnPropertyDescriptor(rootProps, '__proto__')?.value).toEqual({
+      type: 'string',
+      nullable: true,
+      description: 'Literal __proto__ key. null is also accepted.',
+    });
+    expect(normalized.required).toContain('__proto__');
+
+    const nested = rootProps.nested;
+    const nestedProps = nested.properties as Record<string, Record<string, unknown>>;
+    expect(Object.getPrototypeOf(nestedProps)).toBe(Object.prototype);
+    expect(Object.hasOwn(nestedProps, '__proto__')).toBe(true);
+    expect(Object.getOwnPropertyDescriptor(nestedProps, '__proto__')?.value).toEqual({
+      type: 'string',
+      enum: ['nested-value'],
+    });
+    expect(nested.required).toEqual(['__proto__']);
+
+    const mergedUnion = rootProps.merged_union;
+    const mergedUnionProps = mergedUnion.properties as Record<string, Record<string, unknown>>;
+    expect(Object.getPrototypeOf(mergedUnionProps)).toBe(Object.prototype);
+    expect(Object.hasOwn(mergedUnionProps, '__proto__')).toBe(true);
+    expect(Object.getOwnPropertyDescriptor(mergedUnionProps, '__proto__')?.value).toEqual({
+      type: 'string',
+      enum: ['alpha', 'beta'],
+    });
+    expect(mergedUnion.required).toEqual(['__proto__']);
+
+    const outerWithCombinator = rootProps.outer_with_combinator;
+    const outerProps = outerWithCombinator.properties as Record<string, Record<string, unknown>>;
+    expect(Object.getPrototypeOf(outerProps)).toBe(Object.prototype);
+    expect(Object.hasOwn(outerProps, '__proto__')).toBe(true);
+    expect(Object.getOwnPropertyDescriptor(outerProps, '__proto__')?.value).toEqual({
+      type: 'string',
+      minLength: 1,
+    });
+    expect(outerWithCombinator.required).toEqual(['__proto__', 'extra']);
+
+    // Idempotent on second pass and preserves own "__proto__" keys through structuredClone.
+    const secondPass = normalizeMcpToolInputSchemaForPortability(normalized);
+    expect(validateMcpToolInputSchemaPortability(secondPass, 'proto_tool')).toEqual([]);
+    expect(Object.hasOwn(secondPass.properties as object, '__proto__')).toBe(true);
+    expect(secondPass.required).toContain('__proto__');
+    expect(JSON.stringify(secondPass)).toBe(JSON.stringify(normalized));
+  });
+
   it('publishes ./mcp-tool-schema-portability with all 11 exported symbols (8 runtime functions + 3 types) matching dist output', async () => {
     const manifest = JSON.parse(await readFile(path.join(process.cwd(), 'package.json'), 'utf8'));
     expect(manifest.exports['./mcp-tool-schema-portability']).toEqual({
