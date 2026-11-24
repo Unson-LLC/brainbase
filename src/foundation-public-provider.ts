@@ -142,7 +142,7 @@ export const foundationPublicToolDefinitions = [
     properties: { reference: { type: 'object', required: ['kind', 'id', 'revision', 'digest', 'scope', 'valid_from'], additionalProperties: false,
       properties: { kind: { type: 'string', enum: ['objective', 'variable', 'model', 'constraint', 'philosophy'] }, id: { type: 'string' }, revision: { type: 'string' }, digest: { type: 'string' }, scope: { type: 'object', required: ['type', 'id'], additionalProperties: false, properties: { type: { type: 'string', enum: ['personal', 'project', 'organization'] }, id: { type: 'string' } } }, valid_from: { type: 'string' }, valid_to: { type: 'string', description: 'Optional RFC 3339 end of validity window. Omit when open-ended.' } } }, phase: { type: 'string', enum: ['read', 'historical_read'] } }
   } },
-  { name: 'foundation_validate_problem', description: 'Validate a complete judgment snapshot and canonical observation measurement conditions. Grants no execution permission.', inputSchema: { type: 'object', required: ['snapshot'], properties: { snapshot: { type: 'object' } }, additionalProperties: false } }
+  { name: 'foundation_validate_problem', description: 'Validate a complete judgment snapshot and canonical observation measurement conditions. Grants no execution permission.', inputSchema: { type: 'object', required: ['snapshot'], properties: { snapshot: { type: 'object', additionalProperties: true } }, additionalProperties: false } }
 ] as const;
 
 export async function callFoundationPublicTool(name: string, args: unknown, connection?: FoundationPublicConnection): Promise<unknown> {

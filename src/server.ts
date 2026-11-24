@@ -9,8 +9,9 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema, type Tool } from '@modelcontextprotocol/sdk/types.js';
 import {
-  normalizeMcpToolForPortability,
-  normalizeMcpToolInputSchemaForPortability
+  applyMcpToolSchemaProfile,
+  normalizeMcpToolInputSchemaForPortability,
+  type McpToolSchemaProfile
 } from './mcp-tool-schema-portability.js';
 
 export { normalizeMcpToolInputSchemaForPortability };
@@ -272,12 +273,12 @@ export const toolDefinitions = [
             source: { type: 'string', description: 'Optional caller source label or serialized pointer.' },
             source_pointer: { type: 'string', description: 'Optional source pointer URI or identifier.' },
             parent_episode_id: { type: 'string', description: 'Optional parent episode ID. Omit when there is no parent episode.' },
-            permission_snapshot: { type: 'object' },
+            permission_snapshot: { type: 'object', additionalProperties: true },
             sensitivity: { type: 'string', minLength: 1 },
             kind: { type: 'string', minLength: 1 },
             type: { type: 'string', minLength: 1 },
             tags: { type: 'array', items: { type: 'string', minLength: 1 } },
-            metadata: { type: 'object' }
+            metadata: { type: 'object', additionalProperties: true }
           }
         }
       }
@@ -345,10 +346,10 @@ export const toolDefinitions = [
       properties: {
         dataDir: { type: 'string' }, runId: { type: 'string', description: 'runId returned by brainbase_onboarding_start.' },
         source: { type: 'object', required: ['sourceId', 'evidencePointer', 'contentHash', 'permissionSnapshot', 'collectionStatus'], additionalProperties: false, properties: {
-          sourceId: { type: 'string' }, evidencePointer: { type: 'string' }, contentHash: { type: 'string' }, permissionSnapshot: { type: 'object' }, collectionStatus: { type: 'string', enum: ['collected'] }
+          sourceId: { type: 'string' }, evidencePointer: { type: 'string' }, contentHash: { type: 'string' }, permissionSnapshot: { type: 'object', additionalProperties: true }, collectionStatus: { type: 'string', enum: ['collected'] }
         } },
         candidates: { type: 'array', maxItems: 50, items: { type: 'object', required: ['kind', 'payload', 'observationClass', 'evidenceId'], additionalProperties: false, properties: {
-          kind: { type: 'string' }, payload: { type: 'object' }, observationClass: { type: 'string', enum: ['observed', 'inferred'] }, evidenceId: { type: 'string' }
+          kind: { type: 'string' }, payload: { type: 'object', additionalProperties: true }, observationClass: { type: 'string', enum: ['observed', 'inferred'] }, evidenceId: { type: 'string' }
         } } }
       }
     }
@@ -373,7 +374,7 @@ export const toolDefinitions = [
               candidateId: { type: 'string', minLength: 1, maxLength: 200 },
               decision: { type: 'string', enum: ['approve', 'edit', 'reject', 'merge'], description: 'Review decision. Supply payload only for edit and mergeIntoCandidateId only for merge.' },
               reason: { type: 'string', minLength: 1, maxLength: 500 },
-              payload: { type: 'object', description: 'Required only when decision is edit; omit for approve, reject, or merge.' },
+              payload: { type: 'object', additionalProperties: true, description: 'Required only when decision is edit; omit for approve, reject, or merge.' },
               mergeIntoCandidateId: { type: 'string', minLength: 1, maxLength: 200, description: 'Required only when decision is merge; omit for approve, edit, or reject.' }
             }
           }
@@ -961,7 +962,8 @@ function onboardingGuide(state: ConnectedOnboardingRun['state']): { current: str
   return guides[state];
 }
 
-export function createServer(options: { foundation?: FoundationPublicConnection } = {}): Server {
+export function createServer(options: { foundation?: FoundationPublicConnection; schemaProfile?: McpToolSchemaProfile } = {}): Server {
+  const schemaProfile = options.schemaProfile ?? 'gemini';
   const server = new Server(
     {
       name: 'brainbase-mcp',
@@ -976,7 +978,7 @@ export function createServer(options: { foundation?: FoundationPublicConnection 
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: configuredToolDefinitions(options.foundation).map((tool) =>
-      normalizeMcpToolForPortability(tool as unknown as Tool)
+      applyMcpToolSchemaProfile(tool as unknown as Tool, schemaProfile)
     )
   }));
 

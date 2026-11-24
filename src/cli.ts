@@ -61,7 +61,15 @@ import {
   type ProjectRegistrationPlan
 } from './projects.js';
 import { renderGuidedFirstRun, type GuidedTarget } from './guided-onboarding.js';
-import { blockedJudgmentOutput, processJudgmentHook, type JudgmentAutonomyMode, type JudgmentHookPayload } from './judgment-host.js';
+import {
+  blockedJudgmentOutput,
+  processJudgmentHook,
+  resolveReasoningGateMode,
+  type JudgmentAutonomyMode,
+  type JudgmentHookPayload,
+  type ReasoningGateHostConfig,
+  type ReasoningGateMode
+} from './judgment-host.js';
 import { applyCanonicalWrites, buildCanonicalEdge } from './canonical-edge-builder.js';
 import { defaultJudgmentJournalRoot } from './judgment-value-proof-review.js';
 import { createWorldExtension, readWorldVocabulary } from './world-extension.js';
@@ -224,12 +232,32 @@ function judgmentAutonomyOptions(parsed: ParsedArgs): {
   };
 }
 
+function judgmentReasoningGateOptions(parsed: ParsedArgs): ReasoningGateHostConfig {
+  const rawMode = first(parsed, 'reasoning-gate-mode')?.trim();
+  const rawProjects = parsed.values.get('reasoning-gate-projects')
+    ?? parsed.values.get('reasoning-gate-project');
+  const projects = rawProjects
+    ? [...new Set(rawProjects.flatMap((value) => value.split(',')).map((value) => value.trim()).filter(Boolean))]
+    : undefined;
+  const resolvedMode = rawMode !== undefined
+    ? resolveReasoningGateMode({ reasoningGateMode: rawMode as ReasoningGateMode }, {})
+    : undefined;
+  return {
+    ...(resolvedMode !== undefined ? { reasoningGateMode: resolvedMode } : {}),
+    ...(projects && projects.length > 0 ? { reasoningGateCanaryProjects: projects } : {})
+  };
+}
+
 async function judgmentHook(parsed: ParsedArgs, io: CliIo): Promise<number> {
   let payload: JudgmentHookPayload = {};
   try {
     const input = await readHookStdin(io.stdin ?? process.stdin);
     payload = JSON.parse(input || '{}') as JudgmentHookPayload;
-    write(io, `${JSON.stringify(await processJudgmentHook(payload, judgmentAutonomyOptions(parsed)))}\n`);
+    const hookOptions = {
+      ...judgmentAutonomyOptions(parsed),
+      ...judgmentReasoningGateOptions(parsed)
+    };
+    write(io, `${JSON.stringify(await processJudgmentHook(payload, hookOptions))}\n`);
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     const eventName = payload.hook_event_name ?? payload.hookEventName;
@@ -248,6 +276,7 @@ async function judgmentInstall(parsed: ParsedArgs, io: CliIo): Promise<number> {
   if (target !== 'codex') throw new Error('judgment:install requires --target codex|claude-code');
   const cliPath = fileURLToPath(new URL('./cli.js', import.meta.url));
   const autonomy = judgmentAutonomyOptions(parsed);
+  const reasoningGate = judgmentReasoningGateOptions(parsed);
   const hookArguments = [
     process.execPath,
     cliPath,
@@ -255,6 +284,12 @@ async function judgmentInstall(parsed: ParsedArgs, io: CliIo): Promise<number> {
     ...(autonomy.autonomyMode ? ['--autonomy-mode', autonomy.autonomyMode] : []),
     ...(autonomy.autonomyCanaryProjects?.[0]
       ? ['--autonomy-project', autonomy.autonomyCanaryProjects[0]]
+      : []),
+    ...(reasoningGate.reasoningGateMode
+      ? ['--reasoning-gate-mode', reasoningGate.reasoningGateMode]
+      : []),
+    ...(reasoningGate.reasoningGateCanaryProjects?.length
+      ? ['--reasoning-gate-projects', reasoningGate.reasoningGateCanaryProjects.join(',')]
       : [])
   ];
   const hook = {
@@ -1958,10 +1993,10 @@ function usage(): string {
   brainbase memory:list [--dir path] [--format text|json]
   brainbase memory:register --id id [--id id...] [--dir path] [--write] [--format text|json]
   brainbase ontology:migrate [--dir path] [--write --expected-input-digest digest]
-  brainbase judgment:install --target codex [--autonomy-mode off|canary|on] [--autonomy-project code] [--dry-run] [--output path]
+  brainbase judgment:install --target codex [--autonomy-mode off|canary|on] [--autonomy-project code] [--reasoning-gate-mode off|compact_4block_v3|compact_4block_with_wm] [--reasoning-gate-projects code,code] [--dry-run] [--output path]
   brainbase judgment:install --target claude-code --origin url [--server url] [--project code] [--repositories name,name] [--settings path] [--config path] [--dry-run] [--remove]
   brainbase judgment:claude-code-hook [--config path]
-  brainbase judgment:hook [--autonomy-mode off|canary|on] [--autonomy-project code]
+  brainbase judgment:hook [--autonomy-mode off|canary|on] [--autonomy-project code] [--reasoning-gate-mode off|compact_4block_v3|compact_4block_with_wm] [--reasoning-gate-projects code,code]
   brainbase login --server url [--credentials path]
   brainbase login:status [--credentials path]
   brainbase logout [--credentials path]
