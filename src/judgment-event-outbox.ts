@@ -487,12 +487,15 @@ function deliverCore(options: Required<Pick<JudgmentOutboxDeliveryOptions, 'path
         continue;
       }
       const { effective: code, conflict: projectCodeConflict, invalid: projectCodeInvalid } = eventProjectCodes(queued.event);
-      if (options.allowedProjectCodes !== undefined) {
-        if (projectCodeInvalid || projectCodeConflict || !isProjectCodeAllowed(code, options.allowedProjectCodes)) {
-          deferred += 1;
-          outOfScope += 1;
-          continue;
-        }
+      if (projectCodeInvalid || projectCodeConflict) {
+        deferred += 1;
+        outOfScope += 1;
+        continue;
+      }
+      if (options.allowedProjectCodes !== undefined && !isProjectCodeAllowed(code, options.allowedProjectCodes)) {
+        deferred += 1;
+        outOfScope += 1;
+        continue;
       }
       processed += 1;
       const eventId = queued.event.event_id;

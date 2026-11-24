@@ -549,4 +549,74 @@ describe('portable judgment knowledge event outbox', () => {
       last_error_code: 'knowledge_event_delivery_ack_identity_mismatch'
     });
   });
+
+  it('rejects invalid or conflicting project_code even when allowedProjectCodes is omitted', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'brainbase-judgment-outbox-'));
+    roots.push(root);
+    const paths = pathsFor(root);
+
+    const numericScopeEvent = {
+      ...event('event-invalid-num', 'itsaplan'),
+      applicability_scope: {
+        scope: 'judgment_episode',
+        project_code: 123
+      } as unknown as JudgmentKnowledgeEvent['applicability_scope']
+    } as JudgmentKnowledgeEvent;
+    const objectScopeEvent = {
+      ...event('event-invalid-obj', 'itsaplan'),
+      applicability_scope: {
+        scope: 'judgment_episode',
+        project_code: { code: 'itsaplan' }
+      } as unknown as JudgmentKnowledgeEvent['applicability_scope']
+    } as JudgmentKnowledgeEvent;
+    const paddedScopeEvent = {
+      ...event('event-invalid-pad', ' itsaplan ')
+    } as JudgmentKnowledgeEvent;
+    const badScopeContainerEvent = {
+      ...event('event-invalid-scope', 'itsaplan'),
+      applicability_scope: 'not-an-object' as unknown as JudgmentKnowledgeEvent['applicability_scope']
+    } as JudgmentKnowledgeEvent;
+    const conflictingEvent = {
+      ...event('event-conflict', 'proj-a'),
+      project_code: 'proj-b'
+    } as JudgmentKnowledgeEvent;
+    const validEvent = event('event-valid', 'itsaplan');
+
+    enqueueJudgmentKnowledgeEvent(numericScopeEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(objectScopeEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(paddedScopeEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(badScopeContainerEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(conflictingEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(validEvent, { directory: paths.outboxDir });
+
+    const posted: string[] = [];
+    // Notice allowedProjectCodes is intentionally omitted!
+    const result = await deliverJudgmentKnowledgeEventOutbox({
+      paths,
+      delivery: {
+        post: async (candidate) => {
+          posted.push(candidate.event_id);
+          return {
+            event_id: candidate.event_id,
+            candidate_id: 'cand-valid-1',
+            http_status: 202,
+            received_at: '2026-11-25T00:00:00.500Z'
+          };
+        },
+        readback: async ({ event: candidate, post }) => readback(candidate.event_id, post.candidate_id)
+      },
+      now: () => new Date('2026-11-25T00:00:01.000Z')
+    });
+
+    expect(posted).toEqual(['event-valid']);
+    expect(result).toMatchObject({
+      status: 'processed',
+      delivered: 1,
+      failed: 0,
+      dead_lettered: 0,
+      deferred: 5,
+      out_of_scope: 5,
+      pending: 5
+    });
+  });
 });

@@ -27,14 +27,15 @@ import {
   closeSync,
   constants as fsConstants,
   fstatSync,
+  linkSync,
   lstatSync,
   mkdirSync,
   openSync,
   readFileSync,
+  readlinkSync,
   readSync,
   realpathSync,
   renameSync,
-  statSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -129,6 +130,8 @@ export interface TranscriptReadOptions {
 }
 
 const TURN_SCHEMA = 'brainbase-antigravity-judgment-turn-v1';
+const TURN_LOCK_SCHEMA = 'brainbase-antigravity-turn-lock-v1';
+const PROJECT_CODE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/u;
 const TRANSCRIPT_TAIL_MAX_BYTES = 256 * 1024;
 const MAX_PENDING_MESSAGES = 8;
 const DEFAULT_STALE_TURN_MS = 30 * 60 * 1000;
@@ -136,10 +139,12 @@ const MAX_CONFIG_TIMEOUT_MS = 60_000;
 const TURN_STATE_LOCK_STALE_MS = 10_000;
 const TURN_STATE_LOCK_TIMEOUT_MS = 2_000;
 const TURN_STATE_LOCK_RETRY_MS = 10;
+const MAX_LOCK_FILE_BYTES = 4096;
 
 interface PendingContextMessage {
   turn_id: string;
   turn_generation?: number;
+  project_code?: string;
   additional_context?: string;
   system_message?: string;
   created_at: string;
@@ -161,6 +166,7 @@ interface AntigravityTurnState {
   matched_cwd_prefix: string | null;
   destination: string;
   login: string | null;
+  effective_project_code: string | null;
   auth_fingerprint: string | null;
   pending_messages: PendingContextMessage[];
 }
@@ -507,11 +513,82 @@ function sameDestination(state: AntigravityTurnState, context: Context): boolean
   return state.destination === destinationOf(context);
 }
 
+function normalizeValidProjectCode(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  return PROJECT_CODE_PATTERN.test(value) ? value : null;
+}
+
+function extractHostProjectCode(
+  envelope: Record<string, unknown>,
+  output: Record<string, unknown>,
+): { kind: 'missing' } | { kind: 'valid'; value: string } | { kind: 'invalid' } {
+  const specific = output.hookSpecificOutput
+    && typeof output.hookSpecificOutput === 'object'
+    && !Array.isArray(output.hookSpecificOutput)
+    ? output.hookSpecificOutput as Record<string, unknown>
+    : null;
+  const binding = output.binding
+    && typeof output.binding === 'object'
+    && !Array.isArray(output.binding)
+    ? output.binding as Record<string, unknown>
+    : null;
+  const candidates = [
+    envelope.project_code,
+    envelope.projectCode,
+    output.project_code,
+    output.projectCode,
+    specific?.project_code,
+    specific?.projectCode,
+    binding?.project_code,
+    binding?.projectCode,
+  ].filter((value) => value !== undefined);
+  if (candidates.length === 0) return { kind: 'missing' };
+  let resolved: string | null = null;
+  for (const raw of candidates) {
+    const valid = normalizeValidProjectCode(raw);
+    if (!valid) return { kind: 'invalid' };
+    if (resolved !== null && resolved !== valid) return { kind: 'invalid' };
+    resolved = valid;
+  }
+  return resolved ? { kind: 'valid', value: resolved } : { kind: 'missing' };
+}
+
+function resolveEffectiveProjectCode(
+  envelope: Record<string, unknown>,
+  output: Record<string, unknown>,
+  configProjectCode: string | undefined,
+): string | null {
+  const hostResult = extractHostProjectCode(envelope, output);
+  if (hostResult.kind === 'invalid') return null;
+  const configValid = configProjectCode !== undefined ? normalizeValidProjectCode(configProjectCode) : null;
+  if (configProjectCode !== undefined && configValid === null) return null;
+  if (hostResult.kind === 'valid' && configValid !== null && hostResult.value !== configValid) {
+    return null;
+  }
+  return hostResult.kind === 'valid' ? hostResult.value : configValid;
+}
+
+function derivePrincipalIdentity(
+  obtained: string | PersonToken,
+): { token: string; loginId: string | null } {
+  const token = typeof obtained === 'string' ? obtained : obtained.token;
+  if (typeof token !== 'string' || !token.trim()) {
+    return { token: '', loginId: null };
+  }
+  const rawLoginId = typeof obtained === 'string' ? null : obtained.loginId;
+  if (typeof rawLoginId === 'string' && rawLoginId.trim()) {
+    return { token, loginId: `login:${rawLoginId.trim()}` };
+  }
+  return { token, loginId: `token-sha256:${sha256(token)}` };
+}
+
 function computeAuthFingerprint(
   context: Context,
   nonGitScopeRoot: string | null,
   loginId: string | null,
+  effectiveProjectCode: string | null,
 ): string | null {
+  if (typeof loginId !== 'string' || !loginId) return null;
   const endpoint = resolvedEndpointString(context.config);
   if (!endpoint) return null;
   if (!isAuditedAntigravityScope(context.scope, context.config)
@@ -524,6 +601,7 @@ function computeAuthFingerprint(
     endpoint,
     login_server: context.config.login_server,
     project_code: context.config.project_code ?? null,
+    effective_project_code: effectiveProjectCode,
     allow_non_git: context.config.allow_non_git === true,
     cwd_prefixes: context.config.cwd_prefixes ?? null,
     repositories: context.config.repositories ?? null,
@@ -540,6 +618,9 @@ function isTurnStaticAuthorized(state: AntigravityTurnState, context: Context): 
   if (!state.turn_active || state.start_status !== 'started' || state.turn_generation <= 0) {
     return false;
   }
+  if (typeof state.login !== 'string' || !state.login) {
+    return false;
+  }
   if (typeof state.auth_fingerprint !== 'string' || !state.auth_fingerprint) {
     return false;
   }
@@ -550,16 +631,51 @@ function isTurnStaticAuthorized(state: AntigravityTurnState, context: Context): 
   if (!sameTurnScope(state, context.scope) || !sameDestination(state, context)) {
     return false;
   }
-  const expectedFingerprint = computeAuthFingerprint(context, state.non_git_scope_root, state.login);
+  const expectedFingerprint = computeAuthFingerprint(
+    context,
+    state.non_git_scope_root,
+    state.login,
+    state.effective_project_code,
+  );
+  return expectedFingerprint !== null && expectedFingerprint === state.auth_fingerprint;
+}
+
+function canAuthorizePendingContext(
+  state: AntigravityTurnState,
+  context: Context,
+  currentLoginId: string | null,
+): boolean {
+  if (!isTurnStaticAuthorized(state, context)) return false;
+  if (typeof currentLoginId !== 'string' || !currentLoginId || state.login !== currentLoginId) {
+    return false;
+  }
+  const effectiveProjectCode = normalizeValidProjectCode(state.effective_project_code);
+  if (effectiveProjectCode === null) {
+    // Never allow null === null when effective project_code is unresolved.
+    return false;
+  }
+  if (context.config.project_code !== undefined) {
+    const configuredProjectCode = normalizeValidProjectCode(context.config.project_code);
+    if (configuredProjectCode === null || configuredProjectCode !== effectiveProjectCode) {
+      return false;
+    }
+  }
+  const expectedFingerprint = computeAuthFingerprint(
+    context,
+    state.non_git_scope_root,
+    currentLoginId,
+    effectiveProjectCode,
+  );
   return expectedFingerprint !== null && expectedFingerprint === state.auth_fingerprint;
 }
 
 async function resolveCurrentLoginId(
   context: Context,
-): Promise<{ ok: true; loginId: string | null } | { ok: false }> {
+): Promise<{ ok: true; loginId: string } | { ok: false }> {
   try {
     const obtained = await context.accessToken();
-    const loginId = typeof obtained === 'string' ? null : obtained.loginId;
+    const { loginId } = derivePrincipalIdentity(obtained);
+    if (loginId === null) return { ok: false };
     return { ok: true, loginId };
   } catch {
     return { ok: false };
@@ -651,6 +767,89 @@ function matchesConversationTranscriptStructure(
   return false;
 }
 
+interface TranscriptOpenTestHooks {
+  onBeforeOpen?: (canonicalPath: string) => void;
+  onAfterOpen?: (canonicalPath: string) => void;
+}
+
+function verifyNoSymlinkPathUnderRoot(
+  canonicalRoot: string,
+  canonicalTarget: string,
+): { ok: true; dev: bigint; ino: bigint } | { ok: false } {
+  try {
+    const rootStat = lstatSync(canonicalRoot);
+    if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) return { ok: false };
+    if (realpathSync(canonicalRoot) !== canonicalRoot) return { ok: false };
+    const rel = relative(canonicalRoot, canonicalTarget);
+    if (!rel || rel === '.' || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+      return { ok: false };
+    }
+    const segments = rel.split(sep);
+    let current = canonicalRoot;
+    for (let i = 0; i < segments.length - 1; i += 1) {
+      current = join(current, segments[i]);
+      const dirStat = lstatSync(current);
+      if (dirStat.isSymbolicLink() || !dirStat.isDirectory()) return { ok: false };
+    }
+    current = join(current, segments[segments.length - 1]);
+    const fileStat = lstatSync(current, { bigint: true });
+    if (fileStat.isSymbolicLink() || !fileStat.isFile()) return { ok: false };
+    return { ok: true, dev: fileStat.dev, ino: fileStat.ino };
+  } catch {
+    return { ok: false };
+  }
+}
+
+function verifyOpenedTranscriptFd(
+  fd: number,
+  canonicalPath: string,
+  options: TranscriptReadOptions,
+): { size: number } | null {
+  try {
+    const fdStat = fstatSync(fd, { bigint: true });
+    if (!fdStat.isFile()) return null;
+    const conversationId = options.conversationId.trim();
+    if (!isSafeConversationIdSegment(conversationId)) return null;
+    const postRoots = canonicalTranscriptRoots(options);
+    if (postRoots.length === 0) return null;
+
+    if (process.platform === 'linux') {
+      let procAvailable = false;
+      try {
+        procAvailable = lstatSync('/proc/self/fd').isDirectory();
+      } catch {
+        procAvailable = false;
+      }
+      if (procAvailable) {
+        const procFdPath = readlinkSync(`/proc/self/fd/${fd}`);
+        if (!procFdPath || procFdPath.endsWith(' (deleted)')) return null;
+        const matchedProcRoot = postRoots.find((root) => (
+          matchesConversationTranscriptStructure(root, procFdPath, conversationId)
+        ));
+        if (!matchedProcRoot) return null;
+        const procWalk = verifyNoSymlinkPathUnderRoot(matchedProcRoot, procFdPath);
+        if (!procWalk.ok || procWalk.dev !== fdStat.dev || procWalk.ino !== fdStat.ino) {
+          return null;
+        }
+      }
+    }
+
+    const postRealPath = realpathSync(canonicalPath);
+    if (postRealPath !== canonicalPath) return null;
+    const matchedRoot = postRoots.find((root) => (
+      matchesConversationTranscriptStructure(root, postRealPath, conversationId)
+    ));
+    if (!matchedRoot) return null;
+    const walk = verifyNoSymlinkPathUnderRoot(matchedRoot, postRealPath);
+    if (!walk.ok || walk.dev !== fdStat.dev || walk.ino !== fdStat.ino) {
+      return null;
+    }
+    return { size: Number(fdStat.size) };
+  } catch {
+    return null;
+  }
+}
+
 function resolveAuthorizedTranscriptPath(
   transcriptPath: unknown,
   options?: TranscriptReadOptions,
@@ -668,8 +867,10 @@ function resolveAuthorizedTranscriptPath(
     const canonicalPath = realpathSync(rawPath);
     const roots = canonicalTranscriptRoots(options!);
     if (roots.length === 0) return null;
-    const allowed = roots.some((root) => matchesConversationTranscriptStructure(root, canonicalPath, conversationId));
-    return allowed ? canonicalPath : null;
+    const matchedRoot = roots.find((root) => matchesConversationTranscriptStructure(root, canonicalPath, conversationId));
+    if (!matchedRoot) return null;
+    if (!verifyNoSymlinkPathUnderRoot(matchedRoot, canonicalPath).ok) return null;
+    return canonicalPath;
   } catch {
     return null;
   }
@@ -678,19 +879,22 @@ function resolveAuthorizedTranscriptPath(
 function readTranscriptTailEntries(
   transcriptPath: unknown,
   options?: TranscriptReadOptions,
+  testHooks?: TranscriptOpenTestHooks,
 ): TranscriptEntry[] {
   const canonicalPath = resolveAuthorizedTranscriptPath(transcriptPath, options);
-  if (!canonicalPath) return [];
+  if (!canonicalPath || !options) return [];
   let fd: number | undefined;
   try {
+    testHooks?.onBeforeOpen?.(canonicalPath);
     if (!lstatSync(canonicalPath).isFile()) return [];
     const openFlags = fsConstants.O_RDONLY
       | (fsConstants.O_NONBLOCK ?? 0)
       | (fsConstants.O_NOFOLLOW ?? 0);
     fd = openSync(canonicalPath, openFlags);
-    const stat = fstatSync(fd);
-    if (!stat.isFile()) return [];
-    const size = stat.size;
+    testHooks?.onAfterOpen?.(canonicalPath);
+    const verified = verifyOpenedTranscriptFd(fd, canonicalPath, options);
+    if (!verified) return [];
+    const size = verified.size;
     if (size <= 0) return [];
     const readSize = Math.min(size, TRANSCRIPT_TAIL_MAX_BYTES);
     const offset = size - readSize;
@@ -832,54 +1036,277 @@ function lockPathFor(env: NodeJS.ProcessEnv, key: string): string {
   return `${statePath(env, key)}.lock`;
 }
 
-async function withTurnStateLock<T>(
-  env: NodeJS.ProcessEnv,
-  key: string,
-  fn: () => T,
-): Promise<T> {
-  mkdirSync(turnDirectory(env), { recursive: true, mode: 0o700 });
-  const lockPath = lockPathFor(env, key);
-  const lockToken = `${process.pid}:${randomUUID()}`;
-  const deadline = Date.now() + TURN_STATE_LOCK_TIMEOUT_MS;
+interface TurnLockRecord {
+  schema: typeof TURN_LOCK_SCHEMA;
+  owner: string;
+  pid: number;
+  created_at: number;
+  expires_at: number;
+}
 
-  for (;;) {
-    try {
-      const fd = openSync(lockPath, fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY, 0o600);
-      try {
-        writeFileSync(fd, `${lockToken}\n`);
-      } finally {
-        closeSync(fd);
-      }
-      break;
-    } catch (error) {
-      const code = (error as { code?: unknown })?.code;
-      if (code !== 'EEXIST') throw error;
-      let stale = false;
-      try {
-        const stat = statSync(lockPath);
-        stale = (Date.now() - stat.mtimeMs) > TURN_STATE_LOCK_STALE_MS;
-      } catch (statError) {
-        if ((statError as { code?: unknown })?.code === 'ENOENT') continue;
-      }
-      if (stale) {
-        try { unlinkSync(lockPath); } catch {}
-        continue;
-      }
-      if (Date.now() >= deadline) {
-        throw new Error('antigravity_turn_state_lock_timeout');
-      }
-      await new Promise((resolveDelay) => setTimeout(resolveDelay, TURN_STATE_LOCK_RETRY_MS));
+type InspectedLockFile =
+  | { kind: 'missing' }
+  | { kind: 'non_regular' }
+  | {
+    kind: 'regular';
+    dev: bigint;
+    ino: bigint;
+    mtimeMs: number;
+    raw: string;
+    record: TurnLockRecord | null;
+  };
+
+interface TurnStateLockOptions {
+  staleMs?: number;
+  timeoutMs?: number;
+  now?: () => number;
+  onBeforeReapStale?: () => Promise<void> | void;
+  onBeforeRelease?: () => Promise<void> | void;
+}
+
+function serializeTurnLockRecord(record: TurnLockRecord): string {
+  return `${JSON.stringify(record)}\n`;
+}
+
+function parseTurnLockRecord(raw: string): TurnLockRecord | null {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    const record = parsed as Record<string, unknown>;
+    if (record.schema !== TURN_LOCK_SCHEMA) return null;
+    if (typeof record.owner !== 'string' || !record.owner) return null;
+    if (typeof record.pid !== 'number' || !Number.isSafeInteger(record.pid) || record.pid <= 0) return null;
+    if (typeof record.created_at !== 'number' || !Number.isFinite(record.created_at)) return null;
+    if (typeof record.expires_at !== 'number' || !Number.isFinite(record.expires_at)) return null;
+    return {
+      schema: TURN_LOCK_SCHEMA,
+      owner: record.owner,
+      pid: record.pid,
+      created_at: record.created_at,
+      expires_at: record.expires_at,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function createExclusiveLockFile(
+  targetPath: string,
+  content: string,
+): { acquired: true; dev: bigint; ino: bigint } | { acquired: false } {
+  const tempPath = `${targetPath}.${process.pid}.${randomUUID()}.tmp`;
+  let fd: number | undefined;
+  let dev = 0n;
+  let ino = 0n;
+  try {
+    fd = openSync(tempPath, fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY, 0o600);
+    writeFileSync(fd, content, 'utf8');
+    const stat = fstatSync(fd, { bigint: true });
+    dev = stat.dev;
+    ino = stat.ino;
+    closeSync(fd);
+    fd = undefined;
+    linkSync(tempPath, targetPath);
+    return { acquired: true, dev, ino };
+  } catch (error) {
+    if ((error as { code?: unknown })?.code === 'EEXIST') {
+      return { acquired: false };
     }
+    throw error;
+  } finally {
+    if (fd !== undefined) {
+      try { closeSync(fd); } catch {}
+    }
+    try { unlinkSync(tempPath); } catch {}
+  }
+}
+
+function inspectLockFile(targetPath: string): InspectedLockFile {
+  let fd: number | undefined;
+  try {
+    const openFlags = fsConstants.O_RDONLY
+      | (fsConstants.O_NONBLOCK ?? 0)
+      | (fsConstants.O_NOFOLLOW ?? 0);
+    fd = openSync(targetPath, openFlags);
+    const stat = fstatSync(fd, { bigint: true });
+    if (!stat.isFile()) return { kind: 'non_regular' };
+    const buffer = Buffer.allocUnsafe(MAX_LOCK_FILE_BYTES);
+    let offset = 0;
+    while (offset < MAX_LOCK_FILE_BYTES) {
+      const read = readSync(fd, buffer, offset, MAX_LOCK_FILE_BYTES - offset, offset);
+      if (read <= 0) break;
+      offset += read;
+    }
+    const raw = buffer.subarray(0, offset).toString('utf8');
+    return {
+      kind: 'regular',
+      dev: stat.dev,
+      ino: stat.ino,
+      mtimeMs: Number(stat.mtimeMs),
+      raw,
+      record: parseTurnLockRecord(raw),
+    };
+  } catch (error) {
+    const code = (error as { code?: unknown })?.code;
+    if (code === 'ENOENT') return { kind: 'missing' };
+    if (code === 'ELOOP' || code === 'EISDIR' || code === 'ENXIO') return { kind: 'non_regular' };
+    return { kind: 'non_regular' };
+  } finally {
+    if (fd !== undefined) {
+      try { closeSync(fd); } catch {}
+    }
+  }
+}
+
+function isLockRecordStale(
+  inspected: Extract<InspectedLockFile, { kind: 'regular' }>,
+  nowMs: number,
+  staleMs: number,
+): boolean {
+  if (inspected.record) {
+    return nowMs > inspected.record.expires_at || (nowMs - inspected.mtimeMs) > staleMs;
+  }
+  return (nowMs - inspected.mtimeMs) > staleMs;
+}
+
+function reapGuardPathFor(targetPath: string, dev: bigint, ino: bigint, raw: string): string {
+  const key = sha256(`${dev.toString()}:${ino.toString()}:${raw}`).slice(0, 24);
+  return `${targetPath}.reap-${key}`;
+}
+
+function removeObservedLockWithGuard(
+  targetPath: string,
+  expected: { dev: bigint; ino: bigint; raw: string },
+  params: { requireStale: boolean; now: () => number; staleMs: number },
+  depth = 0,
+): boolean {
+  const guardPath = reapGuardPathFor(targetPath, expected.dev, expected.ino, expected.raw);
+  const nowMs = params.now();
+  const guardExpiresAt = nowMs + params.staleMs;
+  const guardContent = serializeTurnLockRecord({
+    schema: TURN_LOCK_SCHEMA,
+    owner: `${process.pid}:${randomUUID()}`,
+    pid: process.pid,
+    created_at: nowMs,
+    expires_at: guardExpiresAt,
+  });
+
+  const guardAcquired = createExclusiveLockFile(guardPath, guardContent);
+  if (!guardAcquired.acquired) {
+    if (depth < 2) {
+      const existingGuard = inspectLockFile(guardPath);
+      if (existingGuard.kind === 'regular' && isLockRecordStale(existingGuard, params.now(), params.staleMs)) {
+        removeObservedLockWithGuard(guardPath, existingGuard, {
+          requireStale: true,
+          now: params.now,
+          staleMs: params.staleMs,
+        }, depth + 1);
+      }
+    }
+    return false;
   }
 
   try {
-    return fn();
+    const current = inspectLockFile(targetPath);
+    if (current.kind !== 'regular') return false;
+    if (current.dev !== expected.dev || current.ino !== expected.ino || current.raw !== expected.raw) {
+      return false;
+    }
+    if (params.requireStale && !isLockRecordStale(current, params.now(), params.staleMs)) {
+      return false;
+    }
+    if (params.now() >= guardExpiresAt) return false;
+    const guardStillOurs = inspectLockFile(guardPath);
+    if (guardStillOurs.kind !== 'regular'
+      || guardStillOurs.dev !== guardAcquired.dev
+      || guardStillOurs.ino !== guardAcquired.ino
+      || guardStillOurs.raw !== guardContent) {
+      return false;
+    }
+    try {
+      unlinkSync(targetPath);
+      return true;
+    } catch {
+      return false;
+    }
+  } finally {
+    const guardNow = inspectLockFile(guardPath);
+    if (guardNow.kind === 'regular'
+      && guardNow.dev === guardAcquired.dev
+      && guardNow.ino === guardAcquired.ino
+      && guardNow.raw === guardContent) {
+      try { unlinkSync(guardPath); } catch {}
+    }
+  }
+}
+
+async function withTurnStateLock<T>(
+  env: NodeJS.ProcessEnv,
+  key: string,
+  fn: () => T | Promise<T>,
+  options?: TurnStateLockOptions,
+): Promise<T> {
+  mkdirSync(turnDirectory(env), { recursive: true, mode: 0o700 });
+  const lockPath = lockPathFor(env, key);
+  const nowFn = options?.now ?? Date.now;
+  const staleMs = options?.staleMs ?? TURN_STATE_LOCK_STALE_MS;
+  const timeoutMs = options?.timeoutMs ?? TURN_STATE_LOCK_TIMEOUT_MS;
+  const lockToken = `${process.pid}:${randomUUID()}`;
+  const deadline = nowFn() + timeoutMs;
+
+  let ownDev = 0n;
+  let ownIno = 0n;
+  let ownContent = '';
+
+  for (;;) {
+    const attemptNow = nowFn();
+    const candidateContent = serializeTurnLockRecord({
+      schema: TURN_LOCK_SCHEMA,
+      owner: lockToken,
+      pid: process.pid,
+      created_at: attemptNow,
+      expires_at: attemptNow + staleMs,
+    });
+    const acquired = createExclusiveLockFile(lockPath, candidateContent);
+    if (acquired.acquired) {
+      ownDev = acquired.dev;
+      ownIno = acquired.ino;
+      ownContent = candidateContent;
+      break;
+    }
+
+    const inspected = inspectLockFile(lockPath);
+    if (inspected.kind === 'missing') continue;
+    if (inspected.kind === 'regular' && isLockRecordStale(inspected, nowFn(), staleMs)) {
+      if (options?.onBeforeReapStale) {
+        await options.onBeforeReapStale();
+      }
+      const reaped = removeObservedLockWithGuard(lockPath, inspected, {
+        requireStale: true,
+        now: nowFn,
+        staleMs,
+      });
+      if (reaped) continue;
+    }
+
+    if (nowFn() >= deadline) {
+      throw new Error('antigravity_turn_state_lock_timeout');
+    }
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, TURN_STATE_LOCK_RETRY_MS));
+  }
+
+  try {
+    return await fn();
   } finally {
     try {
-      const owner = readFileSync(lockPath, 'utf8').trim();
-      if (owner === lockToken) {
-        unlinkSync(lockPath);
+      if (options?.onBeforeRelease) {
+        await options.onBeforeRelease();
       }
+      removeObservedLockWithGuard(lockPath, { dev: ownDev, ino: ownIno, raw: ownContent }, {
+        requireStale: false,
+        now: nowFn,
+        staleMs,
+      });
     } catch {}
   }
 }
@@ -916,7 +1343,8 @@ function readState(env: NodeJS.ProcessEnv, key: string): AntigravityTurnState | 
       non_git_scope_root: typeof parsed.non_git_scope_root === 'string' ? parsed.non_git_scope_root : null,
       matched_cwd_prefix: typeof parsed.matched_cwd_prefix === 'string' ? parsed.matched_cwd_prefix : null,
       destination: typeof parsed.destination === 'string' ? parsed.destination : '',
-      login: typeof parsed.login === 'string' ? parsed.login : null,
+      login: typeof parsed.login === 'string' && parsed.login ? parsed.login : null,
+      effective_project_code: normalizeValidProjectCode(parsed.effective_project_code),
       auth_fingerprint: typeof parsed.auth_fingerprint === 'string' && parsed.auth_fingerprint
         ? parsed.auth_fingerprint : null,
       pending_messages: pending,
@@ -954,7 +1382,12 @@ function timeoutForEvent(
 }
 
 function turnLogin(state: AntigravityTurnState): LoginPin {
-  return { expected: typeof state.login === 'string' || state.login === null ? state.login : '\u0000unrecorded' };
+  return { expected: typeof state.login === 'string' && state.login ? state.login : '\u0000unrecorded' };
+}
+
+interface ForwardResult {
+  output: Record<string, unknown>;
+  envelope: Record<string, unknown>;
 }
 
 async function forward(
@@ -963,20 +1396,22 @@ async function forward(
   repository: string | null,
   login: LoginPin,
   antigravityEvent: keyof typeof DEFAULT_ANTIGRAVITY_TIMEOUTS_MS,
-): Promise<Record<string, unknown>> {
+): Promise<ForwardResult> {
   if (!hostCanMapRepository(repository, context.config)) throw new Error('judgment_repository_unmappable');
   const endpoint = resolveAntigravityHookEndpoint(context.config);
   let token: string;
   let loginId: string | null;
   try {
     const obtained = await context.accessToken();
-    token = typeof obtained === 'string' ? obtained : obtained.token;
-    loginId = typeof obtained === 'string' ? null : obtained.loginId;
+    const identity = derivePrincipalIdentity(obtained);
+    token = identity.token;
+    loginId = identity.loginId;
   } catch (error) {
     const code = (error as { code?: unknown })?.code;
     throw new Error(typeof code === 'string' && /^login_[a-z_]{1,60}$/u.test(code)
       ? `judgment_hook_${code}` : 'judgment_hook_login_unavailable');
   }
+  if (!token || loginId === null) throw new Error('judgment_hook_login_unavailable');
   if (login.expected !== undefined && login.expected !== loginId) throw new Error('judgment_turn_login_changed');
   login.used = loginId;
 
@@ -1025,7 +1460,7 @@ async function forward(
     || !output || typeof output !== 'object' || Array.isArray(output)) {
     throw new Error('judgment_hook_response_invalid');
   }
-  return output as Record<string, unknown>;
+  return { output: output as Record<string, unknown>, envelope };
 }
 
 // ---- Output conversion (Host -> Antigravity injectSteps) ----
@@ -1088,9 +1523,13 @@ function shouldRecoverNewTurn(
   staleTurnMs: number,
 ): boolean {
   if (!state.turn_active) return true;
-  if (currentUserStepIndex !== null && state.last_opened_user_step_index !== null
-    && currentUserStepIndex > state.last_opened_user_step_index) {
-    return true;
+  if (currentUserStepIndex !== null && state.last_opened_user_step_index !== null) {
+    if (currentUserStepIndex > state.last_opened_user_step_index) {
+      return true;
+    }
+    if (currentUserStepIndex < state.last_opened_user_step_index) {
+      return false;
+    }
   }
   if (invocationNum === 1) {
     if (promptDigest !== null && state.last_prompt_digest !== null && promptDigest !== state.last_prompt_digest) {
@@ -1115,9 +1554,17 @@ function transcriptOptionsFor(conversationId: string, context: Context): Transcr
 
 function matchesPendingEntry(entry: PendingContextMessage, state: AntigravityTurnState): boolean {
   if (entry.turn_id !== state.turn_id) return false;
-  if (entry.turn_generation !== undefined && entry.turn_generation !== state.turn_generation) return false;
+  if (entry.turn_generation !== state.turn_generation) return false;
+  const effectiveProject = normalizeValidProjectCode(state.effective_project_code);
+  if (effectiveProject === null) return false;
+  if (typeof entry.project_code !== 'string' || entry.project_code !== effectiveProject) return false;
   return true;
 }
+
+type PreInvocationDecision =
+  | { kind: 'existing_turn'; state: AntigravityTurnState }
+  | { kind: 'no_prompt' }
+  | { kind: 'opened_new_turn'; state: AntigravityTurnState; inScope: boolean };
 
 async function handlePreInvocation(
   payload: AntigravityHookPayload,
@@ -1137,25 +1584,76 @@ async function handlePreInvocation(
   const invocationNum = typeof payload.invocationNum === 'number' && Number.isSafeInteger(payload.invocationNum)
     ? payload.invocationNum : null;
 
-  const previous = await withTurnStateLock(context.env, key, () => readState(context.env, key));
+  const nonGitRoot = context.scope.inGit
+    ? null
+    : (context.scope.matchedCwdPrefix ?? context.scope.cwd);
+  const inScope = isAuditedAntigravityScope(context.scope, context.config)
+    && hostCanMapRepository(context.scope.repository, context.config);
 
-  if (previous && !shouldRecoverNewTurn(
-    previous,
-    currentUserStepIndex,
-    promptDigest,
-    invocationNum,
-    context.now(),
-    context.staleTurnMs,
-  )) {
+  // Atomically decide whether to open a new turn or join the existing active turn
+  // AND write the new turn state within a single lock acquisition.
+  const decision = await withTurnStateLock(context.env, key, (): PreInvocationDecision => {
+    const latest = readState(context.env, key);
+    const nowMs = context.now();
+    if (latest && !shouldRecoverNewTurn(
+      latest,
+      currentUserStepIndex,
+      promptDigest,
+      invocationNum,
+      nowMs,
+      context.staleTurnMs,
+    )) {
+      return { kind: 'existing_turn', state: latest };
+    }
+    if (!prompt) {
+      if (latest && latest.pending_messages.length > 0) {
+        writeState(context.env, key, { ...latest, turn_active: false, pending_messages: [] });
+      }
+      return { kind: 'no_prompt' };
+    }
+    const nextGeneration = (latest?.turn_generation ?? 0) + 1;
+    const state: AntigravityTurnState = {
+      schema_version: TURN_SCHEMA,
+      turn_id: randomUUID(),
+      turn_generation: nextGeneration,
+      turn_active: true,
+      started_at: new Date(nowMs).toISOString(),
+      last_opened_user_step_index: currentUserStepIndex,
+      last_prompt_digest: promptDigest,
+      start_status: inScope ? 'failed' : 'out_of_scope',
+      in_git: context.scope.inGit,
+      repository: context.scope.repository,
+      checkout: context.scope.checkout,
+      non_git_scope_root: nonGitRoot,
+      matched_cwd_prefix: context.scope.matchedCwdPrefix,
+      destination: destinationOf(context),
+      login: null,
+      effective_project_code: null,
+      auth_fingerprint: null,
+      pending_messages: [],
+    };
+    writeState(context.env, key, state);
+    return { kind: 'opened_new_turn', state, inScope };
+  });
+
+  if (decision.kind === 'no_prompt') {
+    return {};
+  }
+
+  if (decision.kind === 'existing_turn') {
+    const previous = decision.state;
     // Same active turn (2nd+ PreInvocation in tool loop or duplicate):
     // NEVER fire a new UserPromptSubmit. Re-authorize started state, scope,
-    // destination, project, and current login BEFORE draining or injecting.
+    // destination, effective project_code, and current login BEFORE draining or injecting.
     if (previous.pending_messages.length === 0) {
       return {};
     }
 
-    const staticAuthorized = isTurnStaticAuthorized(previous, context);
-    if (!staticAuthorized) {
+    const staticPendingEligible = isTurnStaticAuthorized(previous, context)
+      && normalizeValidProjectCode(previous.effective_project_code) !== null
+      && typeof previous.login === 'string'
+      && previous.login.length > 0;
+    if (!staticPendingEligible) {
       try {
         await withTurnStateLock(context.env, key, () => {
           const latest = readState(context.env, key);
@@ -1170,13 +1668,8 @@ async function handlePreInvocation(
     }
 
     const currentLogin = await resolveCurrentLoginId(context);
-    const expectedFingerprint = currentLogin.ok
-      ? computeAuthFingerprint(context, previous.non_git_scope_root, currentLogin.loginId)
-      : null;
-    const loginAuthorized = currentLogin.ok
-      && currentLogin.loginId === previous.login
-      && expectedFingerprint !== null
-      && expectedFingerprint === previous.auth_fingerprint;
+    const currentLoginId = currentLogin.ok ? currentLogin.loginId : null;
+    const preAuthorized = canAuthorizePendingContext(previous, context, currentLoginId);
 
     const drained = await withTurnStateLock(context.env, key, (): PendingContextMessage[] => {
       const latest = readState(context.env, key);
@@ -1186,10 +1679,7 @@ async function handlePreInvocation(
       if (!latest.turn_active) {
         return [];
       }
-      const stillAuthorized = loginAuthorized
-        && isTurnStaticAuthorized(latest, context)
-        && latest.login === (currentLogin.ok ? currentLogin.loginId : null)
-        && latest.auth_fingerprint === expectedFingerprint;
+      const stillAuthorized = preAuthorized && canAuthorizePendingContext(latest, context, currentLoginId);
       if (!stillAuthorized) {
         if (latest.pending_messages.length > 0) {
           writeState(context.env, key, { ...latest, pending_messages: [] });
@@ -1211,57 +1701,8 @@ async function handlePreInvocation(
     return preInvocationOutputFromSteps(steps);
   }
 
-  // Opening a new turn: if no non-system user prompt could be found, skip cleanly.
-  if (!prompt) {
-    if (previous && previous.pending_messages.length > 0) {
-      try {
-        await withTurnStateLock(context.env, key, () => {
-          const latest = readState(context.env, key);
-          if (latest && latest.turn_id === previous.turn_id
-            && latest.turn_generation === previous.turn_generation
-            && latest.pending_messages.length > 0) {
-            writeState(context.env, key, { ...latest, turn_active: false, pending_messages: [] });
-          }
-        });
-      } catch {}
-    }
-    return {};
-  }
-
-  const nonGitRoot = context.scope.inGit
-    ? null
-    : (context.scope.matchedCwdPrefix ?? context.scope.cwd);
-  const inScope = isAuditedAntigravityScope(context.scope, context.config)
-    && hostCanMapRepository(context.scope.repository, context.config);
-  const newTurnId = randomUUID();
-
-  const openedState = await withTurnStateLock(context.env, key, () => {
-    const latest = readState(context.env, key);
-    const nextGeneration = (latest?.turn_generation ?? 0) + 1;
-    const state: AntigravityTurnState = {
-      schema_version: TURN_SCHEMA,
-      turn_id: newTurnId,
-      turn_generation: nextGeneration,
-      turn_active: true,
-      started_at: new Date(context.now()).toISOString(),
-      last_opened_user_step_index: currentUserStepIndex,
-      last_prompt_digest: promptDigest,
-      start_status: inScope ? 'failed' : 'out_of_scope',
-      in_git: context.scope.inGit,
-      repository: context.scope.repository,
-      checkout: context.scope.checkout,
-      non_git_scope_root: nonGitRoot,
-      matched_cwd_prefix: context.scope.matchedCwdPrefix,
-      destination: destinationOf(context),
-      login: null,
-      auth_fingerprint: null,
-      pending_messages: [],
-    };
-    writeState(context.env, key, state);
-    return state;
-  });
-
-  if (!inScope) {
+  const openedState = decision.state;
+  if (!decision.inScope) {
     return {};
   }
 
@@ -1271,30 +1712,48 @@ async function handlePreInvocation(
       hook_event_name: 'UserPromptSubmit',
       session_id: conversationId,
       turn_id: openedState.turn_id,
-      prompt,
+      prompt: prompt!,
       cwd: context.scope.cwd,
       ...(authorizedTranscriptPath ? { transcript_path: authorizedTranscriptPath } : {}),
       ...(typeof payload.modelName === 'string' && payload.modelName
         ? { model: payload.modelName } : {}),
     };
-    const output = await forward(hostPayload, context, openedState.repository, login, 'PreInvocation');
+    const { output, envelope } = await forward(hostPayload, context, openedState.repository, login, 'PreInvocation');
     const loginId = login.used ?? null;
-    const authFingerprint = computeAuthFingerprint(context, openedState.non_git_scope_root, loginId);
+    const effectiveProjectCode = resolveEffectiveProjectCode(envelope, output, context.config.project_code);
+    const authFingerprint = computeAuthFingerprint(
+      context,
+      openedState.non_git_scope_root,
+      loginId,
+      effectiveProjectCode,
+    );
+    let committed = false;
     try {
-      await withTurnStateLock(context.env, key, () => {
+      committed = await withTurnStateLock(context.env, key, () => {
         const latest = readState(context.env, key);
-        if (latest && latest.turn_active === true
-          && latest.turn_id === openedState.turn_id
-          && latest.turn_generation === openedState.turn_generation) {
-          writeState(context.env, key, {
-            ...latest,
-            start_status: 'started',
-            login: loginId,
-            auth_fingerprint: authFingerprint,
-          });
+        if (!latest
+          || latest.turn_active !== true
+          || latest.turn_id !== openedState.turn_id
+          || latest.turn_generation !== openedState.turn_generation) {
+          return false;
         }
+        writeState(context.env, key, {
+          ...latest,
+          start_status: 'started',
+          login: loginId,
+          effective_project_code: effectiveProjectCode,
+          auth_fingerprint: authFingerprint,
+        });
+        return true;
       });
-    } catch {}
+    } catch {
+      committed = false;
+    }
+    if (!committed) {
+      // Turn was closed (e.g. by Stop) or superseded while awaiting HTTP:
+      // never inject initial context for a finished or replaced turn.
+      return {};
+    }
     const { additionalContext, systemMessage } = extractHostMessages(output);
     const step = buildSystemMessageStep(openedState.turn_id, additionalContext, systemMessage);
     return step ? preInvocationOutputFromSteps([step]) : {};
@@ -1329,7 +1788,7 @@ async function handlePreToolUse(
     ? toolCall.id.trim()
     : (typeof payload.stepIdx === 'number' ? `step-${payload.stepIdx}` : randomUUID());
   try {
-    const output = await forward(
+    const { output } = await forward(
       {
         hook_event_name: 'PreToolUse',
         session_id: conversationId,
@@ -1419,7 +1878,7 @@ async function handlePostToolUse(
   }
 
   try {
-    const output = await forward(
+    const { output, envelope } = await forward(
       {
         hook_event_name: hostEventName,
         session_id: conversationId,
@@ -1440,7 +1899,8 @@ async function handlePostToolUse(
       'PostToolUse',
     );
     const { additionalContext, systemMessage } = extractHostMessages(output);
-    if (additionalContext || systemMessage) {
+    const postEffectiveProjectCode = resolveEffectiveProjectCode(envelope, output, context.config.project_code);
+    if ((additionalContext || systemMessage) && postEffectiveProjectCode !== null) {
       try {
         await withTurnStateLock(context.env, key, () => {
           const latest = readState(context.env, key);
@@ -1449,6 +1909,7 @@ async function handlePostToolUse(
             || latest.turn_id !== startedTurnId
             || latest.turn_generation !== startedGeneration
             || latest.auth_fingerprint !== startedAuthFingerprint
+            || latest.effective_project_code !== postEffectiveProjectCode
             || !isTurnStaticAuthorized(latest, context)) {
             return;
           }
@@ -1457,6 +1918,7 @@ async function handlePostToolUse(
             {
               turn_id: latest.turn_id,
               turn_generation: latest.turn_generation,
+              project_code: postEffectiveProjectCode,
               ...(additionalContext ? { additional_context: additionalContext } : {}),
               ...(systemMessage ? { system_message: systemMessage } : {}),
               created_at: new Date(context.now()).toISOString(),
@@ -1704,3 +2166,14 @@ export function registerAntigravityJudgmentHooks(
   next[ANTIGRAVITY_HOOK_KEY] = antigravityJudgmentHookEntry(command);
   return next;
 }
+
+/** @internal Exposed strictly for deterministic concurrency and TOCTOU regression tests. */
+export const __antigravityHookTestInternals = {
+  withTurnStateLock,
+  readTranscriptTailEntries,
+  turnKey,
+  lockPathFor,
+  statePath,
+  serializeTurnLockRecord,
+  TURN_LOCK_SCHEMA,
+};

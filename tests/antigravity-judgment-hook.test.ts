@@ -1,10 +1,12 @@
 import { spawnSync } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { lstatSync, readFileSync, renameSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { Readable } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  __antigravityHookTestInternals,
   ANTIGRAVITY_HOOK_CONFIG_SCHEMA,
   ANTIGRAVITY_HOOK_KEY,
   antigravityHookCommand,
@@ -283,7 +285,7 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
   });
 
   it('queues PostToolUse context with turn_id, drains only matching turn_id, and discards stale mismatched pending entries', async () => {
-    const { home, repo, configPath, env } = await setupConfig();
+    const { home, repo, configPath, env } = await setupConfig({ project_code: 'proj-pending' });
     const turnDir = join(home, 'turns');
     const testEnv = { ...env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir };
     const { fetchImpl } = mockHost((body) => ({
@@ -759,7 +761,7 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
   });
 
   it('prevents slow PostToolUse from resurrecting a Stop-closed turn or overwriting a newly opened turn', async () => {
-    const { home, repo, configPath, env } = await setupConfig();
+    const { home, repo, configPath, env } = await setupConfig({ project_code: 'proj-race' });
     const turnDir = join(home, 'turns');
     const testEnv = { ...env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir };
 
@@ -970,6 +972,662 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
     expect(fifoHookOut).toEqual({});
     expect(elapsedMs).toBeLessThan(1_000);
     expect(sent).toHaveLength(0);
+  });
+
+  it('does not overwrite a newly opened turn when concurrent PreInvocation calls race on the turn lock', async () => {
+    const { home, repo, configPath, env } = await setupConfig({ project_code: 'proj-race-pre' });
+    const turnDir = join(home, 'turns');
+    const testEnv = { ...env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir };
+    const { fetchImpl, sent } = mockHost();
+    const options = { env: testEnv, fetch: fetchImpl, accessToken: token, configPath, registrationId: REG };
+
+    const key = __antigravityHookTestInternals.turnKey('conv-concurrent-pre', configPath);
+    let releaseBarrier!: () => void;
+    let barrierEntered!: () => void;
+    const barrierGate = new Promise<void>((resolveGate) => { releaseBarrier = resolveGate; });
+    const barrierEnteredPromise = new Promise<void>((resolveEntered) => { barrierEntered = resolveEntered; });
+
+    // Hold the turn lock briefly so both PreInvocation calls block on the exact same lock boundary.
+    const barrier = __antigravityHookTestInternals.withTurnStateLock(testEnv, key, async () => {
+      barrierEntered();
+      await barrierGate;
+    });
+    await barrierEnteredPromise;
+
+    const payload = {
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-concurrent-pre',
+      invocationNum: 1,
+      cwd: repo,
+      lastUserInput: 'Concurrent prompt',
+    };
+    const callA = handleAntigravityJudgmentHook(payload, options);
+    const callB = handleAntigravityJudgmentHook(payload, options);
+
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 30));
+    releaseBarrier();
+    await barrier;
+
+    const [outA, outB] = await Promise.all([callA, callB]);
+    // Exactly one contender opened the turn and sent UserPromptSubmit; the other saw it inside the single lock.
+    expect(sent).toHaveLength(1);
+    const injectedCount = [outA, outB].filter((o) => Array.isArray(o.injectSteps)).length;
+    const noopCount = [outA, outB].filter((o) => Object.keys(o).length === 0).length;
+    expect(injectedCount).toBe(1);
+    expect(noopCount).toBe(1);
+
+    const persisted = JSON.parse(await readFile(__antigravityHookTestInternals.statePath(testEnv, key), 'utf8'));
+    expect(persisted.turn_generation).toBe(1);
+    expect(persisted.turn_active).toBe(true);
+    expect(persisted.start_status).toBe('started');
+
+    // Out-of-order PreInvocation with an older step_index must not overwrite a newer active turn.
+    const transcriptPath = await canonicalTranscriptPath(home, 'conv-order');
+    await writeFile(transcriptPath, JSON.stringify({
+      step_index: 5,
+      source: 'USER_EXPLICIT',
+      type: 'USER_INPUT',
+      content: 'Newer turn prompt',
+    }) + '\n');
+    await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-order',
+      invocationNum: 1,
+      cwd: repo,
+      transcriptPath,
+      lastUserInput: 'Newer turn prompt',
+    }, options);
+    expect(sent).toHaveLength(2);
+    const orderKey = __antigravityHookTestInternals.turnKey('conv-order', configPath);
+    const newerState = JSON.parse(await readFile(__antigravityHookTestInternals.statePath(testEnv, orderKey), 'utf8'));
+
+    await writeFile(transcriptPath, JSON.stringify({
+      step_index: 2,
+      source: 'USER_EXPLICIT',
+      type: 'USER_INPUT',
+      content: 'Older delayed prompt',
+    }) + '\n');
+    const delayedOut = await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-order',
+      invocationNum: 1,
+      cwd: repo,
+      transcriptPath,
+      lastUserInput: 'Older delayed prompt',
+    }, options);
+    expect(delayedOut).toEqual({});
+    expect(sent).toHaveLength(2);
+    const afterDelayed = JSON.parse(await readFile(__antigravityHookTestInternals.statePath(testEnv, orderKey), 'utf8'));
+    expect(afterDelayed.turn_id).toBe(newerState.turn_id);
+    expect(afterDelayed.turn_generation).toBe(newerState.turn_generation);
+  });
+
+  it('does not inject initial context when Stop closes or a new turn supersedes the turn during UserPromptSubmit HTTP wait', async () => {
+    const { home, repo, configPath, env } = await setupConfig({ project_code: 'proj-closed' });
+    const turnDir = join(home, 'turns');
+    const testEnv = { ...env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir };
+
+    // Case 2a: Stop closes turn while UserPromptSubmit HTTP is in flight.
+    let releasePromptHttp!: () => void;
+    let promptHttpEntered!: () => void;
+    const promptHttpGate = new Promise<void>((resolveGate) => { releasePromptHttp = resolveGate; });
+    const promptHttpEnteredPromise = new Promise<void>((resolveEntered) => { promptHttpEntered = resolveEntered; });
+
+    const fetchImpl = (async (_input: string | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      if (body.hook_event_name === 'UserPromptSubmit') {
+        promptHttpEntered();
+        await promptHttpGate;
+        return new Response(JSON.stringify({
+          schema_version: '1',
+          accepted: true,
+          hook_event_name: body.hook_event_name,
+          session_id: body.session_id,
+          turn_id: body.turn_id,
+          output: {
+            systemMessage: 'MUST_NOT_INJECT_CLOSED_TURN',
+            hookSpecificOutput: { additionalContext: 'STALE_INITIAL_CONTEXT' },
+          },
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({
+        schema_version: '1',
+        accepted: true,
+        hook_event_name: body.hook_event_name,
+        session_id: body.session_id,
+        turn_id: body.turn_id,
+        output: {},
+      }), { status: 200 });
+    }) as typeof fetch;
+
+    const options = { env: testEnv, fetch: fetchImpl, accessToken: token, configPath, registrationId: REG };
+    const prePromise = handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-stop-during-http',
+      invocationNum: 1,
+      cwd: repo,
+      lastUserInput: 'Turn closed mid-flight',
+    }, options);
+
+    await promptHttpEnteredPromise;
+
+    // Stop closes the turn while UserPromptSubmit is awaiting HTTP.
+    const stopOut = await handleAntigravityJudgmentHook({
+      hookEventName: 'Stop',
+      conversationId: 'conv-stop-during-http',
+      cwd: repo,
+      terminationReason: 'USER_CANCELED',
+    }, options);
+    expect(stopOut).toEqual({ decision: '' });
+
+    releasePromptHttp();
+    const preOut = await prePromise;
+    expect(preOut).toEqual({});
+
+    const key = __antigravityHookTestInternals.turnKey('conv-stop-during-http', configPath);
+    const persisted = JSON.parse(await readFile(__antigravityHookTestInternals.statePath(testEnv, key), 'utf8'));
+    expect(persisted.turn_active).toBe(false);
+    expect(persisted.start_status).toBe('failed');
+
+    // Case 2b: A newer turn supersedes Turn 1 while Turn 1's UserPromptSubmit HTTP is still in flight.
+    let releaseTurn1Http!: () => void;
+    let turn1Entered!: () => void;
+    const turn1Gate = new Promise<void>((resolveGate) => { releaseTurn1Http = resolveGate; });
+    const turn1EnteredPromise = new Promise<void>((resolveEntered) => { turn1Entered = resolveEntered; });
+
+    const fetchSupersede = (async (_input: string | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      if (body.prompt === 'Slow Turn 1') {
+        turn1Entered();
+        await turn1Gate;
+        return new Response(JSON.stringify({
+          schema_version: '1',
+          accepted: true,
+          hook_event_name: body.hook_event_name,
+          session_id: body.session_id,
+          turn_id: body.turn_id,
+          output: {
+            systemMessage: 'OLD_TURN_1_MUST_NOT_INJECT',
+            hookSpecificOutput: { additionalContext: 'OLD_TURN_1_CONTEXT' },
+          },
+        }), { status: 200 });
+      }
+      return new Response(JSON.stringify({
+        schema_version: '1',
+        accepted: true,
+        hook_event_name: body.hook_event_name,
+        session_id: body.session_id,
+        turn_id: body.turn_id,
+        output: {
+          systemMessage: 'NEW_TURN_2_OK',
+          hookSpecificOutput: { additionalContext: 'NEW_TURN_2_CONTEXT' },
+        },
+      }), { status: 200 });
+    }) as typeof fetch;
+
+    const opts2 = { env: testEnv, fetch: fetchSupersede, accessToken: token, configPath, registrationId: REG };
+    const slowTurn1 = handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-superseded-http',
+      invocationNum: 1,
+      cwd: repo,
+      lastUserInput: 'Slow Turn 1',
+    }, opts2);
+    await turn1EnteredPromise;
+
+    const fastTurn2 = await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-superseded-http',
+      invocationNum: 1,
+      cwd: repo,
+      lastUserInput: 'Fast Turn 2',
+    }, opts2);
+    expect(JSON.stringify(fastTurn2)).toContain('NEW_TURN_2_CONTEXT');
+
+    releaseTurn1Http();
+    expect(await slowTurn1).toEqual({});
+
+    const key2 = __antigravityHookTestInternals.turnKey('conv-superseded-http', configPath);
+    const persisted2 = JSON.parse(await readFile(__antigravityHookTestInternals.statePath(testEnv, key2), 'utf8'));
+    expect(persisted2.turn_generation).toBe(2);
+    expect(persisted2.turn_active).toBe(true);
+    expect(persisted2.start_status).toBe('started');
+  });
+
+  it('never deletes a newly acquired lock during stale-lock reap races or late release', async () => {
+    const dir = await tempDir();
+    const turnDir = join(dir, 'turns');
+    await mkdir(turnDir, { recursive: true });
+    const testEnv = { HOME: dir, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir } as NodeJS.ProcessEnv;
+    const key = 'lock-race-key';
+    const lockPath = __antigravityHookTestInternals.lockPathFor(testEnv, key);
+
+    // Seed an expired lock file.
+    const expiredContent = __antigravityHookTestInternals.serializeTurnLockRecord({
+      schema: __antigravityHookTestInternals.TURN_LOCK_SCHEMA,
+      owner: 'dead-owner-1',
+      pid: 999999,
+      created_at: Date.now() - 60_000,
+      expires_at: Date.now() - 30_000,
+    });
+    writeFileSync(lockPath, expiredContent, { mode: 0o600 });
+    const oldTime = new Date(Date.now() - 60_000);
+    utimesSync(lockPath, oldTime, oldTime);
+
+    const events: string[] = [];
+    let aDetectedStale!: () => void;
+    const aDetectedStalePromise = new Promise<void>((resolveSignal) => { aDetectedStale = resolveSignal; });
+    let allowAResume!: () => void;
+    const aResumeGate = new Promise<void>((resolveGate) => { allowAResume = resolveGate; });
+
+    let bAcquired!: () => void;
+    const bAcquiredPromise = new Promise<void>((resolveSignal) => { bAcquired = resolveSignal; });
+    let allowBRelease!: () => void;
+    const bReleaseGate = new Promise<void>((resolveGate) => { allowBRelease = resolveGate; });
+
+    let aEntered = false;
+    let aPausedOnce = false;
+    const contenderA = __antigravityHookTestInternals.withTurnStateLock(testEnv, key, async () => {
+      aEntered = true;
+      events.push('A-start');
+      events.push('A-end');
+    }, {
+      staleMs: 5_000,
+      timeoutMs: 3_000,
+      onBeforeReapStale: async () => {
+        if (!aPausedOnce) {
+          aPausedOnce = true;
+          aDetectedStale();
+          await aResumeGate;
+        }
+      },
+    });
+
+    // Wait until A has inspected the stale lock and is poised right before reaping it.
+    await aDetectedStalePromise;
+
+    // Now B arrives, reaps the expired lock, acquires a fresh lock, and holds it.
+    const contenderB = __antigravityHookTestInternals.withTurnStateLock(testEnv, key, async () => {
+      events.push('B-start');
+      bAcquired();
+      await bReleaseGate;
+      events.push('B-end');
+    }, { staleMs: 5_000, timeoutMs: 3_000 });
+
+    await bAcquiredPromise;
+    const bLockIno = lstatSync(lockPath, { bigint: true }).ino;
+    const bLockContent = readFileSync(lockPath, 'utf8');
+
+    // Resume A while B STILL holds its fresh lock.
+    allowAResume();
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 60));
+
+    // A MUST NOT delete B's lock and MUST NOT enter the critical section while B holds it.
+    expect(lstatSync(lockPath, { bigint: true }).ino).toBe(bLockIno);
+    expect(readFileSync(lockPath, 'utf8')).toBe(bLockContent);
+    expect(aEntered).toBe(false);
+
+    // Release B -> A acquires cleanly afterward.
+    allowBRelease();
+    await Promise.all([contenderA, contenderB]);
+    expect(events).toEqual(['B-start', 'B-end', 'A-start', 'A-end']);
+    expect(await readdir(turnDir)).toEqual([]);
+
+    // Late release safety: if A's lock was replaced by B before A's finally runs, A must not delete B's lock.
+    const replacementContent = __antigravityHookTestInternals.serializeTurnLockRecord({
+      schema: __antigravityHookTestInternals.TURN_LOCK_SCHEMA,
+      owner: 'new-owner-B',
+      pid: process.pid,
+      created_at: Date.now(),
+      expires_at: Date.now() + 30_000,
+    });
+    let replacedIno = 0n;
+    await __antigravityHookTestInternals.withTurnStateLock(testEnv, key, () => {}, {
+      onBeforeRelease: () => {
+        const tmp = `${lockPath}.replacement`;
+        writeFileSync(tmp, replacementContent, { mode: 0o600 });
+        renameSync(tmp, lockPath);
+        replacedIno = lstatSync(lockPath, { bigint: true }).ino;
+      },
+    });
+    expect(lstatSync(lockPath, { bigint: true }).ino).toBe(replacedIno);
+    expect(readFileSync(lockPath, 'utf8')).toBe(replacementContent);
+    await rm(lockPath, { force: true });
+
+    // 8-way concurrent stale lock stampede: strict mutual exclusion (max active === 1).
+    writeFileSync(lockPath, expiredContent, { mode: 0o600 });
+    utimesSync(lockPath, oldTime, oldTime);
+    let active = 0;
+    let maxActive = 0;
+    await Promise.all(Array.from({ length: 8 }, () => __antigravityHookTestInternals.withTurnStateLock(testEnv, key, async () => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 15));
+      active -= 1;
+    }, { staleMs: 5_000, timeoutMs: 5_000 })));
+    expect(maxActive).toBe(1);
+    expect(await readdir(turnDir)).toEqual([]);
+  });
+
+  it('rejects transcript reads when a parent directory is swapped to an outside symlink after validation (TOCTOU)', async () => {
+    const dir = await tempDir();
+    const allowedRoot = join(dir, 'brain');
+    const outsideDir = join(dir, 'outside-secret');
+    await mkdir(outsideDir, { recursive: true });
+    const outsideTranscript = join(outsideDir, 'transcript.jsonl');
+    await writeFile(outsideTranscript, JSON.stringify({
+      step_index: 0,
+      source: 'USER_EXPLICIT',
+      type: 'USER_INPUT',
+      content: 'OUTSIDE_SECRET_PROMPT',
+    }) + '\n');
+
+    const logsDir = join(allowedRoot, 'conv-toctou', '.system_generated', 'logs');
+    await mkdir(logsDir, { recursive: true });
+    const insideTranscript = join(logsDir, 'transcript.jsonl');
+    await writeFile(insideTranscript, JSON.stringify({
+      step_index: 0,
+      source: 'USER_EXPLICIT',
+      type: 'USER_INPUT',
+      content: 'LEGITIMATE_INSIDE_PROMPT',
+    }) + '\n');
+
+    const readOpts = { conversationId: 'conv-toctou', allowedTranscriptRoots: [allowedRoot] };
+    // Baseline legitimate read succeeds.
+    expect(__antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts)).toHaveLength(1);
+
+    // Case 4a: Parent dir `logs` is swapped to a symlink pointing outside right after validation and before open().
+    const backupLogsDir = join(allowedRoot, 'conv-toctou', '.system_generated', 'logs-backup');
+    const entriesAfterSwap = __antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
+      onBeforeOpen: () => {
+        renameSync(logsDir, backupLogsDir);
+        symlinkSync(outsideDir, logsDir);
+      },
+    });
+    expect(entriesAfterSwap).toEqual([]);
+
+    // Restore legitimate logs dir for Case 4b.
+    await rm(logsDir, { force: true });
+    renameSync(backupLogsDir, logsDir);
+
+    // Case 4b: Parent dir is swapped to outside symlink before open() AND immediately swapped back after open()
+    // before post-open verification runs (proves fd-level /proc/self/fd + (dev, ino) verification catches it).
+    const entriesSwapAndRevert = __antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
+      onBeforeOpen: () => {
+        renameSync(logsDir, backupLogsDir);
+        symlinkSync(outsideDir, logsDir);
+      },
+      onAfterOpen: () => {
+        // Restore symlink back to original directory immediately after openSync returned fd for outside file.
+        renameSync(logsDir, `${logsDir}.used-symlink`);
+        renameSync(backupLogsDir, logsDir);
+      },
+    });
+    expect(entriesSwapAndRevert).toEqual([]);
+  });
+
+  it('strictly binds pending context re-authorization to bearer token fingerprint, non-null loginId, and confirmed effective project_code', async () => {
+    // Case 5a: Bare string token derives non-null sha256 identity; changing string token discards pending context.
+    {
+      const setup = await setupConfig({ project_code: 'proj-a' });
+      const turnDir = join(setup.home, 'turns');
+      const testEnv = { ...setup.env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir };
+      let currentToken = 'raw-bearer-alpha';
+      const { fetchImpl } = mockHost((body) => ({
+        status: 200,
+        body: {
+          schema_version: '1',
+          accepted: true,
+          hook_event_name: body.hook_event_name,
+          session_id: body.session_id,
+          turn_id: body.turn_id,
+          output: body.hook_event_name === 'PostToolUse'
+            ? { hookSpecificOutput: { additionalContext: 'TOKEN_BOUND_PENDING' } }
+            : {},
+        },
+      }));
+      const options = {
+        env: testEnv,
+        fetch: fetchImpl,
+        accessToken: async () => currentToken,
+        configPath: setup.configPath,
+        registrationId: REG,
+      };
+
+      await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId: 'conv-str-token-same',
+        invocationNum: 1,
+        cwd: setup.repo,
+        lastUserInput: 'String token turn',
+      }, options);
+      await handleAntigravityJudgmentHook({
+        hookEventName: 'PostToolUse',
+        conversationId: 'conv-str-token-same',
+        cwd: setup.repo,
+        stepIdx: 2,
+        toolCall: { id: 'toolu_s1', name: 'run_command', args: { CommandLine: 'ls' } },
+      }, options);
+      // Same string token -> pending context is authorized and injected.
+      const sameOut = await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId: 'conv-str-token-same',
+        invocationNum: 2,
+        cwd: setup.repo,
+        lastUserInput: 'String token turn',
+      }, options);
+      expect(JSON.stringify(sameOut)).toContain('TOKEN_BOUND_PENDING');
+
+      // Now queue another pending message, then change the bare string token before PreInvocation.
+      await handleAntigravityJudgmentHook({
+        hookEventName: 'PostToolUse',
+        conversationId: 'conv-str-token-same',
+        cwd: setup.repo,
+        stepIdx: 3,
+        toolCall: { id: 'toolu_s2', name: 'run_command', args: { CommandLine: 'pwd' } },
+      }, options);
+      currentToken = 'raw-bearer-beta';
+      const changedOut = await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId: 'conv-str-token-same',
+        invocationNum: 3,
+        cwd: setup.repo,
+        lastUserInput: 'String token turn',
+      }, options);
+      expect(changedOut).toEqual({});
+
+      // Switching back to original token must not resurrect discarded pending context.
+      currentToken = 'raw-bearer-alpha';
+      const afterSwitchBack = await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId: 'conv-str-token-same',
+        invocationNum: 4,
+        cwd: setup.repo,
+        lastUserInput: 'String token turn',
+      }, options);
+      expect(afterSwitchBack).toEqual({});
+    }
+
+    // Case 5b: Unidentifiable login (empty token / loginId: null) discards pending context immediately.
+    {
+      const setup = await setupConfig({ project_code: 'proj-a' });
+      const turnDir = join(setup.home, 'turns');
+      const testEnv = { ...setup.env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir };
+      let tokenResult: string | { token: string; loginId: string | null } = { token: 'jwt-valid', loginId: 'login-1' };
+      const { fetchImpl } = mockHost((body) => ({
+        status: 200,
+        body: {
+          schema_version: '1',
+          accepted: true,
+          hook_event_name: body.hook_event_name,
+          session_id: body.session_id,
+          turn_id: body.turn_id,
+          output: body.hook_event_name === 'PostToolUse'
+            ? { hookSpecificOutput: { additionalContext: 'MUST_DROP_EMPTY_LOGIN' } }
+            : {},
+        },
+      }));
+      const options = {
+        env: testEnv,
+        fetch: fetchImpl,
+        accessToken: async () => tokenResult,
+        configPath: setup.configPath,
+        registrationId: REG,
+      };
+      await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId: 'conv-empty-login',
+        invocationNum: 1,
+        cwd: setup.repo,
+        lastUserInput: 'Empty login test',
+      }, options);
+      await handleAntigravityJudgmentHook({
+        hookEventName: 'PostToolUse',
+        conversationId: 'conv-empty-login',
+        cwd: setup.repo,
+        stepIdx: 2,
+        toolCall: { id: 'toolu_e1', name: 'run_command', args: { CommandLine: 'ls' } },
+      }, options);
+
+      tokenResult = { token: '', loginId: null };
+      const droppedOut = await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId: 'conv-empty-login',
+        invocationNum: 2,
+        cwd: setup.repo,
+        lastUserInput: 'Empty login test',
+      }, options);
+      expect(droppedOut).toEqual({});
+    }
+
+    // Case 5c: Unresolved effective project_code (omitted in config AND Host response) blocks pending injection (no null === null pass).
+    {
+      const setup = await setupConfig(); // project_code omitted
+      const turnDir = join(setup.home, 'turns');
+      const testEnv = { ...setup.env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir };
+      const { fetchImpl } = mockHost((body) => ({
+        status: 200,
+        body: {
+          schema_version: '1',
+          accepted: true,
+          hook_event_name: body.hook_event_name,
+          session_id: body.session_id,
+          turn_id: body.turn_id,
+          // Host intentionally omits project_code
+          output: body.hook_event_name === 'PostToolUse'
+            ? { hookSpecificOutput: { additionalContext: 'UNRESOLVED_PROJECT_MUST_DROP' } }
+            : {},
+        },
+      }));
+      const options = { env: testEnv, fetch: fetchImpl, accessToken: token, configPath: setup.configPath, registrationId: REG };
+
+      await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId: 'conv-unresolved-proj',
+        invocationNum: 1,
+        cwd: setup.repo,
+        lastUserInput: 'Unresolved project turn',
+      }, options);
+      await handleAntigravityJudgmentHook({
+        hookEventName: 'PostToolUse',
+        conversationId: 'conv-unresolved-proj',
+        cwd: setup.repo,
+        stepIdx: 2,
+        toolCall: { id: 'toolu_u1', name: 'run_command', args: { CommandLine: 'ls' } },
+      }, options);
+
+      const key = __antigravityHookTestInternals.turnKey('conv-unresolved-proj', setup.configPath);
+      const stateFile = __antigravityHookTestInternals.statePath(testEnv, key);
+      const persisted = JSON.parse(await readFile(stateFile, 'utf8'));
+      expect(persisted.effective_project_code).toBeNull();
+      expect(persisted.pending_messages).toEqual([]);
+
+      // Even if a pending entry is manually persisted while effective_project_code is null, PreInvocation discards it.
+      persisted.pending_messages = [{
+        turn_id: persisted.turn_id,
+        turn_generation: persisted.turn_generation,
+        additional_context: 'INJECTED_WITHOUT_PROJECT',
+        created_at: new Date().toISOString(),
+      }];
+      await writeFile(stateFile, JSON.stringify(persisted));
+
+      const out = await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId: 'conv-unresolved-proj',
+        invocationNum: 2,
+        cwd: setup.repo,
+        lastUserInput: 'Unresolved project turn',
+      }, options);
+      expect(out).toEqual({});
+      const afterDiscard = JSON.parse(await readFile(stateFile, 'utf8'));
+      expect(afterDiscard.pending_messages).toEqual([]);
+    }
+
+    // Case 5d: Host-resolved project_code (config.project_code omitted) authorizes matching project and rejects mismatch.
+    {
+      const setup = await setupConfig(); // project_code omitted; Host decides
+      const turnDir = join(setup.home, 'turns');
+      const testEnv = { ...setup.env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir };
+      let postProjectCode = 'host-proj-a';
+      const { fetchImpl } = mockHost((body) => ({
+        status: 200,
+        body: {
+          schema_version: '1',
+          accepted: true,
+          hook_event_name: body.hook_event_name,
+          session_id: body.session_id,
+          turn_id: body.turn_id,
+          project_code: body.hook_event_name === 'PostToolUse' ? postProjectCode : 'host-proj-a',
+          output: body.hook_event_name === 'PostToolUse'
+            ? { hookSpecificOutput: { additionalContext: `HOST_PROJ_CTX_${postProjectCode}` } }
+            : {},
+        },
+      }));
+      const options = { env: testEnv, fetch: fetchImpl, accessToken: token, configPath: setup.configPath, registrationId: REG };
+
+      await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId: 'conv-host-proj',
+        invocationNum: 1,
+        cwd: setup.repo,
+        lastUserInput: 'Host project turn',
+      }, options);
+
+      // Mismatched PostToolUse project_code is rejected and NOT queued.
+      postProjectCode = 'host-proj-b';
+      await handleAntigravityJudgmentHook({
+        hookEventName: 'PostToolUse',
+        conversationId: 'conv-host-proj',
+        cwd: setup.repo,
+        stepIdx: 2,
+        toolCall: { id: 'toolu_h1', name: 'run_command', args: { CommandLine: 'ls' } },
+      }, options);
+      expect(await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId: 'conv-host-proj',
+        invocationNum: 2,
+        cwd: setup.repo,
+        lastUserInput: 'Host project turn',
+      }, options)).toEqual({});
+
+      // Matching Host-resolved project_code IS queued and injected.
+      postProjectCode = 'host-proj-a';
+      await handleAntigravityJudgmentHook({
+        hookEventName: 'PostToolUse',
+        conversationId: 'conv-host-proj',
+        cwd: setup.repo,
+        stepIdx: 3,
+        toolCall: { id: 'toolu_h2', name: 'run_command', args: { CommandLine: 'ls' } },
+      }, options);
+      const matchedOut = await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId: 'conv-host-proj',
+        invocationNum: 3,
+        cwd: setup.repo,
+        lastUserInput: 'Host project turn',
+      }, options);
+      expect(JSON.stringify(matchedOut)).toContain('HOST_PROJ_CTX_host-proj-a');
+    }
   });
 
   it('fails open on HTTP errors and timeouts for all events', async () => {
