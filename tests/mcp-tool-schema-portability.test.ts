@@ -926,6 +926,91 @@ describe('MCP tool inputSchema cross-client portability contract (Gemini / OpenA
     });
   });
 
+  it('preserves additionalProperties: false across allOf intersections with schema branches while keeping union semantics for oneOf/anyOf', () => {
+    // Exact repro from cross-model review #5 in both branch orders ([false, schema] and [schema, false]),
+    // plus outer sibling additionalProperties: false combined with allOf schema branch.
+    const falseFirst = {
+      type: 'object',
+      allOf: [
+        { properties: { id: { type: 'string' } }, additionalProperties: false },
+        { properties: { id: { type: 'string' } }, additionalProperties: { type: 'string' } },
+      ],
+    } as unknown as Tool['inputSchema'];
+
+    const schemaFirst = {
+      type: 'object',
+      allOf: [
+        { properties: { id: { type: 'string' } }, additionalProperties: { type: 'string' } },
+        { properties: { id: { type: 'string' } }, additionalProperties: false },
+      ],
+    } as unknown as Tool['inputSchema'];
+
+    const outerFalseWithAllOf = {
+      type: 'object',
+      additionalProperties: false,
+      allOf: [
+        { properties: { id: { type: 'string' } }, additionalProperties: { type: 'string' } },
+      ],
+    } as unknown as Tool['inputSchema'];
+
+    for (const candidate of [falseFirst, schemaFirst, outerFalseWithAllOf]) {
+      const normalized = normalizeMcpToolInputSchemaForPortability(candidate);
+      expect(validateMcpToolInputSchemaPortability(normalized, 'closed_allof_tool')).toEqual([]);
+      expect(normalized).toEqual({
+        type: 'object',
+        properties: { id: { type: 'string' } },
+        additionalProperties: false,
+      });
+    }
+
+    // Union combinators (oneOf / anyOf) must keep the looser constraint:
+    // - [false, schema] -> schema
+    // - [false, open] -> open (additionalProperties omitted)
+    // - [false, false] -> false
+    const unionAdditional = {
+      type: 'object',
+      properties: {
+        oneof_false_and_schema: {
+          oneOf: [
+            { type: 'object', properties: { id: { type: 'string' } }, additionalProperties: false },
+            { type: 'object', properties: { id: { type: 'string' } }, additionalProperties: { type: 'string' } },
+          ],
+        },
+        anyof_false_and_open: {
+          anyOf: [
+            { type: 'object', properties: { id: { type: 'string' } }, additionalProperties: false },
+            { type: 'object', properties: { id: { type: 'string' } } },
+          ],
+        },
+        oneof_both_false: {
+          oneOf: [
+            { type: 'object', properties: { a: { type: 'string' } }, additionalProperties: false },
+            { type: 'object', properties: { b: { type: 'integer' } }, additionalProperties: false },
+          ],
+        },
+      },
+    } as unknown as Tool['inputSchema'];
+
+    const normalizedUnion = normalizeMcpToolInputSchemaForPortability(unionAdditional);
+    expect(validateMcpToolInputSchemaPortability(normalizedUnion, 'union_additional_tool')).toEqual([]);
+    const props = normalizedUnion.properties as Record<string, Record<string, unknown>>;
+
+    expect(props.oneof_false_and_schema).toEqual({
+      type: 'object',
+      properties: { id: { type: 'string' } },
+      additionalProperties: { type: 'string' },
+    });
+    expect(props.anyof_false_and_open).toEqual({
+      type: 'object',
+      properties: { id: { type: 'string' } },
+    });
+    expect(props.oneof_both_false).toEqual({
+      type: 'object',
+      properties: { a: { type: 'string' }, b: { type: 'integer' } },
+      additionalProperties: false,
+    });
+  });
+
   it('publishes ./mcp-tool-schema-portability with all 11 exported symbols (8 runtime functions + 3 types) matching dist output', async () => {
     const manifest = JSON.parse(await readFile(path.join(process.cwd(), 'package.json'), 'utf8'));
     expect(manifest.exports['./mcp-tool-schema-portability']).toEqual({

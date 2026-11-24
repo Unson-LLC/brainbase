@@ -331,12 +331,14 @@ function mergeObjectSchemas(
     required = required.filter((key) => Object.hasOwn(properties, key));
   }
 
-  const allDisallowedAdditional = branches.every((branch) => branch.additionalProperties === false);
+  const disallowAdditional = mode === 'intersection'
+    ? branches.some((branch) => branch.additionalProperties === false)
+    : branches.every((branch) => branch.additionalProperties === false);
   const additionalSchemas = branches
     .map((branch) => branch.additionalProperties)
     .filter((entry): entry is JsonObject => isPlainObject(entry));
   let mergedAdditionalProperties: JsonObject | false | undefined;
-  if (allDisallowedAdditional) {
+  if (disallowAdditional) {
     mergedAdditionalProperties = false;
   } else if (
     additionalSchemas.length > 0
@@ -414,7 +416,8 @@ function normalizeSchemaNode(
     const hasOuterObjectFields =
       isPlainObject(working.properties)
       || Array.isArray(working.required)
-      || isPlainObject(working.additionalProperties);
+      || isPlainObject(working.additionalProperties)
+      || working.additionalProperties === false;
     const hasOuterArrayItems = isPlainObject(working.items);
     const preserveBranchRequired = preserveUndeclaredRequired || mode === 'intersection';
     const preserveMergedRequired =
