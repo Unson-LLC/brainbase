@@ -504,6 +504,8 @@ composition helpers `getViewState`, `initialViewState`, and `refreshHost` do not
 start a new project read or change authorization. Default personal presentation
 keeps its existing redraw behavior. `workspaceActionIcon('star')` provides a
 shared decorative favorite glyph; favorite state and persistence remain host-owned.
+The tabbed opt-in may pass `visualTheme.preserveSelectedTypeColor: true` to keep the existing type/base color while selected; without the flag, personal/default Graph keeps its selected color. This adds no colors and changes neither size nor highlighting.
+The same opt-in may pass `visualTheme.preserveRootLabel: true` to retain the known `rootId` label/forceLabel only; node sets, edges, colors and default behavior remain unchanged.
 
 ### Project settings composition (explicit opt-in)
 
@@ -545,6 +547,7 @@ section heading and content surface without assigning edit capabilities.
 
 The shared `.bb-project-work-*` composition classes style supplied work data
 with existing card rows, status pills, segmented progress and date/owner cells.
+The work table header uses an action-token divider; its legend children are ordered done/remaining/review, with decorative action/mint/review swatches and ink text matching the same progress segments.
 Hosts own scope, counts and cancellation meaning. Mobile rows retain owner,
 due and update values while stacking. `workspacePills({ appearance:
 'record-types', items: [{ value, label, count, color }] })` adds optional supplied

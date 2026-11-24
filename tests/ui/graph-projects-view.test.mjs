@@ -1786,6 +1786,40 @@ describe('プロジェクトと関係者: host extensions', () => {
     expect(buttonsNamed(root, '情報を探す')[0].attributes['aria-selected']).toBe('true');
   });
 
+  it('restores a retained search focus, selection and scroll after the outer layout detaches it', async () => {
+    await writeGraphV2(dataDir);
+    const document = new FakeDocument();
+    const { root, view } = await mountView({ document, detailPresentation: 'tabs' });
+    buttonsNamed(root, '情報を探す')[0].dispatch('click');
+    const search = findAll(root, node => node.attributes.name === 'project-record-search')[0];
+    search.value = 'Atlas'; search.dispatch('input');
+    search.selectionStart = 1; search.selectionEnd = 3; search.selectionDirection = 'backward';
+    search.scrollTop = 0; search.scrollLeft = 8;
+    search.focus = vi.fn(() => { document.activeElement = search; search.selectionStart = 0; search.selectionEnd = 0; });
+    search.setSelectionRange = (start, end, direction) => { search.selectionStart = start; search.selectionEnd = end; search.selectionDirection = direction; };
+    document.activeElement = search;
+    root.scrollTop = 140; root.scrollLeft = 0;
+    const replace = root.replaceChildren.bind(root);
+    root.replaceChildren = (...children) => {
+      // The fake DOM does not normally implement browser blur/scroll on detach.
+      document.activeElement = null; root.scrollTop = 0; search.scrollLeft = 0;
+      replace(...children);
+    };
+    view.render();
+    expect(document.activeElement).toBe(search);
+    expect([search.value, search.selectionStart, search.selectionEnd, search.selectionDirection]).toEqual(['Atlas', 1, 3, 'backward']);
+    expect(root.scrollTop).toBe(140);
+    expect(search.scrollLeft).toBe(8);
+
+    const hostTool = new FakeElement('button');
+    document.activeElement = hostTool;
+    root.replaceChildren = (...children) => replace(...children);
+    search.focus.mockClear();
+    view.render();
+    expect(document.activeElement).toBe(hostTool);
+    expect(search.focus).not.toHaveBeenCalled();
+  });
+
   it('gives the knowledge graph the first viewport by collapsing legacy chrome and the rail', async () => {
     await writeGraphV2(dataDir);
     const { root, rail } = await mountView({ mountProjectGraph: () => ({ destroy() {} }) });

@@ -140,7 +140,8 @@ export function normalizeProjectContext(projectId, result) {
   if (sections.length === 0 && payload.sections.length > 0) {
     return { projectId: id, state: 'unavailable', message: '補足情報の形式を確認できません。', sections: [] };
   }
-  return { projectId: id, state: sections.some((section) => section.state === 'loading') ? 'loading' : result?.state === 'partial' || sections.some(section => section.state === 'partial') ? 'partial' : 'ok', sections };
+  const message = firstText(result?.message, payload.message);
+  return { projectId: id, state: sections.some((section) => section.state === 'loading') ? 'loading' : result?.state === 'partial' || sections.some(section => section.state === 'partial') ? 'partial' : 'ok', ...(message ? { message } : {}), sections };
 }
 
 function addEntity(map, candidate) {
@@ -265,7 +266,7 @@ function recordCategory(value) {
   if (['task', 'tasks', 'work', 'works', 'canonical_task'].includes(type)) return 'task';
   if (['person', 'people', '人物'].includes(type)) return 'person';
   if (['material', 'document', 'documents', 'evidence_document', 'source', 'artifact', '資料'].includes(type)) return 'material';
-  if (['decision', 'decisions', 'judgment', 'judgement', '判断'].includes(type)) return 'decision';
+  if (['decision', 'decisions', 'pendingdecisions', 'pending_decisions', 'judgment', 'judgments', 'judgement', 'judgements', '判断'].includes(type)) return 'decision';
   if (['knowledge', 'glossary', 'term', 'terms', 'concept', '知識', '用語集'].includes(type)) return 'knowledge';
   return type === 'project' ? 'project' : 'other';
 }
@@ -300,7 +301,7 @@ export function projectKnowledgeRecordDirectory(detail, context, explored = []) 
     const entry = existing ?? { id, key, signature, name, type: candidate.type ?? candidate.kind ?? (material ? 'document' : sectionId) ?? 'unknown', category: actualCategory, directorySources: [] };
     if (graph) Object.assign(entry, { ...candidate, id, name, category: actualCategory, directorySources: entry.directorySources });
     else if (!existing) Object.assign(entry, candidate, { id, name });
-    entry.directorySources.push({ item: candidate, sectionId, sectionTitle, material });
+    if (!entry.directorySources.some(source => source.sectionId === sectionId && source.material === material && JSON.stringify(source.item) === JSON.stringify(candidate))) entry.directorySources.push({ item: candidate, sectionId, sectionTitle, material });
     records.set(storeKey, entry);
   };
   for (const entity of projectKnowledgeEntities(payload)) add(entity, { graph: true });
@@ -1331,7 +1332,7 @@ export function createProjectKnowledgeWorkspace({
     const requested = cleanId(initialViewState.selectedId);
     if (entities.has(requested) || overviewProjectionRecords.has(requested) || (tabbedDetail && projectKnowledgeRecordDirectory(payload, context).some(record => record.id === requested))) selectedId = requested;
     if (typeof initialViewState.graphSearch === 'string') graphSearch = initialViewState.graphSearch;
-    if (typeof initialViewState.graphType === 'string') graphType = initialViewState.graphType;
+    if (typeof initialViewState.graphType === 'string' && (!tabbedDetail || RECORD_TYPES.some(([value]) => value === initialViewState.graphType))) graphType = initialViewState.graphType;
     const anonymous = initialViewState.selectedAnonymous;
     if (tabbedDetail && anonymous) {
       if (projectKnowledgeRecordDirectory(payload, context).some(record => !record.id && record.key === anonymous.key && record.signature === anonymous.signature)) selectedAnonymous = { ...anonymous };
@@ -1423,7 +1424,7 @@ export function createProjectKnowledgeWorkspace({
 
   function openSectionList(id) {
     if (destroyed) return;
-    if (tabbedDetail && id !== 'tasks') { activeTab = 'graph'; graphType = recordCategory(id); render(); return; }
+    if (tabbedDetail && id !== 'tasks') { activeTab = 'graph'; const category = recordCategory(id); graphType = RECORD_TYPES.some(([value]) => value === category) ? category : ''; render(); return; }
     if (tabbedDetail && id === 'tasks' && tabIds.has('work')) { setTab('work'); return; }
     if (id === 'tasks') return openWorkList();
     activeTab = 'overview';
@@ -1479,6 +1480,7 @@ export function createProjectKnowledgeWorkspace({
     if (selectedId === target) {
       if (hadAnonymous) { renderGraphList(); renderSelectedPanel(); }
       if (!fromGraph && graphHandle?.select && (!tabbedDetail || entities.has(target))) graphHandle.select(target);
+      if (hadAnonymous && target !== project.id && typeof readEntity === 'function' && entityRead?.id !== target) void loadEntity(target);
       if (tabbedDetail && entityRead?.id === target && entityRead.state === 'failed' && typeof readEntity === 'function') void loadEntity(target);
       return;
     }
@@ -1564,6 +1566,25 @@ export function createProjectKnowledgeWorkspace({
 
   function directoryEntries() { return projectKnowledgeRecordDirectory(payload, currentContext, entities); }
 
+  function recordTypeItems(entries) {
+    const complete = source => source?.state === 'ok' && explicitSectionTotal(source) === (source.items?.length ?? 0);
+    const overview = normalizeProjectOverview(payload.overview);
+    const sections = (currentContext?.sections ?? []).filter(section => section !== contextTaskSection(currentContext) && recordCategory(section.id) !== 'task');
+    const byCategory = category => sections.filter(section => recordCategory(section.id) === category || section.items?.some(item => recordCategory(item.type ?? item.kind) === category));
+    const contextComplete = category => currentContext?.state === 'ok' && byCategory(category).length > 0 && byCategory(category).every(complete);
+    const snapshot = denseParticipantSnapshot(payload);
+    const people = new Set((payload.participants ?? []).map(edge => edge.counterpart?.id).filter(Boolean));
+    const known = {
+      person: !snapshot.uncertain && (snapshot.confirmedEmpty || Number.isInteger(project.participantCount) && project.participantCount === people.size),
+      material: complete(overview?.directMaterials) && complete(overview?.relatedMaterials) && byCategory('material').every(complete),
+      knowledge: contextComplete('knowledge'), decision: contextComplete('decision'),
+    };
+    known.all = Object.values(known).every(Boolean) && currentContext?.state === 'ok' && sections.every(complete);
+    return RECORD_TYPES.map(([value, label]) => ({ value, label, count: known[value || 'all'] ? (value ? entries.filter(record => record.category === value).length : entries.length) : undefined, color: value ? `var(${RECORD_COLOR_TOKENS[value]})` : undefined }));
+  }
+
+  function recordDirectorySignature(entries) { return JSON.stringify([entries.map(record => [record.key, record.category]), recordTypeItems(entries).map(item => [item.value, item.count])]); }
+
   function recordMatches(record) {
     const query = graphSearch.trim().toLocaleLowerCase();
     return (!graphType || record.category === graphType) && (!query || [record.name, record.type, record.summary, ...record.directorySources.map(source => source.item.summary)].filter(Boolean).some(value => String(value).toLocaleLowerCase().includes(query)));
@@ -1583,7 +1604,7 @@ export function createProjectKnowledgeWorkspace({
     const entries = directoryEntries();
     const visible = entries.filter(recordMatches);
     list.replaceChildren();
-    const signature = JSON.stringify(entries.map(record => [record.key, record.category]));
+    const signature = recordDirectorySignature(entries);
     if (recordTypeControls && recordTypeSignature !== signature) {
       const next = makeRecordTypeControls(entries);
       const focusIndex = Array.from(recordTypeControls.children).indexOf(doc.activeElement);
@@ -1592,7 +1613,7 @@ export function createProjectKnowledgeWorkspace({
       recordTypeSignature = signature;
       if (focusIndex >= 0) recordTypeControls.children[focusIndex]?.focus?.();
     }
-    if (recordCount) recordCount.textContent = `${entries.length + 1}件取得済み・図に${entities.size}件`;
+    if (recordCount) recordCount.textContent = `${entries.length + 1}件取得済み${recordTypeItems(entries)[0].count === undefined ? '・総数未確認' : ''}・図に${entities.size}件`;
     if (recordStates) renderRecordStates(recordStates);
     if (graphExit && typeof recordNavigation.canOpenGraph === 'function') {
       graphExit.disabled = recordNavigation.canOpenGraph(project.id) !== true;
@@ -1627,7 +1648,7 @@ export function createProjectKnowledgeWorkspace({
 
   function makeRecordTypeControls(entries) {
     return workspacePills(doc, { appearance: 'record-types', label: '種類で絞り込む', value: graphType,
-      items: RECORD_TYPES.map(([value, label]) => ({ value, label, count: value ? entries.filter(record => record.category === value).length : entries.length, color: value ? `var(${RECORD_COLOR_TOKENS[value]})` : undefined })),
+      items: recordTypeItems(entries),
       onChange: value => { graphType = value; recordTypeControls?.update?.(value); renderGraphList(); } });
   }
 
@@ -1856,7 +1877,7 @@ export function createProjectKnowledgeWorkspace({
     const color = token => computed?.getPropertyValue(token)?.trim() || undefined;
     const typeColors = Object.create(null);
     for (const entity of entities.values()) typeColors[entity.type] = color(RECORD_COLOR_TOKENS[recordCategory(entity.type)] ?? RECORD_COLOR_TOKENS.other);
-    return { rootId: project.id, visualTheme: { typeColors, selected: color('--bb-color-action'), edge: color('--bb-color-border'), unrelated: color('--bb-color-border'), unrelatedEdge: color('--bb-color-line-soft') } };
+    return { rootId: project.id, visualTheme: { typeColors, preserveSelectedTypeColor: true, preserveRootLabel: true, selected: color('--bb-color-action'), edge: color('--bb-color-border'), unrelated: color('--bb-color-border'), unrelatedEdge: color('--bb-color-line-soft') } };
   }
 
   function renderTabbedGraphPanel() {
@@ -1866,7 +1887,7 @@ export function createProjectKnowledgeWorkspace({
     search.value = graphSearch;
     search.addEventListener('input', () => { graphSearch = search.value ?? ''; renderGraphList(); });
     recordTypeControls = makeRecordTypeControls(directoryEntries());
-    recordTypeSignature = JSON.stringify(directoryEntries().map(record => [record.id, record.category]));
+    recordTypeSignature = recordDirectorySignature(directoryEntries());
     recordCount = makeElement(doc, 'span', { className: 'bb-pkw-find-count' });
     filters.append(workspaceSearchControl(doc, { input: search, appearance: 'compact', width: 240 }), recordTypeControls, recordCount);
     panel.append(filters);

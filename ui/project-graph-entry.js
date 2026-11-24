@@ -158,6 +158,7 @@ export function mountProjectGraph(container, options = {}) {
   const getNeighbors = () => neighborIds;
 
   const popNode = (nodeId, data) => {
+    if (theme.preserveRootLabel === true && nodeId === options.rootId) data = { ...data, label: nodeById.get(nodeId)?.label ?? data.label, forceLabel: true };
     if (!freshNodeIds.has(nodeId) || popProgress >= 1) return data;
     const t = popProgress - 1;
     const scale = 1 + 2.70158 * t * t * t + 1.70158 * t * t;
@@ -165,7 +166,7 @@ export function mountProjectGraph(container, options = {}) {
   };
   const nodeReducer = (nodeId, data) => {
     const base = { ...data };
-    if (filterIds && !filterIds.has(nodeId)) return { ...base, color: themeColor('unrelated', UNRELATED_COLOR), label: null, forceLabel: false, size: Math.min(base.size, 4) };
+    if (filterIds && !filterIds.has(nodeId)) return popNode(nodeId, { ...base, color: themeColor('unrelated', UNRELATED_COLOR), label: null, forceLabel: false, size: Math.min(base.size, 4) });
     const neighbors = getNeighbors();
     if (!selectedId) return popNode(nodeId, base);
     const presentation = projectGraphNodePresentation(
@@ -173,7 +174,7 @@ export function mountProjectGraph(container, options = {}) {
       { selectedId, neighborIds: neighbors },
     );
     const { state, ...visuals } = presentation;
-    if (state === 'selected') return popNode(nodeId, { ...base, ...visuals, color: themeColor('selected', SELECTED_COLOR) });
+    if (state === 'selected') return popNode(nodeId, { ...base, ...visuals, color: theme.preserveSelectedTypeColor === true ? base.baseColor || base.color || themeColor('selected', SELECTED_COLOR) : themeColor('selected', SELECTED_COLOR) });
     if (state === 'neighbor') return popNode(nodeId, {
       ...base,
       ...visuals,

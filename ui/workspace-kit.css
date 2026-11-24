@@ -1473,14 +1473,17 @@ button.bb-ws-identity-chip:hover { box-shadow:var(--bb-shadow-card-preview); }
 .bb-project-work-progress-top b { color:var(--bb-color-ink); font-size:30px; line-height:1; font-weight:600; }
 .bb-project-work-progress-top .bb-ws-status-pill { margin-left:auto; }
 .bb-project-work-progress .bb-ws-progress-bar { height:10px; border-radius:5px; }
-.bb-project-work-legend { display:flex; flex-wrap:wrap; gap:22px; color:var(--bb-color-muted); font-size:13px; }
+.bb-project-work-legend { display:flex; flex-wrap:wrap; gap:22px; color:var(--bb-color-ink); font-size:13px; }
+.bb-project-work-legend > span::before { content:""; display:inline-block; width:8px; height:8px; margin-right:5px; border-radius:2px; vertical-align:0; background:var(--bb-color-action); }
+.bb-project-work-legend > span:nth-child(2)::before { background:var(--bb-color-mint); opacity:.55; }
+.bb-project-work-legend > span:nth-child(3)::before { background:var(--bb-color-review); }
 .bb-project-work-heading { display:flex; align-items:baseline; flex-wrap:wrap; gap:10px; margin:28px 0 8px; padding:0 2px; }
 .bb-project-work-heading h3 { margin:0; color:var(--bb-color-ink); font:600 14px/1.6 var(--bb-font-sans); }
 .bb-project-work-heading small { color:var(--bb-color-muted); font-size:12px; }
 .bb-project-work-heading > :last-child:is(a,button) { margin-left:auto; }
 .bb-project-work-rows { --bb-card-columns:minmax(200px,1fr) 76px 170px 130px 120px; min-width:0; }
 .bb-project-work-rows .bb-ws-card-row,.bb-project-work-table-head { column-gap:20px; }
-.bb-project-work-table-head { display:grid; grid-template-columns:var(--bb-card-columns); align-items:center; padding:0 16px 0 22px; min-height:34px; margin-bottom:8px; color:var(--bb-color-action); font-size:12px; font-weight:600; }
+.bb-project-work-table-head { box-sizing:border-box; display:grid; grid-template-columns:var(--bb-card-columns); align-items:center; padding:0 16px 0 22px; min-height:34px; margin-bottom:8px; border-bottom:2px solid var(--bb-color-action); color:var(--bb-color-action); font-size:12px; font-weight:600; }
 .bb-project-work-title { display:block; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; font-weight:600; line-height:1.6; }
 .bb-project-work-muted { color:var(--bb-color-muted); font-size:12.5px; }
 .bb-project-work-list { min-width:0; }

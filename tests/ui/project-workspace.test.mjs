@@ -67,7 +67,7 @@ describe('tabbed record explorer', () => {
     view.setTab('graph'); await tick();
     expect(mount.mock.calls[0][1].nodes.map(node => node.id)).toEqual(['project-atlas', 'person-a', 'service-a']);
     const filters = findAll(view.element, node => node.attributes.role === 'group' && node.attributes['aria-label'] === '種類で絞り込む')[0];
-    expect(filters.children.map(node => collectText(node))).toEqual(['すべて4', '人物1', '資料1', '判断0', '知識1']);
+    expect(filters.children.map(node => collectText(node))).toEqual(['すべて', '人物', '資料', '判断', '知識']);
     const rows = () => findAll(view.element, node => String(node.className).includes('bb-pkw-record-row'));
     expect(rows()).toHaveLength(4);
     expect(collectText(section(view.element, '情報を探す'))).not.toContain('一覧へ移さない仕事');
@@ -271,6 +271,60 @@ describe('tabbed record explorer', () => {
     expect(collectText(section(replaced.element, '選択した記録'))).not.toContain('別の本文');
     expect(readEntity).not.toHaveBeenCalled();
     view.destroy(); restored.destroy(); replaced.destroy();
+  });
+
+  it('shows type counts only for complete sources and refreshes certainty without changing record IDs', () => {
+    const completedDetail = detail({ project: { ...project, participantCount: 1 }, participantStatus: 'available', participantFreshness: 'fresh', overview: {
+      directMaterials: { state: 'ok', total: 1, items: [{ id: 'doc-a', title: '資料' }] }, relatedMaterials: { state: 'ok', total: 0, items: [] },
+    } });
+    const context = state => normalizeProjectContext(project.id, { state: 'ok', sections: [
+      { id: 'knowledge', title: '知識', state: 'ok', total: 1, items: [{ id: 'record-a', title: '既知の知識', kind: 'knowledge' }] },
+      { id: 'glossary', title: '用語', state: 'ok', total: 0, items: [] },
+      { id: 'decisions', title: '判断', state, total: 0, items: [] },
+    ] });
+    const view = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: completedDetail, context: context('loading'), detailPresentation: 'tabs' });
+    view.setTab('graph');
+    const labels = () => findAll(view.element, node => node.attributes.role === 'group' && node.attributes['aria-label'] === '種類で絞り込む')[0].children.map(node => collectText(node));
+    expect(labels()).toEqual(['すべて', '人物1', '資料1', '判断', '知識']);
+    expect(collectText(section(view.element, '情報を探す'))).toContain('総数未確認');
+    view.setContext(context('ok'));
+    expect(labels()).toEqual(['すべて4', '人物1', '資料1', '判断0', '知識1']);
+    for (const state of ['unknown', 'failed', 'partial', 'unavailable']) {
+      view.setContext(context(state));
+      expect(labels()[0]).toBe('すべて'); expect(labels()[3]).toBe('判断');
+    }
+    const stale = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: { ...completedDetail, participantFreshness: 'stale' }, context: context('ok'), detailPresentation: 'tabs' });
+    stale.setTab('graph');
+    expect(findAll(stale.element, node => node.attributes.role === 'group' && node.attributes['aria-label'] === '種類で絞り込む')[0].children.map(node => collectText(node))[1]).toBe('人物');
+    view.destroy(); stale.destroy();
+  });
+
+  it('keeps a partial envelope message and ignores an unavailable hidden type filter', () => {
+    const context = normalizeProjectContext(project.id, { state: 'partial', message: '取得元の一部のみ読めました。', sections: [{ id: 'knowledge', title: '知識', state: 'ok', total: 0, items: [] }] });
+    expect(context.message).toBe('取得元の一部のみ読めました。');
+    const view = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: detail(), context, detailPresentation: 'tabs', initialViewState: { projectId: project.id, activeTab: 'graph', graphType: 'other' } });
+    expect(view.getViewState().graphType).toBe('');
+    expect(collectText(section(view.element, '情報を探す'))).toContain('取得元の一部のみ読めました。');
+    view.destroy();
+  });
+
+  it('reads the previous canonical record again after an anonymous material selection and restoration', async () => {
+    const payload = detail({ overview: { directMaterials: { state: 'ok', total: 1, items: [{ title: '匿名の資料', body: '既存資料本文' }] } } });
+    const readEntity = vi.fn(async id => ({ state: 'ok', payload: { entity: { id, type: 'person', name: '佐藤 花子', summary: '正本から読み直した本文', digest: 'synthetic-current' }, incoming: [], outgoing: [] } }));
+    const view = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: payload, detailPresentation: 'tabs', readEntity });
+    view.setTab('graph'); view.select('person-a'); await tick();
+    const anonymous = projectKnowledgeRecordDirectory(payload, null).find(record => !record.id);
+    findAll(view.element, node => node.attributes['data-key'] === anonymous.key)[0].dispatch('click');
+    const state = view.getViewState();
+    view.select('person-a'); await tick();
+    expect(readEntity).toHaveBeenCalledTimes(2);
+    expect(collectText(section(view.element, '選択した記録'))).toContain('正本から読み直した本文');
+    const restored = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: payload, detailPresentation: 'tabs', readEntity, initialViewState: state });
+    expect(readEntity).toHaveBeenCalledTimes(2);
+    restored.select('person-a'); await tick();
+    expect(readEntity).toHaveBeenCalledTimes(3);
+    expect(collectText(section(restored.element, '選択した記録'))).toContain('正本から読み直した本文');
+    view.destroy(); restored.destroy();
   });
 });
 

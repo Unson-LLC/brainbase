@@ -415,6 +415,31 @@ export function createGraphProjectsView({
   let initialSelectionGate = null;
   let viewDestroyed = false;
 
+  // The retained tabbed workspace can still be detached by the outer layout.
+  // Preserve only its current focus; an intentionally focused host tool wins.
+  function workspaceFocusSnapshot() {
+    const element = doc.activeElement;
+    let ancestor = element;
+    while (ancestor && ancestor !== knowledgeWorkspace?.element) ancestor = ancestor.parentNode;
+    if (!ancestor) return null;
+    const scroll = [];
+    for (let node = element; node; node = node.parentNode) {
+      if (typeof node.scrollTop === 'number') scroll.push({ node, top: node.scrollTop, left: node.scrollLeft });
+    }
+    return { element, start: element.selectionStart, end: element.selectionEnd, direction: element.selectionDirection, scroll };
+  }
+
+  function restoreWorkspaceFocus(snapshot) {
+    if (!snapshot || snapshot.element.isConnected === false) return;
+    snapshot.element.focus?.({ preventScroll: true });
+    if (typeof snapshot.start === 'number') snapshot.element.setSelectionRange?.(snapshot.start, snapshot.end, snapshot.direction);
+    for (const { node, top, left } of snapshot.scroll) {
+      if (node.isConnected === false) continue;
+      node.scrollTop = top;
+      if (typeof left === 'number') node.scrollLeft = left;
+    }
+  }
+
   const correction = createGraphCorrection({
     client,
     now,
@@ -1250,17 +1275,25 @@ export function createGraphProjectsView({
     },
     render() {
       if (viewDestroyed) return controller;
+      let retainedFocus = null;
       if (knowledgeWorkspace) {
         const preserve = detailPresentation === 'tabs' && knowledgeDetailPayload?.project?.id === state.selectedId;
         retainedWorkspaceState = preserve ? knowledgeWorkspace.getViewState() : null;
         const reuse = preserve && state.detail?.state === 'ok' && state.detail.payload === knowledgeDetailPayload;
+        if (reuse) retainedFocus = workspaceFocusSnapshot();
         if (!reuse) {
           knowledgeWorkspace.destroy();
           knowledgeWorkspace = null;
           knowledgeDetailPayload = null;
         }
       } else if (retainedWorkspaceState?.projectId !== state.selectedId) retainedWorkspaceState = null;
-      layout.render(renderWorkspace(), renderRail());
+      const workspaceChildren = renderWorkspace();
+      const railChildren = renderRail();
+      // An inner context refresh may have replaced the focused search control.
+      const refreshedFocus = retainedFocus ? workspaceFocusSnapshot() : null;
+      if (refreshedFocus) refreshedFocus.scroll = retainedFocus.scroll;
+      layout.render(workspaceChildren, railChildren);
+      restoreWorkspaceFocus(refreshedFocus);
       updateSettingsFrame();
       if (focusRow) {
         focusLedgerRow(root, focusRow);

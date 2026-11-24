@@ -1431,7 +1431,7 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
 .bb-pkw-find-canvas .bb-project-graph-control { min-width:30px; min-height:30px; height:30px; padding:0 9px; border:0; border-radius:var(--bb-radius-sm); background:var(--bb-color-paper); color:var(--bb-color-slate); box-shadow:inset 0 0 0 1px var(--bb-color-border); font:500 12.5px/1 var(--bb-font-sans); }
 .bb-pkw-find-canvas .bb-project-graph-control:hover { background:var(--bb-color-canvas); color:var(--bb-color-ink); }
 .bb-pkw-find-canvas .bb-project-graph-status { position:absolute; z-index:2; bottom:12px; left:14px; right:14px; margin:0; pointer-events:none; color:var(--bb-color-muted); font:400 11.5px/1.6 var(--bb-font-sans); }
-.bb-pkw-record-head { --bb-card-columns:minmax(0,1fr) 64px 88px 24px; display:grid; grid-template-columns:var(--bb-card-columns, minmax(0,1fr) 64px 88px 24px); column-gap:20px; padding:0 16px 0 22px; margin-top:12px; margin-bottom:8px; min-height:34px; align-items:center; color:var(--bb-color-action); font-size:12px; font-weight:600; }
+.bb-pkw-record-head { --bb-card-columns:minmax(0,1fr) 64px 88px 24px; display:grid; grid-template-columns:var(--bb-card-columns, minmax(0,1fr) 64px 88px 24px); column-gap:20px; padding:0 16px 0 22px; margin-top:12px; margin-bottom:8px; min-height:34px; align-items:center; color:var(--bb-color-action); box-shadow:inset 0 -2px 0 var(--bb-color-action); font-size:12px; font-weight:600; }
 .bb-pkw-find .bb-pkw-graph-list { --bb-card-columns:minmax(0,1fr) 64px 88px 24px; display:grid; gap:3px; max-height:none; overflow:visible; border:0; margin:0; padding:0; }
 .bb-pkw-find .bb-pkw-graph-list > li { min-width:0; list-style:none; }
 .bb-pkw-record-row { width:100%; column-gap:20px; }
