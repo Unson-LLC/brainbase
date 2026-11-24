@@ -1,5 +1,71 @@
 # Spec: OSS共通UIの境界と共通パーツの規約
 
+## Imported record composition (explicit opt-in)
+
+`createOwnShareView({ presentation: 'details-only', onState, detailCopy })` keeps
+the existing read-only snapshot client and routes, but does not generate its
+standalone header, search form or duplicate ledger. `search(query)` still reads
+the existing snapshot search and notifies `onState(readState)` at loading and
+completion. Its original results, total, truncated flag and handover identity
+remain available in `state.search`; a failed or unknown read is never an empty
+result. Hosts compose existing authorized data only, and join records by exact
+ID only when the two sources' handover graph ID and digest both agree.
+
+`openEntity(id, { opener, expectedHandover })` opens the shared detail drawer.
+The expected graph ID and digest are copied at activation (or from the current
+successful search when omitted), and must match the detail response. The
+returned entity ID must match the requested ID. A changed current snapshot also
+invalidates the detail; matching names never establish identity. Pending names
+and relation counterparts obey the same snapshot check. A refresh retains an
+existing detail while loading, but a completed unreadable, denied, missing or
+different snapshot invalidates pending detail reads and removes the old detail.
+Relation
+navigation and retry retain the expected snapshot. The drawer preserves aliases,
+summary, validity, project goal/status, decision rationale and relation details.
+`detailCopy` may supply `title`, `kicker`, `outgoingTitle`, `incomingTitle`,
+`outgoingEmpty` and `incomingEmpty`; omitted copy retains existing wording.
+`opener` may be a Node or a supplier of the current trigger. Native dismissal,
+focus return and reduced motion use `workspaceDetailDrawer`. `closeDetail()`
+invalidates pending reads; `destroy()` force-disposes the drawer and invalidates
+all pending reads. Late same-ID responses, including close then reopen, cannot
+replace a newer selection or reopen a closed drawer. Omitting the presentation
+preserves the existing standalone list, inline details and personal behavior.
+
+`workspaceStepBand(document, { facts, label, steps, value, onChange })` composes
+host-owned facts beside an ordered sequence of `{ id, label, status, complete,
+disabled }` steps. Completion is explicit and independent of selection or counts.
+Its returned Node has `update(value)`; activation calls the host without changing
+the controlled value. The band uses existing paper/accent tokens and stacks on
+narrow screens. No organization or permission decision is embedded.
+
+`workspaceCandidateChoices(document, { label, items, value, disabled, onChange })`
+renders only supplied `{ value, label, reason, quiet, disabled }` choices as named
+native buttons with `aria-pressed`. It returns a Node with
+`update(value, { disabled })`. Choice activation never confirms or saves anything;
+the host owns lawful candidates, defaults and persistence. Native Tab/Enter/Space
+remain available. Selection uses a visible check as well as the existing mint
+surface; unknown selection stays unselected.
+
+The `.bb-intake-candidate-*` classes explicitly compose existing card rows,
+buttons, notices and skeletons for a review list. Their desktop columns, wrapped
+candidate text, quiet completed rows and result-check motion are shared; mobile
+stacks the same cells and reduced motion removes the check animation. Applying
+these classes does not change other screens' default row or button presentation.
+
+The matching `.bb-intake-mapping` and `.bb-intake-promotion` classes compose
+host-supplied card cells, status pills and choices. A settled row retains its
+content while reducing its padding; its height is never fixed. Mapping author
+cells marked `.bb-intake-by` move below the other cells when six columns no
+longer fit. Small screens stack the same information. A selected replacement may
+explicitly mark `.bb-intake-current.is-replacing` for a strike-through preview;
+that presentation never implies that a write succeeded.
+
+`workspaceHelp({ appearance: 'toolbar' })` explicitly adds a 32px question-icon
+control and the shared compact explanation surface. Omitting the appearance
+preserves existing help. Accessible description, Escape priority and focus
+behavior stay with the existing help controller. `workspaceActionIcon` also
+provides the decorative `help` and `arrow-right` symbols.
+
 ## 配置
 
 `ui/` はブラウザで直接利用できるES moduleとCSSを保持する。ホストはAPI関数、利用者・プロジェクト文脈、DOM rootを注入し、UIは認証tokenや保存層へ直接接続しない。

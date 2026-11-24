@@ -313,7 +313,7 @@ function normalizeProjectSummary(value) {
  * @param {{ basePath: string, fetcher?: Function, label?: string }} [options.ownShare]
  *   The owner's own snapshot the host keeps for them (`graph-own-share.js`): its projects are read
  *   from `{basePath}/projects` and shown read-only in a separate section after the host's content,
- *   labelled 「引き継いだ自分の分（組織には未反映）」 unless `label` says otherwise.  They are never
+ *   labelled 「持ち込んだ記録」 unless `label` says otherwise.  They are never
  *   added to the ledger, the metrics or the rail, and a failed read shows only in that section.
  *   Without it nothing of the kind is drawn or read.
  * @param {(projectId: string, options?: { onProgress?: (snapshot: object) => void }) => Promise<object>} [options.loadProjectContext]
@@ -620,12 +620,12 @@ export function createGraphProjectsView({
 
   function renderOwnShare() {
     const ownState = state.own;
-    const notice = ownShareStateNotice(doc, ownState.list, { onRetry: () => controller.loadOwn(), loadingText: '引き継いだ自分の分を読み込んでいます。' });
+    const notice = ownShareStateNotice(doc, ownState.list, { onRetry: () => controller.loadOwn(), loadingText: '持ち込んだ記録を読み込んでいます。' });
     if (notice) return ownShareSection(doc, { label: own.label, children: [notice] });
     const { payload } = ownState.list;
     const children = [];
     if (payload.projects.length === 0) {
-      children.push(makeElement(doc, 'p', { className: 'bb-graph-empty', text: 'この束には、プロジェクトの記録がありません。' }));
+      children.push(makeElement(doc, 'p', { className: 'bb-graph-empty', text: '持ち込んだ記録には、プロジェクトの情報がありません。' }));
     } else {
       children.push(workspaceLedger(doc, {
         className: 'bb-graph-project-ledger bb-graph-own-ledger',
@@ -1353,7 +1353,7 @@ export function createGraphProjectsView({
       const result = await own.client.read(`/projects/${encodeURIComponent(target)}`);
       if (state.own.selectedId !== target) return state.own.detail;
       state.own.detail = result.state === 'error' && result.status === 404
-        ? { id: target, state: 'not_found', reason: 'このプロジェクトは束の中に見つかりません。' }
+        ? { id: target, state: 'not_found', reason: 'このプロジェクトは、持ち込んだ記録の中に見つかりません。' }
         : { id: target, ...normalizeProjectDetail(result) };
       controller.render();
       return state.own.detail;

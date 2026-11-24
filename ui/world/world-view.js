@@ -1568,7 +1568,7 @@ function memoryLines(answer) {
   if (Number.isInteger(count) && count >= 0) {
     const href = typeof answer.review_href === 'string' && exitHrefKind(answer.review_href) ? answer.review_href : null;
     const link = href && count > 0 ? { href, label: '候補の確認を開く', className: 'bb-world-memory-link' } : null;
-    if (count > 0) lines.push({ text: `あなたが決める記憶の候補 ${count}件。昇格したものだけが正本になります。`, tone: 'attention', summary: `あなたが決める記憶の候補 ${count}件`, link });
+    if (count > 0) lines.push({ text: `あなたが決める記憶の候補 ${count}件。取り込んだものだけが正式な記録になります。`, tone: 'attention', summary: `あなたが決める記憶の候補 ${count}件`, link });
     else lines.push({ text: 'あなたが決める記憶の候補はありません。', tone: 'info', summary: null });
   } else {
     lines.push({ text: '記憶の候補：読めない。件数は0件とは確認できません。', tone: 'warning', summary: '記憶の候補：読めない' });
