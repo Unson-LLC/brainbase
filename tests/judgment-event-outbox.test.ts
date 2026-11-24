@@ -23,7 +23,7 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
-function event(eventId = 'event-1'): JudgmentKnowledgeEvent {
+function event(eventId = 'event-1', projectCode = 'brainbase'): JudgmentKnowledgeEvent {
   return {
     schema_version: 'knowledge_event.v1',
     contract_version: 'knowledge_event.v1',
@@ -37,7 +37,7 @@ function event(eventId = 'event-1'): JudgmentKnowledgeEvent {
       authorized: false,
       graph_promotion_allowed: false
     },
-    applicability_scope: { scope: 'judgment_episode', project_code: 'brainbase' },
+    applicability_scope: { scope: 'judgment_episode', project_code: projectCode },
     permission_snapshot: { knowledge_registration: true, external_action: false },
     source_pointer: { uri: 'codex://threads/session-1#turn=turn-1' },
     body_hash: 'body-hash-1',
@@ -354,5 +354,269 @@ describe('portable judgment knowledge event outbox', () => {
     await expect(listKnowledgeEventDeadLetters({ directory: conflictPaths.deadLetterDir })).resolves.toMatchObject([
       { code: 'knowledge_event_dead_letter', event_id: 'conflict-event' }
     ]);
+  });
+
+  it('propagates non-brainbase project_code, scopes delivery by allowedProjectCodes without dead-lettering, and preserves candidate_id contract', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'brainbase-judgment-outbox-'));
+    roots.push(root);
+    const paths = pathsFor(root);
+
+    // Enqueue conflict catches project_code mutation for the same event_id.
+    const outOfScopeEvent = event('event-a-other', 'other-project');
+    const inScopeEvent = event('event-b-itsaplan', 'itsaplan');
+    enqueueJudgmentKnowledgeEvent(outOfScopeEvent, { directory: paths.outboxDir });
+    expect(() => enqueueJudgmentKnowledgeEvent(event('event-a-other', 'itsaplan'), { directory: paths.outboxDir }))
+      .toThrow('knowledge_event_outbox_conflict');
+    enqueueJudgmentKnowledgeEvent(inScopeEvent, { directory: paths.outboxDir });
+
+    // Deliver with a token scoped only to ['itsaplan'] and limit: 1.
+    // The earlier-sorted out-of-scope event must be deferred (not posted, not dead-lettered,
+    // not consuming limit/attempts) while the in-scope event is delivered cleanly.
+    const posted: Array<{ event_id: string; project_code: string }> = [];
+    const firstPass = await deliverJudgmentKnowledgeEventOutbox({
+      paths,
+      limit: 1,
+      allowedProjectCodes: ['itsaplan'],
+      delivery: {
+        post: async (candidate) => {
+          posted.push({ event_id: candidate.event_id, project_code: candidate.applicability_scope.project_code });
+          return {
+            event_id: candidate.event_id,
+            candidate_id: 'cand-itsaplan-1',
+            http_status: 202,
+            received_at: '2026-11-24T00:00:00.500Z'
+          };
+        },
+        readback: async ({ event: candidate, post }) => readback(candidate.event_id, post.candidate_id)
+      },
+      now: () => new Date('2026-11-24T00:00:02.000Z')
+    });
+
+    expect(firstPass).toMatchObject({
+      status: 'processed',
+      delivered: 1,
+      failed: 0,
+      retryable: 0,
+      dead_lettered: 0,
+      deferred: 1,
+      out_of_scope: 1,
+      pending: 1
+    });
+    expect(posted).toEqual([{ event_id: 'event-b-itsaplan', project_code: 'itsaplan' }]);
+    const itsaplanReceipt = JSON.parse(await readFile(join(paths.deliveryReceiptDir, 'event-b-itsaplan.json'), 'utf8'));
+    expect(itsaplanReceipt).toMatchObject({
+      status: 'confirmed',
+      event_id: 'event-b-itsaplan',
+      candidate_id: 'cand-itsaplan-1',
+      project_code: 'itsaplan'
+    });
+    // Deferred out-of-scope record keeps attempt=1 and never enters dead-letter.
+    const deferredRecord = JSON.parse(await readFile(join(paths.outboxDir, 'event-a-other.json'), 'utf8'));
+    expect(deferredRecord.delivery.attempt).toBe(1);
+    await expect(listKnowledgeEventDeadLetters({ directory: paths.deadLetterDir })).resolves.toEqual([]);
+
+    // A subsequent delivery run whose token includes 'other-project' delivers the deferred event.
+    const secondPass = await deliverJudgmentKnowledgeEventOutbox({
+      paths,
+      allowedProjectCodes: ['other-project'],
+      delivery: {
+        post: async (candidate) => {
+          posted.push({ event_id: candidate.event_id, project_code: candidate.applicability_scope.project_code });
+          return {
+            event_id: candidate.event_id,
+            candidate_id: 'cand-other-1',
+            http_status: 202,
+            received_at: '2026-11-24T00:01:00.500Z'
+          };
+        },
+        readback: async ({ event: candidate, post }) => readback(candidate.event_id, post.candidate_id)
+      },
+      now: () => new Date('2026-11-24T00:01:02.000Z')
+    });
+    expect(secondPass).toMatchObject({
+      status: 'processed',
+      delivered: 1,
+      failed: 0,
+      dead_lettered: 0,
+      deferred: 0,
+      pending: 0
+    });
+    expect(secondPass).not.toHaveProperty('out_of_scope');
+    const otherReceipt = JSON.parse(await readFile(join(paths.deliveryReceiptDir, 'event-a-other.json'), 'utf8'));
+    expect(otherReceipt).toMatchObject({
+      status: 'confirmed',
+      event_id: 'event-a-other',
+      candidate_id: 'cand-other-1',
+      project_code: 'other-project'
+    });
+
+    // Missing or conflicting project_code is safely deferred under allowedProjectCodes (no post, no dead-letter).
+    const missingProjectEvent = {
+      ...event('event-c-missing', 'brainbase'),
+      applicability_scope: { scope: 'judgment_episode' } as unknown as JudgmentKnowledgeEvent['applicability_scope']
+    };
+    const conflictingProjectEvent = {
+      ...event('event-d-conflict', 'denied-project'),
+      project_code: 'itsaplan'
+    } as JudgmentKnowledgeEvent;
+    const numericScopeProjectEvent = {
+      ...event('event-d2-numeric', 'itsaplan'),
+      applicability_scope: {
+        scope: 'judgment_episode',
+        project_code: 123
+      } as unknown as JudgmentKnowledgeEvent['applicability_scope'],
+      project_code: 'itsaplan'
+    } as JudgmentKnowledgeEvent;
+    const objectScopeProjectEvent = {
+      ...event('event-d3-object', 'itsaplan'),
+      applicability_scope: {
+        scope: 'judgment_episode',
+        project_code: { code: 'itsaplan' }
+      } as unknown as JudgmentKnowledgeEvent['applicability_scope'],
+      project_code: 'itsaplan'
+    } as JudgmentKnowledgeEvent;
+    const paddedScopeProjectEvent = {
+      ...event('event-d4-padded', ' itsaplan '),
+      project_code: 'itsaplan'
+    } as JudgmentKnowledgeEvent;
+    enqueueJudgmentKnowledgeEvent(missingProjectEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(conflictingProjectEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(numericScopeProjectEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(objectScopeProjectEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(paddedScopeProjectEvent, { directory: paths.outboxDir });
+    const scopedCheck = await deliverJudgmentKnowledgeEventOutbox({
+      paths,
+      allowedProjectCodes: ['itsaplan'],
+      delivery: {
+        post: async () => { throw new Error('out-of-scope, missing, or invalid project_code should not be posted'); },
+        readback: async () => { throw new Error('unreachable'); }
+      }
+    });
+    expect(scopedCheck).toMatchObject({
+      status: 'processed',
+      delivered: 0,
+      failed: 0,
+      dead_lettered: 0,
+      deferred: 5,
+      out_of_scope: 5,
+      pending: 5
+    });
+
+    // Padded entries in allowedProjectCodes must NOT be implicitly trimmed (exact downstream includes parity).
+    const strictAllowlistPaths = pathsFor(join(root, 'strict-allowlist'));
+    enqueueJudgmentKnowledgeEvent(event('event-strict-1', 'itsaplan'), { directory: strictAllowlistPaths.outboxDir });
+    const paddedAllowlistResult = await deliverJudgmentKnowledgeEventOutbox({
+      paths: strictAllowlistPaths,
+      allowedProjectCodes: [' itsaplan '],
+      delivery: {
+        post: async () => { throw new Error('padded allowlist entry must not match exact project_code'); },
+        readback: async () => { throw new Error('unreachable'); }
+      }
+    });
+    expect(paddedAllowlistResult).toMatchObject({
+      status: 'processed',
+      delivered: 0,
+      failed: 0,
+      dead_lettered: 0,
+      deferred: 1,
+      out_of_scope: 1,
+      pending: 1
+    });
+
+    // Critical PR-1 invariant: non-empty candidate_id remains required on post ack for non-brainbase events.
+    const candidateCheckPaths = pathsFor(join(root, 'candidate-invariant'));
+    enqueueJudgmentKnowledgeEvent(event('event-e-cand', 'itsaplan'), { directory: candidateCheckPaths.outboxDir });
+    const missingCandidateAck = await deliverJudgmentKnowledgeEventOutbox({
+      paths: candidateCheckPaths,
+      maxAttempts: 2,
+      allowedProjectCodes: ['itsaplan'],
+      delivery: {
+        post: async (candidate) => ({
+          event_id: candidate.event_id,
+          candidate_id: '',
+          http_status: 202,
+          received_at: '2026-11-24T00:02:00.000Z'
+        }),
+        readback: async () => { throw new Error('readback should not run when candidate_id is empty'); }
+      }
+    });
+    expect(missingCandidateAck).toMatchObject({
+      status: 'processed',
+      delivered: 0,
+      failed: 1,
+      retryable: 1,
+      dead_lettered: 0,
+      last_error_code: 'knowledge_event_delivery_ack_identity_mismatch'
+    });
+  });
+
+  it('rejects invalid or conflicting project_code even when allowedProjectCodes is omitted', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'brainbase-judgment-outbox-'));
+    roots.push(root);
+    const paths = pathsFor(root);
+
+    const numericScopeEvent = {
+      ...event('event-invalid-num', 'itsaplan'),
+      applicability_scope: {
+        scope: 'judgment_episode',
+        project_code: 123
+      } as unknown as JudgmentKnowledgeEvent['applicability_scope']
+    } as JudgmentKnowledgeEvent;
+    const objectScopeEvent = {
+      ...event('event-invalid-obj', 'itsaplan'),
+      applicability_scope: {
+        scope: 'judgment_episode',
+        project_code: { code: 'itsaplan' }
+      } as unknown as JudgmentKnowledgeEvent['applicability_scope']
+    } as JudgmentKnowledgeEvent;
+    const paddedScopeEvent = {
+      ...event('event-invalid-pad', ' itsaplan ')
+    } as JudgmentKnowledgeEvent;
+    const badScopeContainerEvent = {
+      ...event('event-invalid-scope', 'itsaplan'),
+      applicability_scope: 'not-an-object' as unknown as JudgmentKnowledgeEvent['applicability_scope']
+    } as JudgmentKnowledgeEvent;
+    const conflictingEvent = {
+      ...event('event-conflict', 'proj-a'),
+      project_code: 'proj-b'
+    } as JudgmentKnowledgeEvent;
+    const validEvent = event('event-valid', 'itsaplan');
+
+    enqueueJudgmentKnowledgeEvent(numericScopeEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(objectScopeEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(paddedScopeEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(badScopeContainerEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(conflictingEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(validEvent, { directory: paths.outboxDir });
+
+    const posted: string[] = [];
+    // Notice allowedProjectCodes is intentionally omitted!
+    const result = await deliverJudgmentKnowledgeEventOutbox({
+      paths,
+      delivery: {
+        post: async (candidate) => {
+          posted.push(candidate.event_id);
+          return {
+            event_id: candidate.event_id,
+            candidate_id: 'cand-valid-1',
+            http_status: 202,
+            received_at: '2026-11-25T00:00:00.500Z'
+          };
+        },
+        readback: async ({ event: candidate, post }) => readback(candidate.event_id, post.candidate_id)
+      },
+      now: () => new Date('2026-11-25T00:00:01.000Z')
+    });
+
+    expect(posted).toEqual(['event-valid']);
+    expect(result).toMatchObject({
+      status: 'processed',
+      delivered: 1,
+      failed: 0,
+      dead_lettered: 0,
+      deferred: 5,
+      out_of_scope: 5,
+      pending: 5
+    });
   });
 });

@@ -86,13 +86,16 @@ const executionOutcome = await import('@unson/brainbase-mcp/judgment-execution-o
 const nodeEvidence = await import('@unson/brainbase-mcp/judgment-node-evidence');
 const eventAdapter = await import('@unson/brainbase-mcp/judgment-event-adapter');
 const eventOutbox = await import('@unson/brainbase-mcp/judgment-event-outbox');
+const judgmentFrame = await import('@unson/brainbase-mcp/judgment-frame');
+const reasoningAudit = await import('@unson/brainbase-mcp/judgment-reasoning-audit');
 
 const importSpecs = [
   ['@unson/brainbase-mcp/judgment-host', 'buildJudgmentRequest'],
   ['@unson/brainbase-mcp/judgment-execution-outcome', 'normalizeJudgmentExecutionOutcome'],
   ['@unson/brainbase-mcp/judgment-node-evidence', 'normalizeJudgmentNodeResult'],
   ['@unson/brainbase-mcp/judgment-event-adapter', 'sanitizeJudgmentAnswer'],
-  ['@unson/brainbase-mcp/judgment-event-outbox', 'enqueueJudgmentKnowledgeEvent']
+  ['@unson/brainbase-mcp/judgment-event-outbox', 'enqueueJudgmentKnowledgeEvent'],
+  ['@unson/brainbase-mcp/judgment-reasoning-audit', 'auditJudgmentReasoning']
 ];
 const imports = [];
 for (const [subpath, exportKey] of importSpecs) {
@@ -179,6 +182,82 @@ try {
     throw new Error('queue directory was not drained after confirmed readback');
   }
 
+  const auditCatalog = judgmentFrame.buildJudgmentFrameCatalog([
+    {
+      id: 'phi_consumer_purpose',
+      entity_type: 'philosophy',
+      lifecycle_status: 'active',
+      payload: { display_name: '目的優先', statement: '最適化の前に目的を固定する。', status: 'active' }
+    },
+    {
+      id: 'obj_consumer_quality',
+      entity_type: 'objective',
+      lifecycle_status: 'active',
+      payload: { foundation: { revision: '1', adoptionState: 'approved', desiredState: '誤判断を減らす。' } }
+    },
+    {
+      id: 'mod_consumer_trend',
+      entity_type: 'model',
+      lifecycle_status: 'active',
+      payload: { foundation: { revision: '1', validationState: 'verified', meaning: '母集団全体では手順Aが安定する。' } }
+    }
+  ]).catalog;
+
+  const auditResult = reasoningAudit.auditJudgmentReasoning({
+    catalog: auditCatalog,
+    frame: {
+      record_version: 'judgment-frame-record.v1',
+      catalog_digest: auditCatalog.digest,
+      selections: [
+        { ref: 'phi_consumer_purpose', kind: 'philosophy', why: '制約として確認' },
+        { ref: 'obj_consumer_quality', kind: 'objective', why: '基準として比較' },
+        { ref: 'mod_consumer_trend', kind: 'model', why: '予測を検証' }
+      ],
+      options: [
+        {
+          label: '手順Aを採用',
+          uses: [
+            { ref: 'phi_consumer_purpose', role: 'constraint', verdict: 'satisfied', note: '目的整合' },
+            { ref: 'obj_consumer_quality', role: 'criterion', note: '品質改善' },
+            {
+              ref: 'mod_consumer_trend',
+              role: 'prediction',
+              note: '全母集団で確認',
+              check: {
+                falsified_if: '全体集計で悪化する',
+                status: 'held',
+                evidence: '全件集計ログ',
+                balance: {
+                  claim_scope: 'probabilistic',
+                  population: '全20件',
+                  supporting_summary: '17/20件で改善',
+                  counter_summary: '3件は外乱で横ばい'
+                }
+              }
+            }
+          ]
+        },
+        {
+          label: '現行維持',
+          uses: [
+            { ref: 'phi_consumer_purpose', role: 'constraint', verdict: 'satisfied', note: '目的整合' },
+            { ref: 'obj_consumer_quality', role: 'criterion', note: '現状維持' }
+          ]
+        }
+      ],
+      chosen_option: '手順Aを採用'
+    }
+  });
+  const auditObservations = reasoningAudit.toJudgmentDAGDistortionObservations(auditResult);
+  if (
+    auditResult.schema_version !== 'judgment-reasoning-audit.v1'
+    || auditResult.overall_status !== 'pass'
+    || auditObservations.length !== 6
+    || Object.keys(reasoningAudit.JUDGMENT_REASONING_DISTORTION_RUBRIC_V1).length !== 5
+  ) {
+    throw new Error('judgment-reasoning-audit consumer smoke check failed');
+  }
+
   process.stdout.write(JSON.stringify({
     packageRoot,
     subpathImports: imports,
@@ -186,6 +265,12 @@ try {
     executionOutcome: 'passed',
     nodeEvidence: typeof nodeEvidence.normalizeJudgmentNodeResult === 'function' ? 'passed' : 'failed',
     eventAdapter: typeof eventAdapter.sanitizeJudgmentAnswer === 'function' ? 'passed' : 'failed',
+    reasoningAudit: {
+      status: 'passed',
+      overallStatus: auditResult.overall_status,
+      overallScore: auditResult.overall_score,
+      observationCount: auditObservations.length
+    },
     outbox: {
       enqueue: queued.status,
       delivery,
@@ -221,6 +306,7 @@ export async function runJudgmentHarnessConsumerSmoke(tarballPath, options = {})
     const manifest = JSON.parse(await readFile(path.join(installedPackageRoot, 'package.json'), 'utf8'));
     await access(path.join(installedPackageRoot, 'dist/judgment-host.js'));
     await access(path.join(installedPackageRoot, 'dist/judgment-event-outbox.js'));
+    await access(path.join(installedPackageRoot, 'dist/judgment-reasoning-audit.js'));
     await access(path.join(installedPackageRoot, 'src')).then(
       () => { throw new Error('installed package unexpectedly contains repository source files'); },
       () => undefined

@@ -7,14 +7,16 @@
 - 入力は `record_version`（`judgment-model-outcome.v1`）、現在の `catalog_digest`、`model`（`id`・`revision`）、`verdict`（`supports`・`refutes`・`inconclusive`）、`prediction`（判断時にこの世界モデルから立てた予測）、`observed`（観測した結果）、`conditions`（結果が成り立つ施設・期間・状態などの条件）、`evidence_refs`（1〜12件。`kind` は `artifact`・`query`・`document`・`judgment`）。
 - `refutes` は `ruled_out` に `measurement_error`・`execution_difference`・`external_change` の三つ全てについて、その説明を退けた理由を必須とする。予測との差だけでは反証として記録しない。`refutes` 以外では `ruled_out` を受け付けない。
 - 任意の `judgment_ref.frame_digest` で、予測を立てた判断の枠組みの記録を指せる。
+- 任意の `scope_metrics`（`claim_type`: `universal`・`tendency`、`representativeness`: `census`・`representative`・`anecdotal`・`unknown`、および任意の正整数 `sample_size`・`population_size`、`effect_magnitude`）を記録でき、指定時は内容のdigestに含める。省略した従来レコードのdigestは変わらない。
 - handlerは `loadRecords` で現在のカタログを作り直し、digest、参照が世界モデルであること、版が現在版と一致することを照合する。合格した記録だけを正規化し、内容のdigestを付けて `appendModelOutcome` に渡す。
 - 古いカタログ、不明・世界モデル以外の参照、版の不一致、必須項目の欠落、証拠なし、秘密らしき値・制御文字、保存の失敗では成功しない。
 
 ## 一覧とエスカレーション
 
 - `loadModelOutcomes` を渡したhostでは、カタログの世界モデル行に、**現在の版**に対する支持・反証・判定不能の件数と、直近の反証の条件（最大3件）を付ける。旧版への記録は件数に入れない。改訂後も反証が当てはまるかは、別の判断で確かめる。
+- 反証は **構造的反証（`structural_refutes`）** と **逸話反証（`anecdotal_refutes`）** に分けて集計する。`claim_type: tendency` かつ `representativeness: anecdotal` と明示された反証のみを逸話反証に分離し、`scope_metrics` 未指定の従来レコード、`claim_type: universal`、`census`・`representative`、および代表性未確認の `unknown` は保守側（構造的反証）として扱う。逸話反証が1件以上ある場合は一覧に `構造反証N・逸話反証M` とそれぞれの条件を明示し、逸話反証が0件のときは従来表示を維持する。サマリ型の追加欄（`structural_refutes?`・`anecdotal_refutes?`・`anecdotal_refuted_when?`）は後方互換のためオプショナルとする。
 - カタログのdigestは定義だけから作る。結果の件数は含めない。
-- `brainbase_judgment_frame_record` は記録のたびに結果を読み直す。採用案が予測に使った世界モデルに現在版への反証があれば、`chosen_uses_refuted_model`（refs＝該当する世界モデル）を返す。
+- `brainbase_judgment_frame_record` は記録のたびに結果を読み直す。採用案が予測に使った世界モデルに現在版への**構造的反証**があれば、`chosen_uses_refuted_model`（refs＝該当する世界モデル）を返す。`tendency` への明示的な `anecdotal` 逸話反証のみでは `chosen_uses_refuted_model` を発火させない（一覧には可視化を残す）。
 - 保存された結果記録の形が不正なら、一覧も記録も成功しない（黙って読み飛ばさない）。
 - `loadModelOutcomes` を渡さないhostでは、一覧・digest・エスカレーションは従来と同じ。
 
