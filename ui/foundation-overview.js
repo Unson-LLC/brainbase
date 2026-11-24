@@ -557,11 +557,11 @@ function objectiveActionElement(doc, record, recordContexts, callbacks, dialog) 
     : null;
   if (action && typeof action.onSelect === 'function') {
     part.append(workspaceButton(doc, {
-      text: `${action.label ?? '目的を直す・現状を記録する'} ›`,
+      text: `${action.label ?? '目的を編集・現状を記録する'} ›`,
       variant: 'primary',
       onClick: () => { dialog()?.close(); action.onSelect(); },
     }));
-    part.append(makeElement(doc, 'p', { className: 'bb-fov-action-note', text: action.description ?? '目指す状態・評価基準・現状を直し、新しい版として保存します。保存すると、この一覧の「待っていること」が変わります。' }));
+    part.append(makeElement(doc, 'p', { className: 'bb-fov-action-note', text: action.description ?? '目指す状態・評価基準・現状を編集し、新しい版として保存します。保存すると、この一覧の「待っていること」が変わります。' }));
   } else {
     part.append(makeElement(doc, 'p', {
       className: 'bb-fov-action-note is-unavailable',
@@ -642,7 +642,7 @@ function renderObjectives(doc, catalog, viewState, callbacks, recordContexts) {
   });
   section.append(workspaceLedger(doc, { className: 'bb-fov-objective-ledger', ariaLabel: '登録された目的', columns: ['目的', '現状', '待っていること', '確認日'], rows }));
   section.append(makeElement(doc, 'p', { className: 'bb-fov-ledger-hint', text: typeof callbacks?.objectiveAction === 'function'
-    ? '行を押すと、目的の詳細と、この目的でできること（直す・現状を記録する）が開きます。'
+    ? '行を押すと、目的の詳細と、この目的でできること（編集・現状を記録する）が開きます。'
     : '行を押すと、目的の詳細が開きます。この画面は読むだけです。' }));
   return section;
 }
