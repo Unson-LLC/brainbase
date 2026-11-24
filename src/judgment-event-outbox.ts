@@ -12,7 +12,11 @@ import {
 } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 
-import type { JudgmentKnowledgeEvent } from './judgment-event-adapter.js';
+import {
+  JUDGMENT_EVENT_PROJECT_CODE_PATTERN,
+  isProjectCodeAllowed,
+  type JudgmentKnowledgeEvent
+} from './judgment-event-adapter.js';
 
 /** The queue format is intentionally independent of a Host, Task, or tenant. */
 export const JUDGMENT_EVENT_OUTBOX_SCHEMA_VERSION = 'judgment_event_outbox.v1' as const;
@@ -159,6 +163,7 @@ export interface JudgmentOutboxDeliveryResult {
   dead_lettered: number;
   pending: number;
   deferred?: number;
+  out_of_scope?: number;
   last_error_code?: string;
 }
 
@@ -173,6 +178,13 @@ export interface JudgmentOutboxDeliveryOptions {
   staleLockAfterMs?: number;
   /** Set false only for an adapter that already owns a surrounding lock. */
   acquireLock?: boolean;
+  /**
+   * Optional allowlist matching the delivery token's `projectCodes` claim
+   * (downstream `requireProjectAccess`). When provided, queued events with a
+   * missing, conflicting, invalid, or out-of-scope `project_code` are deferred
+   * without posting, consuming a retry attempt, or dead-lettering.
+   */
+  allowedProjectCodes?: readonly string[];
 }
 
 function jsonFiles(directory: string, storage: JudgmentOutboxStorage): string[] {
@@ -341,15 +353,49 @@ function confirmedReceipt(
     && readback.semantic_state === 'active';
 }
 
-function projectCode(event: JudgmentKnowledgeEvent): string | null {
+type ParsedEventProjectCodeField =
+  | { kind: 'missing' }
+  | { kind: 'valid'; value: string }
+  | { kind: 'invalid' };
+
+function parseEventProjectCodeField(value: unknown): ParsedEventProjectCodeField {
+  if (value === undefined) return { kind: 'missing' };
+  if (typeof value !== 'string') return { kind: 'invalid' };
+  if (!JUDGMENT_EVENT_PROJECT_CODE_PATTERN.test(value)) return { kind: 'invalid' };
+  return { kind: 'valid', value };
+}
+
+/**
+ * Extract the effective project_code using the same precedence and strict
+ * validation as downstream `requireProjectAccess`
+ * (`applicability_scope.project_code` before top-level `project_code`).
+ * Explicitly present non-strings, untrimmed/malformed strings, or non-object
+ * `applicability_scope` values are flagged as `invalid` instead of missing.
+ */
+function eventProjectCodes(event: JudgmentKnowledgeEvent): {
+  effective: string | null;
+  conflict: boolean;
+  invalid: boolean;
+} {
   const candidate = event as unknown as Record<string, unknown>;
-  if (typeof candidate.project_code === 'string' && candidate.project_code) return candidate.project_code;
   const scope = candidate.applicability_scope;
-  if (scope && typeof scope === 'object' && !Array.isArray(scope)) {
-    const value = (scope as Record<string, unknown>).project_code;
-    return typeof value === 'string' && value ? value : null;
+  if (scope !== undefined && (!scope || typeof scope !== 'object' || Array.isArray(scope))) {
+    return { effective: null, conflict: false, invalid: true };
   }
-  return null;
+  const scopeField = parseEventProjectCodeField(
+    scope ? (scope as Record<string, unknown>).project_code : undefined
+  );
+  const topField = parseEventProjectCodeField(candidate.project_code);
+  if (scopeField.kind === 'invalid' || topField.kind === 'invalid') {
+    return { effective: null, conflict: false, invalid: true };
+  }
+  const scopeCode = scopeField.kind === 'valid' ? scopeField.value : null;
+  const topCode = topField.kind === 'valid' ? topField.value : null;
+  return {
+    effective: scopeCode ?? topCode,
+    conflict: Boolean(scopeCode && topCode && scopeCode !== topCode),
+    invalid: false
+  };
 }
 
 function readConfirmedReceipt(
@@ -417,6 +463,7 @@ function deliverCore(options: Required<Pick<JudgmentOutboxDeliveryOptions, 'path
   let retryable = 0;
   let deadLettered = 0;
   let deferred = 0;
+  let outOfScope = 0;
   let processed = 0;
   let lastErrorCode: string | undefined;
 
@@ -439,9 +486,19 @@ function deliverCore(options: Required<Pick<JudgmentOutboxDeliveryOptions, 'path
         deferred += 1;
         continue;
       }
+      const { effective: code, conflict: projectCodeConflict, invalid: projectCodeInvalid } = eventProjectCodes(queued.event);
+      if (projectCodeInvalid || projectCodeConflict) {
+        deferred += 1;
+        outOfScope += 1;
+        continue;
+      }
+      if (options.allowedProjectCodes !== undefined && !isProjectCodeAllowed(code, options.allowedProjectCodes)) {
+        deferred += 1;
+        outOfScope += 1;
+        continue;
+      }
       processed += 1;
       const eventId = queued.event.event_id;
-      const code = projectCode(queued.event);
       const postAck = queued.delivery.post_ack;
       const attempt = queued.delivery.attempt || 1;
       const readbackAttempt = queued.delivery.readback_attempt || 1;
@@ -567,6 +624,7 @@ function deliverCore(options: Required<Pick<JudgmentOutboxDeliveryOptions, 'path
       retryable,
       dead_lettered: deadLettered,
       deferred,
+      ...(outOfScope > 0 ? { out_of_scope: outOfScope } : {}),
       pending: jsonFiles(options.paths.outboxDir, storage).length,
       ...(lastErrorCode ? { last_error_code: lastErrorCode } : {})
     };

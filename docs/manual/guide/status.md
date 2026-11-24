@@ -4,21 +4,29 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
-## Candidate — v0.50.29（npm公開前）
+## Candidate — v0.50.31（npm公開前）
 
-持ち込んだ記録の一覧をホストが組み立てる場合に、共通の右詳細だけを開ける明示選択を追加するpatch更新候補です（#1081）。手順の帯と押して選ぶ候補を共通部品に加え、同じ取り込みのID・照合用コードを確認して詳細を表示します。古い応答や閲覧できなくなった記録が詳細に残ることを防ぎます。個人版の既定の一覧・詳細と取得・認可・保存の契約は維持し、持込記録に関する表示語をそろえます。0.50.28候補の議事録編集可否の契約も含みます。npm公開と利用ホストへの配備は別途確認します。
+0.50.30に、持ち込んだ記録の一覧をホストが組み立てる場合に、共通の右詳細だけを開ける明示選択を追加するpatch更新候補です（#1081）。手順の帯と押して選ぶ候補を共通部品に加え、同じ取り込みのID・照合用コードを確認して詳細を表示します。古い応答や閲覧できなくなった記録が詳細に残ることを防ぎます。個人版の既定の一覧・詳細と取得・認可・保存の契約は維持し、持込記録に関する表示語をそろえます。npm公開と利用ホストへの配備は別途確認します。
 
-## Candidate — v0.50.28（npm公開前）
+## Candidate — v0.50.30（npm公開前）
 
-議事録の共通UIが、対象の会議・文書ごとの編集可否と、編集できない理由をホストから受け取れるpatch更新候補です（#1073）。プロジェクトを1つ選ぶ必要がある場合と権限不足の案内を分けます。従来のbooleanを返す呼び出しとの互換性を保ち、認証・権限の判定は変更しません。npm公開と利用ホストへの配備は別途確認します。
+0.50.29に、Antigravity CLIの判断フック対応（公開subpath `antigravity-judgment-hook`・CLI `judgment:antigravity-hook` / `judgment:install --target antigravity`・`'antigravity'` ホスト対応、#1077）と本人JWTのホスト側project解決（#1032）、`judgment-event-adapter` の `project_code` ハードコード解消と outbox の `projectCodes` スコーピング整合（RFC-002 PR-1、#1070）、および RFC-001 v2.0 の推論品質基盤（既定OFFのライブ推論ゲート v3.1・セッション内ミニ世界モデル v2 と非digestテレメトリ・公開subpath `judgment-reasoning-audit` とオフライン7項目二値監査 / PoLL 2-of-3 審査、#1045・#1047・#1061・#1062・#1069）を加える更新候補です。TypeScriptの公開型で `JudgmentKnowledgeEvent['applicability_scope']['project_code']` を `'brainbase'` から `string` へ拡張し、`RemoteJudgmentHookHost`・`JudgmentExecutionHostType`・`JudgmentRuntimeRuntimeContext['host']`・`JudgmentRuntimeRuntimeContext['entrypoint']` に `'antigravity'` を追加するため、厳格な型検査を使う呼び出し側は移行が必要です（詳細は `docs/releases/0.50.30.md` を参照）。また、本人JWT認証の `claude-code` 呼び出しで `project` を省略した場合の挙動は、従来の `invalid_project_code` からHost側での自動解決（`resolveProjectCode` または本人の単一project）または新規エラー（`judgment_project_unresolved` / `judgment_project_lookup_failed`）へ変わります（#1032）。Antigravity CLI判断フックの `transcriptPath` 読み取り（`last_assistant_message` / 非システム `USER_INPUT` 補完）は、カーネル強制のルート境界・シンボリックリンク禁止保証のため Linux 5.6+（`openat2(RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS)`・対応アーキテクチャ `platform.machine()` 許可リスト: `x86_64` / `amd64` / `aarch64` / `arm64` / `i386` / `i686` / `armv7l` / `armv6l` / `riscv64` / `s390x` / `ppc64le` / `ppc64` / `loongarch64`・`/proc/self/fd`・固定パス `python3`）および OS `flock` 環境を対象とし、macOS / Windows や未対応アーキテクチャ等の非対応環境（または `openat2` が制限されたコンテナ環境）ではフォールバックせず安全側（fail-closed）で transcript 読み取りを拒否（空扱い）し、フック本体は fail-open 応答（`{}` / `{"decision":""}`）を維持します。それ以外の既存のランタイム既定動作・MCPツール・認証・権限の境界は維持します。npm公開と利用ホストへの配備は別途確認します。
 
-## Candidate — v0.50.27（npm公開前）
+## Released — v0.50.29
 
-プロジェクト詳細をホスト追加タブ・概要・記録探索・その場の設定編集で組み立てる共通UIを加えるpatch更新候補です（#1071）。ID未取得の資料と未確認・部分取得・失敗の区別を保ち、背景更新中のfocusや保存結果の確認を維持します。個人版の既定2タブと取得・認可経路は変えません。編集操作は「編集」「キャンセル」「変更履歴」にそろえます。判断そのものの訂正・取り消しは変更しません。npm公開と利用ホストへの配備は別途確認します。
+0.50.28に、Gemini / OpenAI / Claude / Codex 間でMCPツールの `inputSchema` を正規化・検証する公開subpath `mcp-tool-schema-portability`（#1046、#1063）を最小差分で加えたpatch更新です（#1076）。既存の公開API、MCPツール、既定の振る舞い、認証・権限の契約は変更しません。npmには2026-11-25 03:48:12 JSTに公開しました。利用ホストへの配備は、この記録だけでは確認できません。
 
-## Candidate — v0.50.26（npm公開前）
+## Released — v0.50.28
 
-0.50.25のClaude Codeの判断フックで、`brainbase_resolve_turn`が通ったターンの記録を、組織版の判断の履歴に出せるようにするpatch更新候補です（#1065）。これまでは、ターンの記録に最初の受け取りを付けて送っていたため、履歴の読み口が受け取りの食い違いとして捨てていました。最後に成功したresolve_turnの契約を付けて送り、別の人・別のテナントの契約には付けません。既存の公開API、MCPツール、認証・権限の契約は変更しません。npm公開と利用ホストへの配備は別途確認します。
+議事録の共通UIが、対象の会議・文書ごとの編集可否と、編集できない理由をホストから受け取れるようにしたpatch更新です（#1073）。プロジェクトを1つ選ぶ必要がある場合と権限不足の案内を分けます。従来のbooleanを返す呼び出しとの互換性を保ち、認証・権限の判定は変更しません。npmには2026-11-24 23:45:53 JSTに公開しました。利用ホストへの配備は、この記録だけでは確認できません。
+
+## Released — v0.50.27
+
+プロジェクト詳細をホスト追加タブ・概要・記録探索・その場の設定編集で組み立てる共通UIを加えたpatch更新です（#1071、#1072）。ID未取得の資料と未確認・部分取得・失敗の区別を保ち、背景更新中のfocusや保存結果の確認を維持します。個人版の既定2タブと取得・認可経路は変えません。編集操作は「編集」「キャンセル」「変更履歴」にそろえます。判断そのものの訂正・取り消しは変更しません。npmには2026-11-24 16:23:45 JSTに公開しました。利用ホストへの配備は、この記録だけでは確認できません。
+
+## Released — v0.50.26
+
+0.50.25のClaude Codeの判断フックで、`brainbase_resolve_turn`が通ったターンの記録を、組織版の判断の履歴に出せるようにしたpatch更新です（#1065）。これまでは、ターンの記録に最初の受け取りを付けて送っていたため、履歴の読み口が受け取りの食い違いとして捨てていました。最後に成功したresolve_turnの契約を付けて送り、別の人・別のテナントの契約には付けません。既存の公開API、MCPツール、認証・権限の契約は変更しません。npmには2026-11-24 12:56:28 JSTに公開しました。利用ホストへの配備は、この記録だけでは確認できません。
 
 ## Released — v0.50.25
 

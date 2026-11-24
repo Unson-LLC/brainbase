@@ -57,8 +57,8 @@ export interface JudgmentRuntimePriorReceipt {
 }
 
 export interface JudgmentRuntimeRuntimeContext {
-    host: 'codex' | 'claude-code';
-    entrypoint?: 'codex' | 'claude_code' | 'mana' | 'company_os' | 'unknown';
+    host: 'codex' | 'claude-code' | 'antigravity';
+    entrypoint?: 'codex' | 'claude_code' | 'antigravity' | 'mana' | 'company_os' | 'unknown';
     model: string | null;
     permission_mode: string | null;
     project_binding: string | null;
