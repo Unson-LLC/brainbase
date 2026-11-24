@@ -88,8 +88,8 @@ export interface JudgmentRuntimePriorReceipt {
 }
 
 export interface JudgmentRuntimeRuntimeContext {
-    host: 'codex' | 'claude-code';
-    entrypoint?: 'codex' | 'claude_code' | 'mana' | 'company_os' | 'unknown';
+    host: 'codex' | 'claude-code' | 'antigravity';
+    entrypoint?: 'codex' | 'claude_code' | 'antigravity' | 'mana' | 'company_os' | 'unknown';
     model: string | null;
     permission_mode: string | null;
     project_binding: string | null;
@@ -338,8 +338,8 @@ const RUNTIME_ESCALATION_REASONS = new Set([
 const INTENT_MATCHERS = new Set(INTENT_ORDER);
 const ADAPTER_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 const ADAPTER_VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/;
-const RUNTIME_HOSTS = new Set(['codex', 'claude-code']);
-const RUNTIME_ENTRYPOINTS = new Set(['codex', 'claude_code', 'mana', 'company_os', 'unknown']);
+const RUNTIME_HOSTS = new Set(['codex', 'claude-code', 'antigravity']);
+const RUNTIME_ENTRYPOINTS = new Set(['codex', 'claude_code', 'antigravity', 'mana', 'company_os', 'unknown']);
 
 function compareCodePoints(left, right) {
     const a = Array.from(left, (value) => value.codePointAt(0));

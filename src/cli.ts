@@ -93,6 +93,22 @@ import {
   registerClaudeCodeJudgmentHooks,
   type ClaudeCodeHookConfig
 } from './claude-code-judgment-hook.js';
+import {
+  ANTIGRAVITY_HOOK_CONFIG_SCHEMA,
+  ANTIGRAVITY_HOOK_KEY,
+  antigravityFailOpenOutput,
+  antigravityHookCommand,
+  antigravityJudgmentHookEntry,
+  defaultAntigravityHookConfigPath,
+  defaultAntigravityHooksJsonPath,
+  handleAntigravityJudgmentHook,
+  hasInstalledAntigravityHooks,
+  isAntigravityHookConfigText,
+  normalizeAntigravityHookBaseUrl,
+  parseAntigravityHookConfig,
+  registerAntigravityJudgmentHooks,
+  type AntigravityHookConfig
+} from './antigravity-judgment-hook.js';
 import type { CanonicalEntity, DecisionRecord, PersonalKgEntry, PersonalOs, RelationshipRecord } from './types.js';
 
 interface CliIo {
@@ -195,6 +211,8 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
         return await judgmentInstall(parsed, io);
       case 'judgment:claude-code-hook':
         return await judgmentClaudeCodeHook(parsed, io);
+      case 'judgment:antigravity-hook':
+        return await judgmentAntigravityHook(parsed, io);
       case 'login':
         return await login(parsed, io);
       case 'login:status':
@@ -282,7 +300,8 @@ async function judgmentHook(parsed: ParsedArgs, io: CliIo): Promise<number> {
 async function judgmentInstall(parsed: ParsedArgs, io: CliIo): Promise<number> {
   const target = first(parsed, 'target');
   if (target === 'claude-code') return await judgmentInstallClaudeCode(parsed, io);
-  if (target !== 'codex') throw new Error('judgment:install requires --target codex|claude-code');
+  if (target === 'antigravity') return await judgmentInstallAntigravity(parsed, io);
+  if (target !== 'codex') throw new Error('judgment:install requires --target codex|claude-code|antigravity');
   const cliPath = fileURLToPath(new URL('./cli.js', import.meta.url));
   const autonomy = judgmentAutonomyOptions(parsed);
   const reasoningGate = judgmentReasoningGateOptions(parsed);
@@ -345,6 +364,30 @@ async function judgmentClaudeCodeHook(parsed: ParsedArgs, io: CliIo): Promise<nu
     const message = error instanceof Error && /^judgment_[a-z0-9_]{1,120}$/u.test(error.message)
       ? error.message : 'judgment_hook_failed';
     output = { systemMessage: `⚠️ Brainbase判断フック: 判断フックの処理に失敗しました（${message}）。判断監査なしで続行します。` };
+  }
+  write(io, `${JSON.stringify(output)}\n`);
+  return 0;
+}
+
+async function judgmentAntigravityHook(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  // Fail-open: whatever happens, Antigravity gets a valid hook answer and exit 0.
+  let eventName: unknown;
+  let output: Record<string, unknown>;
+  try {
+    const input = await readHookStdin(io.stdin ?? process.stdin, CLAUDE_CODE_HOOK_MAX_INPUT_BYTES);
+    const payload: unknown = JSON.parse(input || '{}');
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      throw new Error('judgment_hook_payload_invalid');
+    }
+    eventName = (payload as Record<string, unknown>).hookEventName;
+    const configPath = first(parsed, 'config');
+    const registrationId = first(parsed, 'registration');
+    output = await handleAntigravityJudgmentHook(payload as Record<string, unknown>, {
+      ...(configPath ? { configPath } : {}),
+      ...(registrationId ? { registrationId } : {}),
+    });
+  } catch {
+    output = antigravityFailOpenOutput(eventName);
   }
   write(io, `${JSON.stringify(output)}\n`);
   return 0;
@@ -553,7 +596,7 @@ class SettingsChangedError extends Error {}
  */
 function brainbaseFileUse(value: Record<string, unknown>): string | null {
   const schema = value.schema_version;
-  if (schema === CLAUDE_CODE_HOOK_CONFIG_SCHEMA) return '判断フックの設定';
+  if (schema === CLAUDE_CODE_HOOK_CONFIG_SCHEMA || schema === ANTIGRAVITY_HOOK_CONFIG_SCHEMA) return '判断フックの設定';
   if (schema === CREDENTIALS_SCHEMA_VERSION) return 'brainbase login の保存ファイル';
   if (typeof schema === 'string' && schema.startsWith('brainbase')) return `brainbase のファイル（${schema}）`;
   return null;
@@ -664,6 +707,220 @@ async function applyClaudeCodeRegistration(plan: ClaudeCodeRegistrationPlan, io:
       ? []
       : ['まだログインしていません。brainbase login --server <API のURL> を実行してください。']),
     'Claude Codeを起動し直すと有効になります。',
+    ''
+  ].join('\n'));
+  return 0;
+}
+
+const ANTIGRAVITY_INSTALL_VALUE_OPTIONS = new Set([
+  'target', 'settings', 'config', 'origin', 'endpoint', 'server', 'project', 'repositories', 'cwd-prefix',
+]);
+const ANTIGRAVITY_INSTALL_SWITCHES = new Set(['allow-non-git', 'remove', 'dry-run']);
+const ANTIGRAVITY_INSTALL_MULTI_OPTIONS = new Set(['repositories', 'cwd-prefix']);
+
+function assertAntigravityInstallOptions(parsed: ParsedArgs): void {
+  for (const name of [...parsed.flags, ...parsed.values.keys()]) {
+    if (ANTIGRAVITY_INSTALL_VALUE_OPTIONS.has(name) || ANTIGRAVITY_INSTALL_SWITCHES.has(name)) continue;
+    const base = name.split('=')[0] ?? name;
+    if (base !== name && (ANTIGRAVITY_INSTALL_VALUE_OPTIONS.has(base) || ANTIGRAVITY_INSTALL_SWITCHES.has(base))) {
+      const hint = ANTIGRAVITY_INSTALL_SWITCHES.has(base) ? `--${base}` : `--${base} <値>`;
+      throw new Error(`--${base}=… の形は使えません。${hint} のように書いてください。何も変えずに止めました。`);
+    }
+    throw new Error(`judgment:install --target antigravity は --${name} を知りません。何も変えずに止めました。`);
+  }
+  for (const name of ANTIGRAVITY_INSTALL_SWITCHES) {
+    if (parsed.values.has(name)) {
+      throw new Error(`--${name} は値をとりません（--${name} だけを書きます）。何も変えずに止めました。`);
+    }
+  }
+  for (const name of ANTIGRAVITY_INSTALL_VALUE_OPTIONS) {
+    if (!ANTIGRAVITY_INSTALL_MULTI_OPTIONS.has(name) && (parsed.values.get(name)?.length ?? 0) > 1) {
+      throw new Error(`--${name} は1回だけ書けます。何も変えずに止めました。`);
+    }
+  }
+}
+
+interface AntigravityRegistrationPlan {
+  settingsPath: string;
+  settingsReal: string;
+  configPath: string;
+  configReal: string;
+  config: AntigravityHookConfig | undefined;
+  command: string;
+  remove: boolean;
+  dryRun: boolean;
+}
+
+async function judgmentInstallAntigravity(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  assertAntigravityInstallOptions(parsed);
+  const settingsPath = resolve(explicitValue(parsed, 'settings', '--settings <hooks.json>')
+    ?? defaultAntigravityHooksJsonPath());
+  const configPath = resolve(explicitValue(parsed, 'config', '--config <path>')
+    ?? defaultAntigravityHookConfigPath());
+  const settingsReal = canonicalFilePath(settingsPath);
+  const configReal = canonicalFilePath(configPath);
+  if (settingsReal === configReal) {
+    throw new Error('judgment:install --settings and --config must be different files');
+  }
+  if (configReal === canonicalFilePath(resolve(defaultCredentialsPath()))) {
+    throw new Error('judgment:install --config must not be the brainbase login file');
+  }
+  const remove = parsed.flags.has('remove');
+  const dryRun = parsed.flags.has('dry-run');
+  const registrationId = randomBytes(16).toString('hex');
+  let config: AntigravityHookConfig | undefined;
+  if (!remove) {
+    const origin = explicitValue(parsed, 'origin', '--origin <baseUrl>');
+    if (!origin) throw new Error('judgment:install --target antigravity requires --origin <baseUrl>');
+    const endpoint = explicitValue(parsed, 'endpoint', '--endpoint <hook URL>');
+    const projectValue = explicitValue(parsed, 'project', '--project <code>');
+    const projectCode = projectValue?.trim();
+    if (projectValue !== undefined && !HOOK_PROJECT_CODE_PATTERN.test(projectCode ?? '')) {
+      throw new Error('judgment:install --project must match [a-z0-9][a-z0-9._-]{0,63}');
+    }
+    explicitValue(parsed, 'repositories', '--repositories <host/owner/name,...>');
+    const repositoryValues = parsed.values.get('repositories');
+    const repositories = (repositoryValues ?? [])
+      .flatMap((value) => value.split(',')).map((name) => name.trim()).filter(Boolean)
+      .map((name) => {
+        const normalized = normalizeRepositoryEntry(name);
+        if (!normalized) {
+          throw new Error(`judgment:install --repositories needs host/owner/name, e.g. github.com/example-org/app (got ${name})`);
+        }
+        return normalized;
+      });
+    if ((repositoryValues !== undefined || parsed.flags.has('repositories')) && repositories.length === 0) {
+      throw new Error('judgment:install --repositories needs at least one host/owner/name; leave the option out to audit every repository');
+    }
+    explicitValue(parsed, 'cwd-prefix', '--cwd-prefix <path>');
+    const rawPrefixes = parsed.values.get('cwd-prefix');
+    const cwdPrefixes = (rawPrefixes ?? [])
+      .map((entry) => entry.trim()).filter(Boolean)
+      .map((entry) => canonicalFilePath(entry));
+    if ((rawPrefixes !== undefined || parsed.flags.has('cwd-prefix')) && cwdPrefixes.length === 0) {
+      throw new Error('judgment:install --cwd-prefix needs a non-empty directory path');
+    }
+    const allowNonGit = parsed.flags.has('allow-non-git');
+    const loginServer = explicitValue(parsed, 'server', '--server <API URL>')
+      ?? (await readCredentials(defaultCredentialsPath()).catch(() => null))?.server_url;
+    if (!loginServer) {
+      throw new Error('judgment:install --target antigravity requires --server <API URL> (the server you log in to with brainbase login), or a saved login');
+    }
+    config = {
+      schema_version: ANTIGRAVITY_HOOK_CONFIG_SCHEMA,
+      origin: normalizeAntigravityHookBaseUrl(origin),
+      ...(endpoint ? { endpoint: normalizeAntigravityHookBaseUrl(endpoint) } : {}),
+      login_server: normalizeServerUrl(loginServer),
+      ...(projectCode ? { project_code: projectCode } : {}),
+      ...(allowNonGit ? { allow_non_git: true } : {}),
+      ...(cwdPrefixes.length > 0 ? { cwd_prefixes: [...new Set(cwdPrefixes)] } : {}),
+      ...(repositories.length > 0 ? { repositories: [...new Set(repositories)] } : {}),
+      registration: { id: registrationId, settings: settingsReal },
+    };
+  }
+  const cliPath = fileURLToPath(new URL('./cli.js', import.meta.url));
+  const command = antigravityHookCommand(process.execPath, cliPath, configPath, registrationId);
+  const plan: AntigravityRegistrationPlan = {
+    settingsPath, settingsReal, configPath, configReal, config, command, remove, dryRun,
+  };
+  const run = async (): Promise<number> => {
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        return await applyAntigravityRegistration(plan, io);
+      } catch (error) {
+        if (!(error instanceof SettingsChangedError)) throw error;
+        if (attempt >= SETTINGS_CHANGED_ATTEMPTS) {
+          throw new Error(`${settingsPath} は登録の途中で何度も別の保存が入ったため、何も変えずに止めました。設定の保存が落ち着いてから、もう一度実行してください。`);
+        }
+      }
+    }
+  };
+  return dryRun ? await run() : await withInstallLocks([settingsReal, configReal], run);
+}
+
+async function applyAntigravityRegistration(plan: AntigravityRegistrationPlan, io: CliIo): Promise<number> {
+  const { settingsPath, settingsReal, configPath, configReal, config, command, remove, dryRun } = plan;
+  let hooksJson: Record<string, unknown> = {};
+  const settingsText = await readRegularFile(settingsPath, '--settings');
+  if (settingsText !== null) {
+    const parsedSettings: unknown = JSON.parse(settingsText);
+    if (!parsedSettings || typeof parsedSettings !== 'object' || Array.isArray(parsedSettings)) {
+      throw new Error(`Antigravity hooks.json is not a JSON object: ${settingsPath}`);
+    }
+    hooksJson = parsedSettings as Record<string, unknown>;
+  }
+  const otherUse = brainbaseFileUse(hooksJson);
+  if (otherUse) {
+    throw new Error(`judgment:install --settings ${settingsPath} は${otherUse}で、Antigravity の hooks.json ではありません。何も変えずに止めました。Antigravity の hooks.json を指定してください。`);
+  }
+  const previousConfig = await readRegularFile(configPath, '--config');
+  const configExists = previousConfig !== null;
+  const configOwned = configExists && isAntigravityHookConfigText(previousConfig);
+  if (!remove && configExists && !configOwned) {
+    throw new Error(`judgment:install --config ${configPath} exists and is not a brainbase antigravity hook config; choose another path`);
+  }
+  const existingConfig = configOwned ? parseAntigravityHookConfig(previousConfig) : null;
+  const registeredElsewhere = configOwned && (existingConfig
+    ? canonicalFilePath(existingConfig.registration.settings) !== settingsReal
+    : !hasInstalledAntigravityHooks(hooksJson, configPath));
+  if (!remove && registeredElsewhere) {
+    throw new Error(`judgment:install --config ${configPath} is used by ${existingConfig?.registration.settings ?? 'another registration'}; choose another --config for ${settingsPath}`);
+  }
+  if (remove && !hasInstalledAntigravityHooks(hooksJson, configPath)) {
+    throw new Error(`judgment:install --remove found no registration for ${configPath} in ${settingsPath}; nothing was changed`);
+  }
+  const removedIds = new Set<string>();
+  const next = registerAntigravityJudgmentHooks(hooksJson, { command, configPath, remove, removedIds });
+  if (dryRun) {
+    write(io, `${JSON.stringify({
+      settingsPath,
+      configPath,
+      config: config ?? null,
+      hooks: {
+        key: ANTIGRAVITY_HOOK_KEY,
+        entry: remove ? null : antigravityJudgmentHookEntry(command),
+        remove_registration_ids: [...removedIds],
+      },
+    }, null, 2)}\n`);
+    return 0;
+  }
+  if (remove) {
+    await replaceFileFollowingLinks(settingsPath, `${JSON.stringify(next, null, 2)}\n`, 0o600, settingsText);
+    const currentElsewhere = !!existingConfig && !removedIds.has(existingConfig.registration.id);
+    if (configOwned && !registeredElsewhere && !currentElsewhere) await rm(configReal, { force: true });
+    write(io, [
+      `Antigravityの判断フックを外しました（${settingsPath}）。`,
+      ...(configExists && !configOwned ? [`${configPath} は判断フックの設定ではないため、残しました。`] : []),
+      ...(registeredElsewhere ? [`${configPath} は ${existingConfig?.registration.settings ?? '別の登録'} の登録が使っているため、残しました。`] : []),
+      ...(!registeredElsewhere && currentElsewhere ? [`${configPath} は外した登録とは別の、いまの登録が使っているため、残しました。`] : []),
+      ''
+    ].join('\n'));
+    return 0;
+  }
+  await mkdir(dirname(configPath), { recursive: true, mode: 0o700 });
+  await replaceFileFollowingLinks(configPath, `${JSON.stringify(config, null, 2)}\n`, 0o600);
+  try {
+    await replaceFileFollowingLinks(settingsPath, `${JSON.stringify(next, null, 2)}\n`, 0o600, settingsText);
+  } catch (error) {
+    try {
+      if (previousConfig === null) await rm(configPath, { force: true });
+      else await replaceFileFollowingLinks(configPath, previousConfig, 0o600);
+    } catch {
+      throw new Error(`${error instanceof Error ? error.message : String(error)}; ${configPath} could not be put back, run judgment:install again`);
+    }
+    throw error;
+  }
+  write(io, [
+    `Antigravityの判断フックを登録しました（${settingsPath}）。`,
+    `送り先: ${config!.origin}`,
+    `project: ${config!.project_code ?? 'Hostが決める'}`,
+    ...(config!.allow_non_git ? ['非Gitディレクトリ: 許可（allow_non_git: true）'] : []),
+    ...(config!.cwd_prefixes ? [`対象ディレクトリ: ${config!.cwd_prefixes.join(', ')}`] : []),
+    `対象のリポジトリ: ${config!.repositories?.join(', ') ?? 'すべて'}`,
+    ...(await readCredentials(defaultCredentialsPath()).catch(() => null)
+      ? []
+      : ['まだログインしていません。brainbase login --server <API のURL> を実行してください。']),
+    'Antigravityを再起動すると有効になります。',
     ''
   ].join('\n'));
   return 0;
@@ -2005,7 +2262,9 @@ function usage(): string {
   brainbase ontology:migrate [--dir path] [--write --expected-input-digest digest]
   brainbase judgment:install --target codex [--autonomy-mode off|canary|on] [--autonomy-project code] [--reasoning-gate-mode off|compact_4block_v3|compact_4block_with_wm] [--reasoning-gate-projects code,code] [--dry-run] [--output path]
   brainbase judgment:install --target claude-code --origin url [--server url] [--project code] [--repositories name,name] [--settings path] [--config path] [--dry-run] [--remove]
+  brainbase judgment:install --target antigravity --origin baseUrl [--server url] [--project code] [--allow-non-git] [--cwd-prefix path] [--repositories name,name] [--settings hooks.json] [--config path] [--dry-run] [--remove]
   brainbase judgment:claude-code-hook [--config path]
+  brainbase judgment:antigravity-hook [--config path] [--registration id]
   brainbase judgment:hook [--autonomy-mode off|canary|on] [--autonomy-project code] [--reasoning-gate-mode off|compact_4block_v3|compact_4block_with_wm] [--reasoning-gate-projects code,code]
   brainbase login --server url [--credentials path]
   brainbase login:status [--credentials path]
