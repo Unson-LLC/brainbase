@@ -497,6 +497,80 @@ describe('MCP tool inputSchema cross-client portability contract (Gemini / OpenA
     expect(JSON.stringify(secondPass)).toBe(JSON.stringify(normalized));
   });
 
+  it('preserves required entries declared in a separate allOf branch (including __proto__, nested allOf, $ref, and outer properties) while dropping truly undeclared keys', () => {
+    const schema = JSON.parse(`{
+      "type": "object",
+      "$defs": {
+        "requireProto": {
+          "required": ["__proto__"]
+        }
+      },
+      "properties": {
+        "split_all_of": {
+          "allOf": [
+            {
+              "type": "object",
+              "properties": {
+                "__proto__": { "type": "string" },
+                "label": { "type": "string" }
+              }
+            },
+            {
+              "required": ["__proto__", "label", "orphan_key"]
+            }
+          ]
+        },
+        "nested_all_of": {
+          "allOf": [
+            {
+              "type": "object",
+              "properties": {
+                "__proto__": { "type": "integer" }
+              }
+            },
+            {
+              "allOf": [
+                { "$ref": "#/$defs/requireProto" }
+              ]
+            }
+          ]
+        },
+        "outer_props_branch_required": {
+          "type": "object",
+          "properties": {
+            "__proto__": { "type": "boolean" }
+          },
+          "allOf": [
+            { "required": ["__proto__"] }
+          ]
+        }
+      }
+    }`) as Tool['inputSchema'];
+
+    const normalized = normalizeMcpToolInputSchemaForPortability(schema);
+    expect(validateMcpToolInputSchemaPortability(normalized, 'split_allof_tool')).toEqual([]);
+
+    const props = normalized.properties as Record<string, Record<string, unknown>>;
+
+    const splitAllOf = props.split_all_of;
+    const splitProps = splitAllOf.properties as Record<string, Record<string, unknown>>;
+    expect(Object.getPrototypeOf(splitProps)).toBe(Object.prototype);
+    expect(Object.hasOwn(splitProps, '__proto__')).toBe(true);
+    expect(splitAllOf.required).toEqual(['__proto__', 'label']);
+
+    const nestedAllOf = props.nested_all_of;
+    const nestedProps = nestedAllOf.properties as Record<string, Record<string, unknown>>;
+    expect(Object.getPrototypeOf(nestedProps)).toBe(Object.prototype);
+    expect(Object.hasOwn(nestedProps, '__proto__')).toBe(true);
+    expect(nestedAllOf.required).toEqual(['__proto__']);
+
+    const outerBranchReq = props.outer_props_branch_required;
+    const outerBranchProps = outerBranchReq.properties as Record<string, Record<string, unknown>>;
+    expect(Object.getPrototypeOf(outerBranchProps)).toBe(Object.prototype);
+    expect(Object.hasOwn(outerBranchProps, '__proto__')).toBe(true);
+    expect(outerBranchReq.required).toEqual(['__proto__']);
+  });
+
   it('publishes ./mcp-tool-schema-portability with all 11 exported symbols (8 runtime functions + 3 types) matching dist output', async () => {
     const manifest = JSON.parse(await readFile(path.join(process.cwd(), 'package.json'), 'utf8'));
     expect(manifest.exports['./mcp-tool-schema-portability']).toEqual({

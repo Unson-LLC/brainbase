@@ -141,6 +141,7 @@ function inferTypeFromValue(value: unknown): string {
 function mergeNormalizedSchemas(
   branches: readonly JsonObject[],
   mode: 'union' | 'intersection',
+  preserveUndeclaredRequired = false,
 ): MergedSchemaResult {
   const nonNull = branches.filter((branch) => !isPureNullSchema(branch));
   if (nonNull.length === 0) return { schema: { type: 'string' }, notes: [] };
@@ -151,7 +152,7 @@ function mergeNormalizedSchemas(
   if (types.size === 1) {
     const singleType = [...types][0];
     if (singleType === 'object') {
-      const mergedObject = mergeObjectSchemas(nonNull, mode);
+      const mergedObject = mergeObjectSchemas(nonNull, mode, preserveUndeclaredRequired);
       if (anyNullable) {
         mergedObject.nullable = true;
         mergedObject.description = appendDescription(mergedObject.description, NULL_NOTE);
@@ -242,7 +243,11 @@ function mergeNormalizedSchemas(
   return { schema: merged, notes };
 }
 
-function mergeObjectSchemas(branches: readonly JsonObject[], mode: 'union' | 'intersection'): JsonObject {
+function mergeObjectSchemas(
+  branches: readonly JsonObject[],
+  mode: 'union' | 'intersection',
+  preserveUndeclaredRequired = false,
+): JsonObject {
   const properties: JsonObject = {};
   const propertyBranches = new Map<string, JsonObject[]>();
 
@@ -281,7 +286,9 @@ function mergeObjectSchemas(branches: readonly JsonObject[], mode: 'union' | 'in
       first.filter((key) => branchRequiredLists.every((list) => list.includes(key))),
     );
   }
-  required = required.filter((key) => Object.hasOwn(properties, key));
+  if (!preserveUndeclaredRequired) {
+    required = required.filter((key) => Object.hasOwn(properties, key));
+  }
 
   const allDisallowedAdditional = branches.every((branch) => branch.additionalProperties === false);
   const description = branches.find((branch) => typeof branch.description === 'string')?.description;
@@ -301,6 +308,7 @@ function normalizeSchemaNode(
   root: JsonObject,
   seenRefs: ReadonlySet<string>,
   isRoot = false,
+  preserveUndeclaredRequired = false,
 ): JsonObject {
   if (!isPlainObject(rawNode)) {
     return isRoot ? { type: 'object', properties: {} } : { type: 'string' };
@@ -316,7 +324,13 @@ function normalizeSchemaNode(
       if (target) {
         const nextSeen = new Set(seenRefs);
         nextSeen.add(ref);
-        const resolvedTarget = normalizeSchemaNode(target, root, nextSeen, false);
+        const resolvedTarget = normalizeSchemaNode(
+          target,
+          root,
+          nextSeen,
+          false,
+          preserveUndeclaredRequired || isPlainObject(working.properties),
+        );
         working = { ...resolvedTarget, ...working };
       }
     }
@@ -330,11 +344,18 @@ function normalizeSchemaNode(
     delete working[combinatorKey];
 
     const mode = combinatorKey === 'allOf' ? 'intersection' : 'union';
+    const hasOuterObjectFields = isPlainObject(working.properties) || Array.isArray(working.required);
+    const preserveBranchRequired = mode === 'intersection';
+    const preserveMergedRequired = preserveUndeclaredRequired || (mode === 'intersection' && hasOuterObjectFields);
     const hasNullBranch = rawBranches.some((branch) => isPureNullSchema(branch));
     const normalizedBranches = rawBranches
       .filter((branch) => !isPureNullSchema(branch))
-      .map((branch) => normalizeSchemaNode(branch, root, seenRefs, false));
-    const { schema: mergedBranch, notes: mergedNotes } = mergeNormalizedSchemas(normalizedBranches, mode);
+      .map((branch) => normalizeSchemaNode(branch, root, seenRefs, false, preserveBranchRequired));
+    const { schema: mergedBranch, notes: mergedNotes } = mergeNormalizedSchemas(
+      normalizedBranches,
+      mode,
+      preserveMergedRequired,
+    );
     const shouldBeNullable =
       working.nullable === true
       || mergedBranch.nullable === true
@@ -342,7 +363,6 @@ function normalizeSchemaNode(
       || (hasNullBranch && normalizedBranches.length === 0);
 
     // Merge outer sibling properties/required if present on object schemas.
-    const hasOuterObjectFields = isPlainObject(working.properties) || Array.isArray(working.required);
     const outerDescription = typeof working.description === 'string' ? working.description : undefined;
     if (mergedBranch.type === 'object' && hasOuterObjectFields) {
       const outerCandidate: JsonObject = { type: 'object' };
@@ -355,7 +375,7 @@ function normalizeSchemaNode(
       }
       if (Array.isArray(working.required)) outerCandidate.required = working.required;
       if (working.additionalProperties === false) outerCandidate.additionalProperties = false;
-      const combined = mergeObjectSchemas([outerCandidate, mergedBranch], 'intersection');
+      const combined = mergeObjectSchemas([outerCandidate, mergedBranch], 'intersection', preserveUndeclaredRequired);
       const finalDescription = outerDescription !== undefined
         ? appendDescriptions(outerDescription, mergedNotes)
         : (typeof combined.description === 'string' ? combined.description : undefined);
@@ -540,7 +560,9 @@ function normalizeSchemaNode(
     if (Array.isArray(working.required)) {
       const props = isPlainObject(working.properties) ? working.properties : {};
       const filtered = uniqueStrings(
-        working.required.filter((key): key is string => typeof key === 'string' && Object.hasOwn(props, key)),
+        working.required.filter(
+          (key): key is string => typeof key === 'string' && (preserveUndeclaredRequired || Object.hasOwn(props, key)),
+        ),
       );
       working.required = filtered;
     } else if (working.required !== undefined) {
