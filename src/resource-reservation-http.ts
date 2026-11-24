@@ -8,6 +8,7 @@ import {
   type ReserveResourceReservationInput,
   type ResourceReservationMutationInput,
 } from './resource-reservations.js';
+import { SsotLockTimeoutError } from './ssot.js';
 
 const DEFAULT_BODY_LIMIT_BYTES = 1024 * 1024;
 const DEFAULT_BASE_PATH = '/resource-reservations';
@@ -331,6 +332,22 @@ function writeError(
   writeJson(response, status, { error: { code, message } }, headers);
 }
 
+function writeServiceError(response: ServerResponse, operation: RouteOperation, error: unknown): void {
+  if (error instanceof SsotLockTimeoutError) {
+    console.warn(`[resource-reservations] ${operation}: SSOT lock wait timed out`, error);
+    writeError(response, 503, 'ssot_lock_timeout', 'Resource reservation storage is busy. Retry shortly.', {
+      'Retry-After': '1',
+    });
+    return;
+  }
+
+  const failure = serviceError(error);
+  if (failure.status === 500) {
+    console.error(`[resource-reservations] ${operation}: ${failure.code}`, error);
+  }
+  writeError(response, failure.status, failure.code, failure.message);
+}
+
 function methodAllowed(operation: RouteOperation, method: string): boolean {
   return operation === 'read' ? method === 'GET' : method === 'POST';
 }
@@ -400,8 +417,7 @@ export function createResourceReservationHttpHandler(
         });
         writeJson(response, 200, { action: 'read', result });
       } catch (error) {
-        const failure = serviceError(error);
-        writeError(response, failure.status, failure.code, failure.message);
+        writeServiceError(response, 'read', error);
       }
       return true;
     }
@@ -464,8 +480,7 @@ export function createResourceReservationHttpHandler(
         result,
       });
     } catch (error) {
-      const failure = serviceError(error);
-      writeError(response, failure.status, failure.code, failure.message);
+      writeServiceError(response, route.operation, error);
     }
     return true;
   };

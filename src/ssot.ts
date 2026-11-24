@@ -16,6 +16,13 @@ const lockName = '.brainbase-ssot.lock';
 const stagingPrefix = '.brainbase-staging-';
 const transactionPrefix = '.brainbase-transaction-';
 
+export class SsotLockTimeoutError extends Error {
+  constructor(lockDir: string) {
+    super(`Timed out waiting for canonical SSOT lock ${lockDir}`);
+    this.name = 'SsotLockTimeoutError';
+  }
+}
+
 interface LockOwner {
   token: string;
   pid: number;
@@ -484,7 +491,7 @@ async function waitForInProcessTurn(previous: Promise<void>, deadline: number, l
   let timer: NodeJS.Timeout | undefined;
   const timedOut = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(
-      () => reject(new Error(`Timed out waiting for canonical SSOT lock ${lockDir}`)),
+      () => reject(new SsotLockTimeoutError(lockDir)),
       Math.max(0, deadline - Date.now())
     );
   });
@@ -513,7 +520,7 @@ async function acquireLock(dataDir: string, deadline: number): Promise<LockOwner
       }
       await quarantineDeadSameHostLock(dataDir, lockDir);
       if (Date.now() >= deadline) {
-        throw new Error(`Timed out waiting for canonical SSOT lock ${lockDir}`);
+        throw new SsotLockTimeoutError(lockDir);
       }
       await delay(retryMs);
     }

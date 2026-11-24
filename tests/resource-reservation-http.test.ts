@@ -1,5 +1,5 @@
 import { createServer as createHttpServer, type Server as HttpServer } from 'node:http';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -15,6 +15,7 @@ import {
   type TrustedResourceReservationRequestContext,
 } from '../src/resource-reservation-http.js';
 
+const TEST_TMP_ROOT = process.env.BRAINBASE_TEST_FIXTURE_ROOT ?? tmpdir();
 const servers: HttpServer[] = [];
 const directories: string[] = [];
 
@@ -29,7 +30,7 @@ const period = {
 };
 
 async function tempDir(): Promise<string> {
-  const directory = await mkdtemp(join(tmpdir(), 'brainbase-reservation-http-'));
+  const directory = await mkdtemp(join(TEST_TMP_ROOT, 'brainbase-reservation-http-'));
   directories.push(directory);
   return directory;
 }
@@ -265,7 +266,60 @@ describe('resource reservation canonical HTTP adapter', () => {
     expect(directCrossTenant.body?.error?.code).toBe('scope_mismatch');
   });
 
-  it('serializes concurrent HTTP reservations through the existing service store', async () => {
+  it('returns a retryable response when the canonical SSOT lock stays held', async () => {
+    const dataDir = await tempDir();
+    const lockDir = join(dataDir, '.brainbase-ssot.lock');
+    await mkdir(lockDir);
+    const handler = createResourceReservationHttpHandler({
+      serviceFactory: () => new ResourceReservationService({ dataDir, ...ports() }),
+    });
+    const baseUrl = await start(handler);
+    const input = { method: 'POST', body: JSON.stringify(requestBody('retry-after-lock')) };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.stubEnv('BRAINBASE_SSOT_LOCK_TIMEOUT_MS', '40');
+    try {
+      const busy = await request(baseUrl, '/resource-reservations/approve', input);
+      expect(busy.response.status).toBe(503);
+      expect(busy.response.headers.get('retry-after')).toBe('1');
+      expect(busy.body?.error?.code).toBe('ssot_lock_timeout');
+      expect(busy.body?.error?.message).not.toContain(dataDir);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('approve'), expect.any(Error));
+    } finally {
+      vi.unstubAllEnvs();
+      warn.mockRestore();
+    }
+
+    await rm(lockDir, { recursive: true });
+    const retried = await request(baseUrl, '/resource-reservations/approve', input);
+    expect(retried.response.status, JSON.stringify(retried.body)).toBe(200);
+  });
+
+  it('logs the original exception when a reservation service fails unexpectedly', async () => {
+    const error = new Error('reservation storage failure');
+    const handler = createResourceReservationHttpHandler({
+      serviceFactory: () => { throw error; },
+    });
+    const baseUrl = await start(handler);
+    const logger = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const failed = await request(baseUrl, '/resource-reservations', { method: 'GET' });
+      expect(failed.response.status).toBe(500);
+      expect(failed.body?.error).toEqual({
+        code: 'internal_error',
+        message: 'Resource reservation operation failed',
+      });
+      expect(logger).toHaveBeenCalledWith(expect.stringContaining('read'), error);
+    } finally {
+      logger.mockRestore();
+    }
+  });
+
+  it('serializes concurrent HTTP reservations through the existing service store', async ({ onTestFinished }) => {
+    // Keep contention within the suite's 30s CI deadline even on shared runners.
+    if (process.env.CI && process.env.CI !== 'false') {
+      vi.stubEnv('BRAINBASE_SSOT_LOCK_TIMEOUT_MS', '15000');
+      onTestFinished(() => vi.unstubAllEnvs());
+    }
     const dataDir = await tempDir();
     const handler = createResourceReservationHttpHandler({
       serviceFactory: () => new ResourceReservationService({ dataDir, ...ports(10) }),
@@ -277,7 +331,8 @@ describe('resource reservation canonical HTTP adapter', () => {
       request(baseUrl, '/resource-reservations/approve', { method: 'POST', body: JSON.stringify(first) }),
       request(baseUrl, '/resource-reservations/approve', { method: 'POST', body: JSON.stringify(second) }),
     ]);
-    expect(approvals.every(({ response }) => response.status === 200)).toBe(true);
+    expect(approvals.map(({ response }) => response.status), JSON.stringify(approvals.map(({ body }) => body)))
+      .toEqual([200, 200]);
     const approvalId1 = approvals[0].body?.result?.reservation?.approval?.approvalId;
     const approvalId2 = approvals[1].body?.result?.reservation?.approval?.approvalId;
     const reserves = await Promise.all([
@@ -290,7 +345,8 @@ describe('resource reservation canonical HTTP adapter', () => {
         body: JSON.stringify({ ...second, operationId: 'concurrent-reserve-2', approvalId: approvalId2 }),
       }),
     ]);
-    expect(reserves.map(({ response }) => response.status).sort()).toEqual([200, 409]);
+    expect(reserves.map(({ response }) => response.status).sort(), JSON.stringify(reserves.map(({ body }) => body)))
+      .toEqual([200, 409]);
 
     const read = await request(baseUrl, '/resource-reservations', { method: 'GET' });
     expect(read.body?.result?.reservations?.filter((item: { state: string }) => item.state === 'reserved')).toHaveLength(1);
