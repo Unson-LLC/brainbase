@@ -19,6 +19,13 @@ import type { JudgmentNodeResult } from './judgment-node-evidence.js';
 import type { GraphRetrievalResponse } from './graph-retrieval.js';
 import type { LearningCandidate } from './company-os-learning-adoption.js';
 import type { JudgmentDAGOutcomeObservation } from './judgment-dag-replay-evaluation.js';
+import {
+  buildOfflineGradedDistortionJudgePrompt,
+  toJudgmentDAGBinaryAuditObservations,
+  type JudgmentDAGBinaryAuditObservationOptions,
+  type OfflineBinaryAuditEvaluationResult,
+  type PollJuryResult,
+} from './judgment-offline-binary-audit.js';
 
 /**
  * Deterministic structural audit and shared rubric for the five canonical
@@ -771,3 +778,72 @@ export function toJudgmentDAGDistortionObservations(
 
   return deepFreeze(observations);
 }
+
+/**
+ * Convenience wrapper building a graded LLM-as-a-Judge prompt using the canonical
+ * `JUDGMENT_REASONING_DISTORTION_RUBRIC_V1` with explicit higher-is-better score polarity
+ * (`1 = pass / 歪みなし, 0.5 = warn, 0 = fail / 歪みあり`).
+ */
+export function buildJudgmentReasoningGradedJudgePrompt(input: {
+  readonly userPrompt: string;
+  readonly draftResponse: string;
+  readonly confirmedContext?: string;
+}): string {
+  return buildOfflineGradedDistortionJudgePrompt({
+    ...input,
+    rubricEntries: JUDGMENT_REASONING_DISTORTION_RUBRIC_V1,
+  });
+}
+
+/**
+ * Combine deterministic structural distortion observations and offline 7-item PoLL
+ * binary audit observations into a single immutable observation array for Replay Eval
+ * (`createJudgmentDAGOutcomeAttachment` / `evaluateJudgmentDAGVersions`).
+ */
+export function toCombinedJudgmentDAGAuditObservations(input: {
+  readonly structuralAudit: JudgmentReasoningAuditResult;
+  readonly binaryAudit: PollJuryResult | OfflineBinaryAuditEvaluationResult;
+  readonly structuralOptions?: JudgmentDAGDistortionObservationOptions;
+  readonly binaryOptions?: JudgmentDAGBinaryAuditObservationOptions;
+}): readonly JudgmentDAGOutcomeObservation[] {
+  return deepFreeze([
+    ...toJudgmentDAGDistortionObservations(input.structuralAudit, input.structuralOptions),
+    ...toJudgmentDAGBinaryAuditObservations(input.binaryAudit, input.binaryOptions),
+  ]);
+}
+
+export {
+  OFFLINE_BINARY_AUDIT_DEFECT_CODES,
+  OFFLINE_BINARY_AUDIT_EVALUATION_SCHEMA_VERSION,
+  OFFLINE_BINARY_AUDIT_ITEMS,
+  OFFLINE_BINARY_AUDIT_JUDGE_SCHEMA_ID,
+  OFFLINE_BINARY_AUDIT_JUDGE_SCHEMA_V1,
+  OFFLINE_BINARY_AUDIT_RUBRIC_V1,
+  OFFLINE_BINARY_AUDIT_RUBRIC_VERSION,
+  OFFLINE_BINARY_VERDICT_POLARITY_GUIDE,
+  OFFLINE_GRADED_DISTORTION_JUDGE_SCHEMA_ID,
+  OFFLINE_GRADED_DISTORTION_JUDGE_SCHEMA_V1,
+  OFFLINE_GRADED_SCORE_POLARITY_GUIDE,
+  aggregatePollJuryVerdict,
+  buildOfflineBinaryAuditJudgePrompt,
+  buildOfflineGradedDistortionJudgePrompt,
+  evaluateOfflineBinaryAudit,
+  parseBinaryAuditJudgeOutput,
+  parseGradedDistortionJudgeOutput,
+  toJudgmentDAGBinaryAuditObservations,
+  type BinaryAuditVerdict,
+  type GradedRubricPromptEntry,
+  type JudgmentDAGBinaryAuditObservationOptions,
+  type OfflineBinaryAuditDefectCode,
+  type OfflineBinaryAuditEvaluationInput,
+  type OfflineBinaryAuditEvaluationResult,
+  type OfflineBinaryAuditItemDefinition,
+  type OfflineBinaryAuditItemNumber,
+  type OfflineBinaryAuditJudgeOutput,
+  type OfflineBinaryAuditJudgePromptInput,
+  type OfflineGradedDistortionJudgeOutput,
+  type OfflineGradedDistortionJudgePromptInput,
+  type OfflineGradedPatternJudgeScore,
+  type PollJuryResult,
+  type ProviderAuditVote,
+} from './judgment-offline-binary-audit.js';
