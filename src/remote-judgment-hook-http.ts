@@ -23,10 +23,10 @@ export interface RemoteJudgmentHookDispatchResult {
 }
 
 /**
- * `remote`: a remote runtime. `claude-code`: Claude Code on
- * the owner's loopback bridge or authenticated with a person's hosted JWT.
+ * `remote`: a remote runtime. `claude-code` / `antigravity`: interactive CLI
+ * hosts on the owner's loopback bridge or authenticated with a person's hosted JWT.
  */
-export type RemoteJudgmentHookHost = 'remote' | 'claude-code';
+export type RemoteJudgmentHookHost = 'remote' | 'claude-code' | 'antigravity';
 
 /**
  * Authentication context verified by the Host before it reaches the hook
@@ -229,24 +229,30 @@ export async function handleRemoteJudgmentHookRequest(
 
   const personHostedClaudeCode = request.personHostedClaudeCodeAllowed === true
     && request.trustedAuthKind === 'brainbase-jwt';
-  const host: RemoteJudgmentHookHost = request.declaredHost === undefined || request.declaredHost === ''
-    ? 'remote' : 'claude-code';
-  if (host === 'claude-code'
-    && (request.declaredHost !== 'claude-code' || (request.localClaudeCodeAllowed !== true && !personHostedClaudeCode))) {
+  let host: RemoteJudgmentHookHost;
+  if (request.declaredHost === undefined || request.declaredHost === '') {
+    host = 'remote';
+  } else if (request.declaredHost === 'claude-code' || request.declaredHost === 'antigravity') {
+    host = request.declaredHost;
+  } else {
+    return { status: 400, body: { error: 'judgment_hook_host_unsupported' } };
+  }
+  const isInteractiveHost = host === 'claude-code' || host === 'antigravity';
+  if (isInteractiveHost && (request.localClaudeCodeAllowed !== true && !personHostedClaudeCode)) {
     return { status: 400, body: { error: 'judgment_hook_host_unsupported' } };
   }
   if (host === 'remote' && !SUPPORTED_HOOK_EVENTS.has(eventName)) {
     return { status: 400, body: { error: 'unsupported_hook_event' } };
   }
-  // A local Claude Code turn may leave the project to the Host, which derives
+  // A local interactive turn may leave the project to the Host, which derives
   // it from the turn's cwd exactly as for Codex.
-  const requiresProjectScope = host === 'remote' || (host === 'claude-code' && personHostedClaudeCode);
-  if (host === 'claude-code' && personHostedClaudeCode
+  const requiresProjectScope = host === 'remote' || (isInteractiveHost && personHostedClaudeCode);
+  if (isInteractiveHost && personHostedClaudeCode
     && !request.trustedPrincipal?.tenantId?.trim()) {
     return { status: 403, body: { error: 'authenticated_history_principal_unavailable' } };
   }
   let projectCode = request.projectCode;
-  if (host === 'claude-code' && personHostedClaudeCode && request.trustedPrincipal
+  if (isInteractiveHost && personHostedClaudeCode && request.trustedPrincipal
     && (projectCode === undefined || projectCode === '')) {
     // A person's Claude Code need not name the project. The Host decides it:
     // its own repository mapping first, then the person's only project. When
@@ -329,7 +335,7 @@ export async function handleRemoteJudgmentHookRequest(
         || !/^[a-f0-9]{64}$/.test(dispatchResult.routeResolutionSha256))) {
       return { status: 503, body: { error: 'judgment_hook_route_receipt_missing' } };
     }
-    if (eventName === 'Stop' && host === 'claude-code' && personHostedClaudeCode
+    if (eventName === 'Stop' && isInteractiveHost && personHostedClaudeCode
       && request.localClaudeCodeAllowed !== true) {
       const report = (reason: string) => {
         try { console.warn(reason); } catch { /* Logging cannot affect the hook response. */ }
