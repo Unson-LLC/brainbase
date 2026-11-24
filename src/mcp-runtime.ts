@@ -20,19 +20,31 @@ import {
   type Tool
 } from '@modelcontextprotocol/sdk/types.js';
 import {
+  applyMcpToolSchemaProfile,
   assertMcpToolSchemasPortable,
   normalizeMcpToolForPortability,
   normalizeMcpToolInputSchemaForPortability,
+  normalizeMcpToolInputSchemaForProfile,
+  resolveMcpToolSchemaProfile,
+  validateMcpToolInputSchemaPortability,
   validateMcpToolSchemaPortability,
-  type McpToolSchemaPortabilityIssue
+  type McpToolSchemaPortabilityIssue,
+  type McpToolSchemaPortabilityIssueCode,
+  type McpToolSchemaProfile
 } from './mcp-tool-schema-portability.js';
 
 export {
+  applyMcpToolSchemaProfile,
   assertMcpToolSchemasPortable,
   normalizeMcpToolForPortability,
   normalizeMcpToolInputSchemaForPortability,
+  normalizeMcpToolInputSchemaForProfile,
+  resolveMcpToolSchemaProfile,
+  validateMcpToolInputSchemaPortability,
   validateMcpToolSchemaPortability,
-  type McpToolSchemaPortabilityIssue
+  type McpToolSchemaPortabilityIssue,
+  type McpToolSchemaPortabilityIssueCode,
+  type McpToolSchemaProfile
 };
 
 export const MCP_RUNTIME_CONTRACT_VERSION = 'mcp_runtime.v1' as const;
@@ -90,6 +102,13 @@ export interface LocalMcpRuntimeOptions {
   onUnknownTool?: LocalMcpUnknownToolHandler;
   /** The host may inject HTTP, stdio, or an in-memory SDK transport. */
   transport?: Transport;
+  /**
+   * Schema serialization profile applied to advertised tool definitions.
+   * Defaults to `'gemini'` for backwards compatibility; pass `'standard'` to
+   * preserve lossless JSON Schema (e.g. type unions with null, anyOf/oneOf)
+   * for Claude / OpenAI / Codex hosts.
+   */
+  schemaProfile?: McpToolSchemaProfile;
 }
 
 export interface LocalMcpRuntimeHandle {
@@ -107,7 +126,7 @@ export class McpRuntimeContractError extends Error {
   }
 }
 
-function cloneToolDefinition(definition: Tool): Tool {
+function cloneToolDefinition(definition: Tool, schemaProfile: McpToolSchemaProfile): Tool {
   if (!definition || typeof definition !== 'object' || Array.isArray(definition)) {
     throw new McpRuntimeContractError('tool.definition');
   }
@@ -118,7 +137,8 @@ function cloneToolDefinition(definition: Tool): Tool {
     throw new McpRuntimeContractError('tool.definition.inputSchema');
   }
   try {
-    return normalizeMcpToolForPortability(structuredClone(definition));
+    const cloned = structuredClone(definition);
+    return schemaProfile === 'gemini' ? normalizeMcpToolForPortability(cloned) : cloned;
   } catch {
     throw new McpRuntimeContractError('tool.definition', 'tool definition must be structured-cloneable');
   }
@@ -139,10 +159,15 @@ function normalizeRuntimeOptions(options: LocalMcpRuntimeOptions): {
   onListTools?: (tools: readonly Tool[]) => void | Promise<void>;
   onUnknownTool?: LocalMcpUnknownToolHandler;
   transport?: Transport;
+  schemaProfile: McpToolSchemaProfile;
 } {
   const name = text(options.name, 'name');
   const version = text(options.version, 'version');
   if (!Array.isArray(options.tools)) throw new McpRuntimeContractError('tools');
+  const schemaProfile: McpToolSchemaProfile = options.schemaProfile ?? 'gemini';
+  if (schemaProfile !== 'standard' && schemaProfile !== 'gemini') {
+    throw new McpRuntimeContractError('schemaProfile');
+  }
 
   const tools: LocalMcpRuntimeTool[] = [];
   const names = new Set<string>();
@@ -150,7 +175,7 @@ function normalizeRuntimeOptions(options: LocalMcpRuntimeOptions): {
     if (!tool || typeof tool !== 'object' || typeof tool.handler !== 'function') {
       throw new McpRuntimeContractError('tool.handler');
     }
-    const definition = cloneToolDefinition(tool.definition);
+    const definition = cloneToolDefinition(tool.definition, schemaProfile);
     if (names.has(definition.name)) {
       throw new McpRuntimeContractError('tools', `duplicate MCP tool name: ${definition.name}`);
     }
@@ -165,7 +190,8 @@ function normalizeRuntimeOptions(options: LocalMcpRuntimeOptions): {
     tools,
     ...(options.onListTools === undefined ? {} : { onListTools: options.onListTools }),
     ...(options.onUnknownTool === undefined ? {} : { onUnknownTool: options.onUnknownTool }),
-    transport: options.transport
+    transport: options.transport,
+    schemaProfile
   };
 }
 

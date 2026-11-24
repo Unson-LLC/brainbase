@@ -1,14 +1,18 @@
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 
+export type McpToolSchemaProfile = 'standard' | 'gemini';
+
 export type McpToolSchemaPortabilityIssueCode =
   | 'root_not_object'
   | 'root_properties_missing'
+  | 'object_properties_missing'
   | 'type_missing'
   | 'type_array_forbidden'
   | 'type_unsupported'
   | 'array_items_missing'
   | 'array_items_tuple_forbidden'
   | 'forbidden_keyword'
+  | 'nullable_invalid'
   | 'enum_type_not_string'
   | 'enum_invalid'
   | 'required_not_array'
@@ -24,9 +28,12 @@ export interface McpToolSchemaPortabilityIssue {
 
 const SUPPORTED_TYPES = new Set(['object', 'array', 'string', 'number', 'integer', 'boolean']);
 
+const NULL_NOTE = 'null is also accepted.';
+
 /**
  * JSON Schema keywords rejected or mis-rendered by Gemini FunctionDeclaration
- * (OpenAPI 3.0 subset), Codex, or strict cross-client tool-schema parsers.
+ * (OpenAPI 3.0 subset). Note that OpenAPI boolean `nullable` is allowed by
+ * Gemini and validated separately.
  */
 const FORBIDDEN_KEYWORDS = new Set([
   'prefixItems',
@@ -57,10 +64,14 @@ const FORBIDDEN_KEYWORDS = new Set([
   'contains',
   'minContains',
   'maxContains',
-  'nullable',
 ]);
 
 type JsonObject = Record<string, unknown>;
+
+interface MergedSchemaResult {
+  schema: JsonObject;
+  notes: string[];
+}
 
 function isPlainObject(value: unknown): value is JsonObject {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -71,6 +82,15 @@ function appendDescription(existing: unknown, addition: string): string {
   if (!base) return addition;
   if (base.includes(addition)) return base;
   return `${base} ${addition}`;
+}
+
+function appendDescriptions(existing: unknown, additions: readonly string[]): string | undefined {
+  let result = typeof existing === 'string' ? existing.trim() : '';
+  for (const addition of additions) {
+    if (!addition) continue;
+    result = appendDescription(result, addition);
+  }
+  return result || undefined;
 }
 
 function uniqueStrings(values: readonly string[]): string[] {
@@ -109,55 +129,108 @@ function inferTypeFromValue(value: unknown): string {
   return 'string';
 }
 
-function mergeNormalizedSchemas(branches: readonly JsonObject[], mode: 'union' | 'intersection'): JsonObject {
+function mergeNormalizedSchemas(
+  branches: readonly JsonObject[],
+  mode: 'union' | 'intersection',
+): MergedSchemaResult {
   const nonNull = branches.filter((branch) => !isPureNullSchema(branch));
-  if (nonNull.length === 0) return { type: 'string' };
-  if (nonNull.length === 1) return structuredClone(nonNull[0]);
+  if (nonNull.length === 0) return { schema: { type: 'string' }, notes: [] };
+  if (nonNull.length === 1) return { schema: structuredClone(nonNull[0]), notes: [] };
 
+  const anyNullable = mode === 'union' && nonNull.some((branch) => branch.nullable === true);
   const types = new Set(nonNull.map((branch) => String(branch.type ?? 'string')));
   if (types.size === 1) {
     const singleType = [...types][0];
     if (singleType === 'object') {
-      return mergeObjectSchemas(nonNull, mode);
+      const mergedObject = mergeObjectSchemas(nonNull, mode);
+      if (anyNullable) {
+        mergedObject.nullable = true;
+        mergedObject.description = appendDescription(mergedObject.description, NULL_NOTE);
+      }
+      return { schema: mergedObject, notes: [] };
     }
     if (singleType === 'string') {
       const result: JsonObject = { type: 'string' };
+      const notes: string[] = [];
+      const description = nonNull.find((branch) => typeof branch.description === 'string')?.description;
+      if (typeof description === 'string') result.description = description;
       const allHaveEnum = nonNull.every((branch) => Array.isArray(branch.enum) && branch.enum.length > 0);
       if (allHaveEnum) {
         const mergedEnums = uniqueStrings(
           nonNull.flatMap((branch) => (branch.enum as unknown[]).filter((item): item is string => typeof item === 'string')),
         );
-        if (mergedEnums.length > 0) result.enum = mergedEnums;
+        if (mergedEnums.length > 0) {
+          if (anyNullable) {
+            const note = `Allowed values: ${mergedEnums.map((value) => JSON.stringify(value)).join(', ')}.`;
+            notes.push(note);
+            result.description = appendDescription(result.description, note);
+          } else {
+            result.enum = mergedEnums;
+          }
+        }
       }
-      const description = nonNull.find((branch) => typeof branch.description === 'string')?.description;
-      if (typeof description === 'string') result.description = description;
-      return result;
+      if (anyNullable) {
+        result.nullable = true;
+        result.description = appendDescription(result.description, NULL_NOTE);
+      }
+      return { schema: result, notes };
     }
     if (singleType === 'array') {
       const itemSchemas = nonNull
         .map((branch) => branch.items)
         .filter((item): item is JsonObject => isPlainObject(item));
       const mergedItems = itemSchemas.length > 0
-        ? mergeNormalizedSchemas(itemSchemas, 'union')
+        ? mergeNormalizedSchemas(itemSchemas, 'union').schema
         : { type: 'string' };
       const result: JsonObject = { type: 'array', items: mergedItems };
       const description = nonNull.find((branch) => typeof branch.description === 'string')?.description;
       if (typeof description === 'string') result.description = description;
-      return result;
+      if (anyNullable) {
+        result.nullable = true;
+        result.description = appendDescription(result.description, NULL_NOTE);
+      }
+      return { schema: result, notes: [] };
     }
     const base = structuredClone(nonNull[0]);
-    return base;
+    if (anyNullable) {
+      base.nullable = true;
+      base.description = appendDescription(base.description, NULL_NOTE);
+    }
+    return { schema: base, notes: [] };
   }
 
   if (types.size === 2 && types.has('integer') && types.has('number')) {
-    return { type: 'number' };
+    const description = nonNull.find((branch) => typeof branch.description === 'string')?.description;
+    const result: JsonObject = {
+      type: 'number',
+      ...(typeof description === 'string' ? { description } : {}),
+    };
+    if (anyNullable) {
+      result.nullable = true;
+      result.description = appendDescription(result.description, NULL_NOTE);
+    }
+    return { schema: result, notes: [] };
   }
 
-  const description = nonNull.find((branch) => typeof branch.description === 'string')?.description;
-  return {
-    type: 'string',
-    ...(typeof description === 'string' ? { description } : {}),
-  };
+  const [first, ...rest] = nonNull;
+  const merged = structuredClone(first);
+  const firstType = String(merged.type ?? 'value');
+  const otherShapes = uniqueStrings(
+    rest
+      .map((branch) => String(branch.type ?? 'value'))
+      .filter((shape) => shape !== firstType),
+  );
+  const notes: string[] = [];
+  if (otherShapes.length > 0) {
+    const shapeNote = `Other accepted shapes: ${otherShapes.join(', ')}.`;
+    notes.push(shapeNote);
+    merged.description = appendDescription(merged.description, shapeNote);
+  }
+  if (anyNullable) {
+    merged.nullable = true;
+    merged.description = appendDescription(merged.description, NULL_NOTE);
+  }
+  return { schema: merged, notes };
 }
 
 function mergeObjectSchemas(branches: readonly JsonObject[], mode: 'union' | 'intersection'): JsonObject {
@@ -177,7 +250,7 @@ function mergeObjectSchemas(branches: readonly JsonObject[], mode: 'union' | 'in
   for (const [key, list] of propertyBranches.entries()) {
     properties[key] = list.length === 1
       ? structuredClone(list[0])
-      : mergeNormalizedSchemas(list, mode);
+      : mergeNormalizedSchemas(list, mode).schema;
   }
 
   const branchRequiredLists = branches.map((branch) =>
@@ -243,14 +316,21 @@ function normalizeSchemaNode(
     if (!Array.isArray(rawBranches)) continue;
     delete working[combinatorKey];
 
+    const mode = combinatorKey === 'allOf' ? 'intersection' : 'union';
+    const hasNullBranch = rawBranches.some((branch) => isPureNullSchema(branch));
     const normalizedBranches = rawBranches
       .filter((branch) => !isPureNullSchema(branch))
       .map((branch) => normalizeSchemaNode(branch, root, seenRefs, false));
-    const mode = combinatorKey === 'allOf' ? 'intersection' : 'union';
-    const mergedBranch = mergeNormalizedSchemas(normalizedBranches, mode);
+    const { schema: mergedBranch, notes: mergedNotes } = mergeNormalizedSchemas(normalizedBranches, mode);
+    const shouldBeNullable =
+      working.nullable === true
+      || mergedBranch.nullable === true
+      || (mode === 'union' && hasNullBranch)
+      || (hasNullBranch && normalizedBranches.length === 0);
 
     // Merge outer sibling properties/required if present on object schemas.
     const hasOuterObjectFields = isPlainObject(working.properties) || Array.isArray(working.required);
+    const outerDescription = typeof working.description === 'string' ? working.description : undefined;
     if (mergedBranch.type === 'object' && hasOuterObjectFields) {
       const outerCandidate: JsonObject = { type: 'object' };
       if (isPlainObject(working.properties)) {
@@ -263,18 +343,26 @@ function normalizeSchemaNode(
       if (Array.isArray(working.required)) outerCandidate.required = working.required;
       if (working.additionalProperties === false) outerCandidate.additionalProperties = false;
       const combined = mergeObjectSchemas([outerCandidate, mergedBranch], 'intersection');
+      const finalDescription = outerDescription !== undefined
+        ? appendDescriptions(outerDescription, mergedNotes)
+        : (typeof combined.description === 'string' ? combined.description : undefined);
       working = {
         ...working,
         ...combined,
-        ...(typeof working.description === 'string' ? { description: working.description } : {}),
+        ...(finalDescription !== undefined ? { description: finalDescription } : {}),
       };
     } else {
-      const outerDescription = typeof working.description === 'string' ? working.description : undefined;
+      const finalDescription = outerDescription !== undefined
+        ? appendDescriptions(outerDescription, mergedNotes)
+        : (typeof mergedBranch.description === 'string' ? mergedBranch.description : undefined);
       working = {
         ...working,
         ...mergedBranch,
-        ...(outerDescription !== undefined ? { description: outerDescription } : {}),
+        ...(finalDescription !== undefined ? { description: finalDescription } : {}),
       };
+    }
+    if (shouldBeNullable) {
+      working.nullable = true;
     }
   }
 
@@ -286,35 +374,55 @@ function normalizeSchemaNode(
       working.type = 'string';
       working.enum = [constValue];
     } else if (constValue === null) {
-      working.type = working.type ?? 'string';
+      working.type = typeof working.type === 'string' && SUPPORTED_TYPES.has(working.type)
+        ? working.type
+        : 'string';
+      working.nullable = true;
+      working.description = appendDescription(working.description, 'Must be null.');
     } else {
       working.type = inferTypeFromValue(constValue);
       working.description = appendDescription(working.description, `Must be ${JSON.stringify(constValue)}.`);
     }
   }
 
-  // Normalize array-valued `type` (e.g. `['string', 'null']`).
+  // Normalize array-valued `type` (e.g. `['string', 'null']` or `['string', 'integer', 'null']`).
   if (Array.isArray(working.type)) {
-    const candidates = working.type.filter(
-      (entry): entry is string => typeof entry === 'string' && entry !== 'null' && SUPPORTED_TYPES.has(entry),
+    const hasNull = working.type.includes('null');
+    if (hasNull) working.nullable = true;
+    const candidates = uniqueStrings(
+      working.type.filter(
+        (entry): entry is string => typeof entry === 'string' && entry !== 'null' && SUPPORTED_TYPES.has(entry),
+      ),
     );
     if (candidates.length === 1) {
       working.type = candidates[0];
-    } else if (candidates.includes('string')) {
-      working.type = 'string';
-    } else if (candidates.includes('object')) {
-      working.type = 'object';
-    } else if (candidates.length > 0) {
+    } else if (candidates.length === 2 && candidates.includes('integer') && candidates.includes('number')) {
+      working.type = 'number';
+    } else if (candidates.length > 1) {
       working.type = candidates[0];
+      working.description = appendDescription(
+        working.description,
+        `Other accepted shapes: ${candidates.slice(1).join(', ')}.`,
+      );
     } else {
       working.type = 'string';
     }
+  } else if (working.type === 'null') {
+    working.nullable = true;
   }
 
-  // Handle `enum`: Gemini FunctionDeclaration requires `type: 'string'` and string values.
+  // Handle `enum`: Gemini FunctionDeclaration requires `type: 'string'` and string values,
+  // and nullable enums move allowed values into `description` so `null` is not rejected.
   if (Array.isArray(working.enum)) {
+    if (working.enum.includes(null)) {
+      working.nullable = true;
+    }
     const nonNullValues = working.enum.filter((entry) => entry !== null && entry !== undefined);
-    if (nonNullValues.length > 0 && nonNullValues.every((entry): entry is string => typeof entry === 'string')) {
+    if (
+      working.nullable !== true
+      && nonNullValues.length > 0
+      && nonNullValues.every((entry): entry is string => typeof entry === 'string')
+    ) {
       working.type = 'string';
       working.enum = uniqueStrings(nonNullValues);
     } else {
@@ -356,13 +464,27 @@ function normalizeSchemaNode(
     delete working.prefixItems;
 
     if (rawPrefixItems && rawPrefixItems.length > 0) {
-      const tupleBranches = rawPrefixItems.map((entry) => normalizeSchemaNode(entry, root, seenRefs, false));
-      if (isPlainObject(rawItems)) {
-        tupleBranches.push(normalizeSchemaNode(rawItems, root, seenRefs, false));
-      } else if (rawItems === false && working.maxItems === undefined) {
-        working.maxItems = rawPrefixItems.length;
+      const hasExplicitItems = isPlainObject(rawItems) && Object.keys(rawItems).length > 0;
+      if (hasExplicitItems) {
+        working.items = normalizeSchemaNode(rawItems, root, seenRefs, false);
+      } else {
+        const tupleBranches = rawPrefixItems.map((entry) => normalizeSchemaNode(entry, root, seenRefs, false));
+        if (rawItems === false && working.maxItems === undefined) {
+          working.maxItems = rawPrefixItems.length;
+        }
+        const fixedOrderValues = tupleBranches.every(
+          (entry) => entry.type === 'string' && Array.isArray(entry.enum) && entry.enum.length === 1,
+        )
+          ? tupleBranches.map((entry) => (entry.enum as string[])[0])
+          : null;
+        working.items = mergeNormalizedSchemas(tupleBranches, 'union').schema;
+        if (fixedOrderValues && fixedOrderValues.length > 0) {
+          working.description = appendDescription(
+            working.description,
+            `In this order: ${fixedOrderValues.map((value) => JSON.stringify(value)).join(', ')}.`,
+          );
+        }
       }
-      working.items = mergeNormalizedSchemas(tupleBranches, 'union');
     } else if (Array.isArray(rawItems)) {
       const tupleBranches = rawItems.map((entry) => normalizeSchemaNode(entry, root, seenRefs, false));
       if (isPlainObject(working.additionalItems)) {
@@ -370,7 +492,7 @@ function normalizeSchemaNode(
       } else if (working.additionalItems === false && working.maxItems === undefined) {
         working.maxItems = rawItems.length;
       }
-      working.items = tupleBranches.length > 0 ? mergeNormalizedSchemas(tupleBranches, 'union') : { type: 'string' };
+      working.items = tupleBranches.length > 0 ? mergeNormalizedSchemas(tupleBranches, 'union').schema : { type: 'string' };
     } else if (isPlainObject(rawItems)) {
       working.items = normalizeSchemaNode(rawItems, root, seenRefs, false);
     } else {
@@ -378,7 +500,8 @@ function normalizeSchemaNode(
     }
   }
 
-  // Normalize object schemas: recurse into properties and keep `required` consistent.
+  // Normalize object schemas: recurse into properties and additionalProperties,
+  // keep `required` consistent, and mark nested free-form objects explicitly.
   if (working.type === 'object') {
     if (isPlainObject(working.properties)) {
       const normalizedProperties: JsonObject = {};
@@ -388,6 +511,17 @@ function normalizeSchemaNode(
       working.properties = normalizedProperties;
     } else if (isRoot) {
       working.properties = {};
+    }
+
+    if (isPlainObject(working.additionalProperties)) {
+      working.additionalProperties = normalizeSchemaNode(working.additionalProperties, root, seenRefs, false);
+    }
+
+    if (!isRoot) {
+      const hasProperties = isPlainObject(working.properties) && Object.keys(working.properties).length > 0;
+      if (!hasProperties && !isPlainObject(working.additionalProperties) && working.additionalProperties !== true) {
+        working.additionalProperties = true;
+      }
     }
 
     if (Array.isArray(working.required)) {
@@ -401,6 +535,14 @@ function normalizeSchemaNode(
     }
   }
 
+  // Normalize `nullable`: preserve OpenAPI boolean `nullable` (and note `null` in description),
+  // strip invalid non-boolean values.
+  if (working.nullable === true) {
+    working.description = appendDescription(working.description, NULL_NOTE);
+  } else if (working.nullable !== false && Object.hasOwn(working, 'nullable')) {
+    delete working.nullable;
+  }
+
   // Strip any remaining forbidden keywords.
   for (const key of Object.keys(working)) {
     if (FORBIDDEN_KEYWORDS.has(key)) {
@@ -412,8 +554,21 @@ function normalizeSchemaNode(
 }
 
 /**
- * Normalize an MCP tool `inputSchema` into a portable JSON Schema subset
- * accepted by Gemini (OpenAPI 3.0 FunctionDeclaration), OpenAI, Claude, and Codex.
+ * Resolve the MCP tool schema profile from environment variables.
+ *
+ * Defaults to `'standard'` (lossless JSON Schema for Claude / OpenAI / Codex).
+ * Launchers targeting Gemini FunctionDeclaration opt in with
+ * `BRAINBASE_MCP_SCHEMA_PROFILE=gemini`.
+ */
+export function resolveMcpToolSchemaProfile(
+  env: NodeJS.ProcessEnv = process.env,
+): McpToolSchemaProfile {
+  return env.BRAINBASE_MCP_SCHEMA_PROFILE?.trim().toLowerCase() === 'gemini' ? 'gemini' : 'standard';
+}
+
+/**
+ * Normalize an MCP tool `inputSchema` into the Gemini FunctionDeclaration
+ * (OpenAPI 3.0) compatible JSON Schema subset.
  *
  * Idempotent on already-portable schemas.
  */
@@ -425,7 +580,22 @@ export function normalizeMcpToolInputSchemaForPortability(
 }
 
 /**
- * Return a cloned MCP Tool definition with a portable `inputSchema`.
+ * Normalize an MCP tool `inputSchema` according to the target host profile:
+ * - `'standard'`: returns a lossless deep clone (Claude / OpenAI / Codex).
+ * - `'gemini'`: normalizes into the Gemini FunctionDeclaration subset.
+ */
+export function normalizeMcpToolInputSchemaForProfile(
+  schema: Tool['inputSchema'],
+  profile: McpToolSchemaProfile,
+): Tool['inputSchema'] {
+  if (profile === 'gemini') {
+    return normalizeMcpToolInputSchemaForPortability(schema);
+  }
+  return structuredClone(schema);
+}
+
+/**
+ * Return a cloned MCP Tool definition with a Gemini-portable `inputSchema`.
  */
 export function normalizeMcpToolForPortability<T extends Tool>(tool: T): T {
   const cloned = structuredClone(tool);
@@ -433,6 +603,18 @@ export function normalizeMcpToolForPortability<T extends Tool>(tool: T): T {
     ...cloned,
     inputSchema: normalizeMcpToolInputSchemaForPortability(cloned.inputSchema),
   };
+}
+
+/**
+ * Return an MCP Tool definition adapted for the requested host schema profile:
+ * - `'standard'`: returns `tool` unchanged (lossless standard JSON Schema).
+ * - `'gemini'`: returns a cloned tool normalized for Gemini FunctionDeclaration.
+ */
+export function applyMcpToolSchemaProfile<T extends Tool>(
+  tool: T,
+  profile: McpToolSchemaProfile = resolveMcpToolSchemaProfile(),
+): T {
+  return profile === 'gemini' ? normalizeMcpToolForPortability(tool) : tool;
 }
 
 function validateSchemaNode(
@@ -461,6 +643,15 @@ function validateSchemaNode(
         message: `${path} uses non-portable JSON Schema keyword "${key}".`,
       });
     }
+  }
+
+  if (Object.hasOwn(node, 'nullable') && typeof node.nullable !== 'boolean') {
+    issues.push({
+      tool: toolName,
+      path: `${path}.nullable`,
+      code: 'nullable_invalid',
+      message: `${path}.nullable must be a boolean.`,
+    });
   }
 
   if (Array.isArray(node.type)) {
@@ -547,6 +738,8 @@ function validateSchemaNode(
     } else {
       validateSchemaNode(toolName, node.items, `${path}.items`, issues, false);
     }
+  } else if (isPlainObject(node.items)) {
+    validateSchemaNode(toolName, node.items, `${path}.items`, issues, false);
   }
 
   if (node.type === 'object') {
@@ -559,9 +752,15 @@ function validateSchemaNode(
       });
     }
     const properties = isPlainObject(node.properties) ? node.properties : undefined;
-    if (properties) {
-      for (const [key, child] of Object.entries(properties)) {
-        validateSchemaNode(toolName, child, `${path}.properties.${key}`, issues, false);
+    if (!isRoot) {
+      const hasProperties = Boolean(properties) && Object.keys(properties!).length > 0;
+      if (!hasProperties && !isPlainObject(node.additionalProperties) && node.additionalProperties !== true) {
+        issues.push({
+          tool: toolName,
+          path,
+          code: 'object_properties_missing',
+          message: `${path} has type "object" without non-empty "properties" or "additionalProperties" (causes Gemini 400 INVALID_ARGUMENT).`,
+        });
       }
     }
     if (node.required !== undefined) {
@@ -586,22 +785,52 @@ function validateSchemaNode(
       }
     }
   }
+
+  if (isPlainObject(node.properties)) {
+    for (const [key, child] of Object.entries(node.properties)) {
+      validateSchemaNode(toolName, child, `${path}.properties.${key}`, issues, false);
+    }
+  }
+
+  if (isPlainObject(node.additionalProperties)) {
+    validateSchemaNode(toolName, node.additionalProperties, `${path}.additionalProperties`, issues, false);
+  }
+
+  for (const key of ['anyOf', 'oneOf', 'allOf', 'prefixItems'] as const) {
+    const list = node[key];
+    if (Array.isArray(list)) {
+      list.forEach((child, index) => {
+        validateSchemaNode(toolName, child, `${path}.${key}[${index}]`, issues, false);
+      });
+    }
+  }
 }
 
 /**
- * Validate a single MCP Tool's `inputSchema` against Gemini/OpenAI/Claude/Codex
+ * Validate a raw JSON Schema object against Gemini FunctionDeclaration
+ * portability requirements. Returns an empty array when fully portable.
+ */
+export function validateMcpToolInputSchemaPortability(
+  schema: unknown,
+  toolName = '<schema>',
+): McpToolSchemaPortabilityIssue[] {
+  const issues: McpToolSchemaPortabilityIssue[] = [];
+  validateSchemaNode(toolName, schema, 'inputSchema', issues, true);
+  return issues;
+}
+
+/**
+ * Validate a single MCP Tool's `inputSchema` against Gemini FunctionDeclaration
  * portability requirements. Returns an empty array when fully portable.
  */
 export function validateMcpToolSchemaPortability(
   tool: Pick<Tool, 'name' | 'inputSchema'>,
 ): McpToolSchemaPortabilityIssue[] {
-  const issues: McpToolSchemaPortabilityIssue[] = [];
-  validateSchemaNode(tool.name, tool.inputSchema, 'inputSchema', issues, true);
-  return issues;
+  return validateMcpToolInputSchemaPortability(tool.inputSchema, tool.name);
 }
 
 /**
- * Assert that every MCP Tool in `tools` satisfies cross-client schema portability.
+ * Assert that every MCP Tool in `tools` satisfies Gemini schema portability.
  */
 export function assertMcpToolSchemasPortable(
   tools: readonly Pick<Tool, 'name' | 'inputSchema'>[],

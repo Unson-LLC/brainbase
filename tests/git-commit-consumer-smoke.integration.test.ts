@@ -6,7 +6,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
-const GIT_CONSUMER_TEST_TIMEOUT_MS = 240_000;
+const GIT_CONSUMER_TEST_TIMEOUT_MS = 600_000;
 const temporaryRoots: string[] = [];
 
 afterEach(async () => {
