@@ -14,7 +14,9 @@ import {
   type JudgmentReceipt
 } from '../src/judgment-host.js';
 import {
+  JUDGMENT_EVENT_READBACK_SCHEMA_VERSION,
   createJudgmentKnowledgeEventOutboxSink,
+  deliverJudgmentKnowledgeEventOutbox,
   resolveJudgmentKnowledgeEventOutboxPaths
 } from '../src/judgment-event-outbox.js';
 import { runCli } from '../src/cli.js';
@@ -430,10 +432,141 @@ describe('portable Judgment Resolver Host contract', () => {
       event: {
         schema_version: 'knowledge_event.v1',
         parent_episode_id: expect.stringMatching(/:turn-1$/u),
+        applicability_scope: { scope: 'judgment_episode', project_code: 'brainbase' },
         decision_authority: { authorized: false, graph_promotion_allowed: false }
       },
       delivery: { attempt: 1 }
     });
+  });
+
+  it('propagates episode project_code through Stop into outbox and skips non-conforming project codes safely', async () => {
+    const root = await tempDir();
+    const journal = join(root, 'journal');
+    const outboxPaths = resolveJudgmentKnowledgeEventOutboxPaths({ root });
+    const knowledgeEventSink = createJudgmentKnowledgeEventOutboxSink({ paths: outboxPaths });
+    const env = {
+      BRAINBASE_JUDGMENT_JOURNAL_DIR: journal,
+      BRAINBASE_JUDGMENT_PROJECT_CODE: 'itsaplan'
+    };
+    const identity = { session_id: 'session-project-prop', turn_id: 'turn-1', cwd: root };
+    const resolver = vi.fn(async (request) => resolveLocalJudgment(request, {
+      now: () => new Date('2026-11-24T00:00:00.000Z'),
+      id: () => 'receipt-itsaplan'
+    }));
+
+    const started = await processJudgmentHook({
+      hook_event_name: 'UserPromptSubmit',
+      prompt: 'itsaplanの仕様を確認して',
+      ...identity
+    }, { env, resolver });
+    const toolEvent = await processJudgmentHook({
+      hook_event_name: 'PostToolUse',
+      tool_use_id: 'tool-1',
+      tool_name: 'get_context',
+      tool_input: {},
+      tool_response: { content: [{ type: 'text', text: 'resolved' }] },
+      ...identity
+    }, { env, resolver });
+    const ownerLine = (started.hookSpecificOutput?.additionalContext ?? '')
+      .split('\n').find((line) => line.startsWith('🧠')) ?? '';
+    const answer = [ownerLine, toolEvent.systemMessage, '確認しました。'].join('\n');
+
+    const finalized = await processJudgmentHook({
+      hook_event_name: 'Stop',
+      last_assistant_message: answer,
+      ...identity
+    }, { env, resolver, knowledgeEventSink });
+    const replayed = await processJudgmentHook({
+      hook_event_name: 'Stop',
+      last_assistant_message: answer,
+      ...identity
+    }, { env, resolver, knowledgeEventSink });
+    expect(finalized).toEqual(replayed);
+
+    const outboxFiles = await readdir(outboxPaths.outboxDir);
+    expect(outboxFiles).toHaveLength(1);
+    const queued = JSON.parse(await readFile(join(outboxPaths.outboxDir, outboxFiles[0]), 'utf8'));
+    expect(queued.event.applicability_scope).toEqual({
+      scope: 'judgment_episode',
+      project_code: 'itsaplan'
+    });
+
+    // Delivery with a token scoped only to ['brainbase'] safely defers the 'itsaplan' event.
+    const deferred = await deliverJudgmentKnowledgeEventOutbox({
+      paths: outboxPaths,
+      allowedProjectCodes: ['brainbase'],
+      delivery: {
+        post: async () => { throw new Error('out-of-scope project_code must not be posted'); },
+        readback: async () => { throw new Error('unreachable'); }
+      }
+    });
+    expect(deferred).toMatchObject({ delivered: 0, dead_lettered: 0, deferred: 1, out_of_scope: 1, pending: 1 });
+
+    // Delivery with a token including 'itsaplan' confirms and records project_code: 'itsaplan'.
+    const delivered = await deliverJudgmentKnowledgeEventOutbox({
+      paths: outboxPaths,
+      allowedProjectCodes: ['brainbase', 'itsaplan'],
+      delivery: {
+        post: async (candidate) => ({
+          event_id: candidate.event_id,
+          candidate_id: 'cand-host-itsaplan',
+          http_status: 202,
+          received_at: '2026-11-24T00:00:01.000Z'
+        }),
+        readback: async ({ event: candidate, post }) => ({
+          schema_version: JUDGMENT_EVENT_READBACK_SCHEMA_VERSION,
+          event_id: candidate.event_id,
+          candidate_id: post.candidate_id,
+          processing_stage: 'retrievable',
+          semantic_state: 'active',
+          readback_at: '2026-11-24T00:00:02.000Z'
+        })
+      }
+    });
+    expect(delivered).toMatchObject({ delivered: 1, failed: 0, dead_lettered: 0, pending: 0 });
+    const receipt = JSON.parse(
+      await readFile(join(outboxPaths.deliveryReceiptDir, `${queued.event.event_id}.json`), 'utf8')
+    );
+    expect(receipt).toMatchObject({
+      status: 'confirmed',
+      candidate_id: 'cand-host-itsaplan',
+      project_code: 'itsaplan'
+    });
+
+    // A non-conforming explicit project_code (e.g. mixed-case repo name) must neither
+    // crash Stop nor misattribute the event to 'brainbase'.
+    const invalidRoot = await tempDir();
+    const invalidOutbox = resolveJudgmentKnowledgeEventOutboxPaths({ root: invalidRoot });
+    const invalidEnv = {
+      BRAINBASE_JUDGMENT_JOURNAL_DIR: join(invalidRoot, 'journal'),
+      BRAINBASE_JUDGMENT_PROJECT_CODE: 'MyUpperCaseRepo'
+    };
+    const invalidIdentity = { session_id: 'session-invalid-proj', turn_id: 'turn-1', cwd: invalidRoot };
+    const invalidStarted = await processJudgmentHook({
+      hook_event_name: 'UserPromptSubmit',
+      prompt: '仕様を確認して',
+      ...invalidIdentity
+    }, { env: invalidEnv });
+    const invalidTool = await processJudgmentHook({
+      hook_event_name: 'PostToolUse',
+      tool_use_id: 'tool-invalid-1',
+      tool_name: 'get_context',
+      tool_input: {},
+      tool_response: { content: [{ type: 'text', text: 'resolved' }] },
+      ...invalidIdentity
+    }, { env: invalidEnv });
+    const invalidOwnerLine = (invalidStarted.hookSpecificOutput?.additionalContext ?? '')
+      .split('\n').find((line) => line.startsWith('🧠')) ?? '';
+    const invalidFinal = await processJudgmentHook({
+      hook_event_name: 'Stop',
+      last_assistant_message: [invalidOwnerLine, invalidTool.systemMessage, '確認しました。'].join('\n'),
+      ...invalidIdentity
+    }, {
+      env: invalidEnv,
+      knowledgeEventSink: createJudgmentKnowledgeEventOutboxSink({ paths: invalidOutbox })
+    });
+    expect(invalidFinal).toMatchObject({ completion_status: 'complete', owner_audit_complete: true });
+    await expect(readdir(invalidOutbox.outboxDir)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('replays an identical tool_use_id idempotently', async () => {
