@@ -6,7 +6,7 @@
 
 export const JUDGMENT_EXECUTION_OUTCOME_SCHEMA_VERSION = 'judgment_execution_outcome.v1' as const;
 
-export type JudgmentExecutionHostType = 'codex' | 'claude-code';
+export type JudgmentExecutionHostType = 'codex' | 'claude-code' | 'antigravity';
 export type JudgmentExecutionScope = 'host_turn' | 'external_effect';
 export type JudgmentExecutionStatus = 'completed' | 'partial' | 'failed' | 'blocked' | 'unknown';
 export type JudgmentExecutionStage = 'open' | 'resolve' | 'execute' | 'finalize' | 'deliver' | 'readback';
@@ -53,7 +53,8 @@ const EVIDENCE_FIELDS = new Set(['state', 'refs']);
 const STATUSES = new Set<JudgmentExecutionStatus>(['completed', 'partial', 'failed', 'blocked', 'unknown']);
 const STAGES = new Set<JudgmentExecutionStage>(['open', 'resolve', 'execute', 'finalize', 'deliver', 'readback']);
 const EVIDENCE_STATES = new Set<JudgmentExecutionEvidenceState>(['confirmed', 'unconfirmed', 'no_data']);
-const HOST_TYPES = new Set<JudgmentExecutionHostType>(['codex', 'claude-code']);
+export const EXECUTION_OUTCOME_HOSTS = new Set<JudgmentExecutionHostType>(['codex', 'claude-code', 'antigravity']);
+const HOST_TYPES = EXECUTION_OUTCOME_HOSTS;
 const SCOPES = new Set<JudgmentExecutionScope>(['host_turn', 'external_effect']);
 const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 

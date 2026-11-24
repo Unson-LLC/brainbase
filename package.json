@@ -183,6 +183,10 @@
       "types": "./dist/claude-code-judgment-hook.d.ts",
       "import": "./dist/claude-code-judgment-hook.js"
     },
+    "./antigravity-judgment-hook": {
+      "types": "./dist/antigravity-judgment-hook.d.ts",
+      "import": "./dist/antigravity-judgment-hook.js"
+    },
     "./company-os-evaluation": {
       "types": "./dist/company-os-evaluation.d.ts",
       "import": "./dist/company-os-evaluation.js"
