@@ -765,7 +765,7 @@ function buildSystemMessageStep(
   if (!additionalContext && !userMarkdown) return null;
   const guardHeader = [
     `[Brainbase Judgment Turn: ${turnId}]`,
-    `※この判断契約・owner_lineは当ターン（${turnId}）のみ有効です。過去のターンに注入された旧ターンの判断契約・owner_lineは上書きされ無効です。`,
+    `※この判断契約・先頭監査行は当ターン（${turnId}）のみ有効です。過去のターンに注入された旧ターンの判断契約・先頭監査行は上書きされ無効です。`,
   ].join('\n');
   const modelText = additionalContext ? `${guardHeader}\n\n${additionalContext}` : '';
   return {

@@ -217,7 +217,8 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
     const steps = first.injectSteps as Array<{ systemMessage: { systemMessage: string; metadata?: { user_markdown?: string } } }>;
     expect(steps).toHaveLength(1);
     expect(steps[0].systemMessage.systemMessage).toContain('[Brainbase Judgment Turn:');
-    expect(steps[0].systemMessage.systemMessage).toContain('旧ターンの判断契約・owner_lineは上書き');
+    expect(steps[0].systemMessage.systemMessage).toContain('旧ターンの判断契約・先頭監査行は上書き');
+    expect(steps[0].systemMessage.systemMessage.split('\n\n')[0]).not.toContain('owner_line');
     expect(steps[0].systemMessage.systemMessage).toContain('owner_line: keep scope small');
     expect(steps[0].systemMessage.metadata?.user_markdown).toBe('🧠 判断参照: 確認済み');
 
