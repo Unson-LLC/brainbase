@@ -499,13 +499,57 @@ For the same project, the tabbed Graph composition retains its workspace instanc
 across host-only redraws, including favorites and global context loading. Host
 controls refresh without remounting an active graph or replacing its selected
 record. A fresh authorized detail payload restores only same-project tab,
-selection, and graph filters; changing projects resets them. The private
+selection, graph filters, camera and eligible visual focus/reveal state;
+changing projects resets them. The private
 composition helpers `getViewState`, `initialViewState`, and `refreshHost` do not
 start a new project read or change authorization. Default personal presentation
 keeps its existing redraw behavior. `workspaceActionIcon('star')` provides a
 shared decorative favorite glyph; favorite state and persistence remain host-owned.
 The tabbed opt-in may pass `visualTheme.preserveSelectedTypeColor: true` to keep the existing type/base color while selected; without the flag, personal/default Graph keeps its selected color. This adds no colors and changes neither size nor highlighting.
 The same opt-in may pass `visualTheme.preserveRootLabel: true` to retain the known `rootId` label/forceLabel only; node sets, edges, colors and default behavior remain unchanged.
+
+`mountProjectGraph(container, { layout: 'project-detail', rootId, visualTheme })` is an
+explicit Sigma presentation: a fixed 760×540 frame, root at (380,250), and
+input-order peers at alternating radii 140/190 (horizontal factor 1.12).
+Adding an authorized node recomputes this layout without changing graph
+membership or inventing edges. It uses real Sigma circles/straight edges and
+Canvas label hooks: root/peer/selected radii 17/8/10, type colors, paper 3px or
+selected action 2.5px outline, root label 13px/700 and peer label 11.5px/500
+(selected/hover 700). A selected peer dims every other peer to opacity .16,
+including any peer connected to it; the root stays opaque. Edges incident to the
+selection stay emphasized, while other/filtered edges have opacity .16. Labels keep
+the supplied full names in native controls/title while shortening painted text.
+PC geometry scales with the frame. Only a viewport at most 760px uses readable
+minimum node/font/outline sizes and available-space ellipsis; coordinates still
+fit the same frame. The existing personal/default renderer is unchanged.
+
+Explicit tab activation, including clicking the already-active graph tab, resets
+selection to root, filters to empty and zoom to one;
+an overview person jump selects that person with empty filters/zoom one. Both
+reveal peers over 500ms with 80ms plus peer-rank×28ms delay; edges use their
+actual endpoint peer rank×28ms. Readback after entry adds a node-only 500ms
+pop without entry delay; its newly returned edges appear immediately, matching
+the reference node-only is-pop behavior. An unfinished entry reveal still
+resumes its existing edge timings. Reduced motion shows the final state immediately. Background
+refreshes and readback keep camera, selection, keyboard focus and unfinished
+reveal phase rather than replaying entry. Zoom buttons use .2 steps in .7–1.8
+about the root, while retaining existing camera/pan interaction. Real nodes have
+native keyboard controls with mint 4px focus outlines and existing select
+actions; the root fallback is excluded from focus/ARIA only while these controls
+are mounted and restored on disposal. `getRevealState()`/`revealState` carry
+visual timing for still-present canonical IDs, never record data or new reads.
+
+The tabbed composition may receive
+`recordNavigation.resolveProjectRecordId(projectId)`. A host returns only the
+already-authorized canonical identity of that selected project or null. Only
+that explicit identity is represented by the existing UI root: read counterparts
+do not add a duplicate root dot, UI edge `source`/`target` and counterpart
+selection point at the UI root, and audit endpoints prefer original
+`fromId`/`toId`. Raw fetched records, edge IDs, endpoints, digests and provenance
+are retained. Initial node/edge ID sets are unchanged; a null result, another
+canonical ID, matching names or section membership never imply an identity or
+an edge. Without the callback, personal/default projection is unchanged. This
+does not change server responses, acquisition or authorization.
 
 ### Project settings composition (explicit opt-in)
 
@@ -551,7 +595,7 @@ The work table header uses an action-token divider; its legend children are orde
 Hosts own scope, counts and cancellation meaning. Mobile rows retain owner,
 due and update values while stacking. `workspacePills({ appearance:
 'record-types', items: [{ value, label, count, color }] })` adds optional supplied
-dots and confirmed counts; undefined counts remain absent.
+dots and supplied counts; undefined counts remain absent. In the project detail record index, positive counts mean records retrieved into this index, not source totals. Zero is shown only when absence/completeness is explicit; unknown zero stays absent. The group exposes that count meaning in its accessible description and tooltip. Source completeness is tracked independently, so a positive index count never removes the total-unknown caption.
 `workspaceDotPill({ label, color })` is a decorative category label.
 `workspaceSearchControl({ appearance: 'compact', width })` may override its
 width with a positive numeric pixel value; existing defaults stay unchanged.

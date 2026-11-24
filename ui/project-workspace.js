@@ -372,7 +372,7 @@ function recordLink(doc, label, id, onSelect, className = 'bb-pkw-record-link') 
   return button;
 }
 
-function relationEvidence(doc, edges, entityId, entities, asOf, onSelect, detailTitle = '記録の詳細', compact = false, emptyText = 'この画面で確認できる関係はありません。') {
+function relationEvidence(doc, edges, entityId, entities, asOf, onSelect, detailTitle = '記録の詳細', compact = false, emptyText = 'この画面で確認できる関係はありません。', rawEndpoints = false) {
   const list = makeElement(doc, 'ul', { className: `bb-pkw-evidence-list${compact ? ' bb-pkw-root-relations' : ''}` });
   const incident = edges.filter((edge) => edge.source === entityId || edge.target === entityId);
   if (incident.length === 0) {
@@ -401,7 +401,7 @@ function relationEvidence(doc, edges, entityId, entities, asOf, onSelect, detail
       ['有効期間', validityText(edge.validFrom, edge.validTo)],
       ['出典', isRecord(edge.provenance) ? renderProvenance(doc, edge.provenance) : null],
     ]));
-    item.append(recordDetails(doc, [['関係ID', edge.id], ['起点', edge.source], ['終点', edge.target], ['digest', edge.digest]], { title: detailTitle }));
+    item.append(recordDetails(doc, [['関係ID', edge.id], ['起点', rawEndpoints ? firstText(edge.fromId, edge.from_id, edge.rawSource, edge.source) : edge.source], ['終点', rawEndpoints ? firstText(edge.toId, edge.to_id, edge.rawTarget, edge.target) : edge.target], ['digest', edge.digest]], { title: detailTitle }));
     list.append(item);
   }
   return list;
@@ -1311,7 +1311,17 @@ export function createProjectKnowledgeWorkspace({
   const overviewEdges = graphEvidenceEdges(payload);
   const overviewProjectionRecords = projectOverviewProjectionRecords(normalizeProjectOverview(payload?.overview));
   const entities = new Map(overviewEntities);
-  const edges = [...overviewEdges];
+  function canonicalRootId() {
+    if (!tabbedDetail || typeof recordNavigation.resolveProjectRecordId !== 'function') return null;
+    try { return cleanId(recordNavigation.resolveProjectRecordId(project.id)); } catch { return null; }
+  }
+  function displayRecordId(id, rootId = canonicalRootId()) { return rootId && id === rootId ? project.id : id; }
+  function displayEdge(edge) {
+    const rootId = canonicalRootId();
+    const source = displayRecordId(edge.source, rootId), target = displayRecordId(edge.target, rootId);
+    return source === edge.source && target === edge.target ? edge : { ...edge, rawSource: edge.source, rawTarget: edge.target, source, target };
+  }
+  const edges = overviewEdges.map(displayEdge);
   let destroyed = false;
   let hostTabHandle = null;
   let selectedId = project.id;
@@ -1319,6 +1329,10 @@ export function createProjectKnowledgeWorkspace({
   let graphHandle = null;
   let graphCameraState = null;
   const graphFreshNodeIds = new Set();
+  let graphResetPending = false;
+  let graphEntryReveal = false;
+  let graphRevealState = null;
+  let pendingGraphFocus = null;
   let graphTimer = null;
   let graphMountToken = 0;
   let graphFailure = null;
@@ -1328,6 +1342,9 @@ export function createProjectKnowledgeWorkspace({
   let graphType = '';
   let selectedAnonymous = null;
   if (initialViewState?.projectId === workspaceProjectId) {
+    graphCameraState = initialViewState.graphCameraState ?? null;
+    graphRevealState = initialViewState.graphRevealState ?? null;
+    if (initialViewState.focusNodeId && entities.has(initialViewState.focusNodeId)) pendingGraphFocus = { nodeId: initialViewState.focusNodeId };
     if (tabIds.has(initialViewState.activeTab)) activeTab = initialViewState.activeTab;
     const requested = cleanId(initialViewState.selectedId);
     if (entities.has(requested) || overviewProjectionRecords.has(requested) || (tabbedDetail && projectKnowledgeRecordDirectory(payload, context).some(record => record.id === requested))) selectedId = requested;
@@ -1389,12 +1406,20 @@ export function createProjectKnowledgeWorkspace({
   function setTab(tab) {
     if (destroyed || !tabIds.has(tab)) return;
     activeTab = tab;
+    if (tabbedDetail && tab === 'graph') resetDetailedGraphEntry();
     if (activeTab === 'overview') {
       activeView = 'overview';
       selectedContextId = null;
     }
     if (typeof onTabChange === 'function') onTabChange(activeTab);
     render();
+  }
+
+  function resetDetailedGraphEntry() {
+    selectedId = project.id; selectedAnonymous = null; entityRead = null; entityReadRequest += 1;
+    graphSearch = ''; graphType = ''; graphCameraState = null; graphResetPending = true; graphEntryReveal = true; graphRevealState = null; pendingGraphFocus = null;
+    graphFreshNodeIds.clear();
+    for (const id of entities.keys()) if (id !== project.id) graphFreshNodeIds.add(id);
   }
 
   function findContextItem(id, kind = null) {
@@ -1457,19 +1482,22 @@ export function createProjectKnowledgeWorkspace({
   function mergeEntityRead(read) {
     if (!isRecord(read?.entity)) return;
     const previousIds = tabbedDetail ? new Set(entities.keys()) : null;
-    addEntity(entities, read.entity);
+    const canonicalRoot = canonicalRootId();
+    if (!canonicalRoot || read.entity.id !== canonicalRoot || canonicalRoot === project.id) addEntity(entities, read.entity);
+    else if (selectedId === canonicalRoot) selectedId = project.id;
     for (const edge of [...(read.incoming ?? []), ...(read.outgoing ?? [])]) {
-      addEntity(entities, counterpartEntity(edge));
+      const counterpart = counterpartEntity(edge);
+      if (!canonicalRoot || counterpart?.id !== canonicalRoot) addEntity(entities, counterpart);
       const id = cleanId(edge?.id);
       const { source, target } = edgeSourceTarget(edge, read.entity.id);
       if (!id || !source || !target || edges.some((candidate) => candidate.id === id)) continue;
-      edges.push({ ...edge, id, source, target, relation: cleanId(edge.relation) ?? 'unknown', label: edgeLabel(edge) });
+      edges.push(displayEdge({ ...edge, id, source, target, relation: cleanId(edge.relation) ?? 'unknown', label: edgeLabel(edge) }));
     }
     if (previousIds) for (const id of entities.keys()) if (!previousIds.has(id)) graphFreshNodeIds.add(id);
   }
 
   function select(id, { fromGraph = false } = {}) {
-    const target = cleanId(id);
+    const target = displayRecordId(cleanId(id));
     const canReadOverviewProjection = (overviewProjectionRecords.has(target) && typeof readEntity === 'function') || (tabbedDetail && directoryEntries().some(record => record.id === target));
     if (!target || (!entities.has(target) && !canReadOverviewProjection) || destroyed) return;
     const hadAnonymous = selectedAnonymous !== null;
@@ -1501,9 +1529,10 @@ export function createProjectKnowledgeWorkspace({
   }
 
   function selectAndExplore(id) {
-    const target = cleanId(id);
+    const target = displayRecordId(cleanId(id));
     const canReadOverviewProjection = (overviewProjectionRecords.has(target) && typeof readEntity === 'function') || (tabbedDetail && directoryEntries().some(record => record.id === target));
     if (!target || (!entities.has(target) && !canReadOverviewProjection) || destroyed) return;
+    if (tabbedDetail && activeTab === 'overview') resetDetailedGraphEntry();
     activeTab = 'graph';
     select(target);
     render();
@@ -1542,6 +1571,7 @@ export function createProjectKnowledgeWorkspace({
     let node = focused;
     while (node && node !== root) node = node.parentNode;
     if (node !== root) return null;
+    if (focused?.getAttribute?.('data-graph-node-id')) return { nodeId: focused.getAttribute('data-graph-node-id') };
     if (focused?.getAttribute?.('name') === 'project-record-search') return { search: true, start: focused.selectionStart, end: focused.selectionEnd };
     const row = focused?.closest?.('.bb-pkw-record-row');
     if (row) return { key: row.getAttribute('data-key') };
@@ -1556,17 +1586,19 @@ export function createProjectKnowledgeWorkspace({
     if (!snapshot) return;
     const nodes = selector => Array.from(root.querySelectorAll?.(selector) ?? []);
     let target;
-    if (snapshot.search) target = root.querySelector?.('[name="project-record-search"]');
+    if (snapshot.nodeId) target = nodes('[data-graph-node-id]').find(node => node.getAttribute('data-graph-node-id') === snapshot.nodeId);
+    else if (snapshot.search) target = root.querySelector?.('[name="project-record-search"]');
     else if (snapshot.key) target = nodes('.bb-pkw-record-row').find(row => row.getAttribute('data-key') === snapshot.key);
     else if (snapshot.filter !== undefined) target = recordTypeControls?.children[snapshot.filter];
     else if (snapshot.tab) target = nodes('[role="tab"]').find(tab => tab.getAttribute('aria-controls') === snapshot.tab);
     target?.focus?.({ preventScroll: true });
+    if (snapshot.nodeId) pendingGraphFocus = target ? null : snapshot;
     if (snapshot.search && typeof snapshot.start === 'number' && typeof target?.setSelectionRange === 'function') target.setSelectionRange(snapshot.start, snapshot.end);
   }
 
   function directoryEntries() { return projectKnowledgeRecordDirectory(payload, currentContext, entities); }
 
-  function recordTypeItems(entries) {
+  function recordSourceCertainty() {
     const complete = source => source?.state === 'ok' && explicitSectionTotal(source) === (source.items?.length ?? 0);
     const overview = normalizeProjectOverview(payload.overview);
     const sections = (currentContext?.sections ?? []).filter(section => section !== contextTaskSection(currentContext) && recordCategory(section.id) !== 'task');
@@ -1580,7 +1612,15 @@ export function createProjectKnowledgeWorkspace({
       knowledge: contextComplete('knowledge'), decision: contextComplete('decision'),
     };
     known.all = Object.values(known).every(Boolean) && currentContext?.state === 'ok' && sections.every(complete);
-    return RECORD_TYPES.map(([value, label]) => ({ value, label, count: known[value || 'all'] ? (value ? entries.filter(record => record.category === value).length : entries.length) : undefined, color: value ? `var(${RECORD_COLOR_TOKENS[value]})` : undefined }));
+    return known;
+  }
+
+  function recordTypeItems(entries) {
+    const known = recordSourceCertainty();
+    return RECORD_TYPES.map(([value, label]) => {
+      const count = value ? entries.filter(record => record.category === value).length : entries.length;
+      return { value, label, count: count > 0 || known[value || 'all'] ? count : undefined, color: value ? `var(${RECORD_COLOR_TOKENS[value]})` : undefined };
+    });
   }
 
   function recordDirectorySignature(entries) { return JSON.stringify([entries.map(record => [record.key, record.category]), recordTypeItems(entries).map(item => [item.value, item.count])]); }
@@ -1613,7 +1653,7 @@ export function createProjectKnowledgeWorkspace({
       recordTypeSignature = signature;
       if (focusIndex >= 0) recordTypeControls.children[focusIndex]?.focus?.();
     }
-    if (recordCount) recordCount.textContent = `${entries.length + 1}件取得済み${recordTypeItems(entries)[0].count === undefined ? '・総数未確認' : ''}・図に${entities.size}件`;
+    if (recordCount) recordCount.textContent = `${entries.length + 1}${!recordSourceCertainty().all ? '件取得済み・総数未確認' : '件の記録'}・図に${entities.size}件`;
     if (recordStates) renderRecordStates(recordStates);
     if (graphExit && typeof recordNavigation.canOpenGraph === 'function') {
       graphExit.disabled = recordNavigation.canOpenGraph(project.id) !== true;
@@ -1623,7 +1663,7 @@ export function createProjectKnowledgeWorkspace({
     const matchingGraphIds = new Set([project.id, ...visible.map(record => record.id).filter(Boolean)]);
     graphHandle?.setFilter?.(graphSearch || graphType ? [...matchingGraphIds] : null);
     if (!visible.length) {
-      const text = graphSearch || graphType ? '条件に一致する記録はありません。' : 'この画面で確認できる関係はありません。';
+      const text = entries.length === 0 && !recordSourceCertainty().all ? '関連する情報を確認できませんでした。' : graphSearch || graphType ? '条件に一致する記録はありません。' : 'この画面で確認できる関係はありません。';
       list.append(makeElement(doc, 'li', { className: 'bb-pkw-record-empty', text }));
       restoreGraphFocus(focus);
       return;
@@ -1647,9 +1687,18 @@ export function createProjectKnowledgeWorkspace({
   }
 
   function makeRecordTypeControls(entries) {
-    return workspacePills(doc, { appearance: 'record-types', label: '種類で絞り込む', value: graphType,
+    const controls = workspacePills(doc, { appearance: 'record-types', label: '種類で絞り込む', value: graphType,
       items: recordTypeItems(entries),
-      onChange: value => { graphType = value; recordTypeControls?.update?.(value); renderGraphList(); } });
+      onChange: value => { graphType = value; recordTypeControls?.update?.(value); resetRecordFilterSelection(); } });
+    controls.setAttribute('aria-description', '件数は、この画面に取得できた記録の数です。');
+    controls.setAttribute('title', '件数は、この画面に取得できた記録の数です。');
+    return controls;
+  }
+
+  function resetRecordFilterSelection() {
+    selectedId = project.id; selectedAnonymous = null; entityRead = null; entityReadRequest += 1; pendingGraphFocus = null;
+    graphHandle?.select?.(project.id);
+    renderGraphList(); renderSelectedPanel();
   }
 
   function renderRecordStates(target) {
@@ -1705,7 +1754,7 @@ export function createProjectKnowledgeWorkspace({
       ['有効期間', validityText(selectedEntity.validFrom, selectedEntity.validTo)],
     ]));
     const projectEdges = tabbedDetail ? edges.filter(edge => edge.source === project.id || edge.target === project.id) : overviewEdges;
-    panel.append(makeElement(doc, 'h4', { text: 'このプロジェクトとの関係' }), relationEvidence(doc, projectEdges, anonymous ? null : selectedId, tabbedDetail ? entities : overviewEntities, payload.asOf, selectAndExplore, tabbedDetail ? '関係の詳細' : undefined, tabbedDetail && selectedId === project.id, tabbedDetail ? '関連する情報を確認できませんでした。' : undefined));
+    panel.append(makeElement(doc, 'h4', { text: 'このプロジェクトとの関係' }), relationEvidence(doc, projectEdges, anonymous ? null : selectedId, tabbedDetail ? entities : overviewEntities, payload.asOf, selectAndExplore, tabbedDetail ? '関係の詳細' : undefined, tabbedDetail && selectedId === project.id, tabbedDetail ? '関連する情報を確認できませんでした。' : undefined, tabbedDetail));
     if (anonymous) panel.append(workspaceNotice(doc, { label: '未確認', text: '対象のデータを確認できませんでした（ID不明）。', tone: 'info' }));
     else if (selectedId !== project.id && !fetched) {
       const failed = read?.state === 'failed';
@@ -1877,7 +1926,7 @@ export function createProjectKnowledgeWorkspace({
     const color = token => computed?.getPropertyValue(token)?.trim() || undefined;
     const typeColors = Object.create(null);
     for (const entity of entities.values()) typeColors[entity.type] = color(RECORD_COLOR_TOKENS[recordCategory(entity.type)] ?? RECORD_COLOR_TOKENS.other);
-    return { rootId: project.id, visualTheme: { typeColors, preserveSelectedTypeColor: true, preserveRootLabel: true, selected: color('--bb-color-action'), edge: color('--bb-color-border'), unrelated: color('--bb-color-border'), unrelatedEdge: color('--bb-color-line-soft') } };
+    return { rootId: project.id, layout: 'project-detail', visualTheme: { typeColors, fontFamily: computed?.fontFamily, paper: color('--bb-color-paper'), ink: color('--bb-color-ink'), slate: color('--bb-color-slate'), focus: color('--bb-color-mint'), preserveSelectedTypeColor: true, preserveRootLabel: true, selected: color('--bb-color-action'), edge: color('--bb-color-border'), unrelated: color('--bb-color-border'), unrelatedEdge: color('--bb-color-line-soft') } };
   }
 
   function renderTabbedGraphPanel() {
@@ -1885,7 +1934,7 @@ export function createProjectKnowledgeWorkspace({
     const filters = makeElement(doc, 'div', { className: 'bb-pkw-find-filters' });
     const search = makeElement(doc, 'input', { attrs: { type: 'search', name: 'project-record-search', placeholder: '記録を検索', 'aria-label': '記録を検索', autocomplete: 'off' } });
     search.value = graphSearch;
-    search.addEventListener('input', () => { graphSearch = search.value ?? ''; renderGraphList(); });
+    search.addEventListener('input', () => { graphSearch = search.value ?? ''; resetRecordFilterSelection(); });
     recordTypeControls = makeRecordTypeControls(directoryEntries());
     recordTypeSignature = recordDirectorySignature(directoryEntries());
     recordCount = makeElement(doc, 'span', { className: 'bb-pkw-find-count' });
@@ -1894,7 +1943,7 @@ export function createProjectKnowledgeWorkspace({
     const layout = makeElement(doc, 'div', { className: 'bb-pkw-find-layout' });
     const main = makeElement(doc, 'div', { className: 'bb-pkw-find-main' });
     const canvas = makeElement(doc, 'div', { className: 'bb-pkw-graph-canvas bb-pkw-find-canvas', attrs: { 'aria-label': 'プロジェクトの関係グラフ' } });
-    canvas.append(denseButton(doc, project.name, 'bb-ws-button bb-ws-focus-only bb-pkw-record-root-access', () => select(project.id), { 'aria-label': `${project.name}を選択` }));
+    canvas.append(denseButton(doc, project.name, 'bb-ws-button bb-ws-focus-only bb-pkw-record-root-access', () => select(project.id), { 'aria-label': `${project.name}を選択`, 'data-graph-root-fallback': '' }));
     main.append(canvas);
     const fallback = makeElement(doc, 'div', { className: 'bb-pkw-find-fallback' });
     fallback.hidden = typeof mountGraph === 'function' && !graphFailure;
@@ -1929,12 +1978,18 @@ export function createProjectKnowledgeWorkspace({
         const options = graphMountOptions(canvas);
         const nodes = [...entities.values()].map(entity => ({ id: entity.id, label: entity.name, type: entity.type, color: options.visualTheme.typeColors[entity.type] }));
         const freshNodeIds = [...graphFreshNodeIds];
-        Promise.resolve().then(() => mountGraph(canvas, { ...options, nodes, edges, selectedId, cameraState: graphCameraState, freshNodeIds, onSelect: id => select(id ?? project.id, { fromGraph: true }) })).then(handle => {
+        Promise.resolve().then(() => mountGraph(canvas, { ...options, nodes, edges, selectedId, cameraState: graphCameraState, revealState: graphRevealState, freshNodeIds, revealDelay: graphEntryReveal ? 80 : 0, revealStagger: graphEntryReveal ? 28 : 0, onSelect: id => select(id ?? project.id, { fromGraph: true }) })).then(handle => {
           if (destroyed || token !== graphMountToken || activeTab !== 'graph') { handle?.destroy?.(); return; }
           graphHandle = handle ?? null;
           for (const id of freshNodeIds) graphFreshNodeIds.delete(id);
+          graphEntryReveal = false;
+          graphRevealState = null;
           if (entities.has(selectedId)) graphHandle?.select?.(selectedId);
           renderGraphList();
+          if (pendingGraphFocus) {
+            if (!root.contains?.(doc.activeElement)) restoreGraphFocus(pendingGraphFocus);
+            else pendingGraphFocus = null;
+          }
         }).catch(() => { if (!destroyed && token === graphMountToken && activeTab === 'graph') { graphFailure = true; fallback.hidden = false; } });
       };
       graphTimer = typeof setTimeout === 'function' ? setTimeout(mount, 0) : null;
@@ -1947,7 +2002,9 @@ export function createProjectKnowledgeWorkspace({
     graphMountToken += 1;
     if (graphTimer !== null && typeof clearTimeout === 'function') clearTimeout(graphTimer);
     graphTimer = null;
-    if (tabbedDetail && graphHandle?.getCameraState) graphCameraState = graphHandle.getCameraState();
+    if (tabbedDetail && !graphResetPending && graphHandle?.getCameraState) graphCameraState = graphHandle.getCameraState();
+    if (tabbedDetail && !graphResetPending && graphHandle?.getRevealState) graphRevealState = graphHandle.getRevealState();
+    graphResetPending = false;
     if (graphHandle?.destroy) graphHandle.destroy();
     graphHandle = null;
   }
@@ -2073,7 +2130,7 @@ export function createProjectKnowledgeWorkspace({
   render();
   if (!selectedAnonymous && selectedId !== project.id && typeof readEntity === 'function') void loadEntity(selectedId);
   return Object.freeze({ element: root, destroy, select, setTab, setContext: replaceContextBlock, refreshHost,
-    getViewState: () => ({ projectId: workspaceProjectId, activeTab, selectedId, selectedAnonymous: selectedAnonymous ? { ...selectedAnonymous } : null, graphSearch, graphType }),
+    getViewState: () => ({ projectId: workspaceProjectId, activeTab, selectedId, selectedAnonymous: selectedAnonymous ? { ...selectedAnonymous } : null, graphSearch, graphType, graphCameraState: graphHandle?.getCameraState?.() ?? graphCameraState, graphRevealState: graphHandle?.getRevealState?.() ?? graphRevealState, focusNodeId: graphFocusSnapshot()?.nodeId ?? pendingGraphFocus?.nodeId ?? null }),
   });
 }
 

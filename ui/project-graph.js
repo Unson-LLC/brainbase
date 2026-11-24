@@ -321,11 +321,31 @@ export function computeProjectGraphLayout(nodes, edges = EMPTY_ARRAY, { selected
 /** Creates the fully positioned graph model used by the browser entry. */
 export function createProjectGraphModel(input = {}, options = {}) {
   const normalized = normalizeProjectGraph(input);
+  if (options.layout === 'project-detail') {
+    const order = new Map();
+    (input.nodes ?? []).forEach((node, index) => { if (node?.id && !order.has(node.id)) order.set(node.id, index); });
+    const nodes = normalized.nodes.slice().sort((a, b) => order.get(a.id) - order.get(b.id));
+    const positions = computeProjectDetailGraphLayout(nodes, options.selectedId);
+    return { ...normalized, nodes: nodes.map(node => ({ ...node, ...positions[node.id], size: node.id === options.selectedId ? 17 : 8 })) };
+  }
   const positions = computeProjectGraphLayout(normalized.nodes, normalized.edges, options);
   return {
     ...normalized,
     nodes: normalized.nodes.map((node) => ({ ...node, ...positions[node.id] })),
   };
+}
+
+/** Existing input order and real nodes only. Sigma y points up: SVG y=540-y. */
+export function computeProjectDetailGraphLayout(nodes, rootId) {
+  const result = Object.create(null);
+  const peers = nodes.filter(node => node.id !== rootId);
+  if (nodes.some(node => node.id === rootId)) result[rootId] = { x: 380, y: 290 };
+  peers.forEach((node, index) => {
+    const angle = -Math.PI / 2 + index / peers.length * Math.PI * 2;
+    const radius = index % 2 ? 190 : 140;
+    result[node.id] = { x: Number((380 + Math.cos(angle) * radius * 1.12).toFixed(1)), y: Number((290 - Math.sin(angle) * radius).toFixed(1)), detailCos: Math.cos(angle) };
+  });
+  return result;
 }
 
 /**
