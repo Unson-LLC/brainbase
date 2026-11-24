@@ -609,3 +609,5 @@
   }
 }
 .bb-graph-own-drawer .bb-graph-own-detail { margin:0; padding:0; border:0; background:none; }
+.bb-graph-own-drawer .bb-ws-definition { grid-template-columns:112px minmax(0,1fr); gap:9px 12px; font-size:12.5px; line-height:normal; }
+.bb-graph-own-drawer .bb-ws-definition dd { line-height:1.7; }

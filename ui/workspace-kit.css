@@ -1549,7 +1549,7 @@ button.bb-ws-identity-chip:hover { box-shadow:var(--bb-shadow-card-preview); }
 .bb-ws-step-facts { display:grid; flex:none; gap:0; }
 .bb-ws-step-facts > small { color:var(--bb-color-muted); font-size:11.5px; line-height:1.5; }
 .bb-ws-step-facts > strong { color:var(--bb-color-ink); font-size:17px; font-weight:700; line-height:1.4; font-variant-numeric:tabular-nums; }
-.bb-ws-step-facts > button { justify-self:start; padding:0; border:0; background:none; color:var(--bb-color-action); font:500 12px/1.6 var(--bb-font-sans); cursor:pointer; }
+.bb-ws-step-facts > button { justify-self:start; min-height:0; height:auto; padding:0; border:0; background:none; color:var(--bb-color-action); font:500 12px/1.6 var(--bb-font-sans); cursor:pointer; }
 .bb-ws-steps { display:flex; flex:1; gap:6px; min-width:0; margin:0; padding:0; list-style:none; }
 .bb-ws-steps > li { position:relative; flex:1; min-width:0; }
 .bb-ws-steps > li + li { margin-left:14px; }
@@ -1639,11 +1639,13 @@ button.bb-ws-identity-chip:hover { box-shadow:var(--bb-shadow-card-preview); }
 .bb-intake-by { color:var(--bb-color-muted); font-size:11.5px; line-height:1.5; white-space:normal; }
 .bb-intake-settled, .bb-intake-mapping-row.is-settled, .bb-intake-promotion-row.is-settled { min-height:44px; padding-block:6px; background:color-mix(in srgb,var(--bb-color-paper) 55%,var(--bb-color-canvas)); }
 .bb-intake-settled .bb-intake-name-button strong, .bb-intake-mapping-row.is-settled .bb-intake-name-button strong { font-weight:500; color:var(--bb-color-slate); }
+.bb-intake-mapping-row.is-ended .bb-intake-name-button strong,
+.bb-intake-mapping-row.is-ended .bb-intake-name-button small { color:var(--bb-color-muted); }
 .bb-intake-settled .bb-intake-value, .bb-intake-promotion-row.is-settled .bb-intake-value { color:var(--bb-color-slate); }
 .bb-intake-promotion { --bb-card-columns:18px minmax(170px,.9fr) minmax(180px,1fr) 20px minmax(180px,1fr) 110px; }
 .bb-intake-promotion-row { column-gap:18px; }
 .bb-intake-value { color:var(--bb-color-ink); font-size:13.5px; line-height:1.6; white-space:normal; }
-.bb-intake-current { color:var(--bb-color-slate); }
+.bb-intake-current { color:var(--bb-color-slate); font-size:13.5px; line-height:1.6; }
 .bb-intake-current.is-replacing { color:var(--bb-color-muted); text-decoration:line-through; }
 .bb-intake-promotion-row.is-picked { background:color-mix(in srgb,var(--bb-color-accent-soft) 55%,var(--bb-color-paper)); }
 .bb-intake-arrow { width:16px; height:16px; color:var(--bb-color-muted); stroke-width:1.8; }
@@ -1653,9 +1655,22 @@ button.bb-ws-identity-chip:hover { box-shadow:var(--bb-shadow-card-preview); }
 .bb-intake-heading { margin:18px 2px 8px; color:var(--bb-color-muted); font-size:12px; font-weight:600; }
 .bb-intake-count { margin:16px 0 0; color:var(--bb-color-muted); font-size:12px; line-height:normal; }
 .bb-intake-muted { color:var(--bb-color-muted); font-size:12px; }
-.bb-intake-mapping-hint { flex-basis:100%; color:var(--bb-color-muted); font-size:11.5px; }
-.bb-intake-mapping-warning { flex-basis:100%; color:var(--bb-color-warning); font-size:11.5px; font-weight:600; }
+.bb-intake-mapping-hint { display:block; flex-basis:100%; margin-top:6px; color:var(--bb-color-muted); font-size:11.5px; }
+.bb-intake-mapping-warning { display:block; flex-basis:100%; margin-top:6px; color:var(--bb-color-warning); font-size:11.5px; font-weight:600; }
 .bb-intake-mapping-summary { color:var(--bb-color-slate); font-size:13px; white-space:normal; }
+.bb-ws-button.bb-intake-link { min-height:0; height:auto; padding:0; border:0; border-radius:0; background:none; color:var(--bb-color-action); box-shadow:none; font:500 12.5px/1.6 var(--bb-font-sans); }
+.bb-ws-button.bb-intake-link:hover { border:0; background:none; box-shadow:none; text-decoration:underline; }
+.bb-ws-button.bb-intake-link:focus-visible { outline:2px solid var(--bb-color-focus); outline-offset:2px; }
+.bb-intake-item-title { display:block; line-height:1.6; color:var(--bb-color-ink); font-size:14px; font-weight:600; }
+.bb-intake-promotion-row.is-settled .bb-intake-item-title { display:block; line-height:1.6; color:var(--bb-color-slate); font-weight:500; }
+.bb-ws-button.is-icon.bb-intake-toolbar-icon,
+.bb-ws-topbar.has-tabs .bb-ws-topbar-tools > .bb-ws-button.is-icon.bb-intake-toolbar-icon { border:0; background:none; box-shadow:none; }
+.bb-ws-button.is-icon.bb-intake-toolbar-icon:not(:disabled):is(:hover,[aria-expanded="true"]),
+.bb-ws-topbar.has-tabs .bb-ws-topbar-tools > .bb-ws-button.is-icon.bb-intake-toolbar-icon:not(:disabled):is(:hover,[aria-expanded="true"]) { border:0; background:var(--bb-color-accent-soft); color:var(--bb-color-action); box-shadow:none; }
+.bb-intake-mapping .bb-ws-status-pill, .bb-intake-promotion .bb-ws-status-pill { min-width:68px; padding:0 9px; }
+.bb-ws-topbar.has-tabs .bb-ws-topbar-tools > .bb-ws-button.bb-intake-toolbar-action:disabled { border:0; background:var(--bb-color-canvas); color:var(--bb-color-muted); box-shadow:none; opacity:1; cursor:default; }
+.bb-ws-definition.bb-intake-definition { grid-template-columns:112px minmax(0,1fr); gap:9px 12px; font-size:12.5px; line-height:normal; }
+.bb-ws-definition.bb-intake-definition dd { line-height:1.7; }
 @media (max-width:1384px) {
   .bb-intake-mapping { --bb-card-columns:84px minmax(220px,1fr) minmax(380px,1.6fr) 112px 64px; }
   .bb-intake-mapping .bb-intake-table-head > :last-child { display:none; }
@@ -1669,3 +1684,5 @@ button.bb-ws-identity-chip:hover { box-shadow:var(--bb-shadow-card-preview); }
   .bb-intake-mapping-row .bb-intake-status { justify-self:start; text-align:left; }
   .bb-intake-name-button strong, .bb-intake-name-button small { white-space:normal; }
 }
+
+.bb-intake-mapping-row .bb-ws-button--compact.is-primary { display:inline-grid; place-items:center; gap:0; width:64px; padding-inline:10px; }
