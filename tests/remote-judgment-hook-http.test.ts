@@ -634,8 +634,8 @@ describe('person JWT Claude Code judgment Hook on a hosted MCP', () => {
     } }]);
   });
 
-  for (const projectCode of [undefined, '', 'Not A Code']) {
-    it(`rejects a missing or invalid hosted project code: ${String(projectCode)}`, async () => {
+  for (const projectCode of ['Not A Code', ' trial-project']) {
+    it(`rejects an invalid hosted project code: ${String(projectCode)}`, async () => {
       const result = await handleRemoteJudgmentHookRequest(hostedRequest({
         projectCode, dispatch: async () => { throw new Error('must not dispatch'); },
       }));
@@ -643,6 +643,111 @@ describe('person JWT Claude Code judgment Hook on a hosted MCP', () => {
       expect(result?.body.error).toBe('invalid_project_code');
     });
   }
+
+  for (const projectCode of [undefined, '']) {
+    it(`uses the person's only project when none is sent: ${JSON.stringify(projectCode)}`, async () => {
+      const calls: unknown[] = [];
+      const result = await handleRemoteJudgmentHookRequest(hostedRequest({
+        projectCode,
+        dispatch: async (_payload: unknown, code: string | undefined) => {
+          calls.push(code);
+          return { output: {}, receiptId: 'trial-route', routeResolutionSha256: 'a'.repeat(64) };
+        },
+      }));
+      expect(result?.status).toBe(200);
+      expect(calls).toEqual(['trial-project']);
+    });
+  }
+
+  const twoProjects = { ...trustedPrincipal, projectCodes: ['trial-project', 'second-project'] };
+
+  it('records nothing and names the reason when several projects remain', async () => {
+    const result = await handleRemoteJudgmentHookRequest(hostedRequest({
+      projectCode: undefined, trustedPrincipal: twoProjects,
+      dispatch: async () => { throw new Error('must not dispatch'); },
+    }));
+    expect(result).toEqual({ status: 400, body: { error: 'judgment_project_unresolved' } });
+  });
+
+  it('prefers the explicit project code over the host repository mapping', async () => {
+    const calls: unknown[] = [];
+    let lookups = 0;
+    const result = await handleRemoteJudgmentHookRequest(hostedRequest({
+      projectCode: 'second-project', trustedPrincipal: twoProjects, repository: 'acme/app',
+      resolveProjectCode: () => { lookups += 1; return 'trial-project'; },
+      dispatch: async (_payload: unknown, code: string | undefined) => {
+        calls.push(code);
+        return { output: {}, receiptId: 'trial-route', routeResolutionSha256: 'a'.repeat(64) };
+      },
+    }));
+    expect(result?.status).toBe(200);
+    expect(lookups).toBe(0);
+    expect(calls).toEqual(['second-project']);
+  });
+
+  it('uses the host repository mapping before the single-project fallback', async () => {
+    const lookups: unknown[] = [];
+    const calls: unknown[] = [];
+    const result = await handleRemoteJudgmentHookRequest(hostedRequest({
+      projectCode: undefined, trustedPrincipal: twoProjects, repository: 'acme/app',
+      resolveProjectCode: async (input: unknown) => { lookups.push(input); return 'second-project'; },
+      dispatch: async (_payload: unknown, code: string | undefined) => {
+        calls.push(code);
+        return { output: {}, receiptId: 'trial-route', routeResolutionSha256: 'a'.repeat(64) };
+      },
+    }));
+    expect(result?.status).toBe(200);
+    expect(lookups).toEqual([{ repository: 'acme/app', principal: twoProjects }]);
+    expect(calls).toEqual(['second-project']);
+  });
+
+  it('keeps the person scope check on a mapped project', async () => {
+    const result = await handleRemoteJudgmentHookRequest(hostedRequest({
+      projectCode: undefined, repository: 'acme/app',
+      resolveProjectCode: () => 'other-project',
+      dispatch: async () => { throw new Error('must not dispatch'); },
+    }));
+    expect(result).toEqual({ status: 403, body: { error: 'project_not_authorized' } });
+  });
+
+  for (const resolveProjectCode of [
+    () => { throw new Error('lookup down'); },
+    async () => { throw new Error('lookup down'); },
+  ]) {
+    it(`records nothing and asks for a retry when the mapping lookup fails (${resolveProjectCode.constructor.name})`, async () => {
+      const result = await handleRemoteJudgmentHookRequest(hostedRequest({
+        projectCode: undefined, repository: 'acme/app', resolveProjectCode,
+        dispatch: async () => { throw new Error('must not dispatch'); },
+      }));
+      expect(result).toEqual({ status: 503, body: { error: 'judgment_project_lookup_failed' } });
+    });
+  }
+
+  for (const [label, overrides] of [
+    ['no mapping', { resolveProjectCode: () => undefined }],
+    ['an unusable repository key', { repository: '../etc', resolveProjectCode: () => { throw new Error('must not resolve'); } }],
+  ] as const) {
+    it(`falls back to the single project with ${label}`, async () => {
+      const calls: unknown[] = [];
+      const result = await handleRemoteJudgmentHookRequest(hostedRequest({
+        projectCode: undefined, repository: 'acme/app', ...overrides,
+        dispatch: async (_payload: unknown, code: string | undefined) => {
+          calls.push(code);
+          return { output: {}, receiptId: 'trial-route', routeResolutionSha256: 'a'.repeat(64) };
+        },
+      }));
+      expect(result?.status).toBe(200);
+      expect(calls).toEqual(['trial-project']);
+    });
+  }
+
+  it('leaves the remote runtime contract unchanged: no project code is still invalid', async () => {
+    const result = await handleRemoteJudgmentHookRequest(request({
+      projectCode: undefined, trustedPrincipal, trustedAuthKind: 'brainbase-jwt',
+      dispatch: async () => { throw new Error('must not dispatch'); },
+    }));
+    expect(result).toEqual({ status: 400, body: { error: 'invalid_project_code' } });
+  });
 
   it('rejects a project outside the person scope', async () => {
     const result = await handleRemoteJudgmentHookRequest(hostedRequest({

@@ -87,6 +87,21 @@ export interface RemoteJudgmentHookRequest {
   localClaudeCodeAllowed?: boolean;
   /** True only for a person authenticated by the hosted MCP's JWT boundary. */
   personHostedClaudeCodeAllowed?: boolean;
+  /**
+   * The x-brainbase-repository header of a person-hosted Claude Code turn.
+   * Caller-declared, so it is only a lookup key for `resolveProjectCode`;
+   * the resolved project must still be inside the verified principal scope.
+   */
+  repository?: string;
+  /**
+   * Host-owned repository-to-project mapping, consulted only when a
+   * person-hosted Claude Code turn sent no project code. Return undefined
+   * when the host has no mapping for the repository.
+   */
+  resolveProjectCode?: (input: {
+    repository: string;
+    principal: RemoteJudgmentHookPrincipal;
+  }) => Promise<string | undefined> | string | undefined;
   isAuthorized: (authorization: string | undefined, expectedToken: string) => boolean;
   dispatch: RemoteJudgmentHookDispatch;
   /** Optional HTTP publisher for person-authenticated hosted Claude Code Stop events. */
@@ -152,6 +167,35 @@ function safeCauseReasonCode(error: unknown): string | undefined {
   return undefined;
 }
 
+const REPOSITORY_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$/;
+
+type HostedProjectResolution =
+  | { kind: 'resolved'; projectCode: string }
+  | { kind: 'unresolved' }
+  | { kind: 'lookup_failed' };
+
+async function resolveHostedProjectCode(
+  request: RemoteJudgmentHookRequest,
+  principal: RemoteJudgmentHookPrincipal,
+): Promise<HostedProjectResolution> {
+  const repository = request.repository?.trim();
+  if (repository && REPOSITORY_PATTERN.test(repository) && request.resolveProjectCode) {
+    let mapped: string | undefined;
+    try {
+      mapped = await request.resolveProjectCode({ repository, principal });
+    } catch {
+      // A failed lookup is not "no mapping": the repository may belong to a
+      // project outside the person's scope. Record nothing; the caller retries.
+      return { kind: 'lookup_failed' };
+    }
+    if (typeof mapped === 'string' && mapped) return { kind: 'resolved', projectCode: mapped };
+  }
+  const projects = [...new Set(principal.projectCodes)];
+  return projects.length === 1
+    ? { kind: 'resolved', projectCode: projects[0] }
+    : { kind: 'unresolved' };
+}
+
 export async function handleRemoteJudgmentHookRequest(
   request: RemoteJudgmentHookRequest,
 ): Promise<RemoteJudgmentHookResponse | null> {
@@ -201,12 +245,27 @@ export async function handleRemoteJudgmentHookRequest(
     && !request.trustedPrincipal?.tenantId?.trim()) {
     return { status: 403, body: { error: 'authenticated_history_principal_unavailable' } };
   }
-  if ((requiresProjectScope || request.projectCode !== undefined)
-    && (!request.projectCode || !PROJECT_CODE_PATTERN.test(request.projectCode))) {
+  let projectCode = request.projectCode;
+  if (host === 'claude-code' && personHostedClaudeCode && request.trustedPrincipal
+    && (projectCode === undefined || projectCode === '')) {
+    // A person's Claude Code need not name the project. The Host decides it:
+    // its own repository mapping first, then the person's only project. When
+    // neither decides, nothing is recorded and the caller is told why.
+    const resolution = await resolveHostedProjectCode(request, request.trustedPrincipal);
+    if (resolution.kind === 'lookup_failed') {
+      return { status: 503, body: { error: 'judgment_project_lookup_failed' } };
+    }
+    if (resolution.kind === 'unresolved') {
+      return { status: 400, body: { error: 'judgment_project_unresolved' } };
+    }
+    projectCode = resolution.projectCode;
+  }
+  if ((requiresProjectScope || projectCode !== undefined)
+    && (!projectCode || !PROJECT_CODE_PATTERN.test(projectCode))) {
     return { status: 400, body: { error: 'invalid_project_code' } };
   }
   if (requiresProjectScope && request.trustedPrincipal
-    && (!request.projectCode || !request.trustedPrincipal.projectCodes.includes(request.projectCode))) {
+    && (!projectCode || !request.trustedPrincipal.projectCodes.includes(projectCode))) {
     return { status: 403, body: { error: 'project_not_authorized' } };
   }
   if (request.trustedPrincipal && !request.trustedPrincipal.tenantId?.trim()) {
@@ -237,7 +296,7 @@ export async function handleRemoteJudgmentHookRequest(
           ? { sessionWorldModelUpdater: request.sessionWorldModelUpdater }
           : {}),
       };
-    const dispatchResult = await request.dispatch(hookPayload, request.projectCode, dispatchOptions);
+    const dispatchResult = await request.dispatch(hookPayload, projectCode, dispatchOptions);
     const { output } = dispatchResult;
     if (!output || typeof output !== 'object' || Array.isArray(output)) {
       return { status: 503, body: { error: 'judgment_hook_output_invalid' } };
@@ -249,7 +308,7 @@ export async function handleRemoteJudgmentHookRequest(
           eventName,
           sessionId,
           turnId,
-          ...(request.projectCode ? { projectCode: request.projectCode } : {}),
+          ...(projectCode ? { projectCode } : {}),
           reasoning_gate_applied: dispatchResult.reasoningGateApplied,
           reasoning_gate_mode: dispatchResult.reasoningGateMode,
         });
@@ -282,7 +341,7 @@ export async function handleRemoteJudgmentHookRequest(
         try {
           await Promise.race([
             Promise.resolve().then(() => request.journalTurnPublisher!({
-              sessionId, turnId, projectCode: request.projectCode!, trustedToken: request.trustedToken!,
+              sessionId, turnId, projectCode: projectCode!, trustedToken: request.trustedToken!,
               trustedPrincipal: { personId: request.trustedPrincipal!.personId, tenantId: request.trustedPrincipal!.tenantId! },
             })),
             new Promise<never>((_resolve, reject) => {
