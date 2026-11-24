@@ -22,12 +22,13 @@
 //    - PostToolUse: ALWAYS `{}` (any follow-up context is queued with `turn_id` for next PreInvocation)
 //    - Stop: ALWAYS `{ decision: '' }` (never `"continue"`)
 
+import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import {
+  accessSync,
   closeSync,
   constants as fsConstants,
   fstatSync,
-  linkSync,
   lstatSync,
   mkdirSync,
   openSync,
@@ -121,6 +122,8 @@ export interface AntigravityHookOptions {
    * (or `BRAINBASE_ANTIGRAVITY_TRANSCRIPT_ROOTS`).
    */
   allowedTranscriptRoots?: readonly string[];
+  /** Optional OS turn-state lock overrides (primarily for tests). */
+  turnLock?: TurnStateLockOptions;
 }
 
 export interface TranscriptReadOptions {
@@ -130,16 +133,13 @@ export interface TranscriptReadOptions {
 }
 
 const TURN_SCHEMA = 'brainbase-antigravity-judgment-turn-v1';
-const TURN_LOCK_SCHEMA = 'brainbase-antigravity-turn-lock-v1';
 const PROJECT_CODE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/u;
 const TRANSCRIPT_TAIL_MAX_BYTES = 256 * 1024;
 const MAX_PENDING_MESSAGES = 8;
 const DEFAULT_STALE_TURN_MS = 30 * 60 * 1000;
 const MAX_CONFIG_TIMEOUT_MS = 60_000;
-const TURN_STATE_LOCK_STALE_MS = 10_000;
 const TURN_STATE_LOCK_TIMEOUT_MS = 2_000;
-const TURN_STATE_LOCK_RETRY_MS = 10;
-const MAX_LOCK_FILE_BYTES = 4096;
+const FLOCK_CONFLICT_EXIT_CODE = 75;
 
 interface PendingContextMessage {
   turn_id: string;
@@ -186,6 +186,7 @@ interface Context {
   now: () => number;
   staleTurnMs: number;
   allowedTranscriptRoots?: readonly string[];
+  turnLock?: TurnStateLockOptions;
 }
 
 type LoginPin = { expected?: string | null; used?: string | null };
@@ -553,19 +554,27 @@ function extractHostProjectCode(
   return resolved ? { kind: 'valid', value: resolved } : { kind: 'missing' };
 }
 
+type EffectiveProjectCodeResult =
+  | { ok: true; value: string | null }
+  | { ok: false; reason: 'invalid_config' | 'invalid_host' | 'mismatch' };
+
 function resolveEffectiveProjectCode(
   envelope: Record<string, unknown>,
   output: Record<string, unknown>,
   configProjectCode: string | undefined,
-): string | null {
+): EffectiveProjectCodeResult {
   const hostResult = extractHostProjectCode(envelope, output);
-  if (hostResult.kind === 'invalid') return null;
-  const configValid = configProjectCode !== undefined ? normalizeValidProjectCode(configProjectCode) : null;
-  if (configProjectCode !== undefined && configValid === null) return null;
-  if (hostResult.kind === 'valid' && configValid !== null && hostResult.value !== configValid) {
-    return null;
+  if (hostResult.kind === 'invalid') {
+    return { ok: false, reason: 'invalid_host' };
   }
-  return hostResult.kind === 'valid' ? hostResult.value : configValid;
+  const configValid = configProjectCode !== undefined ? normalizeValidProjectCode(configProjectCode) : null;
+  if (configProjectCode !== undefined && configValid === null) {
+    return { ok: false, reason: 'invalid_config' };
+  }
+  if (hostResult.kind === 'valid' && configValid !== null && hostResult.value !== configValid) {
+    return { ok: false, reason: 'mismatch' };
+  }
+  return { ok: true, value: hostResult.kind === 'valid' ? hostResult.value : configValid };
 }
 
 function derivePrincipalIdentity(
@@ -649,22 +658,23 @@ function canAuthorizePendingContext(
   if (typeof currentLoginId !== 'string' || !currentLoginId || state.login !== currentLoginId) {
     return false;
   }
-  const effectiveProjectCode = normalizeValidProjectCode(state.effective_project_code);
-  if (effectiveProjectCode === null) {
-    // Never allow null === null when effective project_code is unresolved.
+  // Pending context draining happens locally in PreInvocation without consulting the Host,
+  // so the caller MUST hold an authoritative explicit local project_code that matches the
+  // persisted effective_project_code. When config.project_code is absent (Host-assigned),
+  // we cannot verify locally whether Host assignment changed and MUST discard pending context.
+  const configuredProjectCode = normalizeValidProjectCode(context.config.project_code);
+  if (configuredProjectCode === null) {
     return false;
   }
-  if (context.config.project_code !== undefined) {
-    const configuredProjectCode = normalizeValidProjectCode(context.config.project_code);
-    if (configuredProjectCode === null || configuredProjectCode !== effectiveProjectCode) {
-      return false;
-    }
+  const effectiveProjectCode = normalizeValidProjectCode(state.effective_project_code);
+  if (effectiveProjectCode === null || configuredProjectCode !== effectiveProjectCode) {
+    return false;
   }
   const expectedFingerprint = computeAuthFingerprint(
     context,
     state.non_git_scope_root,
     currentLoginId,
-    effectiveProjectCode,
+    configuredProjectCode,
   );
   return expectedFingerprint !== null && expectedFingerprint === state.auth_fingerprint;
 }
@@ -731,15 +741,25 @@ function canonicalTranscriptRoots(options: TranscriptReadOptions): string[] {
   return resolved;
 }
 
+function isStrictDescendantPath(canonicalRoot: string, candidatePath: string): boolean {
+  if (!isAbsolute(canonicalRoot) || !isAbsolute(candidatePath)) return false;
+  const prefix = canonicalRoot === sep ? sep : `${canonicalRoot}${sep}`;
+  if (!candidatePath.startsWith(prefix)) return false;
+  const rel = relative(canonicalRoot, candidatePath);
+  if (!rel || rel === '.' || rel === '..' || isAbsolute(rel)) return false;
+  const segments = rel.split(sep);
+  return !segments.includes('..') && !segments.includes('.');
+}
+
 function matchesConversationTranscriptStructure(
   canonicalRoot: string,
   canonicalFile: string,
   conversationId: string,
 ): boolean {
-  const rel = relative(canonicalRoot, canonicalFile);
-  if (!rel || rel === '.' || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+  if (!isStrictDescendantPath(canonicalRoot, canonicalFile)) {
     return false;
   }
+  const rel = relative(canonicalRoot, canonicalFile);
   const segments = rel.split(sep);
   if (segments.length === 4
     && segments[0] === conversationId
@@ -770,6 +790,8 @@ function matchesConversationTranscriptStructure(
 interface TranscriptOpenTestHooks {
   onBeforeOpen?: (canonicalPath: string) => void;
   onAfterOpen?: (canonicalPath: string) => void;
+  /** Test hook to simulate kernel `/proc/self/fd/${fd}` lookup unavailability. */
+  readProcFdPath?: (fd: number) => string | null;
 }
 
 function verifyNoSymlinkPathUnderRoot(
@@ -780,10 +802,10 @@ function verifyNoSymlinkPathUnderRoot(
     const rootStat = lstatSync(canonicalRoot);
     if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) return { ok: false };
     if (realpathSync(canonicalRoot) !== canonicalRoot) return { ok: false };
-    const rel = relative(canonicalRoot, canonicalTarget);
-    if (!rel || rel === '.' || rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+    if (!isStrictDescendantPath(canonicalRoot, canonicalTarget)) {
       return { ok: false };
     }
+    const rel = relative(canonicalRoot, canonicalTarget);
     const segments = rel.split(sep);
     let current = canonicalRoot;
     for (let i = 0; i < segments.length - 1; i += 1) {
@@ -804,6 +826,7 @@ function verifyOpenedTranscriptFd(
   fd: number,
   canonicalPath: string,
   options: TranscriptReadOptions,
+  testHooks?: TranscriptOpenTestHooks,
 ): { size: number } | null {
   try {
     const fdStat = fstatSync(fd, { bigint: true });
@@ -813,35 +836,37 @@ function verifyOpenedTranscriptFd(
     const postRoots = canonicalTranscriptRoots(options);
     if (postRoots.length === 0) return null;
 
-    if (process.platform === 'linux') {
-      let procAvailable = false;
-      try {
-        procAvailable = lstatSync('/proc/self/fd').isDirectory();
-      } catch {
-        procAvailable = false;
+    // Require kernel-level open-fd path resolution via `/proc/self/fd/${fd}` with NO fallback.
+    // Environments that cannot prove the opened fd's canonical path fail closed.
+    let procFdPath: string | null;
+    try {
+      if (testHooks?.readProcFdPath) {
+        procFdPath = testHooks.readProcFdPath(fd);
+      } else if (process.platform === 'linux') {
+        procFdPath = readlinkSync(`/proc/self/fd/${fd}`);
+      } else {
+        return null;
       }
-      if (procAvailable) {
-        const procFdPath = readlinkSync(`/proc/self/fd/${fd}`);
-        if (!procFdPath || procFdPath.endsWith(' (deleted)')) return null;
-        const matchedProcRoot = postRoots.find((root) => (
-          matchesConversationTranscriptStructure(root, procFdPath, conversationId)
-        ));
-        if (!matchedProcRoot) return null;
-        const procWalk = verifyNoSymlinkPathUnderRoot(matchedProcRoot, procFdPath);
-        if (!procWalk.ok || procWalk.dev !== fdStat.dev || procWalk.ino !== fdStat.ino) {
-          return null;
-        }
-      }
+    } catch {
+      return null;
     }
 
-    const postRealPath = realpathSync(canonicalPath);
-    if (postRealPath !== canonicalPath) return null;
-    const matchedRoot = postRoots.find((root) => (
-      matchesConversationTranscriptStructure(root, postRealPath, conversationId)
+    if (typeof procFdPath !== 'string'
+      || !procFdPath
+      || procFdPath.includes('\0')
+      || procFdPath.includes(' (deleted)')) {
+      return null;
+    }
+    if (procFdPath !== canonicalPath) {
+      return null;
+    }
+    const matchedProcRoot = postRoots.find((root) => (
+      isStrictDescendantPath(root, procFdPath)
+      && matchesConversationTranscriptStructure(root, procFdPath, conversationId)
     ));
-    if (!matchedRoot) return null;
-    const walk = verifyNoSymlinkPathUnderRoot(matchedRoot, postRealPath);
-    if (!walk.ok || walk.dev !== fdStat.dev || walk.ino !== fdStat.ino) {
+    if (!matchedProcRoot) return null;
+    const procWalk = verifyNoSymlinkPathUnderRoot(matchedProcRoot, procFdPath);
+    if (!procWalk.ok || procWalk.dev !== fdStat.dev || procWalk.ino !== fdStat.ino) {
       return null;
     }
     return { size: Number(fdStat.size) };
@@ -892,7 +917,7 @@ function readTranscriptTailEntries(
       | (fsConstants.O_NOFOLLOW ?? 0);
     fd = openSync(canonicalPath, openFlags);
     testHooks?.onAfterOpen?.(canonicalPath);
-    const verified = verifyOpenedTranscriptFd(fd, canonicalPath, options);
+    const verified = verifyOpenedTranscriptFd(fd, canonicalPath, options, testHooks);
     if (!verified) return [];
     const size = verified.size;
     if (size <= 0) return [];
@@ -1036,206 +1061,147 @@ function lockPathFor(env: NodeJS.ProcessEnv, key: string): string {
   return `${statePath(env, key)}.lock`;
 }
 
-interface TurnLockRecord {
-  schema: typeof TURN_LOCK_SCHEMA;
-  owner: string;
-  pid: number;
-  created_at: number;
-  expires_at: number;
-}
-
-type InspectedLockFile =
-  | { kind: 'missing' }
-  | { kind: 'non_regular' }
-  | {
-    kind: 'regular';
-    dev: bigint;
-    ino: bigint;
-    mtimeMs: number;
-    raw: string;
-    record: TurnLockRecord | null;
-  };
-
-interface TurnStateLockOptions {
-  staleMs?: number;
+export interface TurnStateLockOptions {
   timeoutMs?: number;
-  now?: () => number;
-  onBeforeReapStale?: () => Promise<void> | void;
-  onBeforeRelease?: () => Promise<void> | void;
+  /** Override for the `flock` executable path (strictly for tests). */
+  flockBinary?: string;
 }
 
-function serializeTurnLockRecord(record: TurnLockRecord): string {
-  return `${JSON.stringify(record)}\n`;
-}
-
-function parseTurnLockRecord(raw: string): TurnLockRecord | null {
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
-    const record = parsed as Record<string, unknown>;
-    if (record.schema !== TURN_LOCK_SCHEMA) return null;
-    if (typeof record.owner !== 'string' || !record.owner) return null;
-    if (typeof record.pid !== 'number' || !Number.isSafeInteger(record.pid) || record.pid <= 0) return null;
-    if (typeof record.created_at !== 'number' || !Number.isFinite(record.created_at)) return null;
-    if (typeof record.expires_at !== 'number' || !Number.isFinite(record.expires_at)) return null;
-    return {
-      schema: TURN_LOCK_SCHEMA,
-      owner: record.owner,
-      pid: record.pid,
-      created_at: record.created_at,
-      expires_at: record.expires_at,
-    };
-  } catch {
+function resolveFlockBinary(override?: string): string | null {
+  if (override !== undefined) {
+    return override.trim() ? override : null;
+  }
+  if (process.platform === 'win32') {
     return null;
   }
-}
-
-function createExclusiveLockFile(
-  targetPath: string,
-  content: string,
-): { acquired: true; dev: bigint; ino: bigint } | { acquired: false } {
-  const tempPath = `${targetPath}.${process.pid}.${randomUUID()}.tmp`;
-  let fd: number | undefined;
-  let dev = 0n;
-  let ino = 0n;
-  try {
-    fd = openSync(tempPath, fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_WRONLY, 0o600);
-    writeFileSync(fd, content, 'utf8');
-    const stat = fstatSync(fd, { bigint: true });
-    dev = stat.dev;
-    ino = stat.ino;
-    closeSync(fd);
-    fd = undefined;
-    linkSync(tempPath, targetPath);
-    return { acquired: true, dev, ino };
-  } catch (error) {
-    if ((error as { code?: unknown })?.code === 'EEXIST') {
-      return { acquired: false };
-    }
-    throw error;
-  } finally {
-    if (fd !== undefined) {
-      try { closeSync(fd); } catch {}
-    }
-    try { unlinkSync(tempPath); } catch {}
-  }
-}
-
-function inspectLockFile(targetPath: string): InspectedLockFile {
-  let fd: number | undefined;
-  try {
-    const openFlags = fsConstants.O_RDONLY
-      | (fsConstants.O_NONBLOCK ?? 0)
-      | (fsConstants.O_NOFOLLOW ?? 0);
-    fd = openSync(targetPath, openFlags);
-    const stat = fstatSync(fd, { bigint: true });
-    if (!stat.isFile()) return { kind: 'non_regular' };
-    const buffer = Buffer.allocUnsafe(MAX_LOCK_FILE_BYTES);
-    let offset = 0;
-    while (offset < MAX_LOCK_FILE_BYTES) {
-      const read = readSync(fd, buffer, offset, MAX_LOCK_FILE_BYTES - offset, offset);
-      if (read <= 0) break;
-      offset += read;
-    }
-    const raw = buffer.subarray(0, offset).toString('utf8');
-    return {
-      kind: 'regular',
-      dev: stat.dev,
-      ino: stat.ino,
-      mtimeMs: Number(stat.mtimeMs),
-      raw,
-      record: parseTurnLockRecord(raw),
-    };
-  } catch (error) {
-    const code = (error as { code?: unknown })?.code;
-    if (code === 'ENOENT') return { kind: 'missing' };
-    if (code === 'ELOOP' || code === 'EISDIR' || code === 'ENXIO') return { kind: 'non_regular' };
-    return { kind: 'non_regular' };
-  } finally {
-    if (fd !== undefined) {
-      try { closeSync(fd); } catch {}
-    }
-  }
-}
-
-function isLockRecordStale(
-  inspected: Extract<InspectedLockFile, { kind: 'regular' }>,
-  nowMs: number,
-  staleMs: number,
-): boolean {
-  if (inspected.record) {
-    return nowMs > inspected.record.expires_at || (nowMs - inspected.mtimeMs) > staleMs;
-  }
-  return (nowMs - inspected.mtimeMs) > staleMs;
-}
-
-function reapGuardPathFor(targetPath: string, dev: bigint, ino: bigint, raw: string): string {
-  const key = sha256(`${dev.toString()}:${ino.toString()}:${raw}`).slice(0, 24);
-  return `${targetPath}.reap-${key}`;
-}
-
-function removeObservedLockWithGuard(
-  targetPath: string,
-  expected: { dev: bigint; ino: bigint; raw: string },
-  params: { requireStale: boolean; now: () => number; staleMs: number },
-  depth = 0,
-): boolean {
-  const guardPath = reapGuardPathFor(targetPath, expected.dev, expected.ino, expected.raw);
-  const nowMs = params.now();
-  const guardExpiresAt = nowMs + params.staleMs;
-  const guardContent = serializeTurnLockRecord({
-    schema: TURN_LOCK_SCHEMA,
-    owner: `${process.pid}:${randomUUID()}`,
-    pid: process.pid,
-    created_at: nowMs,
-    expires_at: guardExpiresAt,
-  });
-
-  const guardAcquired = createExclusiveLockFile(guardPath, guardContent);
-  if (!guardAcquired.acquired) {
-    if (depth < 2) {
-      const existingGuard = inspectLockFile(guardPath);
-      if (existingGuard.kind === 'regular' && isLockRecordStale(existingGuard, params.now(), params.staleMs)) {
-        removeObservedLockWithGuard(guardPath, existingGuard, {
-          requireStale: true,
-          now: params.now,
-          staleMs: params.staleMs,
-        }, depth + 1);
-      }
-    }
-    return false;
-  }
-
-  try {
-    const current = inspectLockFile(targetPath);
-    if (current.kind !== 'regular') return false;
-    if (current.dev !== expected.dev || current.ino !== expected.ino || current.raw !== expected.raw) {
-      return false;
-    }
-    if (params.requireStale && !isLockRecordStale(current, params.now(), params.staleMs)) {
-      return false;
-    }
-    if (params.now() >= guardExpiresAt) return false;
-    const guardStillOurs = inspectLockFile(guardPath);
-    if (guardStillOurs.kind !== 'regular'
-      || guardStillOurs.dev !== guardAcquired.dev
-      || guardStillOurs.ino !== guardAcquired.ino
-      || guardStillOurs.raw !== guardContent) {
-      return false;
-    }
+  for (const candidate of ['/usr/bin/flock', '/bin/flock']) {
     try {
-      unlinkSync(targetPath);
-      return true;
+      accessSync(candidate, fsConstants.X_OK);
+      return candidate;
+    } catch {}
+  }
+  return 'flock';
+}
+
+function runFlockOnInheritedFd(
+  flockBin: string,
+  fd: number,
+  remainingMs: number,
+): Promise<'acquired' | 'timeout' | 'unavailable'> {
+  return new Promise((resolveOutcome) => {
+    const args = remainingMs <= 0
+      ? ['-x', '-E', String(FLOCK_CONFLICT_EXIT_CODE), '-n', '3']
+      : ['-x', '-E', String(FLOCK_CONFLICT_EXIT_CODE), '-w', Math.max(0.001, remainingMs / 1000).toFixed(3), '3'];
+
+    let settled = false;
+    const finish = (outcome: 'acquired' | 'timeout' | 'unavailable') => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(watchdog);
+      resolveOutcome(outcome);
+    };
+
+    const child = spawn(flockBin, args, {
+      stdio: ['ignore', 'ignore', 'ignore', fd],
+      windowsHide: true,
+    });
+
+    const watchdog = setTimeout(() => {
+      try {
+        child.kill('SIGKILL');
+      } catch {}
+      finish('timeout');
+    }, Math.max(50, remainingMs) + 500);
+    watchdog.unref();
+
+    child.on('error', () => {
+      finish('unavailable');
+    });
+
+    child.on('close', (code, signal) => {
+      if (code === 0 && signal === null) {
+        finish('acquired');
+      } else if (code === FLOCK_CONFLICT_EXIT_CODE) {
+        finish('timeout');
+      } else {
+        finish('unavailable');
+      }
+    });
+  });
+}
+
+/**
+ * Acquires an OS kernel-managed `flock(2)` exclusive lock on the fixed lock file.
+ *
+ * The lock file is NEVER unlinked after creation: its inode stays fixed, and the
+ * lock lives on the open file description held by `fd`. When the holder closes `fd`
+ * (or crashes / is killed), the OS kernel releases the lock automatically without
+ * any stale-lock unlink reaping.
+ */
+async function acquireOsFlockFd(
+  lockPath: string,
+  timeoutMs: number,
+  flockBinaryOverride?: string,
+): Promise<number> {
+  const flockBin = resolveFlockBinary(flockBinaryOverride);
+  if (!flockBin) {
+    throw new Error('antigravity_turn_state_lock_unavailable');
+  }
+  const openFlags = fsConstants.O_CREAT
+    | fsConstants.O_RDWR
+    | (fsConstants.O_NONBLOCK ?? 0)
+    | (fsConstants.O_NOFOLLOW ?? 0);
+  const deadline = Date.now() + Math.max(0, timeoutMs);
+
+  for (;;) {
+    let fd: number;
+    try {
+      fd = openSync(lockPath, openFlags, 0o600);
     } catch {
-      return false;
+      throw new Error('antigravity_turn_state_lock_unavailable');
     }
-  } finally {
-    const guardNow = inspectLockFile(guardPath);
-    if (guardNow.kind === 'regular'
-      && guardNow.dev === guardAcquired.dev
-      && guardNow.ino === guardAcquired.ino
-      && guardNow.raw === guardContent) {
-      try { unlinkSync(guardPath); } catch {}
+
+    let fdDev = 0n;
+    let fdIno = 0n;
+    try {
+      const fdStat = fstatSync(fd, { bigint: true });
+      if (!fdStat.isFile()) {
+        closeSync(fd);
+        throw new Error('antigravity_turn_state_lock_unavailable');
+      }
+      fdDev = fdStat.dev;
+      fdIno = fdStat.ino;
+    } catch (error) {
+      try { closeSync(fd); } catch {}
+      if (error instanceof Error && error.message === 'antigravity_turn_state_lock_unavailable') {
+        throw error;
+      }
+      throw new Error('antigravity_turn_state_lock_unavailable');
+    }
+
+    const remainingMs = Math.max(0, deadline - Date.now());
+    const outcome = await runFlockOnInheritedFd(flockBin, fd, remainingMs);
+    if (outcome !== 'acquired') {
+      try { closeSync(fd); } catch {}
+      throw new Error(outcome === 'timeout'
+        ? 'antigravity_turn_state_lock_timeout'
+        : 'antigravity_turn_state_lock_unavailable');
+    }
+
+    // Confirm the locked fd still corresponds to the current inode at `lockPath`
+    // in case an external process unlinked or replaced the file before `flock` completed.
+    try {
+      const pathStat = lstatSync(lockPath, { bigint: true });
+      if (pathStat.isFile() && pathStat.dev === fdDev && pathStat.ino === fdIno) {
+        return fd;
+      }
+    } catch {
+      // Fall through to close & retry if within deadline.
+    }
+
+    try { closeSync(fd); } catch {}
+    if (Date.now() >= deadline) {
+      throw new Error('antigravity_turn_state_lock_timeout');
     }
   }
 }
@@ -1248,65 +1214,14 @@ async function withTurnStateLock<T>(
 ): Promise<T> {
   mkdirSync(turnDirectory(env), { recursive: true, mode: 0o700 });
   const lockPath = lockPathFor(env, key);
-  const nowFn = options?.now ?? Date.now;
-  const staleMs = options?.staleMs ?? TURN_STATE_LOCK_STALE_MS;
   const timeoutMs = options?.timeoutMs ?? TURN_STATE_LOCK_TIMEOUT_MS;
-  const lockToken = `${process.pid}:${randomUUID()}`;
-  const deadline = nowFn() + timeoutMs;
-
-  let ownDev = 0n;
-  let ownIno = 0n;
-  let ownContent = '';
-
-  for (;;) {
-    const attemptNow = nowFn();
-    const candidateContent = serializeTurnLockRecord({
-      schema: TURN_LOCK_SCHEMA,
-      owner: lockToken,
-      pid: process.pid,
-      created_at: attemptNow,
-      expires_at: attemptNow + staleMs,
-    });
-    const acquired = createExclusiveLockFile(lockPath, candidateContent);
-    if (acquired.acquired) {
-      ownDev = acquired.dev;
-      ownIno = acquired.ino;
-      ownContent = candidateContent;
-      break;
-    }
-
-    const inspected = inspectLockFile(lockPath);
-    if (inspected.kind === 'missing') continue;
-    if (inspected.kind === 'regular' && isLockRecordStale(inspected, nowFn(), staleMs)) {
-      if (options?.onBeforeReapStale) {
-        await options.onBeforeReapStale();
-      }
-      const reaped = removeObservedLockWithGuard(lockPath, inspected, {
-        requireStale: true,
-        now: nowFn,
-        staleMs,
-      });
-      if (reaped) continue;
-    }
-
-    if (nowFn() >= deadline) {
-      throw new Error('antigravity_turn_state_lock_timeout');
-    }
-    await new Promise((resolveDelay) => setTimeout(resolveDelay, TURN_STATE_LOCK_RETRY_MS));
-  }
-
+  const fd = await acquireOsFlockFd(lockPath, timeoutMs, options?.flockBinary);
   try {
     return await fn();
   } finally {
+    // Release the OS kernel lock by closing the open file description; NEVER unlink `lockPath`.
     try {
-      if (options?.onBeforeRelease) {
-        await options.onBeforeRelease();
-      }
-      removeObservedLockWithGuard(lockPath, { dev: ownDev, ino: ownIno, raw: ownContent }, {
-        requireStale: false,
-        now: nowFn,
-        staleMs,
-      });
+      closeSync(fd);
     } catch {}
   }
 }
@@ -1514,6 +1429,22 @@ function preInvocationOutputFromSteps(steps: Array<Record<string, unknown>>): An
 
 // ---- Event handlers ----
 
+function isStaleOrAlreadyClosedStep(
+  state: AntigravityTurnState,
+  currentUserStepIndex: number | null,
+): boolean {
+  if (state.last_opened_user_step_index === null || currentUserStepIndex === null) {
+    return false;
+  }
+  if (currentUserStepIndex < state.last_opened_user_step_index) {
+    return true;
+  }
+  if (!state.turn_active && currentUserStepIndex <= state.last_opened_user_step_index) {
+    return true;
+  }
+  return false;
+}
+
 function shouldRecoverNewTurn(
   state: AntigravityTurnState,
   currentUserStepIndex: number | null,
@@ -1522,13 +1453,15 @@ function shouldRecoverNewTurn(
   nowMs: number,
   staleTurnMs: number,
 ): boolean {
+  // Always reject delayed past-step events (and duplicate closed-step events)
+  // BEFORE checking `!state.turn_active`.
+  if (isStaleOrAlreadyClosedStep(state, currentUserStepIndex)) {
+    return false;
+  }
   if (!state.turn_active) return true;
   if (currentUserStepIndex !== null && state.last_opened_user_step_index !== null) {
     if (currentUserStepIndex > state.last_opened_user_step_index) {
       return true;
-    }
-    if (currentUserStepIndex < state.last_opened_user_step_index) {
-      return false;
     }
   }
   if (invocationNum === 1) {
@@ -1552,16 +1485,21 @@ function transcriptOptionsFor(conversationId: string, context: Context): Transcr
   };
 }
 
-function matchesPendingEntry(entry: PendingContextMessage, state: AntigravityTurnState): boolean {
+function matchesPendingEntry(
+  entry: PendingContextMessage,
+  state: AntigravityTurnState,
+  expectedProjectCode: string,
+): boolean {
   if (entry.turn_id !== state.turn_id) return false;
   if (entry.turn_generation !== state.turn_generation) return false;
   const effectiveProject = normalizeValidProjectCode(state.effective_project_code);
-  if (effectiveProject === null) return false;
-  if (typeof entry.project_code !== 'string' || entry.project_code !== effectiveProject) return false;
+  if (effectiveProject === null || effectiveProject !== expectedProjectCode) return false;
+  if (typeof entry.project_code !== 'string' || entry.project_code !== expectedProjectCode) return false;
   return true;
 }
 
 type PreInvocationDecision =
+  | { kind: 'stale_step' }
   | { kind: 'existing_turn'; state: AntigravityTurnState }
   | { kind: 'no_prompt' }
   | { kind: 'opened_new_turn'; state: AntigravityTurnState; inScope: boolean };
@@ -1591,10 +1529,13 @@ async function handlePreInvocation(
     && hostCanMapRepository(context.scope.repository, context.config);
 
   // Atomically decide whether to open a new turn or join the existing active turn
-  // AND write the new turn state within a single lock acquisition.
+  // AND write the new turn state within a single OS-locked critical section.
   const decision = await withTurnStateLock(context.env, key, (): PreInvocationDecision => {
     const latest = readState(context.env, key);
     const nowMs = context.now();
+    if (latest && isStaleOrAlreadyClosedStep(latest, currentUserStepIndex)) {
+      return { kind: 'stale_step' };
+    }
     if (latest && !shouldRecoverNewTurn(
       latest,
       currentUserStepIndex,
@@ -1618,7 +1559,7 @@ async function handlePreInvocation(
       turn_generation: nextGeneration,
       turn_active: true,
       started_at: new Date(nowMs).toISOString(),
-      last_opened_user_step_index: currentUserStepIndex,
+      last_opened_user_step_index: currentUserStepIndex ?? latest?.last_opened_user_step_index ?? null,
       last_prompt_digest: promptDigest,
       start_status: inScope ? 'failed' : 'out_of_scope',
       in_git: context.scope.inGit,
@@ -1634,9 +1575,9 @@ async function handlePreInvocation(
     };
     writeState(context.env, key, state);
     return { kind: 'opened_new_turn', state, inScope };
-  });
+  }, context.turnLock);
 
-  if (decision.kind === 'no_prompt') {
+  if (decision.kind === 'no_prompt' || decision.kind === 'stale_step') {
     return {};
   }
 
@@ -1644,16 +1585,18 @@ async function handlePreInvocation(
     const previous = decision.state;
     // Same active turn (2nd+ PreInvocation in tool loop or duplicate):
     // NEVER fire a new UserPromptSubmit. Re-authorize started state, scope,
-    // destination, effective project_code, and current login BEFORE draining or injecting.
+    // destination, explicit local project_code, and current login BEFORE draining or injecting.
     if (previous.pending_messages.length === 0) {
       return {};
     }
 
-    const staticPendingEligible = isTurnStaticAuthorized(previous, context)
-      && normalizeValidProjectCode(previous.effective_project_code) !== null
+    const configuredProjectCode = normalizeValidProjectCode(context.config.project_code);
+    const staticPendingEligible = configuredProjectCode !== null
+      && isTurnStaticAuthorized(previous, context)
+      && normalizeValidProjectCode(previous.effective_project_code) === configuredProjectCode
       && typeof previous.login === 'string'
       && previous.login.length > 0;
-    if (!staticPendingEligible) {
+    if (!staticPendingEligible || configuredProjectCode === null) {
       try {
         await withTurnStateLock(context.env, key, () => {
           const latest = readState(context.env, key);
@@ -1662,11 +1605,12 @@ async function handlePreInvocation(
             && latest.pending_messages.length > 0) {
             writeState(context.env, key, { ...latest, pending_messages: [] });
           }
-        });
+        }, context.turnLock);
       } catch {}
       return {};
     }
 
+    const requiredProjectCode = configuredProjectCode;
     const currentLogin = await resolveCurrentLoginId(context);
     const currentLoginId = currentLogin.ok ? currentLogin.loginId : null;
     const preAuthorized = canAuthorizePendingContext(previous, context, currentLoginId);
@@ -1686,12 +1630,14 @@ async function handlePreInvocation(
         }
         return [];
       }
-      const matching = latest.pending_messages.filter((entry) => matchesPendingEntry(entry, latest));
+      const matching = latest.pending_messages.filter((entry) => (
+        matchesPendingEntry(entry, latest, requiredProjectCode)
+      ));
       if (latest.pending_messages.length > 0) {
         writeState(context.env, key, { ...latest, pending_messages: [] });
       }
       return matching;
-    });
+    }, context.turnLock);
 
     const steps: Array<Record<string, unknown>> = [];
     for (const entry of drained) {
@@ -1720,7 +1666,31 @@ async function handlePreInvocation(
     };
     const { output, envelope } = await forward(hostPayload, context, openedState.repository, login, 'PreInvocation');
     const loginId = login.used ?? null;
-    const effectiveProjectCode = resolveEffectiveProjectCode(envelope, output, context.config.project_code);
+    const effectiveProjectResult = resolveEffectiveProjectCode(envelope, output, context.config.project_code);
+    if (!effectiveProjectResult.ok) {
+      // Explicit Host project_code mismatch or invalid project_code:
+      // NEVER inject initial context, NEVER mark turn started, and prevent any pending injection.
+      try {
+        await withTurnStateLock(context.env, key, () => {
+          const latest = readState(context.env, key);
+          if (latest
+            && latest.turn_id === openedState.turn_id
+            && latest.turn_generation === openedState.turn_generation) {
+            writeState(context.env, key, {
+              ...latest,
+              start_status: 'failed',
+              login: null,
+              effective_project_code: null,
+              auth_fingerprint: null,
+              pending_messages: [],
+            });
+          }
+        }, context.turnLock);
+      } catch {}
+      return {};
+    }
+
+    const effectiveProjectCode = effectiveProjectResult.value;
     const authFingerprint = computeAuthFingerprint(
       context,
       openedState.non_git_scope_root,
@@ -1745,7 +1715,7 @@ async function handlePreInvocation(
           auth_fingerprint: authFingerprint,
         });
         return true;
-      });
+      }, context.turnLock);
     } catch {
       committed = false;
     }
@@ -1777,7 +1747,7 @@ async function handlePreToolUse(
   }
 
   const key = turnKey(conversationId, context.configPath);
-  const state = await withTurnStateLock(context.env, key, () => readState(context.env, key));
+  const state = await withTurnStateLock(context.env, key, () => readState(context.env, key), context.turnLock);
   if (!state || !isTurnStaticAuthorized(state, context)) {
     return { decision: 'allow' };
   }
@@ -1826,7 +1796,7 @@ async function handlePostToolUse(
   context: Context,
 ): Promise<AntigravityHookOutput> {
   const key = turnKey(conversationId, context.configPath);
-  const state = await withTurnStateLock(context.env, key, () => readState(context.env, key));
+  const state = await withTurnStateLock(context.env, key, () => readState(context.env, key), context.turnLock);
   if (!state || !isTurnStaticAuthorized(state, context)) {
     return {};
   }
@@ -1899,8 +1869,12 @@ async function handlePostToolUse(
       'PostToolUse',
     );
     const { additionalContext, systemMessage } = extractHostMessages(output);
-    const postEffectiveProjectCode = resolveEffectiveProjectCode(envelope, output, context.config.project_code);
-    if ((additionalContext || systemMessage) && postEffectiveProjectCode !== null) {
+    const configuredProjectCode = normalizeValidProjectCode(context.config.project_code);
+    const postProjectResult = resolveEffectiveProjectCode(envelope, output, context.config.project_code);
+    if ((additionalContext || systemMessage)
+      && configuredProjectCode !== null
+      && postProjectResult.ok
+      && postProjectResult.value === configuredProjectCode) {
       try {
         await withTurnStateLock(context.env, key, () => {
           const latest = readState(context.env, key);
@@ -1909,23 +1883,23 @@ async function handlePostToolUse(
             || latest.turn_id !== startedTurnId
             || latest.turn_generation !== startedGeneration
             || latest.auth_fingerprint !== startedAuthFingerprint
-            || latest.effective_project_code !== postEffectiveProjectCode
+            || latest.effective_project_code !== configuredProjectCode
             || !isTurnStaticAuthorized(latest, context)) {
             return;
           }
           const nextPending: PendingContextMessage[] = [
-            ...latest.pending_messages.filter((entry) => matchesPendingEntry(entry, latest)),
+            ...latest.pending_messages.filter((entry) => matchesPendingEntry(entry, latest, configuredProjectCode)),
             {
               turn_id: latest.turn_id,
               turn_generation: latest.turn_generation,
-              project_code: postEffectiveProjectCode,
+              project_code: configuredProjectCode,
               ...(additionalContext ? { additional_context: additionalContext } : {}),
               ...(systemMessage ? { system_message: systemMessage } : {}),
               created_at: new Date(context.now()).toISOString(),
             },
           ].slice(-MAX_PENDING_MESSAGES);
           writeState(context.env, key, { ...latest, pending_messages: nextPending });
-        });
+        }, context.turnLock);
       } catch {}
     }
   } catch {
@@ -1941,7 +1915,7 @@ async function handleStop(
   context: Context,
 ): Promise<AntigravityHookOutput> {
   const key = turnKey(conversationId, context.configPath);
-  const state = await withTurnStateLock(context.env, key, () => readState(context.env, key));
+  const state = await withTurnStateLock(context.env, key, () => readState(context.env, key), context.turnLock);
   const terminationReason = typeof payload.terminationReason === 'string' ? payload.terminationReason : '';
 
   const clearTurn = async () => {
@@ -1952,7 +1926,7 @@ async function handleStop(
         if (latest && latest.turn_id === state.turn_id && latest.turn_generation === state.turn_generation) {
           writeState(context.env, key, { ...latest, turn_active: false, pending_messages: [] });
         }
-      });
+      }, context.turnLock);
     } catch {}
   };
 
@@ -2028,6 +2002,7 @@ export async function handleAntigravityJudgmentHook(
       staleTurnMs: options.staleTurnMs ?? DEFAULT_STALE_TURN_MS,
       ...(options.allowedTranscriptRoots !== undefined
         ? { allowedTranscriptRoots: options.allowedTranscriptRoots } : {}),
+      ...(options.turnLock !== undefined ? { turnLock: options.turnLock } : {}),
     };
 
     if (eventName === 'PreInvocation') return await handlePreInvocation(payload, conversationId, context);
@@ -2174,6 +2149,4 @@ export const __antigravityHookTestInternals = {
   turnKey,
   lockPathFor,
   statePath,
-  serializeTurnLockRecord,
-  TURN_LOCK_SCHEMA,
 };

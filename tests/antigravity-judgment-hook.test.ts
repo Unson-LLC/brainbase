@@ -1,5 +1,5 @@
-import { spawnSync } from 'node:child_process';
-import { lstatSync, readFileSync, renameSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { lstatSync, renameSync, symlinkSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -325,8 +325,7 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
     expect(postOut).toEqual({});
 
     // Inject a stale mismatched turn_id entry into persisted state to verify turn_id filtering.
-    const { readdir } = await import('node:fs/promises');
-    const [stateFile] = await readdir(turnDir);
+    const [stateFile] = (await readdir(turnDir)).filter((f) => f.endsWith('.json'));
     const fullStatePath = join(turnDir, stateFile);
     const rawState = JSON.parse(await readFile(fullStatePath, 'utf8'));
     rawState.pending_messages.unshift({
@@ -1062,6 +1061,112 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
     expect(afterDelayed.turn_generation).toBe(newerState.turn_generation);
   });
 
+  it('rejects delayed older or duplicate step_index PreInvocation even after a newer turn is closed by Stop', async () => {
+    const { home, repo, configPath, env } = await setupConfig({ project_code: 'proj-order-closed' });
+    const turnDir = join(home, 'turns');
+    const testEnv = { ...env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir };
+    const { fetchImpl, sent } = mockHost();
+    const options = { env: testEnv, fetch: fetchImpl, accessToken: token, configPath, registrationId: REG };
+
+    const transcriptPath = await canonicalTranscriptPath(home, 'conv-closed-step');
+    await writeFile(transcriptPath, JSON.stringify({
+      step_index: 10,
+      source: 'USER_EXPLICIT',
+      type: 'USER_INPUT',
+      content: 'Step 10 prompt',
+    }) + '\n');
+
+    await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-closed-step',
+      invocationNum: 1,
+      cwd: repo,
+      transcriptPath,
+      lastUserInput: 'Step 10 prompt',
+    }, options);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].body.hook_event_name).toBe('UserPromptSubmit');
+
+    const stopOut = await handleAntigravityJudgmentHook({
+      hookEventName: 'Stop',
+      conversationId: 'conv-closed-step',
+      cwd: repo,
+      transcriptPath,
+      terminationReason: 'NO_TOOL_CALL',
+    }, options);
+    expect(stopOut).toEqual({ decision: '' });
+    expect(sent).toHaveLength(2);
+    expect(sent[1].body.hook_event_name).toBe('Stop');
+
+    const key = __antigravityHookTestInternals.turnKey('conv-closed-step', configPath);
+    const stateFile = __antigravityHookTestInternals.statePath(testEnv, key);
+    const closedState = JSON.parse(await readFile(stateFile, 'utf8'));
+    expect(closedState.turn_active).toBe(false);
+    expect(closedState.last_opened_user_step_index).toBe(10);
+
+    // Delayed older PreInvocation (step_index 5) arrives AFTER step 10 closed -> MUST NOT open a turn or send UserPromptSubmit.
+    await writeFile(transcriptPath, JSON.stringify({
+      step_index: 5,
+      source: 'USER_EXPLICIT',
+      type: 'USER_INPUT',
+      content: 'Delayed step 5 prompt',
+    }) + '\n');
+    const delayedOlder = await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-closed-step',
+      invocationNum: 1,
+      cwd: repo,
+      transcriptPath,
+      lastUserInput: 'Delayed step 5 prompt',
+    }, options);
+    expect(delayedOlder).toEqual({});
+    expect(sent).toHaveLength(2);
+    expect(JSON.parse(await readFile(stateFile, 'utf8'))).toEqual(closedState);
+
+    // Duplicate delayed PreInvocation for the already-closed step_index 10 -> MUST NOT reopen or re-send UserPromptSubmit.
+    await writeFile(transcriptPath, JSON.stringify({
+      step_index: 10,
+      source: 'USER_EXPLICIT',
+      type: 'USER_INPUT',
+      content: 'Step 10 prompt',
+    }) + '\n');
+    const duplicateClosed = await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-closed-step',
+      invocationNum: 1,
+      cwd: repo,
+      transcriptPath,
+      lastUserInput: 'Step 10 prompt',
+    }, options);
+    expect(duplicateClosed).toEqual({});
+    expect(sent).toHaveLength(2);
+    expect(JSON.parse(await readFile(stateFile, 'utf8'))).toEqual(closedState);
+
+    // Genuine next human turn at step_index 11 -> opens a new turn cleanly.
+    await writeFile(transcriptPath, JSON.stringify({
+      step_index: 11,
+      source: 'USER_EXPLICIT',
+      type: 'USER_INPUT',
+      content: 'Fresh step 11 prompt',
+    }) + '\n');
+    const nextTurn = await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-closed-step',
+      invocationNum: 1,
+      cwd: repo,
+      transcriptPath,
+      lastUserInput: 'Fresh step 11 prompt',
+    }, options);
+    expect(Array.isArray(nextTurn.injectSteps)).toBe(true);
+    expect(sent).toHaveLength(3);
+    expect(sent[2].body.hook_event_name).toBe('UserPromptSubmit');
+    expect(sent[2].body.prompt).toBe('Fresh step 11 prompt');
+    const reopenedState = JSON.parse(await readFile(stateFile, 'utf8'));
+    expect(reopenedState.turn_active).toBe(true);
+    expect(reopenedState.turn_generation).toBe(2);
+    expect(reopenedState.last_opened_user_step_index).toBe(11);
+  });
+
   it('does not inject initial context when Stop closes or a new turn supersedes the turn during UserPromptSubmit HTTP wait', async () => {
     const { home, repo, configPath, env } = await setupConfig({ project_code: 'proj-closed' });
     const turnDir = join(home, 'turns');
@@ -1194,109 +1299,25 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
     expect(persisted2.start_status).toBe('started');
   });
 
-  it('never deletes a newly acquired lock during stale-lock reap races or late release', async () => {
-    const dir = await tempDir();
-    const turnDir = join(dir, 'turns');
+  it('uses OS-managed flock on a fixed non-deleted lock file, serializes concurrent and cross-process contenders, and fails open safely on timeout or unavailability', async () => {
+    const { home, repo, configPath, env } = await setupConfig({ project_code: 'proj-flock' });
+    const turnDir = join(home, 'turns');
     await mkdir(turnDir, { recursive: true });
-    const testEnv = { HOME: dir, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir } as NodeJS.ProcessEnv;
-    const key = 'lock-race-key';
+    const testEnv = { ...env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir } as NodeJS.ProcessEnv;
+    const key = 'os-flock-key';
     const lockPath = __antigravityHookTestInternals.lockPathFor(testEnv, key);
 
-    // Seed an expired lock file.
-    const expiredContent = __antigravityHookTestInternals.serializeTurnLockRecord({
-      schema: __antigravityHookTestInternals.TURN_LOCK_SCHEMA,
-      owner: 'dead-owner-1',
-      pid: 999999,
-      created_at: Date.now() - 60_000,
-      expires_at: Date.now() - 30_000,
-    });
-    writeFileSync(lockPath, expiredContent, { mode: 0o600 });
-    const oldTime = new Date(Date.now() - 60_000);
-    utimesSync(lockPath, oldTime, oldTime);
+    // 1. First acquisition creates the fixed lock file and NEVER unlinks it after release; subsequent acquisitions reuse the exact same inode.
+    await __antigravityHookTestInternals.withTurnStateLock(testEnv, key, () => {});
+    const firstStat = lstatSync(lockPath, { bigint: true });
+    expect(firstStat.isFile()).toBe(true);
 
-    const events: string[] = [];
-    let aDetectedStale!: () => void;
-    const aDetectedStalePromise = new Promise<void>((resolveSignal) => { aDetectedStale = resolveSignal; });
-    let allowAResume!: () => void;
-    const aResumeGate = new Promise<void>((resolveGate) => { allowAResume = resolveGate; });
+    await __antigravityHookTestInternals.withTurnStateLock(testEnv, key, () => {});
+    const secondStat = lstatSync(lockPath, { bigint: true });
+    expect(secondStat.dev).toBe(firstStat.dev);
+    expect(secondStat.ino).toBe(firstStat.ino);
 
-    let bAcquired!: () => void;
-    const bAcquiredPromise = new Promise<void>((resolveSignal) => { bAcquired = resolveSignal; });
-    let allowBRelease!: () => void;
-    const bReleaseGate = new Promise<void>((resolveGate) => { allowBRelease = resolveGate; });
-
-    let aEntered = false;
-    let aPausedOnce = false;
-    const contenderA = __antigravityHookTestInternals.withTurnStateLock(testEnv, key, async () => {
-      aEntered = true;
-      events.push('A-start');
-      events.push('A-end');
-    }, {
-      staleMs: 5_000,
-      timeoutMs: 3_000,
-      onBeforeReapStale: async () => {
-        if (!aPausedOnce) {
-          aPausedOnce = true;
-          aDetectedStale();
-          await aResumeGate;
-        }
-      },
-    });
-
-    // Wait until A has inspected the stale lock and is poised right before reaping it.
-    await aDetectedStalePromise;
-
-    // Now B arrives, reaps the expired lock, acquires a fresh lock, and holds it.
-    const contenderB = __antigravityHookTestInternals.withTurnStateLock(testEnv, key, async () => {
-      events.push('B-start');
-      bAcquired();
-      await bReleaseGate;
-      events.push('B-end');
-    }, { staleMs: 5_000, timeoutMs: 3_000 });
-
-    await bAcquiredPromise;
-    const bLockIno = lstatSync(lockPath, { bigint: true }).ino;
-    const bLockContent = readFileSync(lockPath, 'utf8');
-
-    // Resume A while B STILL holds its fresh lock.
-    allowAResume();
-    await new Promise((resolveDelay) => setTimeout(resolveDelay, 60));
-
-    // A MUST NOT delete B's lock and MUST NOT enter the critical section while B holds it.
-    expect(lstatSync(lockPath, { bigint: true }).ino).toBe(bLockIno);
-    expect(readFileSync(lockPath, 'utf8')).toBe(bLockContent);
-    expect(aEntered).toBe(false);
-
-    // Release B -> A acquires cleanly afterward.
-    allowBRelease();
-    await Promise.all([contenderA, contenderB]);
-    expect(events).toEqual(['B-start', 'B-end', 'A-start', 'A-end']);
-    expect(await readdir(turnDir)).toEqual([]);
-
-    // Late release safety: if A's lock was replaced by B before A's finally runs, A must not delete B's lock.
-    const replacementContent = __antigravityHookTestInternals.serializeTurnLockRecord({
-      schema: __antigravityHookTestInternals.TURN_LOCK_SCHEMA,
-      owner: 'new-owner-B',
-      pid: process.pid,
-      created_at: Date.now(),
-      expires_at: Date.now() + 30_000,
-    });
-    let replacedIno = 0n;
-    await __antigravityHookTestInternals.withTurnStateLock(testEnv, key, () => {}, {
-      onBeforeRelease: () => {
-        const tmp = `${lockPath}.replacement`;
-        writeFileSync(tmp, replacementContent, { mode: 0o600 });
-        renameSync(tmp, lockPath);
-        replacedIno = lstatSync(lockPath, { bigint: true }).ino;
-      },
-    });
-    expect(lstatSync(lockPath, { bigint: true }).ino).toBe(replacedIno);
-    expect(readFileSync(lockPath, 'utf8')).toBe(replacementContent);
-    await rm(lockPath, { force: true });
-
-    // 8-way concurrent stale lock stampede: strict mutual exclusion (max active === 1).
-    writeFileSync(lockPath, expiredContent, { mode: 0o600 });
-    utimesSync(lockPath, oldTime, oldTime);
+    // 2. 8-way concurrent in-process contenders are strictly serialized (maxActive === 1) on the same fixed lock inode.
     let active = 0;
     let maxActive = 0;
     await Promise.all(Array.from({ length: 8 }, () => __antigravityHookTestInternals.withTurnStateLock(testEnv, key, async () => {
@@ -1304,12 +1325,120 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
       maxActive = Math.max(maxActive, active);
       await new Promise((resolveDelay) => setTimeout(resolveDelay, 15));
       active -= 1;
-    }, { staleMs: 5_000, timeoutMs: 5_000 })));
+    }, { timeoutMs: 5_000 })));
     expect(maxActive).toBe(1);
-    expect(await readdir(turnDir)).toEqual([]);
+    expect(lstatSync(lockPath, { bigint: true }).ino).toBe(firstStat.ino);
+
+    // 3. Cross-process OS flock mutual exclusion: a separate process holding `flock` blocks our contender until released.
+    const holder = spawn('flock', ['-x', lockPath, process.execPath, '-e', 'console.log("LOCKED"); process.stdin.resume();'], {
+      stdio: ['pipe', 'pipe', 'ignore'],
+    });
+    await new Promise<void>((resolveReady, rejectReady) => {
+      holder.once('error', rejectReady);
+      holder.stdout.on('data', (chunk: Buffer) => {
+        if (chunk.toString('utf8').includes('LOCKED')) resolveReady();
+      });
+    });
+
+    try {
+      // While the external process holds the OS flock, a short-timeout acquisition fails closed with lock timeout.
+      await expect(__antigravityHookTestInternals.withTurnStateLock(testEnv, key, () => 'should-not-run', {
+        timeoutMs: 80,
+      })).rejects.toThrow('antigravity_turn_state_lock_timeout');
+
+      // Start a waiting contender, then release the external holder -> waiter succeeds strictly after release.
+      let waiterEntered = false;
+      const waiter = __antigravityHookTestInternals.withTurnStateLock(testEnv, key, () => {
+        waiterEntered = true;
+        return 'acquired-after-holder';
+      }, { timeoutMs: 3_000 });
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 60));
+      expect(waiterEntered).toBe(false);
+
+      holder.kill('SIGTERM');
+      await new Promise<void>((resolveExit) => holder.once('close', () => resolveExit()));
+      expect(await waiter).toBe('acquired-after-holder');
+      expect(lstatSync(lockPath, { bigint: true }).ino).toBe(firstStat.ino);
+    } finally {
+      if (holder.exitCode === null && holder.signalCode === null) {
+        holder.kill('SIGKILL');
+      }
+    }
+
+    // 4. Hook fail-open & state preservation on lock timeout and on unavailable OS lock binary.
+    const { fetchImpl, sent } = mockHost();
+    const baseOptions = { env: testEnv, fetch: fetchImpl, accessToken: token, configPath, registrationId: REG };
+
+    // Establish an active turn first.
+    await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-flock-failopen',
+      invocationNum: 1,
+      cwd: repo,
+      lastUserInput: 'Initial turn',
+    }, baseOptions);
+    expect(sent).toHaveLength(1);
+
+    const hookKey = __antigravityHookTestInternals.turnKey('conv-flock-failopen', configPath);
+    const hookStatePath = __antigravityHookTestInternals.statePath(testEnv, hookKey);
+    const persistedBefore = await readFile(hookStatePath, 'utf8');
+
+    // Hold the turn lock while invoking PreInvocation & Stop with a short lock timeout -> fail-open, state untouched.
+    let releaseHold!: () => void;
+    let holdEntered!: () => void;
+    const holdGate = new Promise<void>((resolveGate) => { releaseHold = resolveGate; });
+    const holdEnteredPromise = new Promise<void>((resolveEntered) => { holdEntered = resolveEntered; });
+    const hold = __antigravityHookTestInternals.withTurnStateLock(testEnv, hookKey, async () => {
+      holdEntered();
+      await holdGate;
+    });
+    await holdEnteredPromise;
+
+    try {
+      const timedOutPre = await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId: 'conv-flock-failopen',
+        invocationNum: 1,
+        cwd: repo,
+        lastUserInput: 'Different prompt while locked',
+      }, { ...baseOptions, turnLock: { timeoutMs: 60 } });
+      expect(timedOutPre).toEqual({});
+
+      const timedOutStop = await handleAntigravityJudgmentHook({
+        hookEventName: 'Stop',
+        conversationId: 'conv-flock-failopen',
+        cwd: repo,
+        terminationReason: 'NO_TOOL_CALL',
+      }, { ...baseOptions, turnLock: { timeoutMs: 60 } });
+      expect(timedOutStop).toEqual({ decision: '' });
+
+      expect(sent).toHaveLength(1);
+      expect(await readFile(hookStatePath, 'utf8')).toBe(persistedBefore);
+    } finally {
+      releaseHold();
+      await hold;
+    }
+
+    // Unavailable OS lock binary -> fail-closed on state (no overwrite, no HTTP), fail-open on output.
+    const unavailableOpts = { ...baseOptions, turnLock: { flockBinary: '/nonexistent/flock-binary-unavailable' } };
+    expect(await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-flock-failopen',
+      invocationNum: 1,
+      cwd: repo,
+      lastUserInput: 'Prompt with unavailable flock',
+    }, unavailableOpts)).toEqual({});
+    expect(await handleAntigravityJudgmentHook({
+      hookEventName: 'Stop',
+      conversationId: 'conv-flock-failopen',
+      cwd: repo,
+      terminationReason: 'NO_TOOL_CALL',
+    }, unavailableOpts)).toEqual({ decision: '' });
+    expect(sent).toHaveLength(1);
+    expect(await readFile(hookStatePath, 'utf8')).toBe(persistedBefore);
   });
 
-  it('rejects transcript reads when a parent directory is swapped to an outside symlink after validation (TOCTOU)', async () => {
+  it('rejects transcript reads on parent-directory symlink swap TOCTOU and fails closed when /proc/self/fd verification is unavailable', async () => {
     const dir = await tempDir();
     const allowedRoot = join(dir, 'brain');
     const outsideDir = join(dir, 'outside-secret');
@@ -1351,7 +1480,7 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
     renameSync(backupLogsDir, logsDir);
 
     // Case 4b: Parent dir is swapped to outside symlink before open() AND immediately swapped back after open()
-    // before post-open verification runs (proves fd-level /proc/self/fd + (dev, ino) verification catches it).
+    // before post-open verification runs (proves mandatory /proc/self/fd + (dev, ino) verification catches it).
     const entriesSwapAndRevert = __antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
       onBeforeOpen: () => {
         renameSync(logsDir, backupLogsDir);
@@ -1364,6 +1493,22 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
       },
     });
     expect(entriesSwapAndRevert).toEqual([]);
+
+    // Case 4c: When `/proc/self/fd/${fd}` cannot be read (unavailable procfs / non-Linux), fail closed with [] (NO realpath fallback).
+    expect(__antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
+      readProcFdPath: () => null,
+    })).toEqual([]);
+    expect(__antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
+      readProcFdPath: () => {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+      },
+    })).toEqual([]);
+
+    // Case 4d: Deleted open fd reported by `/proc/self/fd/${fd}` is rejected.
+    const realInside = await realpath(insideTranscript);
+    expect(__antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
+      readProcFdPath: () => `${realInside} (deleted)`,
+    })).toEqual([]);
   });
 
   it('strictly binds pending context re-authorization to bearer token fingerprint, non-null loginId, and confirmed effective project_code', async () => {
@@ -1563,12 +1708,11 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
       expect(afterDiscard.pending_messages).toEqual([]);
     }
 
-    // Case 5d: Host-resolved project_code (config.project_code omitted) authorizes matching project and rejects mismatch.
+    // Case 5d: When config omits project_code (Host-assigned), pending context MUST NOT be injected and any persisted pending entry MUST be discarded.
     {
       const setup = await setupConfig(); // project_code omitted; Host decides
       const turnDir = join(setup.home, 'turns');
       const testEnv = { ...setup.env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir };
-      let postProjectCode = 'host-proj-a';
       const { fetchImpl } = mockHost((body) => ({
         status: 200,
         body: {
@@ -1577,9 +1721,9 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
           hook_event_name: body.hook_event_name,
           session_id: body.session_id,
           turn_id: body.turn_id,
-          project_code: body.hook_event_name === 'PostToolUse' ? postProjectCode : 'host-proj-a',
+          project_code: 'host-proj-a',
           output: body.hook_event_name === 'PostToolUse'
-            ? { hookSpecificOutput: { additionalContext: `HOST_PROJ_CTX_${postProjectCode}` } }
+            ? { hookSpecificOutput: { additionalContext: 'HOST_ASSIGNED_MUST_NOT_INJECT' } }
             : {},
         },
       }));
@@ -1593,8 +1737,6 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
         lastUserInput: 'Host project turn',
       }, options);
 
-      // Mismatched PostToolUse project_code is rejected and NOT queued.
-      postProjectCode = 'host-proj-b';
       await handleAntigravityJudgmentHook({
         hookEventName: 'PostToolUse',
         conversationId: 'conv-host-proj',
@@ -1602,31 +1744,95 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
         stepIdx: 2,
         toolCall: { id: 'toolu_h1', name: 'run_command', args: { CommandLine: 'ls' } },
       }, options);
-      expect(await handleAntigravityJudgmentHook({
+
+      const key = __antigravityHookTestInternals.turnKey('conv-host-proj', setup.configPath);
+      const stateFile = __antigravityHookTestInternals.statePath(testEnv, key);
+      const persisted = JSON.parse(await readFile(stateFile, 'utf8'));
+      expect(persisted.effective_project_code).toBe('host-proj-a');
+      expect(persisted.pending_messages).toEqual([]);
+
+      // Even if a pending entry with matching project_code is present in persisted state,
+      // PreInvocation cannot locally confirm Host's current project assignment without explicit config.project_code,
+      // so it MUST discard pending_messages and return {}.
+      persisted.pending_messages = [{
+        turn_id: persisted.turn_id,
+        turn_generation: persisted.turn_generation,
+        project_code: 'host-proj-a',
+        additional_context: 'STALE_HOST_ASSIGNED_CONTEXT',
+        created_at: new Date().toISOString(),
+      }];
+      await writeFile(stateFile, JSON.stringify(persisted));
+
+      const drainedOut = await handleAntigravityJudgmentHook({
         hookEventName: 'PreInvocation',
         conversationId: 'conv-host-proj',
         invocationNum: 2,
         cwd: setup.repo,
         lastUserInput: 'Host project turn',
-      }, options)).toEqual({});
+      }, options);
+      expect(drainedOut).toEqual({});
+      const afterDiscard = JSON.parse(await readFile(stateFile, 'utf8'));
+      expect(afterDiscard.pending_messages).toEqual([]);
+    }
 
-      // Matching Host-resolved project_code IS queued and injected.
-      postProjectCode = 'host-proj-a';
-      await handleAntigravityJudgmentHook({
-        hookEventName: 'PostToolUse',
-        conversationId: 'conv-host-proj',
-        cwd: setup.repo,
-        stepIdx: 3,
-        toolCall: { id: 'toolu_h2', name: 'run_command', args: { CommandLine: 'ls' } },
-      }, options);
-      const matchedOut = await handleAntigravityJudgmentHook({
+    // Case 5e: When config specifies project_code 'alpha' and Host initial UserPromptSubmit response explicitly returns 'beta',
+    // initial context MUST be rejected ({}) and the turn MUST NOT be marked started or allow pending injection.
+    {
+      const setup = await setupConfig({ project_code: 'alpha' });
+      const turnDir = join(setup.home, 'turns');
+      const testEnv = { ...setup.env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir };
+      const { fetchImpl, sent } = mockHost((body) => ({
+        status: 200,
+        body: {
+          schema_version: '1',
+          accepted: true,
+          hook_event_name: body.hook_event_name,
+          session_id: body.session_id,
+          turn_id: body.turn_id,
+          project_code: 'beta',
+          output: {
+            systemMessage: 'BETA_WRONG_PROJECT_BANNER',
+            hookSpecificOutput: { additionalContext: 'BETA_WRONG_PROJECT_CONTEXT' },
+          },
+        },
+      }));
+      const options = { env: testEnv, fetch: fetchImpl, accessToken: token, configPath: setup.configPath, registrationId: REG };
+
+      const initialOut = await handleAntigravityJudgmentHook({
         hookEventName: 'PreInvocation',
-        conversationId: 'conv-host-proj',
-        invocationNum: 3,
+        conversationId: 'conv-proj-mismatch',
+        invocationNum: 1,
         cwd: setup.repo,
-        lastUserInput: 'Host project turn',
+        lastUserInput: 'Prompt expecting alpha',
       }, options);
-      expect(JSON.stringify(matchedOut)).toContain('HOST_PROJ_CTX_host-proj-a');
+      expect(initialOut).toEqual({});
+      expect(sent).toHaveLength(1);
+
+      const key = __antigravityHookTestInternals.turnKey('conv-proj-mismatch', setup.configPath);
+      const stateFile = __antigravityHookTestInternals.statePath(testEnv, key);
+      const persisted = JSON.parse(await readFile(stateFile, 'utf8'));
+      expect(persisted.start_status).toBe('failed');
+      expect(persisted.effective_project_code).toBeNull();
+      expect(persisted.auth_fingerprint).toBeNull();
+      expect(persisted.pending_messages).toEqual([]);
+
+      // Subsequent PostToolUse and PreInvocation in the failed turn must not forward or inject anything.
+      expect(await handleAntigravityJudgmentHook({
+        hookEventName: 'PostToolUse',
+        conversationId: 'conv-proj-mismatch',
+        cwd: setup.repo,
+        stepIdx: 2,
+        toolCall: { id: 'toolu_m1', name: 'run_command', args: { CommandLine: 'ls' } },
+      }, options)).toEqual({});
+      expect(sent).toHaveLength(1);
+
+      expect(await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId: 'conv-proj-mismatch',
+        invocationNum: 2,
+        cwd: setup.repo,
+        lastUserInput: 'Prompt expecting alpha',
+      }, options)).toEqual({});
     }
   });
 
