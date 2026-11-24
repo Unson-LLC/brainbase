@@ -181,3 +181,75 @@ describe('judgment journal turn publisher', () => {
     });
   }
 });
+
+describe('UNS-5996 a resolved turn binds to its TurnContract', () => {
+  it('AC-R1 one hook and one successful resolve_turn post the resolved receipt, not the bootstrap receipt', async () => {
+    // The Host writes episode.json once with the bootstrap route receipt. After a successful
+    // brainbase_resolve_turn it records the TurnContract on the event, and finalize writes
+    // final.initial_route_receipt_digest from the effective (resolved) episode.
+    // The organization history reader accepts a turn only when its receipt equals the last
+    // successful resolve_turn contract and the final digest; a bootstrap receipt is rejected.
+    const { root, prefix } = await fixture();
+    const bootstrap = { resolution_id: 'bootstrap', project_code: 'project', turn_id: input.turnId, classification: 'bootstrap' };
+    const turnContract = { resolution_id: 'resolved', project_code: 'project', turn_id: input.turnId, classification: 'question' };
+    const canonical = (value: unknown) => JSON.stringify(value, Object.keys(value as object).sort());
+    await writeFile(`${prefix}.episode.json`, JSON.stringify({ owner_person_id: 'person', tenant_id: 'tenant', initial_route_receipt: bootstrap }));
+    await writeFile(`${prefix}.events/event.json`, JSON.stringify({ event_sequence: 0, event_fingerprint: 'b'.repeat(64),
+      tool_use_id: 'resolve-1', success: true, satisfies: ['judgment.resolve_turn'], safe_metadata: { turn_contract: turnContract } }));
+    await writeFile(`${prefix}.final.json`, JSON.stringify({ event_count: 1, finalized_at: '2026-11-24T00:00:00.000Z',
+      initial_route_receipt_digest: hash(canonical(turnContract)) }));
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response(null, { status: 201 }));
+    const publisher = createJudgmentJournalTurnPublisher({ apiBaseUrl: 'https://api.example.test', journalRoot: root, fetch });
+    expect((await handleRemoteJudgmentHookRequest(request(publisher)))?.status).toBe(200);
+    const body = JSON.parse(String(fetch.mock.calls[0]?.[1]?.body));
+    expect(body.receipt).toEqual(turnContract);
+    expect(body.resolution_id).toBe('resolved');
+  });
+
+  async function resolvedFixture(events: Record<string, unknown>[]) {
+    const { root, prefix } = await fixture();
+    const bootstrap = { resolution_id: 'bootstrap', project_code: 'project', turn_id: input.turnId };
+    await writeFile(`${prefix}.episode.json`, JSON.stringify({ owner_person_id: 'person', tenant_id: 'tenant', initial_route_receipt: bootstrap }));
+    await rm(`${prefix}.events`, { recursive: true, force: true });
+    await mkdir(`${prefix}.events`, { recursive: true });
+    for (const [index, event] of events.entries()) {
+      await writeFile(`${prefix}.events/${index}.json`, JSON.stringify({ event_sequence: index,
+        event_fingerprint: String(index).repeat(64).slice(0, 64).replace(/\D/g, 'c'), tool_use_id: `tool-${index}`, ...event }));
+    }
+    await writeFile(`${prefix}.final.json`, JSON.stringify({ event_count: events.length, finalized_at: '2026-11-24T00:00:00.000Z' }));
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response(null, { status: 201 }));
+    const onError = vi.fn();
+    const publisher = createJudgmentJournalTurnPublisher({ apiBaseUrl: 'https://api.example.test', journalRoot: root, fetch, onError });
+    expect((await handleRemoteJudgmentHookRequest(request(publisher)))?.status).toBe(200);
+    return { bootstrap, fetch, onError, body: () => JSON.parse(String(fetch.mock.calls[0]?.[1]?.body)) };
+  }
+  const resolveEvent = (success: boolean, contract: Record<string, unknown>) => ({ success,
+    satisfies: ['judgment.resolve_turn'], safe_metadata: { turn_contract: contract } });
+
+  it('AC-R2 a turn without a successful resolve_turn keeps the bootstrap receipt', async () => {
+    const failed = await resolvedFixture([resolveEvent(false, { resolution_id: 'failed', project_code: 'project', turn_id: input.turnId }),
+      { success: true, satisfies: ['judgment.frame'], safe_metadata: {} }]);
+    expect(failed.body().receipt).toEqual(failed.bootstrap);
+    expect(failed.body().resolution_id).toBe('bootstrap');
+  });
+
+  it('AC-R3 the last successful resolve_turn wins over an earlier one', async () => {
+    const twice = await resolvedFixture([resolveEvent(true, { resolution_id: 'first', project_code: 'project', turn_id: input.turnId }),
+      resolveEvent(true, { resolution_id: 'second', project_code: 'project', turn_id: input.turnId }),
+      resolveEvent(false, { resolution_id: 'failed', project_code: 'project', turn_id: input.turnId })]);
+    expect(twice.body().resolution_id).toBe('second');
+  });
+
+  for (const [name, contract] of [
+    ['another person', { owner_person_id: 'someone-else' }],
+    ['another tenant', { tenant_id: 'other-tenant' }],
+    ['another project', { project_code: 'other-project' }],
+    ['another turn', { turn_id: 'other-turn' }],
+  ] as const) {
+    it(`AC-R4 a resolve_turn contract for ${name} is not posted`, async () => {
+      const foreign = await resolvedFixture([resolveEvent(true, { resolution_id: 'foreign', project_code: 'project', turn_id: input.turnId, ...contract })]);
+      expect(foreign.fetch).not.toHaveBeenCalled();
+      expect(foreign.onError.mock.calls).toEqual([['judgment_journal_files_invalid']]);
+    });
+  }
+});
