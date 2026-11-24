@@ -1100,7 +1100,7 @@ describe('Objective editor common UI contract', () => {
       const repo = fileURLToPath(new URL('../../', import.meta.url));
       const temp = mkdtempSync(join(tmpdir(), 'brainbase-objective-layout-'));
       // One Chrome process serves all 36 measurements (2 pages x 2 CSS orders x 9 widths).
-      // Each measurement gets its own browser context and tab, so no page state is shared.
+      // Reuse one tab and load a fresh document for each measurement.
       const browser = spawn(chrome, [
         '--headless', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
         '--no-first-run', '--no-default-browser-check', '--allow-file-access-from-files',
@@ -1152,6 +1152,9 @@ describe('Objective editor common UI contract', () => {
         }
       });
       try {
+        const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
+        const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
+        await send('Page.enable', {}, sessionId);
         for (const [page, sharedLast] of [
           ['objective', false], ['objective', true], ['knowledge', false], ['knowledge', true],
         ]) {
@@ -1182,31 +1185,23 @@ describe('Objective editor common UI contract', () => {
               }, 200);
             </script>`);
           for (const width of [1280, 900, 760, 740, 721, 720, 700, 600, 320]) {
-            const { browserContextId } = await send('Target.createBrowserContext');
-            let measurements;
-            try {
-              const { targetId } = await send('Target.createTarget', { url: 'about:blank', browserContextId });
-              const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
-              await send('Emulation.setDeviceMetricsOverride', { width, height: 800, deviceScaleFactor: 1, mobile: false }, sessionId);
-              await send('Page.enable', {}, sessionId);
-              const load = loaded(sessionId);
-              await send('Page.navigate', { url: pathToFileURL(fixture).href }, sessionId);
-              await load;
-              const result = await send('Runtime.evaluate', {
-                expression: `new Promise(resolve => {
-                  const timer = setInterval(() => {
-                    const text = document.querySelector('#measurements')?.textContent;
-                    if (text) { clearInterval(timer); resolve(JSON.parse(text)); }
-                  }, 20);
-                })`,
-                awaitPromise: true, returnByValue: true,
-              }, sessionId);
-              expect(result.exceptionDetails).toBeUndefined();
-              measurements = result.result.value;
-            } finally {
-              await send('Target.disposeBrowserContext', { browserContextId });
-            }
-            const { button, bubble, guide, header, visible, viewport } = measurements;
+            await send('Emulation.setDeviceMetricsOverride', { width, height: 800, deviceScaleFactor: 1, mobile: false }, sessionId);
+            const fixtureUrl = pathToFileURL(fixture);
+            fixtureUrl.searchParams.set('width', String(width));
+            const load = loaded(sessionId);
+            await send('Page.navigate', { url: fixtureUrl.href }, sessionId);
+            await load;
+            const result = await send('Runtime.evaluate', {
+              expression: `new Promise(resolve => {
+                const timer = setInterval(() => {
+                  const text = document.querySelector('#measurements')?.textContent;
+                  if (text) { clearInterval(timer); resolve(JSON.parse(text)); }
+                }, 20);
+              })`,
+              awaitPromise: true, returnByValue: true,
+            }, sessionId);
+            expect(result.exceptionDetails).toBeUndefined();
+            const { button, bubble, guide, header, visible, viewport } = result.result.value;
             expect(viewport).toBe(width);
             expect(visible).toBe('visible');
             expect(bubble.top - button.bottom).toBeGreaterThanOrEqual(7);
@@ -1233,8 +1228,6 @@ describe('Objective editor common UI contract', () => {
         }
         rmSync(temp, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
       }
-      // Reusing one Chrome was not enough on the shared CI runner: on a busy run this test
-      // took 43.6s in one job and passed 60s in another. Each Chrome call still fails at 10s.
     }, 180000);
 
     it('without a rail keeps the tabs layout and never draws the workspace pattern', async () => {
