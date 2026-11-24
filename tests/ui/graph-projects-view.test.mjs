@@ -596,7 +596,7 @@ describe('プロジェクトと関係者: workspace', () => {
     expect(summary).not.toContain('小さく始める');
     const sato = participantItem(rail, '佐藤 花子');
     expect(visibleText(sato)).toContain('2026-02-01 に終了');
-    expect(buttonsNamed(sato, '終了日を直す')).toHaveLength(1);
+    expect(buttonsNamed(sato, '終了日を編集')).toHaveLength(1);
     expect(api.requests.map((request) => request.path)).toEqual(['/api/graph/projects', '/api/graph/projects/project-atlas', '/api/graph/projects/project-beta']);
   });
 
@@ -632,7 +632,7 @@ describe('プロジェクトと関係者: workspace', () => {
     expect(items.map((item) => byClass(item, 'bb-graph-compact-title')[0].textContent)).toEqual(['佐藤 花子', '田中 太郎']);
     expect(collectText(section(rail, 'そのほかの関係'))).toContain('スコープが進め方を決める');
     expect(buttonsNamed(rail, '関係者を加える')[0].className).toBe('bb-ws-button is-primary');
-    expect(buttonsNamed(rail, 'プロジェクトを直す')).toHaveLength(1);
+    expect(buttonsNamed(rail, 'プロジェクトを編集')).toHaveLength(1);
 
     const visible = `${visibleText(root)}${visibleText(rail)}`;
     for (const internal of ['edge-', 'sha256:', 'digest', 'Canonical', 'RACI', '権限', 'メンバー', 'アクセス']) {
@@ -657,7 +657,7 @@ describe('プロジェクトと関係者: workspace', () => {
     // Without a page context there is no breadcrumb or source label, and the screen still works.
     expect(byClass(root, 'bb-ws-breadcrumb')).toEqual([]);
     expect(railHead(root.children[1])).toBe('プロジェクトAtlas導入project-atlas');
-    buttonsNamed(participantItem(root.children[1], '田中 太郎'), '役割を直す')[0].dispatch('click');
+    buttonsNamed(participantItem(root.children[1], '田中 太郎'), '役割を編集')[0].dispatch('click');
     expect(control(root.children[1], 'role').value).toBe('責任者');
   });
 
@@ -673,8 +673,8 @@ describe('プロジェクトと関係者: workspace', () => {
     expect(collectText(issues)).toContain('読めない記録が1件あります');
     expect(collectText(issues)).toContain('evidence/graph-corrections.jsonl（2行目）');
     const text = collectText(rail);
-    expect(text).toContain('訂正の履歴（1件）');
-    expect(text).toContain('記録を直した（状態）。理由: 状態を最新にした。');
+    expect(text).toContain('変更履歴（1件）');
+    expect(text).toContain('状態を変更。理由: 状態を最新にした。');
     expect(collectText(section(rail, '概要'))).toContain('保留');
   });
 });
@@ -942,7 +942,7 @@ describe('プロジェクトと関係者: corrections in the rail', () => {
   it('requires a one-sentence reason before sending anything', async () => {
     await writeGraphV2(dataDir);
     const { rail } = await mountView();
-    buttonsNamed(participantItem(rail, '田中 太郎'), '役割を直す')[0].dispatch('click');
+    buttonsNamed(participantItem(rail, '田中 太郎'), '役割を編集')[0].dispatch('click');
     type(rail, 'role', '技術顧問');
     await submit(rail);
     expect(collectText(rail)).toContain('理由を1文で書いてください。');
@@ -953,9 +953,9 @@ describe('プロジェクトと関係者: corrections in the rail', () => {
   it('fixes a role with the digest of the shown relation and shows the read-back values and where they are used next', async () => {
     await writeGraphV2(dataDir);
     const { rail } = await mountView();
-    buttonsNamed(participantItem(rail, '田中 太郎'), '役割を直す')[0].dispatch('click');
+    buttonsNamed(participantItem(rail, '田中 太郎'), '役割を編集')[0].dispatch('click');
     // The form opens inside that 関係者's item.
-    expect(section(participantItem(rail, '田中 太郎'), '役割を直す')).toBeDefined();
+    expect(section(participantItem(rail, '田中 太郎'), '役割を編集')).toBeDefined();
     expect(control(rail, 'role').value).toBe('責任者');
     type(rail, 'role', '技術顧問');
     type(rail, 'reason', '役割は技術顧問だった。');
@@ -971,7 +971,7 @@ describe('プロジェクトと関係者: corrections in the rail', () => {
     });
     expect(post.headers['X-Brainbase-Review-Token']).toBe(TOKEN);
 
-    const text = collectText(section(rail, '役割を直す'));
+    const text = collectText(section(rail, '役割を編集'));
     expect(text).toContain('保存後に読み直し、保存した内容と一致することを確かめました');
     expect(text).toContain('読み直した内容役割技術顧問');
     expect(text).toContain('次にMCPの search・get_context・resolve_entity を使うときから、この内容が使われます。');
@@ -983,7 +983,7 @@ describe('プロジェクトと関係者: corrections in the rail', () => {
   it('keeps the draft on a conflict, shows the current values, and saves only the owner\'s change on top of them', async () => {
     await writeGraphV2(dataDir);
     const { rail } = await mountView();
-    buttonsNamed(participantItem(rail, '田中 太郎'), '役割を直す')[0].dispatch('click');
+    buttonsNamed(participantItem(rail, '田中 太郎'), '役割を編集')[0].dispatch('click');
     type(rail, 'role', '顧問');
     type(rail, 'reason', '役割を顧問に直す。');
     // Another save changes the same relation after it was shown.
@@ -992,7 +992,7 @@ describe('プロジェクトと関係者: corrections in the rail', () => {
     }, { now: FIXTURE_NOW });
     await submit(rail);
 
-    const text = collectText(section(rail, '役割を直す'));
+    const text = collectText(section(rail, '役割を編集'));
     expect(text).toContain('ほかの保存で内容が変わっていたため、保存しませんでした');
     expect(text).toContain('今の内容');
     expect(text).toContain('導入判断だけを担当');
@@ -1008,7 +1008,7 @@ describe('プロジェクトと関係者: corrections in the rail', () => {
     expect(posts).toHaveLength(2);
     expect(posts[1].body.expectedDigest).toBe(other.digest);
     expect(posts[1].body.changes).toEqual({ role: '顧問' });
-    expect(collectText(section(rail, '役割を直す'))).toContain('読み直した内容');
+    expect(collectText(section(rail, '役割を編集'))).toContain('読み直した内容');
     expect(await storedEdge(EDGES.tanakaAtlas.id)).toMatchObject({ role: '顧問', context: '導入判断だけを担当' });
   });
 
@@ -1075,7 +1075,7 @@ describe('プロジェクトと関係者: corrections in the rail', () => {
     const item = participantItem(rail, '田中 太郎');
     expect(item.className).toContain('is-ended');
     expect(visibleText(item)).toContain('終了');
-    expect(buttonsNamed(item, '終了日を直す')).toHaveLength(1);
+    expect(buttonsNamed(item, '終了日を編集')).toHaveLength(1);
     expect(await storedEdge(EDGES.tanakaAtlas.id)).toBeDefined();
     await waitFor(() => collectText(ledgerRow(root, 'project-atlas')).includes('1人'));
     expect(metricValues(root)).toEqual(['1', '1', '1']);
@@ -1084,7 +1084,7 @@ describe('プロジェクトと関係者: corrections in the rail', () => {
   it('fixes the project goal and status, sending only the changed fields, and the ledger shows the new values', async () => {
     await writeGraphV2(dataDir);
     const { root, rail } = await mountView();
-    buttonsNamed(rail, 'プロジェクトを直す')[0].dispatch('click');
+    buttonsNamed(rail, 'プロジェクトを編集')[0].dispatch('click');
     expect(control(rail, 'name').value).toBe('Atlas導入');
     expect(control(rail, 'goal').value).toBe('導入を完了する');
     expect(control(rail, 'aliases')).toBeUndefined();
@@ -1100,7 +1100,7 @@ describe('プロジェクトと関係者: corrections in the rail', () => {
       reason: '優先度が下がったため。',
       changes: { goal: '本番で使える状態にする', status: '保留' },
     });
-    const panel = collectText(section(rail, 'プロジェクトを直す'));
+    const panel = collectText(section(rail, 'プロジェクトを編集'));
     expect(panel).toContain('目的本番で使える状態にする');
     expect(panel).toContain('状態保留');
     await waitFor(() => collectText(ledgerRow(root, 'project-atlas')).includes('本番で使える状態にする'));
@@ -1113,12 +1113,12 @@ describe('プロジェクトと関係者: corrections in the rail', () => {
   it('updates the project correction subject from the saved name read back for the same id', async () => {
     await writeGraphV2(dataDir);
     const { rail } = await mountView();
-    buttonsNamed(rail, 'プロジェクトを直す')[0].dispatch('click');
+    buttonsNamed(rail, 'プロジェクトを編集')[0].dispatch('click');
     type(rail, 'name', 'Atlas導入（更新後）');
     type(rail, 'reason', '表示名を現在の名称にそろえる。');
     await submit(rail);
 
-    const panel = collectText(section(rail, 'プロジェクトを直す'));
+    const panel = collectText(section(rail, 'プロジェクトを編集'));
     expect(panel).toContain('プロジェクト「Atlas導入（更新後）」の名前・目的・状態・アイコン');
     expect(panel).not.toContain('プロジェクト「Atlas導入」の名前・目的・状態・アイコン');
     expect(panel).toContain('読み直した内容名前Atlas導入（更新後）');
@@ -1127,7 +1127,7 @@ describe('プロジェクトと関係者: corrections in the rail', () => {
   it('registers, previews, removes and reads back a project icon through the correction form', async () => {
     await writeGraphV2(dataDir);
     const { root, rail, view } = await mountView();
-    buttonsNamed(rail, 'プロジェクトを直す')[0].dispatch('click');
+    buttonsNamed(rail, 'プロジェクトを編集')[0].dispatch('click');
     const input = control(rail, 'icon');
     expect(input.attributes.accept).toBe('image/png,image/jpeg,image/webp');
     expect(byClass(rail, 'bb-project-icon').some((node) => node.className.includes('is-unregistered'))).toBe(true);
@@ -1144,11 +1144,11 @@ describe('プロジェクトと関係者: corrections in the rail', () => {
     const [registerPost] = api.posts();
     expect(registerPost.body.changes).toEqual({ icon });
     await waitFor(() => view.state.detail.payload.project.icon === icon);
-    expect(collectText(section(rail, 'プロジェクトを直す'))).toContain('PNG');
+    expect(collectText(section(rail, 'プロジェクトを編集'))).toContain('PNG');
     expect(visibleText(rail)).not.toContain(icon);
 
     buttonsNamed(rail, '閉じる')[0].dispatch('click');
-    buttonsNamed(rail, 'プロジェクトを直す')[0].dispatch('click');
+    buttonsNamed(rail, 'プロジェクトを編集')[0].dispatch('click');
     expect(buttonsNamed(rail, 'アイコンを外す')).toHaveLength(1);
     buttonsNamed(rail, 'アイコンを外す')[0].dispatch('click');
     expect(view.correction.form.draft.icon).toBeNull();
@@ -1166,7 +1166,7 @@ describe('プロジェクトと関係者: corrections in the rail', () => {
   it('rejects an oversized file before reading and ignores stale icon reads after a later selection or cancellation', async () => {
     await writeGraphV2(dataDir);
     const { rail, view } = await mountView();
-    buttonsNamed(rail, 'プロジェクトを直す')[0].dispatch('click');
+    buttonsNamed(rail, 'プロジェクトを編集')[0].dispatch('click');
     const input = control(rail, 'icon');
     let oversizedRead = false;
     input.files = [{ size: PROJECT_ICON_MAX_BYTES + 1, arrayBuffer: async () => { oversizedRead = true; return new ArrayBuffer(0); } }];
@@ -1261,7 +1261,7 @@ describe('プロジェクトと関係者: corrections in the rail', () => {
   it('says there is nothing to save when nothing changed', async () => {
     await writeGraphV2(dataDir);
     const { rail } = await mountView();
-    buttonsNamed(rail, 'プロジェクトを直す')[0].dispatch('click');
+    buttonsNamed(rail, 'プロジェクトを編集')[0].dispatch('click');
     type(rail, 'reason', '確認のため。');
     await submit(rail);
     expect(collectText(rail)).toContain('変更がありません');
@@ -1271,12 +1271,12 @@ describe('プロジェクトと関係者: corrections in the rail', () => {
   it('closes an open correction when another project is selected', async () => {
     await writeGraphV2(dataDir);
     const { root, rail, view } = await mountView();
-    buttonsNamed(rail, 'プロジェクトを直す')[0].dispatch('click');
-    expect(section(rail, 'プロジェクトを直す')).toBeDefined();
+    buttonsNamed(rail, 'プロジェクトを編集')[0].dispatch('click');
+    expect(section(rail, 'プロジェクトを編集')).toBeDefined();
     ledgerRow(root, 'project-beta').dispatch('click');
     await waitFor(() => railHead(rail).includes('Beta検証') && section(rail, '概要'));
     expect(view.correction.form).toBeNull();
-    expect(section(rail, 'プロジェクトを直す')).toBeUndefined();
+    expect(section(rail, 'プロジェクトを編集')).toBeUndefined();
   });
 });
 
@@ -1290,9 +1290,9 @@ describe('プロジェクトと関係者: write errors', () => {
     // No launch token: the host refuses the write.
     const view = createGraphProjectsView({ root, rail, document: new FakeDocument(), fetcher: api.fetcher, autoLoad: false, now: OWNER_NOW });
     await view.load();
-    buttonsNamed(participantItem(rail, '田中 太郎'), '役割を直す')[0].dispatch('click');
+    buttonsNamed(participantItem(rail, '田中 太郎'), '役割を編集')[0].dispatch('click');
     type(rail, 'role', '技術顧問');
-    type(rail, 'reason', '役割を直す。');
+    type(rail, 'reason', '役割を編集。');
     await submit(rail);
     expect(collectText(rail)).toContain('起動時のトークンを確かめられません。ページを開き直してください。');
     expect(control(rail, 'role').value).toBe('技術顧問');
@@ -1301,7 +1301,7 @@ describe('プロジェクトと関係者: write errors', () => {
 });
 
 describe('プロジェクトと関係者: host extensions', () => {
-  const CORRECTION_BUTTONS = ['関係者を加える', 'プロジェクトを直す', '役割を直す', '関わりを終える', '終了日を直す'];
+  const CORRECTION_BUTTONS = ['関係者を加える', 'プロジェクトを編集', '役割を編集', '関わりを終える', '終了日を編集'];
   const correctionButtons = (node) => findAll(node, (item) => item.tagName === 'BUTTON' && CORRECTION_BUTTONS.includes(item.textContent));
   const railBlocks = (rail) => findAll(rail, (node) => node.tagName === 'SECTION' || String(node.className).split(' ').includes('bb-ws-notice') || node.tagName === 'DETAILS')
     .filter((node) => node.parentNode?.className === 'bb-graph-rail bb-gp-rail')
@@ -1316,7 +1316,7 @@ describe('プロジェクトと関係者: host extensions', () => {
     });
     const text = collectText(root);
     expect(text).toContain('目的・関係者・判断・根拠を、記録からたどります。');
-    expect(text).not.toContain('必要な記録を直します');
+    expect(text).not.toContain('必要な記録を編集します');
     expect(text).toContain('このプロジェクトはまだ組織のGraphにありません。');
     expect(text).not.toContain('brainbase onboard');
     // Five metrics stay in one row.
@@ -1330,7 +1330,7 @@ describe('プロジェクトと関係者: host extensions', () => {
     expect(visibleText(section(rail, 'そのほかの関係'))).not.toContain('直すときは');
     // Without a note the rail says nothing about corrections.
     expect(byClass(rail, 'bb-ws-notice')).toEqual([]);
-    // The ended participation of the second project offers no 終了日を直す either.
+    // The ended participation of the second project offers no 終了日を編集 either.
     ledgerRow(root, 'project-beta').dispatch('click');
     await waitFor(() => railHead(rail).includes('Beta検証') && section(rail, '関係者'));
     expect(correctionButtons(rail)).toEqual([]);
@@ -1370,8 +1370,8 @@ describe('プロジェクトと関係者: host extensions', () => {
   it('draws only the corrections the host scope allows and shows the host note where the others would be', async () => {
     await writeGraphV2(dataDir);
     const { root, rail } = await mountView({ correctionScope: PROJECT_ONLY, readOnlyNote: SCOPE_NOTE });
-    expect(collectText(root)).toContain('必要な記録を直します');
-    expect(correctionButtons(rail).map((node) => node.textContent)).toEqual(['プロジェクトを直す']);
+    expect(collectText(root)).toContain('必要な記録を編集します');
+    expect(correctionButtons(rail).map((node) => node.textContent)).toEqual(['プロジェクトを編集']);
     // Relations cannot be corrected anywhere under this scope, so the rail does not point to them.
     expect(visibleText(section(rail, 'そのほかの関係'))).not.toContain('直すときは');
     expect(byClass(rail, 'bb-ws-notice').map((node) => collectText(node))).toEqual([SCOPE_NOTE]);
@@ -1379,15 +1379,15 @@ describe('プロジェクトと関係者: host extensions', () => {
     expect(order.indexOf(SCOPE_NOTE)).toBeGreaterThan(order.indexOf('関係者'));
     expect(order.indexOf(SCOPE_NOTE)).toBeLessThan(order.indexOf('そのほかの関係'));
 
-    // The ended participation of the second project offers no 終了日を直す either.
+    // The ended participation of the second project offers no 終了日を編集 either.
     ledgerRow(root, 'project-beta').dispatch('click');
     await waitFor(() => railHead(rail).includes('Beta検証') && section(rail, '関係者'));
-    expect(correctionButtons(rail).map((node) => node.textContent)).toEqual(['プロジェクトを直す']);
+    expect(correctionButtons(rail).map((node) => node.textContent)).toEqual(['プロジェクトを編集']);
 
     // The project form shows only the fields in the scope and sends only those.
     ledgerRow(root, 'project-atlas').dispatch('click');
     await waitFor(() => railHead(rail).includes('Atlas導入') && section(rail, '関係者'));
-    buttonsNamed(rail, 'プロジェクトを直す')[0].dispatch('click');
+    buttonsNamed(rail, 'プロジェクトを編集')[0].dispatch('click');
     expect(control(rail, 'name').value).toBe('Atlas導入');
     expect(control(rail, 'goal').value).toBe('導入を完了する');
     expect(control(rail, 'status')).toBeUndefined();
@@ -1424,7 +1424,7 @@ describe('プロジェクトと関係者: host extensions', () => {
     view.correction.callbacks.onReason('状態を直す。');
     const refused = await view.correction.submit();
     expect(refused.phase).toBe('error');
-    expect(refused.message.text).toBe('この画面では、この記録や関係は直せません。');
+    expect(refused.message.text).toBe('この画面では、この記録や関係は編集できません。');
     expect(api.posts()).toEqual([]);
     expect(await history()).toEqual([]);
   });
@@ -1432,7 +1432,7 @@ describe('プロジェクトと関係者: host extensions', () => {
   it('keeps every correction when the scope allows everything, and canCorrect: false still wins over a scope', async () => {
     await writeGraphV2(dataDir);
     const open = await mountView({ correctionScope: {}, readOnlyNote: SCOPE_NOTE });
-    expect(correctionButtons(open.rail).map((node) => node.textContent).sort()).toEqual(['プロジェクトを直す', '関係者を加える', '関わりを終える', '関わりを終える', '役割を直す', '役割を直す'].sort());
+    expect(correctionButtons(open.rail).map((node) => node.textContent).sort()).toEqual(['プロジェクトを編集', '関係者を加える', '関わりを終える', '関わりを終える', '役割を編集', '役割を編集'].sort());
     expect(collectText(open.rail)).not.toContain(SCOPE_NOTE);
     await api.close();
     const closed = await mountView({ canCorrect: false, correctionScope: { entityTypes: ['project'] } });
@@ -1572,11 +1572,11 @@ describe('プロジェクトと関係者: host extensions', () => {
     expect(ledgerRow(root, 'project-beta').className).toContain('is-selected');
     expect(selected).toEqual(['project-atlas']);
     // Selecting the project already selected reads nothing and keeps an open correction.
-    buttonsNamed(rail, 'プロジェクトを直す')[0].dispatch('click');
+    buttonsNamed(rail, 'プロジェクトを編集')[0].dispatch('click');
     const before = api.requests.length;
     await view.select('project-beta');
     expect(api.requests).toHaveLength(before);
-    expect(section(rail, 'プロジェクトを直す')).toBeDefined();
+    expect(section(rail, 'プロジェクトを編集')).toBeDefined();
   });
 
   it('keeps an explicitly requested project when it is not listed and shows not found', async () => {
@@ -1696,6 +1696,94 @@ describe('プロジェクトと関係者: host extensions', () => {
     detailGate.resolve();
     await initial;
     expect(view.state.detail).toMatchObject({ id: 'project-atlas', state: 'not_found' });
+  });
+
+  it('edits basic settings in place with quiet fields and verified readback', async () => {
+    await writeGraphV2(dataDir);
+    const { root, rail, view } = await mountView({
+      settings: {}, canCorrect: true,
+      correctionScope: { entityTypes: ['project'], fields: ['name', 'goal', 'status', 'icon'], edges: false, createEdges: false },
+    });
+    expect(rail.children[0].children).toHaveLength(0);
+    const settings = view.renderSettings();
+    expect(section(settings, '基本情報')).toBeDefined();
+    expect(buttonsNamed(settings, '編集')).toHaveLength(1);
+    buttonsNamed(settings, '編集')[0].dispatch('click');
+    const editing = view.renderSettings();
+    expect(findAll(editing, node => String(node.className).includes('bb-ws-form-row') && String(node.className).includes('is-quiet'))).toHaveLength(5);
+    expect(findAll(editing, node => node.tagName === 'LABEL' && node.attributes.for?.endsWith('-goal'))).toHaveLength(1);
+    type(editing, 'goal', 'Synthetic updated goal'); type(editing, 'reason', 'Synthetic correction reason');
+    await submit(editing);
+    const saved = collectText(view.renderSettings());
+    expect(saved).toContain('Synthetic updated goal');
+    expect(saved).toContain('保存後に読み直し');
+    expect(saved).toContain('目的を変更');
+    expect(collectText(root)).not.toContain('Synthetic correction reason');
+  });
+
+  it('keeps member settings read-only while preserving host archive visibility and slot lifecycle', async () => {
+    await writeGraphV2(dataDir);
+    const update = vi.fn(), destroy = vi.fn();
+    const renderArchive = vi.fn(({ document }) => { const root = document.createElement('p'); root.textContent = 'Host archive visibility'; return { root, update, destroy }; });
+    const { view } = await mountView({ settings: { renderArchive }, canCorrect: false, readOnlyNote: 'Member read-only' });
+    const first = view.renderSettings();
+    expect(buttonsNamed(first, '編集')).toHaveLength(0);
+    expect(collectText(first)).toContain('Member read-only');
+    expect(collectText(first)).toContain('Host archive visibility');
+    view.renderSettings();
+    expect(renderArchive).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledTimes(1);
+    view.destroy();
+    expect(destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it('composes host tabs without removing personal correction controls', async () => {
+    await writeGraphV2(dataDir);
+    const changed = vi.fn();
+    const { root, rail } = await mountView({
+      detailPresentation: 'tabs',
+      projectWorkspace: {
+        hostTabs: [{ id: 'work', label: '仕事と予定', render({ document }) {
+          const content = document.createElement('p'); content.textContent = 'Synthetic host work'; return content;
+        } }],
+        onTabChange: changed,
+      },
+    });
+    expect(byClass(root, 'bb-pkw-kicker')).toHaveLength(0);
+    expect(byClass(root, 'bb-ws-summary')).toHaveLength(0);
+    expect(ledgerRows(root)).toHaveLength(0);
+    expect(buttonsNamed(rail, '関係者を加える')).toHaveLength(1);
+    buttonsNamed(root, '仕事と予定')[0].dispatch('click');
+    expect(collectText(root)).toContain('Synthetic host work');
+    expect(changed).toHaveBeenLastCalledWith('work');
+    expect(rail.hidden).toBe(false);
+  });
+
+  it('retains the same project tab and graph instance across host redraws', async () => {
+    await writeGraphV2(dataDir);
+    const mountGraph = vi.fn(() => ({ destroy: vi.fn(), select: vi.fn() }));
+    const { root, view } = await mountView({
+      detailPresentation: 'tabs', mountProjectGraph: mountGraph,
+      projectWorkspace: { hostTabs: [{ id: 'work', label: '仕事と予定', render({ document }) { return document.createElement('div'); } }] },
+    });
+    buttonsNamed(root, '仕事と予定')[0].dispatch('click');
+    const workspace = byClass(root, 'bb-pkw')[0];
+    view.render();
+    expect(byClass(root, 'bb-pkw')[0]).toBe(workspace);
+    expect(buttonsNamed(root, '仕事と予定')[0].attributes['aria-selected']).toBe('true');
+    buttonsNamed(root, '情報を探す')[0].dispatch('click');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const graphPanel = section(root, '情報を探す');
+    const mounts = mountGraph.mock.calls.length;
+    expect(mounts).toBe(1);
+    view.render();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(byClass(root, 'bb-pkw')[0]).toBe(workspace);
+    expect(section(root, '情報を探す')).toBe(graphPanel);
+    expect(mountGraph).toHaveBeenCalledTimes(mounts);
+    expect(buttonsNamed(root, '情報を探す')[0].attributes['aria-selected']).toBe('true');
+    await view.loadDetail(view.state.selectedId, { keep: true });
+    expect(buttonsNamed(root, '情報を探す')[0].attributes['aria-selected']).toBe('true');
   });
 
   it('gives the knowledge graph the first viewport by collapsing legacy chrome and the rail', async () => {

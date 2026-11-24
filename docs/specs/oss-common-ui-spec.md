@@ -446,3 +446,121 @@ default horizontal and opt-in quiet appearances are unchanged.
 `workspaceActionIcon(document, 'copy')` supplies a decorative copy glyph. The
 host owns its containing button, accessible name, clipboard operation, and
 success or failure announcement.
+
+### Project detail composition (explicit opt-in)
+
+`createGraphProjectsView({ detailPresentation: 'tabs', projectWorkspace })`
+opts into a compact project reading surface while retaining the existing read,
+correction, permissions, retry, and readback contracts. Unspecified presentation
+keeps the current personal/legacy layout. The host owns its title breadcrumb.
+`projectWorkspace` accepts:
+
+- `hostTabs: [{ id, label, render({ document, project, detail, context, activeTab, actions }) }]`:
+  unique, named tab IDs are inserted between overview and graph. Only the active
+  host tab renders; the host owns any requests and caching. The return value
+  can be a Node or `{ root: Node, destroy() }`; the latter is released before
+  replacing its content, leaving the tab, or destroying the workspace.
+  `actions.setTab(id)` switches tabs and `actions.selectEntity(id)` selects an
+  existing/authorized record in the graph. Reserved or invalid IDs are ignored.
+- `renderTabTools(context)`: returns host-owned action nodes beside the shared
+  tab strip. Settings availability, favorite state, and permissions stay in the
+  host. The graph tab can omit settings while keeping its favorite control.
+- `overview: { renderNext(context), renderConnections(context), getStripe(project),
+  stripe, onOpenFoundation(id), onCopyId(id, button) }`: optional content and
+  navigation for the next-event box, connections, project color, foundation,
+  and clipboard result announcement. No slot may infer missing counts or
+  authority. The next box uses `.bb-project-overview-next`, `-next-item`,
+  `-caption`, `-next-date`, `-next-title`, and `-link`; connection rows use
+  `.bb-project-overview-connections-row`. Their visual rules belong to OSS.
+- `onTabChange(id)`: receives the current tab after redraws; context updates keep
+  the selected tab. While graph is active, context updates do not remount it.
+
+During incremental adoption, existing material evidence, source state, and
+internal list entries remain available below the overview; they must not be
+removed before their replacement preserves the same information. An empty
+checks array remains unknown. Only an explicitly successful `checksState` from
+an already authorized host projection establishes confirmed zero checks.
+
+`workspaceSummaryCard({ content, aside, stripe, label })` composes a paper summary
+with a 5px stripe, 8px radius, and optional 1.9:1 supporting column; on narrow
+screens it stacks. It performs no business inference. `workspaceAvatar({ name,
+initial })` provides a decorative 22px initial. `workspaceIdentityChip({ name,
+detail, onClick, label, initial })` composes the avatar, visible name and role
+text into a 40px minimum-height rounded navigation control. The host owns its
+activation and accessible name; neither part assigns identity or permissions.
+
+`workspaceViewMotion(root, { direction: 'forward' | 'back' })` is an explicit
+route entrance: 24px horizontal travel, 280ms forward/240ms back. The route calls
+it once after mounting; data refreshes must not replay it. It returns the Web
+Animation or null and skips motion when reduced motion is requested or the
+Animation API is unavailable. It does not change routing, focus, or history.
+
+For the same project, the tabbed Graph composition retains its workspace instance
+across host-only redraws, including favorites and global context loading. Host
+controls refresh without remounting an active graph or replacing its selected
+record. A fresh authorized detail payload restores only same-project tab,
+selection, and graph filters; changing projects resets them. The private
+composition helpers `getViewState`, `initialViewState`, and `refreshHost` do not
+start a new project read or change authorization. Default personal presentation
+keeps its existing redraw behavior. `workspaceActionIcon('star')` provides a
+shared decorative favorite glyph; favorite state and persistence remain host-owned.
+
+### Project settings composition (explicit opt-in)
+
+`createGraphProjectsView({ settings })` exposes `openSettings(opener)`,
+`closeSettings(options)`, and `renderSettings()` while retaining the Graph
+correction client and scope. `openSettings` uses `workspaceInputFrame` and
+refreshes its contents in place; it does not open a second editor dialog.
+The shared frame owns basic information, its inline correction, existing
+personal participation editing when allowed, and change history. Existing
+host read-only/source notes and technical record details remain available.
+No archive flag adds or removes Graph editing permissions: existing
+`canCorrect` and `correctionScope` remain authoritative.
+
+The host may supply `renderConnections`, `renderOrganization`, `renderArchive`,
+and `renderIdentity` under `settings`. Each receives `{ document, project,
+detail, projectId, actions: { refreshSettings, closeSettings } }` and returns a
+Node or `{ root, update(context), destroy(), beforeClose() }`. A same-project
+refresh updates the retained slot so an inline connection draft is not lost.
+Changing projects, closing the drawer, or destroying the view releases slots.
+`onOpenChange(open)` synchronizes host controls. The host retains connection
+and archive capabilities, requests, conflicts, and readback; OSS does not
+invent authority or infer mutation success. A slot's `beforeClose()` or the
+settings-level `beforeClose()` may return false while saving. Navigation closes
+immediately without canceling the authorized request or reopening the drawer
+when it later resolves. Basic editing uses the existing correction reason,
+digest conflict, draft retention, and verified save/readback behavior.
+
+`correction.render(document, { appearance: 'inline', showHeading: false })`
+explicitly selects quiet `workspaceFormRow` fields and places cancel/save in
+the same section. The default form appearance stays unchanged. Approved edit
+operations use 編集/キャンセル/変更履歴 in shared Graph screens; stored correction
+kinds, provenance, reasons, and judgment correction/cancellation semantics are
+not rewritten. `workspaceFormRow({ labelFor })` can label an actual nested
+control while a composite field contains help/preview nodes.
+`workspaceInputFrame({ showFooter: false })` hides only the empty footer;
+Escape, backdrop, close, focus return, and motion stay with the shared frame.
+`workspaceSettingsSection({ title, count, action, content })` supplies the
+section heading and content surface without assigning edit capabilities.
+
+The shared `.bb-project-work-*` composition classes style supplied work data
+with existing card rows, status pills, segmented progress and date/owner cells.
+Hosts own scope, counts and cancellation meaning. Mobile rows retain owner,
+due and update values while stacking. `workspacePills({ appearance:
+'record-types', items: [{ value, label, count, color }] })` adds optional supplied
+dots and confirmed counts; undefined counts remain absent.
+`workspaceDotPill({ label, color })` is a decorative category label.
+`workspaceSearchControl({ appearance: 'compact', width })` may override its
+width with a positive numeric pixel value; existing defaults stay unchanged.
+
+A settings opener may be a Node or a supplier `() => currentTrigger`. Hosts that
+recreate tool buttons on background updates pass a supplier, so closing returns
+focus to the current control. Same-detail background refreshes retain the field
+DOM; a required detail/form refresh restores a retained input's focus and caret.
+`correction.revision` records explicit correction redraws without treating draft
+keystrokes as a request to rebuild fields. Forced view disposal bypasses saving
+close guards, releases each live slot, and removes the dialog.
+
+`.bb-ws-focus-only` keeps a supplementary keyboard action visually clipped until
+`:focus-visible` while retaining it in the accessibility tree and keyboard order.
+Its owner provides the name, action, and focused placement.

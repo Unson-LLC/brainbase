@@ -99,9 +99,14 @@ export function mountProjectGraph(container, options = {}) {
   const signal = options?.signal;
   if (signal?.aborted) throw abortError();
 
+  // Hosts may explicitly match an adopted surface with resolved existing
+  // tokens. The default renderer palette and personal Graph stay unchanged.
+  const theme = isRecord(options.visualTheme) ? options.visualTheme : {};
+  const themeColor = (key, fallback) => typeof theme[key] === 'string' && theme[key].trim() ? theme[key] : fallback;
+
   const model = createProjectGraphModel(
     { nodes: options?.nodes, edges: options?.edges },
-    { selectedId: options?.selectedId || null },
+    { selectedId: options?.rootId || options?.selectedId || null },
   );
   const mountRoot = doc.createElement('div');
   mountRoot.className = 'bb-project-graph';
@@ -136,7 +141,14 @@ export function mountProjectGraph(container, options = {}) {
   let selectedId = null;
   let neighborIds = new Set();
   let destroyed = false;
+  let filterIds = null;
   let abortListener = null;
+  let popFrame = null;
+  let popProgress = 0;
+  const freshNodeIds = new Set(Array.isArray(options.freshNodeIds) ? options.freshNodeIds : []);
+  const motionWindow = doc.defaultView;
+  const animateNewNodes = freshNodeIds.size > 0 && typeof motionWindow?.requestAnimationFrame === 'function' && !motionWindow.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  if (!animateNewNodes) popProgress = 1;
   const nodeById = new Map(model.nodes.map((node) => [node.id, node]));
   const edgeById = new Map(model.edges.map((edge) => [edge.id, edge]));
   let onZoomIn;
@@ -145,37 +157,45 @@ export function mountProjectGraph(container, options = {}) {
 
   const getNeighbors = () => neighborIds;
 
+  const popNode = (nodeId, data) => {
+    if (!freshNodeIds.has(nodeId) || popProgress >= 1) return data;
+    const t = popProgress - 1;
+    const scale = 1 + 2.70158 * t * t * t + 1.70158 * t * t;
+    return { ...data, size: data.size * (0.2 + 0.8 * scale) };
+  };
   const nodeReducer = (nodeId, data) => {
     const base = { ...data };
+    if (filterIds && !filterIds.has(nodeId)) return { ...base, color: themeColor('unrelated', UNRELATED_COLOR), label: null, forceLabel: false, size: Math.min(base.size, 4) };
     const neighbors = getNeighbors();
-    if (!selectedId) return base;
+    if (!selectedId) return popNode(nodeId, base);
     const presentation = projectGraphNodePresentation(
       { id: nodeId, size: base.size },
       { selectedId, neighborIds: neighbors },
     );
     const { state, ...visuals } = presentation;
-    if (state === 'selected') return { ...base, ...visuals, color: SELECTED_COLOR };
-    if (state === 'neighbor') return {
+    if (state === 'selected') return popNode(nodeId, { ...base, ...visuals, color: themeColor('selected', SELECTED_COLOR) });
+    if (state === 'neighbor') return popNode(nodeId, {
       ...base,
       ...visuals,
       color: base.baseColor || PROJECT_GRAPH_TYPE_COLORS.unknown,
-    };
-    return {
+    });
+    return popNode(nodeId, {
       ...base,
       ...visuals,
-      color: UNRELATED_COLOR,
-    };
+      color: themeColor('unrelated', UNRELATED_COLOR),
+    });
   };
 
   const edgeReducer = (edgeId, data) => {
     const edge = edgeById.get(edgeId);
     const base = { ...data };
+    if (filterIds && edge && (!filterIds.has(edge.source) || !filterIds.has(edge.target))) return { ...base, label: null, forceLabel: false, color: themeColor('unrelatedEdge', UNRELATED_EDGE_COLOR), size: 0.5 };
     if (!selectedId || !edge) {
       return {
         ...base,
         label: null,
         forceLabel: false,
-        color: base.baseColor || DEFAULT_EDGE_COLOR,
+        color: themeColor('edge', base.baseColor || DEFAULT_EDGE_COLOR),
       };
     }
     const neighbors = getNeighbors();
@@ -188,7 +208,7 @@ export function mountProjectGraph(container, options = {}) {
         ...base,
         label: null,
         forceLabel: false,
-        color: UNRELATED_EDGE_COLOR,
+        color: themeColor('unrelatedEdge', UNRELATED_EDGE_COLOR),
         size: 0.5,
       };
     }
@@ -196,7 +216,7 @@ export function mountProjectGraph(container, options = {}) {
       ...base,
       label: presentation.showLabel ? edge.label : null,
       forceLabel: presentation.forceLabel,
-      color: edge.color || DEFAULT_EDGE_COLOR,
+      color: themeColor('edge', edge.color || DEFAULT_EDGE_COLOR),
       size: 1.5,
     };
   };
@@ -253,6 +273,19 @@ export function mountProjectGraph(container, options = {}) {
     throw abortError();
   }
 
+  if (isRecord(options.cameraState) && ['x', 'y', 'angle', 'ratio'].every(key => Number.isFinite(options.cameraState[key])) && options.cameraState.ratio > 0) renderer.getCamera().setState(options.cameraState);
+  if (animateNewNodes) {
+    let started;
+    const advance = time => {
+      if (destroyed) return;
+      started ??= time;
+      popProgress = Math.min(1, (time - started) / 500);
+      renderer?.refresh();
+      popFrame = popProgress < 1 ? motionWindow.requestAnimationFrame(advance) : null;
+    };
+    popFrame = motionWindow.requestAnimationFrame(advance);
+  }
+
   const onNodeClick = ({ node }) => setSelected(node);
   const onStageClick = () => setSelected(null);
   renderer.on('clickNode', onNodeClick);
@@ -268,6 +301,7 @@ export function mountProjectGraph(container, options = {}) {
   const destroy = () => {
     if (destroyed) return;
     destroyed = true;
+    if (popFrame !== null) motionWindow?.cancelAnimationFrame?.(popFrame);
     if (signal && abortListener) signal.removeEventListener('abort', abortListener);
     renderer?.off('clickNode', onNodeClick);
     renderer?.off('clickStage', onStageClick);
@@ -287,6 +321,8 @@ export function mountProjectGraph(container, options = {}) {
     select: (nodeId) => setSelected(nodeId),
     getSelectedId: () => selectedId,
     getModel: () => model,
+    getCameraState: () => renderer?.getCamera().getState() ?? null,
+    setFilter: (ids) => { filterIds = Array.isArray(ids) ? new Set(ids) : null; renderer?.refresh(); },
   };
 }
 

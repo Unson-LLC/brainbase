@@ -89,3 +89,20 @@
     grid-column: 1 / -1;
   }
 }
+
+/* Settings opt-in uses the canonical input frame, with one in-place editor. */
+.bb-gp-settings { min-width:0; }
+.bb-gp-settings .bb-graph-correction--inline { gap:0; margin:2px -12px 0; padding:2px 12px 12px; border:0; }
+.bb-gp-settings .bb-graph-correction--inline textarea { height:72px; min-height:72px; }
+.bb-gp-settings .bb-graph-correction--inline .bb-ws-form-row.is-top input[type="text"] { height:26px; }
+.bb-graph-correction--inline .bb-graph-form,.bb-graph-correction--inline .bb-graph-fields { gap:0; }
+.bb-graph-correction--inline .bb-graph-field-control { display:grid; min-width:0; gap:6px; }
+.bb-graph-correction--inline .bb-graph-quiet-field { column-gap:0; }
+.bb-graph-correction--inline .bb-graph-quiet-field .bb-graph-help { color:var(--bb-color-muted); font-size:11.5px; line-height:1.7; }
+.bb-graph-correction--inline .bb-graph-actions { justify-content:flex-end; margin-top:14px; }
+.bb-graph-correction--inline .bb-graph-actions .bb-ws-button { min-width:88px; height:36px; min-height:36px; padding:0 16px; border:0; border-radius:var(--bb-radius-sm); font-size:13px; font-weight:500; }
+.bb-gp-settings .bb-graph-correction--inline .bb-project-icon { flex-basis:32px; width:32px; height:32px; margin-right:0; font-size:13px; }
+.bb-gp-settings .bb-graph-correction--inline .bb-graph-icon-picker { margin-top:0; }
+.bb-graph-correction--inline .bb-graph-actions .bb-ws-button:not(.is-primary) { background:var(--bb-color-paper); color:var(--bb-color-slate); }
+.bb-gp-settings .bb-graph-history-list { display:grid; gap:10px; margin:0; padding:0; list-style:none; color:var(--bb-color-slate); font-size:12.5px; line-height:1.7; }
+.bb-gp-settings .bb-graph-history-list li { margin:0; }

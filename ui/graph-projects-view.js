@@ -77,6 +77,8 @@ import {
   workspacePageHeader,
   workspaceRailBlock,
   workspaceRailHead,
+  workspaceInputFrame,
+  workspaceSettingsSection,
 } from './workspace-kit.js';
 
 export const GRAPH_PROJECTS_VIEW_CONTRACT_VERSION = 'brainbase.graph-projects-view.v2';
@@ -277,12 +279,12 @@ function normalizeProjectSummary(value) {
  * @param {boolean} [options.autoLoad=true] Reads the list on mount.
  * @param {() => Date} [options.now] The owner's clock (end-date default).
  * @param {boolean} [options.canCorrect=true] When false, no correction control is drawn anywhere
- *   (関係者を加える, 役割を直す, 関わりを終える / 終了日を直す, プロジェクトを直す, and the pointer to
+ *   (関係者を加える, 役割を編集, 関わりを終える / 終了日を編集, プロジェクトを編集, and the pointer to
  *   corrections under そのほかの関係), and the client refuses every correction before sending it.
  * @param {{ entityTypes?: string[], fields?: string[], edges?: boolean, createEdges?: boolean }} [options.correctionScope]
  *   With corrections allowed, only these (see `graphCorrectionScope`): `entityTypes: ['project']` keeps
- *   プロジェクトを直す, `fields` limits its form, `edges: false` withholds 役割を直す and 関わりを終える /
- *   終了日を直す, and `createEdges: false` withholds 関係者を加える.  A withheld control is not drawn and the
+ *   プロジェクトを編集, `fields` limits its form, `edges: false` withholds 役割を編集 and 関わりを終える /
+ *   終了日を編集, and `createEdges: false` withholds 関係者を加える.  A withheld control is not drawn and the
  *   client refuses such a correction before sending it.  Without it every correction is allowed.
  * @param {string | ((record: { id: string, type: string | null, metadata: object } | null) => string | Element | null)} [options.readOnlyNote]
  *   With `canCorrect: false`, or where `correctionScope` withholds a
@@ -326,6 +328,9 @@ function normalizeProjectSummary(value) {
  *   Host-injected Sigma.js graph mount. When omitted, the shared browser
  *   entry is used. The workspace keeps an accessible relation list when
  *   mounting is unavailable or fails.
+ * @param {'tabs'} [options.detailPresentation] Opt-in compact detail; the host owns its title.
+ * @param {object} [options.projectWorkspace] Optional hostTabs, renderTabTools, overview slots,
+ *   and onTabChange for the shared project workspace. Read/correction clients remain owned here.
  * @returns The controller: `state`, `correction`, `render()`, `load()`, `loadDetail(id)`,
  *   `selectProject(id)`, `openProject(id)`, `select(id)` for the host's own navigation, and with
  *   `ownShare` `loadOwn()` and `selectOwnProject(id)`.
@@ -356,6 +361,9 @@ export function createGraphProjectsView({
   loadProjectContext,
   projectSummaries,
   mountProjectGraph,
+  detailPresentation,
+  projectWorkspace = {},
+  settings,
 } = {}) {
   if (!root) throw new TypeError('root is required');
   const doc = getDocument(explicitDocument);
@@ -388,6 +396,17 @@ export function createGraphProjectsView({
   };
   let focusRow = null;
   let knowledgeWorkspace = null;
+  let knowledgeDetailPayload = null;
+  let retainedWorkspaceState = null;
+  let settingsFrame = null;
+  let settingsPreview = null;
+  let settingsOpen = false;
+  let settingsProjectId = null;
+  let settingsOpener = null;
+  let settingsRenderedPayload = null;
+  let settingsRenderedRevision = -1;
+  const settingsSlots = new Map();
+  let settingsSlotProjectId = null;
   let contextRequest = 0;
   let detailRequest = 0;
   let hostListRequest = 0;
@@ -456,13 +475,13 @@ export function createGraphProjectsView({
         'data-project-id': target,
       },
     });
-    loading.append(makeElement(doc, 'div', { className: 'bb-pkw-kicker', text: 'プロジェクトの記録' }));
+    if (detailPresentation !== 'tabs') loading.append(makeElement(doc, 'div', { className: 'bb-pkw-kicker', text: 'プロジェクトの記録' }));
     const header = makeElement(doc, 'header', { className: 'bb-pkw-header' });
     header.append(
       makeElement(doc, 'h2', { text: project.name }),
       makeElement(doc, 'p', { className: 'bb-pkw-lead', text: '目的・関係・判断の根拠を、実際に記録された情報からたどれます。' }),
     );
-    loading.append(header);
+    if (detailPresentation !== 'tabs') loading.append(header);
     const notice = graphStateNotice(doc, readState, {
       onRetry,
       loadingText: 'プロジェクトの記録を読み込んでいます。',
@@ -616,7 +635,7 @@ export function createGraphProjectsView({
     const pageHeader = workspacePageHeader(doc, {
       crumbs: context.crumbs,
       title: 'プロジェクトと関係者',
-      lead: writable ? '目的・関係者・判断・根拠を、記録からたどり、必要な記録を直します。' : '目的・関係者・判断・根拠を、記録からたどります。',
+      lead: writable ? '目的・関係者・判断・根拠を、記録からたどり、必要な記録を編集します。' : '目的・関係者・判断・根拠を、記録からたどります。',
       source: context.source,
       actions: workspaceHostActions(pageActions),
     });
@@ -624,16 +643,16 @@ export function createGraphProjectsView({
     // workspace owns the first viewport while its graph tab is active, so the
     // old framing must not keep pushing the graph below the fold.
     const legacyChrome = [pageHeader];
-    const children = [pageHeader];
+    const children = detailPresentation === 'tabs' ? [] : [pageHeader];
     const dir = state.list.state === 'ok' ? textOrNull(state.list.payload.source?.dataDir) : null;
     // The record a host's 出典 notice may point at: the selected project once its detail is read.
     const sourceDetail = state.detail?.id === state.selectedId && state.detail.state === 'ok' ? state.detail.payload.project : null;
     const sourceSubject = sourceDetail ? { id: sourceDetail.id, type: 'project', metadata: sourceDetail.metadata ?? {} } : null;
     const sourceBlock = workspaceHostNotice(doc, hostSourceNotice(sourceNotice, sourceSubject)) ?? workspaceNotice(doc, {
       label: '出典',
-      text: `このMacのGraph${dir ? `（${dir}）` : ''}から読み、ここで直した内容もそこへ保存します。関係者は、プロジェクトに参加している人や責任を持つ人の記録で、ログインや共有の設定ではありません。`,
+      text: `このMacのGraph${dir ? `（${dir}）` : ''}から読み、ここで変更した内容もそこへ保存します。関係者は、プロジェクトに参加している人や責任を持つ人の記録で、ログインや共有の設定ではありません。`,
     });
-    children.push(sourceBlock);
+    if (detailPresentation !== 'tabs') children.push(sourceBlock);
     legacyChrome.push(sourceBlock);
     if (state.detail?.state === 'ok') {
       const issues = renderGraphIssues(doc, state.detail.payload.issues);
@@ -645,13 +664,16 @@ export function createGraphProjectsView({
 
     const setKnowledgeTabChrome = (tab) => {
       const graphActive = tab === 'graph';
+      if (graphActive && settingsOpen) controller.closeSettings({ restoreFocus: false, immediate: true });
       root.setAttribute('data-project-graph-active', String(graphActive));
+      if (typeof projectWorkspace.onTabChange === 'function') projectWorkspace.onTabChange(tab);
       for (const node of legacyChrome) {
-        if (node) node.hidden = graphActive;
+        if (node) node.hidden = detailPresentation === 'tabs' ? node === pageHeader || node === sourceBlock || node === summaryBlock : graphActive;
       }
       if (!rail) return;
-      rail.hidden = graphActive;
-      if (graphActive) rail.setAttribute('aria-hidden', 'true');
+      const hideRail = graphActive || Boolean(settings);
+      rail.hidden = hideRail;
+      if (hideRail) rail.setAttribute('aria-hidden', 'true');
       else rail.removeAttribute('aria-hidden');
       // In the organization shell the slot's parent is the actual grid
       // column. Hide that column as well; hiding only the slot leaves the
@@ -659,7 +681,7 @@ export function createGraphProjectsView({
       const parent = rail.parentElement;
       const railColumn = rail.closest?.('.bb-shell-rail')
         ?? (typeof parent?.className === 'string' && parent.className.split(/\s+/u).includes('bb-shell-rail') ? parent : null);
-      if (railColumn) railColumn.hidden = graphActive;
+      if (railColumn) railColumn.hidden = hideRail;
     };
 
     const stateNotice = graphStateNotice(doc, state.list, { onRetry: () => controller.load(), loadingText: 'プロジェクトを読み込んでいます。' });
@@ -679,7 +701,7 @@ export function createGraphProjectsView({
       { label: '関係者', value: summary.people, note: summary.people === null ? '人数を確かめられません' : '有効な関わりがある人（重複なし）' },
       ...extras.metrics,
     ], { ariaLabel: 'プロジェクトの集計' });
-    children.push(summaryBlock);
+    if (detailPresentation !== 'tabs') children.push(summaryBlock);
     legacyChrome.push(summaryBlock);
     if (extras.failure) {
       children.push(extras.failure);
@@ -689,7 +711,12 @@ export function createGraphProjectsView({
     // The selected project is the primary reading surface.  Keep the ledger
     // below it as a switcher so a large project list cannot bury its context.
     if (state.detail?.id === state.selectedId && state.detail.state === 'ok') {
-      knowledgeWorkspace = createProjectKnowledgeWorkspace({
+      if (knowledgeWorkspace && knowledgeDetailPayload === state.detail.payload) {
+        knowledgeWorkspace.refreshHost({ context: state.context, onTabChange: setKnowledgeTabChrome });
+      } else knowledgeWorkspace = createProjectKnowledgeWorkspace({
+        ...projectWorkspace,
+        detailPresentation,
+        initialViewState: retainedWorkspaceState?.projectId === state.selectedId ? retainedWorkspaceState : undefined,
         document: doc,
         detail: state.detail.payload,
         context: state.context,
@@ -698,6 +725,7 @@ export function createGraphProjectsView({
         onTabChange: setKnowledgeTabChrome,
         onRetryProject: (projectId) => controller.loadDetail(projectId),
       });
+      knowledgeDetailPayload = state.detail.payload;
       children.push(knowledgeWorkspace.element);
     } else if (state.selectedId) {
       const projectId = state.selectedId;
@@ -724,7 +752,7 @@ export function createGraphProjectsView({
       return children;
     }
 
-    if (showProjectLedger) children.push(workspaceLedger(doc, {
+    if (showProjectLedger && detailPresentation !== 'tabs') children.push(workspaceLedger(doc, {
       className: 'bb-graph-project-ledger',
       ariaLabel: 'プロジェクトの一覧',
       columns: GRAPH_PROJECT_LEDGER_COLUMNS,
@@ -775,10 +803,10 @@ export function createGraphProjectsView({
     const subject = `${edge.counterpart.name}（${how}、${project.name}）`;
     if (edgesWritable) {
       item.append(workspaceActions(doc, [
-        workspaceButton(doc, { text: '役割を直す', variant: 'quiet', onClick: () => openCorrection(edge.id, () => correction.openEdge(edge, { mode: 'role', subject })) }),
+        workspaceButton(doc, { text: '役割を編集', variant: 'quiet', onClick: () => openCorrection(edge.id, () => correction.openEdge(edge, { mode: 'role', subject })) }),
         edge.active
           ? workspaceButton(doc, { text: '関わりを終える', variant: 'quiet', onClick: () => openCorrection(edge.id, () => correction.openEdge(edge, { mode: 'end', subject })) })
-          : workspaceButton(doc, { text: '終了日を直す', variant: 'quiet', onClick: () => openCorrection(edge.id, () => correction.openEdge(edge, { mode: 'end', title: '終了日を直す', subject })) }),
+          : workspaceButton(doc, { text: '終了日を編集', variant: 'quiet', onClick: () => openCorrection(edge.id, () => correction.openEdge(edge, { mode: 'end', title: '終了日を編集', subject })) }),
       ]));
     }
     item.append(recordDetails(doc, [['関係ID', edge.id], ['人物ID', edge.counterpart.id], ['digest', edge.digest]]));
@@ -853,7 +881,7 @@ export function createGraphProjectsView({
       title: 'そのほかの関係',
       content: [makeElement(doc, 'p', {
         className: 'bb-graph-block-lead',
-        text: edgesWritable ? '所有する組織や、進め方を決める判断などです。直すときは「情報と関係」を使います。' : '所有する組織や、進め方を決める判断などです。',
+        text: edgesWritable ? '所有する組織や、進め方を決める判断などです。編集するときは「情報と関係」を使います。' : '所有する組織や、進め方を決める判断などです。',
       }), list],
     });
   }
@@ -865,6 +893,7 @@ export function createGraphProjectsView({
   }
 
   function renderRail() {
+    if (settings) return [];
     // The first project is selected once the list is read; until then the rail stays empty
     // (a project the host asked for is shown only once its detail is being read).
     if (state.list.state === 'loading' && state.detail?.id !== state.selectedId) return [];
@@ -939,10 +968,10 @@ export function createGraphProjectsView({
           })),
         }) : null,
         projectFields.length > 0 ? workspaceButton(doc, {
-          text: 'プロジェクトを直す',
+          text: 'プロジェクトを編集',
           onClick: () => openCorrection('project', () => correction.openEntity(project, {
             fields: projectFields,
-            title: 'プロジェクトを直す',
+            title: 'プロジェクトを編集',
             subject: projectCorrectionSubject(project.name, projectFields),
           })),
         }) : null,
@@ -959,7 +988,110 @@ export function createGraphProjectsView({
     children.push(...railExtensions(state.selectedId, loaded));
     children.push(renderOtherRelations(loaded));
     children.push(renderCorrectionHistory(doc, loaded.history));
+    if (detailPresentation === 'tabs') children.push(workspaceHostNotice(doc, hostSourceNotice(sourceNotice, noteSubject)));
     return children;
+  }
+
+  function releaseSettingsSlots() {
+    for (const handle of settingsSlots.values()) handle.destroy?.();
+    settingsSlots.clear();
+    settingsSlotProjectId = null;
+  }
+
+  function settingsSlot(name, context) {
+    const renderSlot = settings?.[name];
+    if (typeof renderSlot !== 'function') return null;
+    try {
+      let handle = settingsSlots.get(name);
+      if (handle) handle.update?.(context);
+      else {
+        const result = renderSlot(context);
+        handle = result?.root ? result : { root: result };
+        if (!handle.root || !isNode(handle.root)) return null;
+        settingsSlots.set(name, handle);
+      }
+      return handle.root;
+    } catch (error) {
+      return workspaceNotice(doc, { label: '表示できません', text: `設定の欄を表示できませんでした（${failureText(error)}）。`, tone: 'danger' });
+    }
+  }
+
+  function renderSettings() {
+    const root = makeElement(doc, 'div', { className: 'bb-gp-settings', attrs: { 'aria-label': 'プロジェクトの設定' } });
+    const loaded = state.detail?.id === state.selectedId && state.detail.state === 'ok' ? state.detail.payload : null;
+    if (!loaded) {
+      const message = graphStateNotice(doc, state.detail ?? { state: 'loading' }, { onRetry: () => controller.loadDetail(state.selectedId), loadingText: 'プロジェクトを読み込んでいます。' });
+      if (message) root.append(message);
+      return root;
+    }
+    const project = loaded.project;
+    if (settingsSlotProjectId !== project.id) { releaseSettingsSlots(); settingsSlotProjectId = project.id; }
+    const projectFields = writable && scope.entity('project') ? scope.fields(['name', 'goal', 'status', 'icon']) : [];
+    const editing = state.panelAt === 'project' && correction.form?.kind === 'update_entity';
+    const edit = projectFields.length && !editing ? workspaceButton(doc, { text: '編集', size: 'compact', onClick: () => openCorrection('project', () => correction.openEntity(project, { fields: projectFields, title: '基本情報', subject: projectCorrectionSubject(project.name, projectFields) })) }) : null;
+    const basic = [];
+    if (editing) basic.push(correction.render(doc, { appearance: 'inline', showHeading: false }));
+    else basic.push(workspaceDefinition(doc, [
+      ['名前', project.name], ['目的', textOrNull(project.goal)], ['状態', textOrNull(project.status)],
+      ['アイコン', renderProjectIcon(doc, project.icon, project.name)],
+    ]));
+    const noteSubject = { id: project.id, type: 'project', metadata: project.metadata ?? {} };
+    if (!projectFields.length) basic.push(hostReadOnlyNote(doc, readOnlyNote, noteSubject));
+    // The technical readback is retained until its evidence destination is moved.
+    basic.push(recordDetails(doc, [['プロジェクトID', project.id], ['digest', project.digest], ['取得日時', loaded.asOf]]));
+    root.append(workspaceSettingsSection(doc, { title: '基本情報', action: edit, content: basic }));
+    // Personal hosts may still edit participation. Organization scopes that
+    // withhold these operations never gain them through the new presentation.
+    if (edgesWritable || writable && scope.createEdges) {
+      root.append(renderParticipants(loaded, { onRetry: () => controller.loadDetail(project.id) }));
+      if (writable && scope.createEdges) root.append(workspaceActions(doc, [workspaceButton(doc, { text: '関係者を加える', size: 'compact', onClick: () => openCorrection('participants', () => correction.openCreate(project, { relations: ['participates_in', 'accountable_for'], relationNames: PARTICIPATION_LABELS, relationLabel: '関わり方', title: '関係者を加える', subject: `プロジェクト「${project.name}」` })) })]));
+      if (state.panelAt === 'participants') root.append(correction.render(doc));
+    }
+    const context = { document: doc, project, detail: loaded, projectId: project.id,
+      actions: { refreshSettings: () => updateSettingsFrame(), closeSettings: options => controller.closeSettings(options) } };
+    for (const name of ['renderConnections', 'renderOrganization']) { const slot = settingsSlot(name, context); if (slot) root.append(slot); }
+    if (!settings?.renderConnections && !settings?.renderOrganization && !settings?.renderArchive) root.append(...railExtensions(project.id, loaded));
+    const history = renderCorrectionHistory(doc, loaded.history, { presentation: 'inline' });
+    if (history) root.append(workspaceSettingsSection(doc, { title: '変更履歴', count: loaded.history.length, content: history }));
+    const archive = settingsSlot('renderArchive', context); if (archive) root.append(archive);
+    const readOnly = hostReadOnlyNote(doc, readOnlyNote, noteSubject);
+    if (projectFields.length && (!scope.edges || !scope.createEdges) && readOnly) root.append(readOnly);
+    const source = workspaceHostNotice(doc, hostSourceNotice(sourceNotice, noteSubject)); if (source) root.append(source);
+    if (detailPresentation !== 'tabs') { const others = renderOtherRelations(loaded); if (others) root.append(others); }
+    return root;
+  }
+
+  function updateSettingsFrame() {
+    if (!settingsOpen || !settingsFrame) return;
+    if (settingsProjectId !== state.selectedId) { controller.closeSettings({ restoreFocus: false, immediate: true }); return; }
+    const loaded = state.detail?.state === 'ok' && state.detail.id === state.selectedId ? state.detail.payload : null;
+    const project = loaded?.project ?? projectSummaryFor(state.selectedId);
+    const detailKey = loaded ?? state.detail;
+    const context = { document: doc, project, detail: loaded, projectId: project.id,
+      actions: { refreshSettings: () => updateSettingsFrame(), closeSettings: options => controller.closeSettings(options) } };
+    // Background task/favorite updates do not alter Graph detail or the form.
+    // Retain that field subtree so the draft, caret and nested controls stay put.
+    if (settingsRenderedPayload === detailKey && settingsRenderedRevision === correction.revision) {
+      for (const handle of settingsSlots.values()) handle.update?.(context);
+      return;
+    }
+    const focused = doc.activeElement;
+    const focusId = settingsFrame.fields.contains?.(focused) ? focused?.id ?? focused?.getAttribute?.('id') : null;
+    const start = Number.isInteger(focused?.selectionStart) ? focused.selectionStart : null;
+    const end = Number.isInteger(focused?.selectionEnd) ? focused.selectionEnd : null;
+    settingsPreview.replaceChildren(renderProjectIcon(doc, project.icon, project.name), makeElement(doc, 'span', { text: project.name }));
+    settingsFrame.fields.replaceChildren(renderSettings());
+    const identity = settingsSlot('renderIdentity', context);
+    if (identity) settingsPreview.append(identity);
+    settingsRenderedPayload = detailKey;
+    settingsRenderedRevision = correction.revision;
+    if (focusId) {
+      const replacement = doc.getElementById?.(focusId);
+      if (replacement && settingsFrame.fields.contains?.(replacement)) {
+        replacement.focus?.({ preventScroll: true });
+        if (start !== null && end !== null) replacement.setSelectionRange?.(start, end);
+      }
+    }
   }
 
   function cancelInitialSelectionGate(gate, { reset = true } = {}) {
@@ -1091,13 +1223,45 @@ export function createGraphProjectsView({
   const controller = {
     get state() { return state; },
     get correction() { return correction; },
+    renderSettings,
+    openSettings(opener) {
+      if (!settings || viewDestroyed || !state.selectedId) return false;
+      if (settingsProjectId !== state.selectedId) releaseSettingsSlots();
+      settingsProjectId = state.selectedId;
+      settingsOpener = typeof opener === 'function' ? opener : () => opener;
+      settingsRenderedPayload = null;
+      settingsRenderedRevision = -1;
+      if (!settingsFrame) {
+        settingsPreview = makeElement(doc, 'div', { className: 'bb-ws-settings-identity' });
+        settingsFrame = workspaceInputFrame(doc, { title: 'プロジェクトの設定', preview: settingsPreview, showFooter: false, opener: () => settingsOpener?.(),
+          beforeClose: () => correction.form?.phase !== 'saving' && [...settingsSlots.values()].every(handle => handle.beforeClose?.() !== false) && settings?.beforeClose?.() !== false,
+          onClose: () => { settingsOpen = false; settingsRenderedPayload = null; settingsRenderedRevision = -1; releaseSettingsSlots(); settings?.onOpenChange?.(false); },
+        });
+      }
+      settingsOpen = true;
+      updateSettingsFrame();
+      settingsFrame.open(typeof opener === 'function' ? opener() : opener);
+      settings?.onOpenChange?.(true);
+      return true;
+    },
+    closeSettings(options) {
+      if (!settingsOpen) return;
+      settingsFrame?.close(options);
+    },
     render() {
       if (viewDestroyed) return controller;
       if (knowledgeWorkspace) {
-        knowledgeWorkspace.destroy();
-        knowledgeWorkspace = null;
-      }
+        const preserve = detailPresentation === 'tabs' && knowledgeDetailPayload?.project?.id === state.selectedId;
+        retainedWorkspaceState = preserve ? knowledgeWorkspace.getViewState() : null;
+        const reuse = preserve && state.detail?.state === 'ok' && state.detail.payload === knowledgeDetailPayload;
+        if (!reuse) {
+          knowledgeWorkspace.destroy();
+          knowledgeWorkspace = null;
+          knowledgeDetailPayload = null;
+        }
+      } else if (retainedWorkspaceState?.projectId !== state.selectedId) retainedWorkspaceState = null;
       layout.render(renderWorkspace(), renderRail());
+      updateSettingsFrame();
       if (focusRow) {
         focusLedgerRow(root, focusRow);
         focusRow = null;
@@ -1111,6 +1275,8 @@ export function createGraphProjectsView({
       detailRequest += 1;
       contextRequest += 1;
       initialSelectionGate = null;
+      settingsFrame?.dispose();
+      releaseSettingsSlots();
       knowledgeWorkspace?.destroy();
       knowledgeWorkspace = null;
       correction.close();
