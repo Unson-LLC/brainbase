@@ -1,13 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildJudgmentFrameCatalog,
   handleJudgmentFrameToolCall,
   handleJudgmentModelOutcomeToolCall,
+  isAnecdotalRefutation,
   judgmentModelOutcomeDigest,
   judgmentModelOutcomeTools,
+  renderJudgmentFrameCatalog,
+  summarizeJudgmentModelOutcomes,
+  validateJudgmentFrameRecord,
   type JudgmentFrameKind,
   type JudgmentFrameSourceRecord,
   type JudgmentModelOutcome,
+  type JudgmentModelOutcomeScopeMetrics,
+  type JudgmentModelOutcomeStoredRecord,
+  type JudgmentModelOutcomeSummary,
   type JudgmentModelOutcomeToolDependencies,
 } from '../src/judgment-frame.js';
 
@@ -217,5 +225,255 @@ describe('catalog and escalation with stored outcomes', () => {
     expect(result).toMatchObject({ status: 'error', error: { code: 'judgment_model_outcomes_invalid' } });
     const down = await handleJudgmentFrameToolCall('brainbase_judgment_frame_catalog', {}, dependencies({ outcomes: null }));
     expect(down).toEqual({ status: 'unavailable', error: { code: 'store_down', message: 'store is down' } });
+  });
+});
+
+describe('scope_metrics and structural vs anecdotal refutation separation', () => {
+  it('publishes optional scope_metrics on the outcome tool schema without oneOf', () => {
+    const tool = judgmentModelOutcomeTools[0];
+    expect(tool.description).toContain('scope_metrics');
+    expect(JSON.stringify(tool.inputSchema)).not.toContain('oneOf');
+    const schema = tool.inputSchema as {
+      required: string[];
+      properties: {
+        scope_metrics: {
+          required: string[];
+          properties: {
+            claim_type: { enum: string[] };
+            representativeness: { enum: string[] };
+            sample_size: { type: string; minimum: number };
+            population_size: { type: string; minimum: number };
+            effect_magnitude: { type: string };
+          };
+        };
+      };
+    };
+    expect(schema.required).not.toContain('scope_metrics');
+    expect(schema.properties.scope_metrics.required).toEqual(['claim_type', 'representativeness']);
+    expect(schema.properties.scope_metrics.properties.claim_type.enum).toEqual(['universal', 'tendency']);
+    expect(schema.properties.scope_metrics.properties.representativeness.enum).toEqual([
+      'census', 'representative', 'anecdotal', 'unknown',
+    ]);
+  });
+
+  it('stores validated scope_metrics inside the content digest and preserves legacy digests when omitted', async () => {
+    const appended: unknown[] = [];
+    const deps = dependencies({ appended });
+    const digest = (await catalogData(deps)).catalog_digest;
+    const scopeMetrics: JudgmentModelOutcomeScopeMetrics = {
+      claim_type: 'tendency',
+      sample_size: 1,
+      population_size: 120,
+      effect_magnitude: '-12% on single day',
+      representativeness: 'anecdotal',
+    };
+    const withScope = outcome({ scope_metrics: scopeMetrics });
+    const result = await record({ ...withScope, catalog_digest: digest }, deps);
+    expect(result?.status).toBe('ok');
+    expect(appended).toEqual([{ ...withScope, digest: judgmentModelOutcomeDigest(withScope) }]);
+    expect(judgmentModelOutcomeDigest(withScope)).not.toBe(judgmentModelOutcomeDigest(outcome()));
+  });
+
+  it('rejects malformed scope_metrics values', async () => {
+    const digest = (await catalogData(dependencies())).catalog_digest;
+    const invalidScopeMetrics: Array<[string, unknown]> = [
+      ['non-object', 'anecdotal'],
+      ['unknown field', { claim_type: 'tendency', representativeness: 'anecdotal', extra: 1 }],
+      ['invalid claim_type', { claim_type: 'probabilistic', representativeness: 'anecdotal' }],
+      ['invalid representativeness', { claim_type: 'tendency', representativeness: 'biased' }],
+      ['zero sample_size', { claim_type: 'tendency', representativeness: 'anecdotal', sample_size: 0 }],
+      ['non-integer population_size', { claim_type: 'tendency', representativeness: 'representative', population_size: 10.5 }],
+      ['sample_size exceeding population_size', { claim_type: 'tendency', representativeness: 'representative', sample_size: 50, population_size: 40 }],
+      ['empty effect_magnitude', { claim_type: 'tendency', representativeness: 'representative', effect_magnitude: '   ' }],
+      ['credential in effect_magnitude', { claim_type: 'tendency', representativeness: 'representative', effect_magnitude: 'api_key=abcd1234efgh' }],
+    ];
+    for (const [label, scope_metrics] of invalidScopeMetrics) {
+      const result = await record({ ...outcome(), scope_metrics, catalog_digest: digest });
+      expect(result?.status, label).toBe('error');
+    }
+  });
+
+  it('separates structural vs anecdotal refutations in summary, catalog rendering, and chosen_uses_refuted_model escalation', async () => {
+    const catalog = buildJudgmentFrameCatalog([
+      ...RECORDS.philosophy,
+      ...RECORDS.objective,
+      ...RECORDS.model,
+    ]).catalog;
+
+    const anecdotalTendency = stored(outcome({
+      conditions: '施設B・特売日の1日のみ',
+      scope_metrics: { claim_type: 'tendency', sample_size: 1, population_size: 120, representativeness: 'anecdotal' },
+    }), 'out_anec_1', '2026-10-10T00:00:00.000Z');
+
+    const unknownTendency = stored(outcome({
+      conditions: '施設C・代表性未確認',
+      scope_metrics: { claim_type: 'tendency', representativeness: 'unknown' },
+    }), 'out_anec_2', '2026-10-11T00:00:00.000Z');
+
+    const representativeTendency = stored(outcome({
+      conditions: '全12施設・Q3代表調査',
+      scope_metrics: { claim_type: 'tendency', sample_size: 60, population_size: 120, representativeness: 'representative' },
+    }), 'out_struct_1', '2026-10-12T00:00:00.000Z');
+
+    const universalAnecdotal = stored(outcome({
+      model: { id: 'fnd_model_inventory_boundary', revision: '1' },
+      conditions: '施設D・普遍主張に対する単発反例',
+      scope_metrics: { claim_type: 'universal', sample_size: 1, representativeness: 'anecdotal' },
+    }), 'out_univ_1', '2026-10-12T00:00:00.000Z');
+
+    expect(isAnecdotalRefutation(anecdotalTendency as unknown as JudgmentModelOutcome)).toBe(true);
+    // representativeness: 'unknown' stays conservatively structural so unverified refutations cannot bypass escalation.
+    expect(isAnecdotalRefutation(unknownTendency as unknown as JudgmentModelOutcome)).toBe(false);
+    expect(isAnecdotalRefutation(representativeTendency as unknown as JudgmentModelOutcome)).toBe(false);
+    expect(isAnecdotalRefutation(universalAnecdotal as unknown as JudgmentModelOutcome)).toBe(false);
+    expect(isAnecdotalRefutation(outcome())).toBe(false);
+
+    // 1) Tendency + explicit anecdotal only: visible in summary & catalog, does NOT trigger chosen_uses_refuted_model.
+    const anecdotalOnlySummaries = summarizeJudgmentModelOutcomes(
+      [anecdotalTendency] as unknown as JudgmentModelOutcomeStoredRecord[],
+      catalog,
+    );
+    expect(anecdotalOnlySummaries.get('fnd_model_cleaning_order')).toEqual({
+      supports: 0,
+      refutes: 1,
+      structural_refutes: 0,
+      anecdotal_refutes: 1,
+      inconclusive: 0,
+      refuted_when: [],
+      anecdotal_refuted_when: ['施設B・特売日の1日のみ'],
+    });
+
+    const depsAnecdotalOnly = dependencies({ outcomes: [anecdotalTendency] });
+    const anecdotalCatalog = await catalogData(depsAnecdotalOnly);
+    expect(String(anecdotalCatalog.catalog)).toContain(
+      '（この版の結果：支持0・構造反証0・逸話反証1・判定不能0。逸話反証の条件：施設B・特売日の1日のみ）',
+    );
+
+    const frameResultAnecdotal = await handleJudgmentFrameToolCall('brainbase_judgment_frame_record', {
+      record_version: 'judgment-frame-record.v1',
+      catalog_digest: anecdotalCatalog.catalog_digest,
+      selections: [
+        { ref: 'phi_purpose_first', kind: 'philosophy', why: '目的を先に固定' },
+        { ref: 'fnd_objective_headroom', kind: 'objective', why: '改善余地を評価' },
+        { ref: 'fnd_model_cleaning_order', kind: 'model', why: '清掃順の効果を予測' },
+      ],
+      options: [{
+        label: '清掃順を探索する',
+        uses: [
+          { ref: 'phi_purpose_first', role: 'constraint', verdict: 'satisfied', note: 'ok' },
+          { ref: 'fnd_objective_headroom', role: 'criterion', note: 'ok' },
+          { ref: 'fnd_model_cleaning_order', role: 'prediction', note: '傾向モデルとして利用' },
+        ],
+      }],
+      chosen_option: '清掃順を探索する',
+    }, depsAnecdotalOnly);
+    expect(frameResultAnecdotal?.status).toBe('ok');
+    expect((frameResultAnecdotal as { data: { escalations: unknown[] } }).data.escalations).toEqual([]);
+
+    // 1b) Tendency + unknown representativeness: conservatively treated as structural and escalates chosen_uses_refuted_model.
+    const unknownSummaries = summarizeJudgmentModelOutcomes(
+      [unknownTendency] as unknown as JudgmentModelOutcomeStoredRecord[],
+      catalog,
+    );
+    expect(unknownSummaries.get('fnd_model_cleaning_order')).toEqual({
+      supports: 0,
+      refutes: 1,
+      structural_refutes: 1,
+      anecdotal_refutes: 0,
+      inconclusive: 0,
+      refuted_when: ['施設C・代表性未確認'],
+      anecdotal_refuted_when: [],
+    });
+    const depsUnknown = dependencies({ outcomes: [unknownTendency] });
+    const unknownCatalog = await catalogData(depsUnknown);
+    const frameResultUnknown = await handleJudgmentFrameToolCall('brainbase_judgment_frame_record', {
+      record_version: 'judgment-frame-record.v1',
+      catalog_digest: unknownCatalog.catalog_digest,
+      selections: [
+        { ref: 'phi_purpose_first', kind: 'philosophy', why: '目的を先に固定' },
+        { ref: 'fnd_objective_headroom', kind: 'objective', why: '改善余地を評価' },
+        { ref: 'fnd_model_cleaning_order', kind: 'model', why: '清掃順の効果を予測' },
+      ],
+      options: [{
+        label: '清掃順を探索する',
+        uses: [
+          { ref: 'phi_purpose_first', role: 'constraint', verdict: 'satisfied', note: 'ok' },
+          { ref: 'fnd_objective_headroom', role: 'criterion', note: 'ok' },
+          { ref: 'fnd_model_cleaning_order', role: 'prediction', note: '代表性未確認の反証あり' },
+        ],
+      }],
+      chosen_option: '清掃順を探索する',
+    }, depsUnknown);
+    expect(frameResultUnknown?.status).toBe('ok');
+    expect((frameResultUnknown as { data: { escalations: unknown[] } }).data.escalations).toEqual([
+      { code: 'chosen_uses_refuted_model', refs: ['fnd_model_cleaning_order'] },
+    ]);
+
+    // 2) Mixed structural + anecdotal: both shown in catalog AND chosen_uses_refuted_model triggers.
+    const depsMixed = dependencies({ outcomes: [anecdotalTendency, representativeTendency, universalAnecdotal] });
+    const mixedCatalog = await catalogData(depsMixed);
+    expect(String(mixedCatalog.catalog)).toContain(
+      '（この版の結果：支持0・構造反証1・逸話反証1・判定不能0。構造反証の条件：全12施設・Q3代表調査。逸話反証の条件：施設B・特売日の1日のみ）',
+    );
+    expect(String(mixedCatalog.catalog)).toContain(
+      '（この版の結果：支持0・反証1・判定不能0。反証の条件：施設D・普遍主張に対する単発反例）',
+    );
+
+    const frameResultMixed = await handleJudgmentFrameToolCall('brainbase_judgment_frame_record', {
+      record_version: 'judgment-frame-record.v1',
+      catalog_digest: mixedCatalog.catalog_digest,
+      selections: [
+        { ref: 'phi_purpose_first', kind: 'philosophy', why: '目的を先に固定' },
+        { ref: 'fnd_objective_headroom', kind: 'objective', why: '改善余地を評価' },
+        { ref: 'fnd_model_cleaning_order', kind: 'model', why: '清掃順の効果を予測' },
+        { ref: 'fnd_model_inventory_boundary', kind: 'model', why: '在庫境界を予測' },
+      ],
+      options: [{
+        label: '両方使う案',
+        uses: [
+          { ref: 'phi_purpose_first', role: 'constraint', verdict: 'satisfied', note: 'ok' },
+          { ref: 'fnd_objective_headroom', role: 'criterion', note: 'ok' },
+          { ref: 'fnd_model_cleaning_order', role: 'prediction', note: '代表反証あり' },
+          { ref: 'fnd_model_inventory_boundary', role: 'prediction', note: '普遍主張に単発反例あり' },
+        ],
+      }],
+      chosen_option: '両方使う案',
+    }, depsMixed);
+    expect(frameResultMixed?.status).toBe('ok');
+    expect((frameResultMixed as { data: { escalations: unknown[] } }).data.escalations).toEqual([
+      { code: 'chosen_uses_refuted_model', refs: ['fnd_model_cleaning_order', 'fnd_model_inventory_boundary'] },
+    ]);
+
+    // 3) Legacy JudgmentModelOutcomeSummary shape (without optional new fields) stays type- and runtime-compatible.
+    const legacySummary: JudgmentModelOutcomeSummary = {
+      supports: 1,
+      refutes: 1,
+      inconclusive: 0,
+      refuted_when: ['旧サマリ条件'],
+    };
+    const legacyMap = new Map<string, JudgmentModelOutcomeSummary>([['fnd_model_cleaning_order', legacySummary]]);
+    expect(renderJudgmentFrameCatalog(catalog, legacyMap)).toContain('（この版の結果：支持1・反証1・判定不能0。反証の条件：旧サマリ条件）');
+    const legacyValidation = validateJudgmentFrameRecord({
+      record_version: 'judgment-frame-record.v1',
+      catalog_digest: catalog.digest,
+      selections: [
+        { ref: 'phi_purpose_first', kind: 'philosophy', why: '目的を先に固定' },
+        { ref: 'fnd_objective_headroom', kind: 'objective', why: '改善余地を評価' },
+        { ref: 'fnd_model_cleaning_order', kind: 'model', why: '清掃順の効果を予測' },
+      ],
+      options: [{
+        label: '旧サマリ案',
+        uses: [
+          { ref: 'phi_purpose_first', role: 'constraint', verdict: 'satisfied', note: 'ok' },
+          { ref: 'fnd_objective_headroom', role: 'criterion', note: 'ok' },
+          { ref: 'fnd_model_cleaning_order', role: 'prediction', note: '旧サマリ経由の反証' },
+        ],
+      }],
+      chosen_option: '旧サマリ案',
+    }, catalog, legacyMap);
+    expect(legacyValidation.valid).toBe(true);
+    expect(legacyValidation.escalations).toEqual([
+      { code: 'chosen_uses_refuted_model', refs: ['fnd_model_cleaning_order'] },
+    ]);
   });
 });

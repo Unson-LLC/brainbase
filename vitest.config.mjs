@@ -17,6 +17,19 @@ const ISOLATED_TEST_PATTERNS = [
   'tests/judgment-history-scan-cache.test.ts',
   'tests/judgment-value-proof-journal-cache.test.ts',
   'tests/build-stage3b-candidate-bundle.test.ts',
+  // These vi.mock() node:fs/promises to step in while judgment:install writes.
+  'tests/claude-code-judgment-hook-round13.test.ts',
+  'tests/claude-code-judgment-hook-round14.test.ts',
+];
+
+// Tests that change the working directory need their own process: worker threads
+// do not support process.chdir(). They also vi.mock() node:fs/promises, so each
+// file gets a fresh module graph too.
+const FORKED_TEST_PATTERNS = [
+  'tests/brainbase-login-durability.test.ts',
+  'tests/brainbase-login-round11.test.ts',
+  'tests/brainbase-login-round13.test.ts',
+  'tests/brainbase-login-round14.test.ts',
 ];
 
 const timeouts = sharedRunnerTimeouts(process.env);
@@ -61,6 +74,7 @@ export default defineConfig({
             '**/node_modules/**',
             '**/dist/**',
             ...ISOLATED_TEST_PATTERNS,
+            ...FORKED_TEST_PATTERNS,
             ...extraExcludes,
           ],
         },
@@ -72,6 +86,20 @@ export default defineConfig({
           pool: 'threads',
           isolate: true,
           include: ISOLATED_TEST_PATTERNS,
+          exclude: [
+            '**/node_modules/**',
+            '**/dist/**',
+            ...extraExcludes,
+          ],
+        },
+      },
+      {
+        test: {
+          name: 'forked',
+          ...timeouts,
+          pool: 'forks',
+          isolate: true,
+          include: FORKED_TEST_PATTERNS,
           exclude: [
             '**/node_modules/**',
             '**/dist/**',

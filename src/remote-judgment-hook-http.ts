@@ -1,4 +1,6 @@
 import type { JudgmentJournalTurnInput } from './judgment-journal-turn-publisher.js';
+import type { ReasoningGateMode } from './judgment-reasoning-gate-prompt.js';
+import type { SessionWorldModelUpdaterV2 } from './judgment-session-world-model.js';
 
 /** Minimal identity verified by the consuming host's authentication boundary. */
 export interface RemoteJudgmentHookPrincipal {
@@ -15,6 +17,9 @@ export interface RemoteJudgmentHookDispatchResult {
   output: Record<string, unknown>;
   receiptId?: string;
   routeResolutionSha256?: string;
+  /** Optional non-digest reasoning gate telemetry surfaced by the Host dispatcher. */
+  reasoningGateApplied?: boolean;
+  reasoningGateMode?: ReasoningGateMode;
 }
 
 /**
@@ -51,6 +56,8 @@ export interface RemoteJudgmentHookDispatchOptions {
   trustedAuthKind?: RemoteJudgmentHookAuthKind;
   /** Raw encoded Company Authority response verified by the canonical API. */
   companyAuthorityResponse?: string;
+  /** Optional PR-B ephemeral session mini world model v2 updater forwarded to the Host. */
+  sessionWorldModelUpdater?: SessionWorldModelUpdaterV2;
 }
 
 export type RemoteJudgmentHookDispatch = (
@@ -99,6 +106,17 @@ export interface RemoteJudgmentHookRequest {
   dispatch: RemoteJudgmentHookDispatch;
   /** Optional HTTP publisher for person-authenticated hosted Claude Code Stop events. */
   journalTurnPublisher?: (input: JudgmentJournalTurnInput) => Promise<void>;
+  /** Optional PR-B ephemeral session mini world model v2 updater forwarded to dispatch. */
+  sessionWorldModelUpdater?: SessionWorldModelUpdaterV2;
+  /** Optional non-digest reasoning gate telemetry observer (fail-open). */
+  onReasoningGateTelemetry?: (details: {
+    eventName: string;
+    sessionId: string;
+    turnId: string;
+    projectCode?: string;
+    reasoning_gate_applied: boolean;
+    reasoning_gate_mode: ReasoningGateMode;
+  }) => void;
   onDispatchError?: (details: {
     eventName: string;
     reason: string;
@@ -268,12 +286,35 @@ export async function handleRemoteJudgmentHookRequest(
         ...(request.companyAuthorityResponse
           ? { companyAuthorityResponse: request.companyAuthorityResponse }
           : {}),
+        ...(request.sessionWorldModelUpdater
+          ? { sessionWorldModelUpdater: request.sessionWorldModelUpdater }
+          : {}),
       }
-      : { host };
+      : {
+        host,
+        ...(request.sessionWorldModelUpdater
+          ? { sessionWorldModelUpdater: request.sessionWorldModelUpdater }
+          : {}),
+      };
     const dispatchResult = await request.dispatch(hookPayload, projectCode, dispatchOptions);
     const { output } = dispatchResult;
     if (!output || typeof output !== 'object' || Array.isArray(output)) {
       return { status: 503, body: { error: 'judgment_hook_output_invalid' } };
+    }
+    if (typeof dispatchResult.reasoningGateApplied === 'boolean'
+      && dispatchResult.reasoningGateMode !== undefined) {
+      try {
+        request.onReasoningGateTelemetry?.({
+          eventName,
+          sessionId,
+          turnId,
+          ...(projectCode ? { projectCode } : {}),
+          reasoning_gate_applied: dispatchResult.reasoningGateApplied,
+          reasoning_gate_mode: dispatchResult.reasoningGateMode,
+        });
+      } catch {
+        /* Non-digest telemetry cannot affect the hook response. */
+      }
     }
     // The remote runtime's stream validator needs an audit line per tool. A
     // local Claude Code turn has no such validator; the Host decides alone.
