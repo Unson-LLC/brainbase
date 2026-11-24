@@ -85,6 +85,12 @@ export interface LearningEvaluationReference {
   readonly digest: string;
 }
 
+export interface LearningCompetingModel {
+  readonly ref?: string;
+  readonly hypothesis: string;
+  readonly comparison: string;
+}
+
 export interface LearningCandidateInput {
   readonly id: string;
   readonly sourceEvaluationRef: LearningEvaluationReference;
@@ -96,6 +102,10 @@ export interface LearningCandidateInput {
   readonly uncertainty: readonly string[];
   readonly applicability: FoundationScope;
   readonly createdAt: string;
+  /** Explicit refutation record IDs from the prior model revision addressed by this candidate. */
+  readonly addressedRefutationIds?: readonly string[];
+  /** Comparison notes against competing world models or alternative hypotheses. */
+  readonly competingModels?: readonly LearningCompetingModel[];
 }
 
 export interface LearningCandidate extends LearningCandidateInput {
@@ -555,8 +565,10 @@ class GraphCompanyOsLearningAdoptionStore implements CompanyOsLearningAdoptionSt
       counterexamples: [...input.counterexamples],
       uncertainty: [...input.uncertainty],
       applicability: cloneJson(input.applicability),
-    digest: ''
-  };
+      ...(input.addressedRefutationIds !== undefined ? { addressedRefutationIds: [...input.addressedRefutationIds] } : {}),
+      ...(input.competingModels !== undefined ? { competingModels: cloneJson(input.competingModels) } : {}),
+      digest: ''
+    };
     const completeCandidate = { ...candidate, digest: digestLearningRecord({ ...candidate, digest: '' }) };
     let committed: LearningCandidate | undefined;
     await this.mutateLedger(async (ledger) => {
@@ -943,6 +955,12 @@ function normalizeCandidateInput(request: CreateLearningCandidateRequest): Learn
   const uncertainty = normalizeTextArray(request.uncertainty, 'uncertainty', true);
   const applicability = normalizeScope(request.applicability);
   requireTimestamp(request.createdAt, 'createdAt');
+  const addressedRefutationIds = request.addressedRefutationIds === undefined
+    ? undefined
+    : normalizeTextArray(request.addressedRefutationIds, 'addressedRefutationIds', false);
+  const competingModels = request.competingModels === undefined
+    ? undefined
+    : normalizeCompetingModels(request.competingModels);
   return {
     id: request.id,
     sourceEvaluationRef,
@@ -952,8 +970,35 @@ function normalizeCandidateInput(request: CreateLearningCandidateRequest): Learn
     counterexamples,
     uncertainty,
     applicability,
-    createdAt: request.createdAt
+    createdAt: request.createdAt,
+    ...(addressedRefutationIds !== undefined ? { addressedRefutationIds } : {}),
+    ...(competingModels !== undefined ? { competingModels } : {})
   };
+}
+
+function normalizeCompetingModels(value: readonly LearningCompetingModel[]): LearningCompetingModel[] {
+  if (!Array.isArray(value)) {
+    throw new CompanyOsLearningAdoptionError('invalid_input', 'competingModels must be an array');
+  }
+  return value.map((item, index) => {
+    if (!isRecord(item)) {
+      throw new CompanyOsLearningAdoptionError('invalid_input', `competingModels[${index}] must be an object`);
+    }
+    if (item.ref !== undefined && !isNonEmptyString(item.ref)) {
+      throw new CompanyOsLearningAdoptionError('invalid_input', `competingModels[${index}].ref must be a non-empty string when provided`);
+    }
+    if (!isNonEmptyString(item.hypothesis)) {
+      throw new CompanyOsLearningAdoptionError('invalid_input', `competingModels[${index}].hypothesis is required`);
+    }
+    if (!isNonEmptyString(item.comparison)) {
+      throw new CompanyOsLearningAdoptionError('invalid_input', `competingModels[${index}].comparison is required`);
+    }
+    return {
+      ...(item.ref !== undefined ? { ref: item.ref } : {}),
+      hypothesis: item.hypothesis,
+      comparison: item.comparison
+    };
+  });
 }
 
 function normalizeValidationInput(request: CreateLearningValidationRequest): LearningValidationInput {
@@ -1236,6 +1281,8 @@ function assertLedger(value: unknown): asserts value is LearningLedger {
   uniqueIds(value.runUses, 'run-use');
   for (const candidate of value.candidates) {
     if (!isRecord(candidate) || candidate.version !== 1 || !isNonEmptyString(candidate.id) || !isDigest(candidate.digest)
+      || !isOptionalStringArrayShape(candidate.addressedRefutationIds)
+      || !isOptionalCompetingModelsShape(candidate.competingModels)
       || digestLearningRecord({ ...candidate, digest: '' }) !== candidate.digest) throw new CompanyOsLearningAdoptionError('corrupt_record', 'Learning candidate digest or shape is invalid');
   }
   for (const validation of value.validations) {
@@ -1255,6 +1302,21 @@ function assertLedger(value: unknown): asserts value is LearningLedger {
       || (runUse.runPhase === 'planned' && runUse.receiptRef !== undefined)
       || digestLearningRecord({ ...runUse, digest: '' }) !== runUse.digest) throw new CompanyOsLearningAdoptionError('corrupt_record', 'Learning run-use digest or shape is invalid');
   }
+}
+
+function isOptionalStringArrayShape(value: unknown): boolean {
+  return value === undefined || (Array.isArray(value) && value.every(isNonEmptyString));
+}
+
+function isOptionalCompetingModelsShape(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (!Array.isArray(value)) return false;
+  return value.every((item) => (
+    isRecord(item)
+    && (item.ref === undefined || isNonEmptyString(item.ref))
+    && isNonEmptyString(item.hypothesis)
+    && isNonEmptyString(item.comparison)
+  ));
 }
 
 function isRunReceiptReferenceShape(value: unknown): value is LearningRunReceiptReference {

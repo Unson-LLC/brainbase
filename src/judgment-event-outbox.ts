@@ -12,7 +12,10 @@ import {
 } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 
-import type { JudgmentKnowledgeEvent } from './judgment-event-adapter.js';
+import {
+  isProjectCodeAllowed,
+  type JudgmentKnowledgeEvent
+} from './judgment-event-adapter.js';
 
 /** The queue format is intentionally independent of a Host, Task, or tenant. */
 export const JUDGMENT_EVENT_OUTBOX_SCHEMA_VERSION = 'judgment_event_outbox.v1' as const;
@@ -159,6 +162,7 @@ export interface JudgmentOutboxDeliveryResult {
   dead_lettered: number;
   pending: number;
   deferred?: number;
+  out_of_scope?: number;
   last_error_code?: string;
 }
 
@@ -173,6 +177,13 @@ export interface JudgmentOutboxDeliveryOptions {
   staleLockAfterMs?: number;
   /** Set false only for an adapter that already owns a surrounding lock. */
   acquireLock?: boolean;
+  /**
+   * Optional allowlist matching the delivery token's `projectCodes` claim
+   * (downstream `requireProjectAccess`). When provided, queued events with a
+   * missing, conflicting, invalid, or out-of-scope `project_code` are deferred
+   * without posting, consuming a retry attempt, or dead-lettering.
+   */
+  allowedProjectCodes?: readonly string[];
 }
 
 function jsonFiles(directory: string, storage: JudgmentOutboxStorage): string[] {
@@ -341,15 +352,27 @@ function confirmedReceipt(
     && readback.semantic_state === 'active';
 }
 
-function projectCode(event: JudgmentKnowledgeEvent): string | null {
+/**
+ * Extract the effective project_code using the same precedence as downstream
+ * `requireProjectAccess` (`applicability_scope.project_code` before top-level
+ * `project_code`), and flag conflicting values when both are set.
+ */
+function eventProjectCodes(event: JudgmentKnowledgeEvent): {
+  effective: string | null;
+  conflict: boolean;
+} {
   const candidate = event as unknown as Record<string, unknown>;
-  if (typeof candidate.project_code === 'string' && candidate.project_code) return candidate.project_code;
   const scope = candidate.applicability_scope;
-  if (scope && typeof scope === 'object' && !Array.isArray(scope)) {
-    const value = (scope as Record<string, unknown>).project_code;
-    return typeof value === 'string' && value ? value : null;
-  }
-  return null;
+  const scopeRaw = scope && typeof scope === 'object' && !Array.isArray(scope)
+    ? (scope as Record<string, unknown>).project_code
+    : undefined;
+  const topRaw = candidate.project_code;
+  const scopeCode = typeof scopeRaw === 'string' && scopeRaw.trim() ? scopeRaw.trim() : null;
+  const topCode = typeof topRaw === 'string' && topRaw.trim() ? topRaw.trim() : null;
+  return {
+    effective: scopeCode ?? topCode,
+    conflict: Boolean(scopeCode && topCode && scopeCode !== topCode)
+  };
 }
 
 function readConfirmedReceipt(
@@ -417,6 +440,7 @@ function deliverCore(options: Required<Pick<JudgmentOutboxDeliveryOptions, 'path
   let retryable = 0;
   let deadLettered = 0;
   let deferred = 0;
+  let outOfScope = 0;
   let processed = 0;
   let lastErrorCode: string | undefined;
 
@@ -439,9 +463,16 @@ function deliverCore(options: Required<Pick<JudgmentOutboxDeliveryOptions, 'path
         deferred += 1;
         continue;
       }
+      const { effective: code, conflict: projectCodeConflict } = eventProjectCodes(queued.event);
+      if (options.allowedProjectCodes !== undefined) {
+        if (projectCodeConflict || !isProjectCodeAllowed(code, options.allowedProjectCodes)) {
+          deferred += 1;
+          outOfScope += 1;
+          continue;
+        }
+      }
       processed += 1;
       const eventId = queued.event.event_id;
-      const code = projectCode(queued.event);
       const postAck = queued.delivery.post_ack;
       const attempt = queued.delivery.attempt || 1;
       const readbackAttempt = queued.delivery.readback_attempt || 1;
@@ -567,6 +598,7 @@ function deliverCore(options: Required<Pick<JudgmentOutboxDeliveryOptions, 'path
       retryable,
       dead_lettered: deadLettered,
       deferred,
+      ...(outOfScope > 0 ? { out_of_scope: outOfScope } : {}),
       pending: jsonFiles(options.paths.outboxDir, storage).length,
       ...(lastErrorCode ? { last_error_code: lastErrorCode } : {})
     };

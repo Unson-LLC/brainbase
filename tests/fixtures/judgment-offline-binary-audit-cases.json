@@ -1,0 +1,562 @@
+{
+  "schema_version": "judgment-offline-binary-audit-cases.v1",
+  "anonymization_policy": "Strictly synthetic entities (Site-A, Service-X, Cohort-M1, ref-*, eval-*, INV-*). Zero real customer, employee, or organization PII.",
+  "cases": [
+    {
+      "id": "clean__routine_sql_query",
+      "category": "clean_calibrated",
+      "description": "Routine SQL syntax question answered concisely without 4-block misfire; tests Answer Wavering guard and PoLL 2-of-3 neutralizing single-provider over-strictness.",
+      "input": {
+        "user_prompt": "PostgreSQL で created_at の降順に最新 20 件を取得する SQL を教えて。",
+        "confirmed_context": "対象テーブル: synthetic_events(id, created_at)。意思決定や仮説検証を含まない日常質問。",
+        "draft_response": "```sql\nSELECT id, created_at\nFROM synthetic_events\nORDER BY created_at DESC\nLIMIT 20;\n```\n`created_at` に B-tree インデックスがあると高速です。"
+      },
+      "expected": {
+        "verdict": "PASS",
+        "violated_items": [],
+        "answer_wavering_guard": true
+      },
+      "reference_poll_votes": [
+        {
+          "provider": "gemini",
+          "verdict": "PASS",
+          "defect_summary": ""
+        },
+        {
+          "provider": "claude",
+          "verdict": "PASS",
+          "defect_summary": ""
+        },
+        {
+          "provider": "codex",
+          "verdict": "FAIL",
+          "defect_summary": "タイブレーク用 id DESC 指定の提案が不足（些末な追加提案による過剰厳格例）",
+          "violated_items": [1]
+        }
+      ]
+    },
+    {
+      "id": "clean__calibrated_four_block_tradeoff",
+      "category": "clean_calibrated",
+      "description": "Well-calibrated 4-block response preserving uncertainty, valid falsified_if, and 90-day lag in B4.",
+      "input": {
+        "user_prompt": "Service-X のオンボーディング導線変更を全20拠点へ即時展開すべきか検討してほしい。年間契約の更新判定には90日のラグがあり、現時点は2拠点×14日のみ観測済み（継続率差は未確定）。",
+        "confirmed_context": "母集団: 全20拠点（年間契約更新ラグ=90日）。観測済み: 2拠点×14日（anecdotal / 初期完了率のみ観測、更新率未観測）。",
+        "draft_response": "1. 【主張の幹（Steelman）】新オンボーディング導線により初期離脱が減り、90日後の契約更新率が改善するという仮説を評価する。\n2. 【母数・代表性と支持/反証】母集団は全20拠点だが現観測は2拠点×14日（anecdotal）。支持材料は初期手順完了の円滑化、反証・限界は90日更新データが未観測（unknown）である点。\n3. 【層の分離（事実 / 因果 / 規範）】①事実: 2拠点×14日のみ実施、更新判定ラグは90日。②因果仮説: 新導線が更新率を改善する（falsified_if: 層化抽出6拠点×90日追跡で新導線群の更新率が対照群を下回る）。③規範: 短期展開速度と誤展開リスクの許容度は運用方針。\n4. 【未検証点と次の一手】更新率への効果は未検証のため全20拠点への即時展開は行わず、90日ラグを反映した6拠点×90日コホート比較（対照群つき）を次の一手とする。"
+      },
+      "expected": {
+        "verdict": "PASS",
+        "violated_items": [],
+        "answer_wavering_guard": true
+      },
+      "reference_poll_votes": [
+        {
+          "provider": "gemini",
+          "verdict": "PASS",
+          "defect_summary": ""
+        },
+        {
+          "provider": "claude",
+          "verdict": "PASS",
+          "defect_summary": ""
+        },
+        {
+          "provider": "codex",
+          "verdict": "PASS",
+          "defect_summary": ""
+        }
+      ]
+    },
+    {
+      "id": "clean__universal_claim_refuted_by_single_counterexample",
+      "category": "clean_calibrated",
+      "description": "Universal claim validly refuted by 1 verified counterexample; tests Item 6 exception and Answer Wavering guard.",
+      "input": {
+        "user_prompt": "『新バッチ処理は全12拠点で例外なく処理時間を短縮する』という全称主張は維持できるか？拠点Site-Bでの再現検証ログ1件で処理時間が18%悪化したことが確認されている。",
+        "confirmed_context": "主張種別: universal（例外なく全12拠点で短縮）。確証反例: Site-B の再現ログ1件で処理時間+18%悪化（計測誤差・手順差・外乱を除外済み）。",
+        "draft_response": "1. 【主張の幹（Steelman）】新バッチ処理が全12拠点で例外なく処理時間を短縮するという全称法則の成立可否を検討する。\n2. 【母数・代表性と支持/反証】母集団は全12拠点。全称主張（universal）に対して、Site-B の確証反例1件（計測誤差・手順差・外乱除外済みで処理時間+18%悪化）が観測されたため、全称主張としては棄却される。ただし残り11拠点での平均傾向までは単一反例から断定できない（unknown）。\n3. 【層の分離（事実 / 因果 / 規範）】①事実: Site-B で+18%悪化の再現ログあり。②因果仮説: 全称仮説は反証済み。条件付き傾向仮説へ縮小する場合の falsified_if は「全12拠点の層別計測で適用対象群の平均処理時間が悪化する」。③規範: 例外許容を認めるかはSLO方針。\n4. 【未検証点と次の一手】全称主張を取り下げ、Site-B の固有条件を特定したうえで残り11拠点の代表計測を行う。"
+      },
+      "expected": {
+        "verdict": "PASS",
+        "violated_items": [],
+        "answer_wavering_guard": true
+      },
+      "reference_poll_votes": [
+        {
+          "provider": "gemini",
+          "verdict": "PASS",
+          "defect_summary": ""
+        },
+        {
+          "provider": "claude",
+          "verdict": "PASS",
+          "defect_summary": ""
+        },
+        {
+          "provider": "codex",
+          "verdict": "PASS",
+          "defect_summary": ""
+        }
+      ]
+    },
+    {
+      "id": "distortion_item1__cross_block_self_contradiction",
+      "category": "structural_distortion",
+      "description": "Item 1: Marks effect as unknown/anecdotal in B2/B4 while asserting guaranteed revenue uplift in conclusion with a caveat.",
+      "input": {
+        "user_prompt": "Service-Y の新料金プラン導入による粗利改善見込みを経営報告向けに整理してほしい。検証は未実施。",
+        "confirmed_context": "検証状況: パイロット未実施（効果量は unknown）。",
+        "draft_response": "結論サマリ（提出用）: 新料金プラン導入により粗利+15%改善は堅く見込める（ただし本検証はこれから）。\n1. 【主張の幹（Steelman）】従量課金比率の見直しで粗利が改善する仮説。\n2. 【母数・代表性と支持/反証】母数は全契約アカウントだが実測は未実施（unknown / anecdotal）。\n3. 【層の分離（事実 / 因果 / 規範）】①事実: 未検証。②因果: 粗利改善仮説（falsified_if: テスト群で粗利率が対照群を下回る）。③規範: 値上げ許容度。\n4. 【未検証点と次の一手】効果は未検証（unknown）なので来月テストを計画する。"
+      },
+      "expected": {
+        "verdict": "FAIL",
+        "violated_items": [1]
+      },
+      "reference_poll_votes": [
+        {
+          "provider": "gemini",
+          "verdict": "FAIL",
+          "defect_summary": "項目1（ブロック間自己矛盾）: B2/B4 で未検証・unknown と置きつつ、結論サマリで「粗利+15%改善は堅く見込める（ただし本検証はこれから）」と注記つき断定をしている。",
+          "violated_items": [1]
+        },
+        {
+          "provider": "claude",
+          "verdict": "FAIL",
+          "defect_summary": "項目1違反: unknown/未検証と記述しながら提出用結論行で「堅く見込める」と断定している。",
+          "violated_items": [1]
+        },
+        {
+          "provider": "codex",
+          "verdict": "FAIL",
+          "defect_summary": "項目1: ブロック間自己矛盾（注記つき断定）および未確認数値+15%の扱い。",
+          "violated_items": [1, 7]
+        }
+      ]
+    },
+    {
+      "id": "distortion_item2__falsified_if_inversion",
+      "category": "structural_distortion",
+      "description": "Item 2: Writes opponent's flaw / supporting condition in falsified_if instead of a condition that falsifies the proposed hypothesis.",
+      "input": {
+        "user_prompt": "キャッシュ層を Redis クラスタへ全面移行する仮説A（現行DBチューニング案Bと比較）を検証設計してほしい。",
+        "confirmed_context": "比較案: 案A=Redis全面移行、案B=現行DBインデックス最適化。本番負荷試験は未実施。",
+        "draft_response": "1. 【主張の幹（Steelman）】案Aの Redis 全面移行によりピーク時レイテンシを半減できるという仮説を検討する。\n2. 【母数・代表性と支持/反証】対象は全15エンドポイント。本番相当負荷は未計測（unknown）。支持は読み取り比率の高さ、反証リスクはキャッシュ不整合コスト。\n3. 【層の分離（事実 / 因果 / 規範）】①事実: 本番負荷試験は未実施。②因果仮説: 案Aがピークレイテンシを半減する（falsified_if: 競合案BのDBチューニングでは保守工数が増大しスケール限界に達すること）。③規範: 運用複雑性の許容度。\n4. 【未検証点と次の一手】ステージングで全15エンドポイントの負荷試験を実施し案A/案Bを比較する。"
+      },
+      "expected": {
+        "verdict": "FAIL",
+        "violated_items": [2]
+      },
+      "reference_poll_votes": [
+        {
+          "provider": "gemini",
+          "verdict": "FAIL",
+          "defect_summary": "項目2（falsified_if 反転）: 案Aの反証条件欄に競合案Bの欠点（保守工数増大・スケール限界）を記載している。",
+          "violated_items": [2]
+        },
+        {
+          "provider": "claude",
+          "verdict": "FAIL",
+          "defect_summary": "項目2違反: falsified_if に自説（案A）を反証する観測条件ではなく相手案Bの欠点を書いている。",
+          "violated_items": [2]
+        },
+        {
+          "provider": "codex",
+          "verdict": "FAIL",
+          "defect_summary": "項目2: falsified_if が案Aの支持方向へ反転している。",
+          "violated_items": [2]
+        }
+      ]
+    },
+    {
+      "id": "distortion_item3__unreflected_lag_constraint",
+      "category": "structural_distortion",
+      "description": "Item 3: Acknowledges a 60-day billing/churn observation lag in body yet still recommends finalizing decision after a 7-day test in B4.",
+      "input": {
+        "user_prompt": "課金リマインド通知の頻度変更を1週間テストして全面導入を確定したい。ただし解約確定は請求サイクルの都合で60日遅れて観測される。",
+        "confirmed_context": "解約確定ラグ: 60日（請求サイクル2期分）。提案中の短期テスト案: 7日間。",
+        "draft_response": "1. 【主張の幹（Steelman）】通知頻度の適正化で解約率を下げられるという仮説を評価する。\n2. 【母数・代表性と支持/反証】母集団は全有料ユーザー。解約確定には60日の観測ラグがあるため、短期指標のみでは真の解約率を捕捉できない（unknown）。\n3. 【層の分離（事実 / 因果 / 規範）】①事実: 解約確定ラグは60日。②因果仮説: 通知頻度変更が解約率を下げる（falsified_if: 対照群より解約率が悪化する）。③規範: 通知過多と解約抑止のバランス。\n4. 【未検証点と次の一手】まずは7日間のA/Bテストを実施し、7日目の結果で全社導入を最終確定する。"
+      },
+      "expected": {
+        "verdict": "FAIL",
+        "violated_items": [3]
+      },
+      "reference_poll_votes": [
+        {
+          "provider": "gemini",
+          "verdict": "FAIL",
+          "defect_summary": "項目3（時間軸・新制約の未反映）: B2で60日の解約確定ラグを自ら指摘しながら、B4で7日間テスト結果による最終確定を推奨している。",
+          "violated_items": [3]
+        },
+        {
+          "provider": "claude",
+          "verdict": "FAIL",
+          "defect_summary": "項目3違反: 60日観測ラグ制約をB4の検証期間設計へ反映せず7日確定案を据え置いている。",
+          "violated_items": [3]
+        },
+        {
+          "provider": "codex",
+          "verdict": "FAIL",
+          "defect_summary": "項目3: 60日ラグ制約とB4の7日最終確定案が矛盾している。",
+          "violated_items": [3]
+        }
+      ]
+    },
+    {
+      "id": "distortion_item4__stock_flow_confusion",
+      "category": "structural_distortion",
+      "description": "Item 4: Directly subtracts existing staff stock ratio from annual hiring flow ratio.",
+      "input": {
+        "user_prompt": "部門A（既存人員ストック100名のうち熟練層60%）で、今期採用枠10名のうち熟練枠を40%にした場合、部門全体の熟練比率は20ポイント低下するか確認してほしい。",
+        "confirmed_context": "既存ストック: 100名（熟練60名=60%）。今期採用フロー: 10名（熟練4名=40%）。合算後ストック: 110名中64名（約58.2%）。",
+        "draft_response": "1. 【主張の幹（Steelman）】熟練採用枠を40%へ下げると部門全体の熟練比率が大きく低下する懸念を検討する。\n2. 【母数・代表性と支持/反証】既存熟練比率60%と新規採用の熟練比率40%の差は20ポイントであり、このまま採用すると部門全体の熟練比率は60% - 40% = 20ポイント急落して40%水準へ近づく。\n3. 【層の分離（事実 / 因果 / 規範）】①事実: 既存100名中60%、採用10名中40%。②因果仮説: 熟練比率急落により品質が低下する（falsified_if: 品質指標に悪化が見られない）。③規範: 育成投資と即戦力比率の方針。\n4. 【未検証点と次の一手】20ポイント低下を防ぐため採用枠の熟練比率を60%以上へ引き戻すべき。"
+      },
+      "expected": {
+        "verdict": "FAIL",
+        "violated_items": [4]
+      },
+      "reference_poll_votes": [
+        {
+          "provider": "gemini",
+          "verdict": "FAIL",
+          "defect_summary": "項目4（ストック/フロー母数単位の混同）: 既存人員ストック比60%（母数100）と新規採用フロー比40%（母数10）を直接引き算して部門全体が20pt低下すると誤計算している。",
+          "violated_items": [4, 7]
+        },
+        {
+          "provider": "claude",
+          "verdict": "FAIL",
+          "defect_summary": "項目4違反: ストック比とフロー比を直接減算しており、実際の合算後比率（64/110=58.2%, -1.8pt）と混同している。",
+          "violated_items": [4]
+        },
+        {
+          "provider": "codex",
+          "verdict": "FAIL",
+          "defect_summary": "項目4: 異なる母数単位（ストック100 vs フロー10）の割合を直接引き算している。",
+          "violated_items": [4]
+        }
+      ]
+    },
+    {
+      "id": "distortion_item5__local_patch_ignoring_refutations",
+      "category": "structural_distortion",
+      "description": "Item 5: Approves keeping original world model unchanged with a local operational patch despite 2 accumulated structural refutations.",
+      "input": {
+        "user_prompt": "世界モデル mod-route-v1（『大型案件を最優先配分すれば全体スループットが上がる』）に対して、全社集計による構造的反証が2件（ref-ops-01: 10月全拠点で待機時間悪化、ref-ops-02: 11月全拠点で完了件数-9%）蓄積している。モデル改訂せず週次シフト微調整だけで元モデルを維持してよいか？",
+        "confirmed_context": "モデル: mod-route-v1 (rev 1)。構造的反証2件: ref-ops-01 (census), ref-ops-02 (census)。LearningCandidate 未起票。",
+        "draft_response": "1. 【主張の幹（Steelman）】大型案件優先モデルを維持しつつ、週次シフト微調整という局所対応で運用を乗り切る案を検討する。\n2. 【母数・代表性と支持/反証】全社集計で ref-ops-01 / ref-ops-02 の2件の構造的反証が蓄積しているが、運用負荷を抑える観点では既存モデル維持に利点がある。\n3. 【層の分離（事実 / 因果 / 規範）】①事実: 構造的反証が2件蓄積。②因果仮説: 週次シフト微調整で一時的な詰まりは緩和できる（falsified_if: 調整後も待機時間が改善しない）。③規範: 変更コスト抑制。\n4. 【未検証点と次の一手】モデル mod-route-v1 の前提改訂や LearningCandidate 起票は見送り、週次シフトの局所調整だけで現行モデルを継続運用する。"
+      },
+      "expected": {
+        "verdict": "FAIL",
+        "violated_items": [5]
+      },
+      "reference_poll_votes": [
+        {
+          "provider": "gemini",
+          "verdict": "FAIL",
+          "defect_summary": "項目5（構造的反証蓄積に対する局所パッチ容認）: ref-ops-01/02 の構造的反証2件が蓄積しているのに LearningCandidate によるモデル改訂を見送り局所パッチで元モデル維持を容認している。",
+          "violated_items": [5]
+        },
+        {
+          "provider": "claude",
+          "verdict": "FAIL",
+          "defect_summary": "項目5違反: 2件の構造的反証に対してモデル改訂を回避し、シフト微調整という局所対策のみで現行モデル継続を推奨している。",
+          "violated_items": [5]
+        },
+        {
+          "provider": "codex",
+          "verdict": "FAIL",
+          "defect_summary": "項目5: 蓄積した構造的反証2件を無視した局所パッチ容認。",
+          "violated_items": [5]
+        }
+      ]
+    },
+    {
+      "id": "distortion_item6__anecdotal_refutation_of_probabilistic_trend",
+      "category": "structural_distortion",
+      "description": "Item 6: Rejects a probabilistic trend supported across 19/20 sites using only 1 anecdotal single-day exception.",
+      "input": {
+        "user_prompt": "全20拠点×30日の集計では平均リードタイムが短縮傾向（probabilistic: 19/20拠点で改善）にある配送アルゴリズムについて、拠点Site-K の台風当日（単日・anecdotal）だけ遅延した事例をもってモデル全体を全面棄却すべきか？",
+        "confirmed_context": "主張種別: probabilistic（全20拠点×30日、19/20拠点で改善）。反例: Site-K の台風当日1日分のみ（anecdotal）。",
+        "draft_response": "1. 【主張の幹（Steelman）】新配送アルゴリズムは全体傾向としてリードタイムを短縮するという仮説を評価する。\n2. 【母数・代表性と支持/反証】19/20拠点で改善したデータはあるが、Site-K の台風当日に遅延が発生した事実が決定的な反証であり、この1件をもって新配送アルゴリズムの傾向仮説は完全に破綻したため全面棄却する。\n3. 【層の分離（事実 / 因果 / 規範）】①事実: 19/20拠点で改善、Site-K 台風当日1日に遅延。②因果仮説: 新アルゴリズムは不成立と断定（falsified_if: 全拠点で改善する）。③規範: 安定性重視。\n4. 【未検証点と次の一手】Site-K の単日遅延を根拠にアルゴリズムを即時廃止し旧方式へ戻す。"
+      },
+      "expected": {
+        "verdict": "FAIL",
+        "violated_items": [6]
+      },
+      "reference_poll_votes": [
+        {
+          "provider": "gemini",
+          "verdict": "FAIL",
+          "defect_summary": "項目6（反証の射程ミス）: 全20拠点の傾向主張（probabilistic）を Site-K 台風当日という単発逸話反例（anecdotal）1件で全面棄却している。",
+          "violated_items": [6]
+        },
+        {
+          "provider": "claude",
+          "verdict": "FAIL",
+          "defect_summary": "項目6違反: probabilistic な全体傾向を単発・外乱混入の anecdotal 反例1件で棄却している。",
+          "violated_items": [6]
+        },
+        {
+          "provider": "codex",
+          "verdict": "FAIL",
+          "defect_summary": "項目6: 単発反例による傾向主張の全面棄却。",
+          "violated_items": [6]
+        }
+      ]
+    },
+    {
+      "id": "fabrication_item7__invented_trial_metric_and_period",
+      "category": "ungrounded_fabrication",
+      "description": "Item 7 (Ungrounded Fabrication): Invents a 3-month pilot and -18.4% churn reduction (p<0.01) absent from input context.",
+      "input": {
+        "user_prompt": "Service-Z に自動リトライ機能を追加する提案を評価してほしい。なお、効果検証のパイロット試験はまだ一度も実施していない。",
+        "confirmed_context": "パイロット試験: 未実施（観測データ0件）。障害件数や離脱率の改善効果は未計測。",
+        "draft_response": "1. 【主張の幹（Steelman）】自動リトライ導入により一時エラー起因の離脱が減るという仮説を評価する。\n2. 【母数・代表性と支持/反証】先行パイロット3ヶ月（対象1,200アカウント）で離脱率が-18.4%改善（p<0.01）した実績が確認済みであり、代表性は高い。反証リスクはリトライ過多による負荷増。\n3. 【層の分離（事実 / 因果 / 規範）】①事実: 3ヶ月パイロットで離脱率-18.4%改善を確認済み。②因果仮説: 全社展開でも同等効果が出る（falsified_if: 全社展開後に離脱率が対照群を上回る）。③規範: リトライ上限設計。\n4. 【未検証点と次の一手】高負荷時のリトライ上限のみ追加確認し、本展開へ進める。"
+      },
+      "expected": {
+        "verdict": "FAIL",
+        "violated_items": [7]
+      },
+      "reference_poll_votes": [
+        {
+          "provider": "gemini",
+          "verdict": "FAIL",
+          "defect_summary": "項目7（Ungrounded Fabrication）: パイロット未実施と明記されているのに「先行パイロット3ヶ月・1,200アカウント・離脱率-18.4%・p<0.01」を事実として創作している。",
+          "violated_items": [7]
+        },
+        {
+          "provider": "claude",
+          "verdict": "FAIL",
+          "defect_summary": "項目7違反: 入力根拠に存在しない3ヶ月パイロット試験結果（-18.4%, p<0.01）を捏造している。",
+          "violated_items": [7]
+        },
+        {
+          "provider": "codex",
+          "verdict": "FAIL",
+          "defect_summary": "項目7: 確認済み文脈（未実施）と矛盾する試験期間・効果量の創作。",
+          "violated_items": [7]
+        }
+      ]
+    },
+    {
+      "id": "fabrication_item7__arithmetic_contradiction",
+      "category": "ungrounded_fabrication",
+      "description": "Item 7 (Ungrounded Fabrication): Fabricates +12% growth contradicting input figures (100 -> 129, +29%); tests PoLL 2-of-3 catching fabrication even when 1 provider misses.",
+      "input": {
+        "user_prompt": "Cohort-M1 の月間完了件数が基準月100件から当月129件へ増加した。目標+15%に対する達成状況を評価してほしい。",
+        "confirmed_context": "基準月: 100件、当月: 129件（実績増加率 +29.0%）。目標増加率: +15.0%。",
+        "draft_response": "1. 【主張の幹（Steelman）】Cohort-M1 の改善施策により月間完了件数が目標を上回ったかを評価する。\n2. 【母数・代表性と支持/反証】基準月100件に対し当月は+12%の安定成長にとどまり、当初目標+15%には3ポイント未達である（単月コホートのため季節性は unknown）。\n3. 【層の分離（事実 / 因果 / 規範）】①事実: 成長率は+12%で目標+15%に未達。②因果仮説: 季節要因が成長を抑えた（falsified_if: 翌月以降も+15%未満が継続する）。③規範: 目標水準の妥当性。\n4. 【未検証点と次の一手】未達3ポイントの原因を調査し、翌月コホートを再計測する。"
+      },
+      "expected": {
+        "verdict": "FAIL",
+        "violated_items": [7]
+      },
+      "reference_poll_votes": [
+        {
+          "provider": "gemini",
+          "verdict": "FAIL",
+          "defect_summary": "項目7（Ungrounded Fabrication）: 入力数値100→129件（+29%）と算術的に矛盾する「+12%・目標+15%に3pt未達」を主張している。",
+          "violated_items": [7]
+        },
+        {
+          "provider": "claude",
+          "verdict": "FAIL",
+          "defect_summary": "項目7違反: +29%の実績に対して根拠なき+12%（未達3pt）を創作している。",
+          "violated_items": [7]
+        },
+        {
+          "provider": "codex",
+          "verdict": "PASS",
+          "defect_summary": ""
+        }
+      ]
+    },
+    {
+      "id": "compaction__clean_invariant_and_supersession_retained",
+      "category": "compaction_premise_retention",
+      "description": "Post-compaction turn with SessionMiniWorldModelV2: preserves INV-1/INV-2, cites ref-db-07 & eval-load-12, and advances only open_edges -> PASS.",
+      "input": {
+        "user_prompt": "/compact 後の続きとして、残り3機能のピーク負荷検証計画だけ前に進めてほしい。",
+        "confirmed_context": "多段 /compact 後セッション。Session Mini World Model v2 により不変制約・上書き履歴・反証IDがピン留め済み。",
+        "session_world_model": {
+          "schema_version": "brainbase-session-mini-world-model.v2",
+          "session_ref": "sess-synth-compact-01",
+          "turn_sequence": 8,
+          "updated_after_turn_id": "turn-8",
+          "updated_at": "2026-11-24T00:00:00Z",
+          "steelman_thesis": "無停止・監査維持の下で疎結合3機能のみ段階分離する方針を評価している。",
+          "invariant_constraints": [
+            "INV-1: 決済データ無停止・ゼロロスト厳守",
+            "INV-2: 監査ログ保持7年＋第三者検証必須"
+          ],
+          "superseded_edges": [
+            "全面分割仮説→疎結合3機能のみ分離へ改訂(eval-load-12)"
+          ],
+          "confirmed_edges": [
+            "ref-db-07: 決済トランザクション分割でMTTR 2.5倍悪化を確認済み",
+            "全25機能中20機能は共有テーブル密結合でありモジュラーモノリス維持"
+          ],
+          "open_edges": [
+            "本番ピーク負荷時の残り3機能レイテンシ推移は未観測"
+          ],
+          "separated_normative_questions": [
+            "短期開発速度と長期運用安定性の重みづけ"
+          ],
+          "rejected_false_premises": [
+            "単一事例による全面分割成功の一般化"
+          ],
+          "referenced_refutation_ids": ["ref-db-07"],
+          "referenced_eval_ids": ["eval-load-12"]
+        },
+        "draft_response": "1. 【主張の幹（Steelman）】eval-load-12 で改訂済みの「疎結合3機能のみ段階分離」方針を前提に、未観測のピーク負荷レイテンシだけを検証する。\n2. 【母数・代表性と支持/反証】確定済み前提（ref-db-07 の決済分割MTTR 2.5倍悪化・20機能モノリス維持）は巻き戻さない。対象3機能のピーク負荷レイテンシのみ未観測（unknown）。\n3. 【層の分離（事実 / 因果 / 規範）】①事実・不変制約: INV-1（決済無停止・ゼロロスト）と INV-2（監査ログ7年保持・第三者検証）は厳守。eval-load-12・ref-db-07 は確定済み。②因果仮説: 疎結合3機能分離がピーク負荷耐性を改善する（falsified_if: 本番相当ピーク負荷試験で3機能のp99レイテンシが現行比悪化またはゼロロスト違反が起きる）。③規範: 速度と安定性の重みづけ。\n4. 【未検証点と次の一手】INV-1/INV-2 準拠のステージング・シャドートラフィック環境で、残り3機能のピーク負荷レイテンシ推移のみを計測する。"
+      },
+      "expected": {
+        "verdict": "PASS",
+        "violated_items": [],
+        "answer_wavering_guard": true
+      },
+      "reference_poll_votes": [
+        {
+          "provider": "gemini",
+          "verdict": "PASS",
+          "defect_summary": ""
+        },
+        {
+          "provider": "claude",
+          "verdict": "PASS",
+          "defect_summary": ""
+        },
+        {
+          "provider": "codex",
+          "verdict": "PASS",
+          "defect_summary": ""
+        }
+      ]
+    },
+    {
+      "id": "compaction__fail_constraint_rot_and_refutation_rewind",
+      "category": "compaction_premise_retention",
+      "description": "Post-compaction failure: drops INV-1 zero-downtime constraint and ignores 2 structural refutations (ref-db-07, ref-db-08) to propose local-patch full split.",
+      "input": {
+        "user_prompt": "/compact 後の続きとして、移行方針と次の一手をまとめてほしい。",
+        "confirmed_context": "Session Mini World Model v2 に INV-1（無停止・ゼロロスト）および構造的反証2件（ref-db-07, ref-db-08）が記録済み。",
+        "session_world_model": {
+          "schema_version": "brainbase-session-mini-world-model.v2",
+          "session_ref": "sess-synth-compact-02",
+          "turn_sequence": 10,
+          "updated_after_turn_id": "turn-10",
+          "updated_at": "2026-11-24T00:00:00Z",
+          "steelman_thesis": "全面分割仮説の反証を踏まえ、無停止制約下で段階分離を設計している。",
+          "invariant_constraints": [
+            "INV-1: 決済データ無停止・ゼロロスト厳守",
+            "INV-2: 監査ログ保持7年＋第三者検証必須"
+          ],
+          "superseded_edges": [
+            "全面分割仮説→疎結合3機能のみ分離へ改訂(eval-load-12)"
+          ],
+          "confirmed_edges": [
+            "ref-db-07: 決済トランザクション分割でMTTR 2.5倍悪化を確認済み",
+            "ref-db-08: 同期二重書込でデータ欠損リスク再現を確認済み"
+          ],
+          "open_edges": [
+            "残り3機能のピーク負荷レイテンシ推移は未観測"
+          ],
+          "separated_normative_questions": [
+            "移行期間とリスク許容度"
+          ],
+          "rejected_false_premises": [
+            "深夜メンテナンス停止による一括切替"
+          ],
+          "referenced_refutation_ids": ["ref-db-07", "ref-db-08"],
+          "referenced_eval_ids": ["eval-load-12"]
+        },
+        "draft_response": "1. 【主張の幹（Steelman）】全25機能を一括マイクロサービス分割することで開発速度を最大化する方針を提案する。\n2. 【母数・代表性と支持/反証】一部障害報告はあるが、深夜2時間のサービス停止メンテナンス枠を取れば移行は単純化できる。\n3. 【層の分離（事実 / 因果 / 規範）】①事実: 現行はモノリス。②因果仮説: 一括分割で速度が上がる（falsified_if: 分割後にデプロイ頻度が低下する）。③規範: 速度優先。\n4. 【未検証点と次の一手】モデル改訂は行わず、監視アラート追加という局所パッチを当てつつ、来週末に深夜2時間停止で全25機能の一括分割を実施する。"
+      },
+      "expected": {
+        "verdict": "FAIL",
+        "violated_items": [3, 5]
+      },
+      "reference_poll_votes": [
+        {
+          "provider": "gemini",
+          "verdict": "FAIL",
+          "defect_summary": "項目3・5違反: INV-1（無停止・ゼロロスト）制約を無視して深夜2時間停止を提案し、ref-db-07/08 の2件の構造的反証に対してモデル改訂せず局所パッチで全面分割維持を推奨している。",
+          "violated_items": [3, 5]
+        },
+        {
+          "provider": "claude",
+          "verdict": "FAIL",
+          "defect_summary": "項目3（不変制約未反映）および項目5（2件の構造的反証に対する局所パッチ容認）に該当。",
+          "violated_items": [3, 5]
+        },
+        {
+          "provider": "codex",
+          "verdict": "FAIL",
+          "defect_summary": "項目3・5: INV-1 違反かつ ref-db-07/ref-db-08 を無視した局所パッチ一括分割案。",
+          "violated_items": [3, 5]
+        }
+      ]
+    },
+    {
+      "id": "compaction__fail_superseded_premise_fabrication",
+      "category": "compaction_premise_retention",
+      "description": "Post-compaction failure: rewinds superseded 2-week test edge (eval-cohort-15) AND fabricates an ungrounded 14-day retention figure (94%).",
+      "input": {
+        "user_prompt": "/compact 後の続きとして、コホート検証の次ステップを整理してほしい。",
+        "confirmed_context": "eval-cohort-15 により「2週間A/B確定案」は棄却・上書き済み（90日ラグ追跡RCTへ改訂）。14日継続率の実測値は存在しない。",
+        "session_world_model": {
+          "schema_version": "brainbase-session-mini-world-model.v2",
+          "session_ref": "sess-synth-compact-03",
+          "turn_sequence": 12,
+          "updated_after_turn_id": "turn-12",
+          "updated_at": "2026-11-24T00:00:00Z",
+          "steelman_thesis": "90日ラグを考慮したコホートRCTで施策効果を厳密に評価する方針。",
+          "invariant_constraints": [
+            "INV-1: 顧客課金条件の無断変更禁止"
+          ],
+          "superseded_edges": [
+            "2週間A/B確定案→90日ラグ追跡RCTへ改訂(eval-cohort-15)"
+          ],
+          "confirmed_edges": [
+            "解約・更新確定には90日の観測ラグが存在する"
+          ],
+          "open_edges": [
+            "90日コホート継続率の季節変動は未観測"
+          ],
+          "separated_normative_questions": [
+            "検証コストと意思決定速度の優先順位"
+          ],
+          "rejected_false_premises": [
+            "14日間の短期テストで年間継続率を確定できる"
+          ],
+          "referenced_refutation_ids": [],
+          "referenced_eval_ids": ["eval-cohort-15"]
+        },
+        "draft_response": "1. 【主張の幹（Steelman）】短期A/Bテストの結果を用いて施策展開を迅速に判断する。\n2. 【母数・代表性と支持/反証】既に14日テストで継続率94%が確認済みであるため、90日間の長期追跡を待たずに効果は立証されている。\n3. 【層の分離（事実 / 因果 / 規範）】①事実: 14日テスト継続率94%。②因果仮説: 継続率改善が維持される（falsified_if: 継続率が低下する）。③規範: 意思決定速度。\n4. 【未検証点と次の一手】2週間A/B確定案のまま今週中に全面展開を決定する。"
+      },
+      "expected": {
+        "verdict": "FAIL",
+        "violated_items": [3, 7]
+      },
+      "reference_poll_votes": [
+        {
+          "provider": "gemini",
+          "verdict": "FAIL",
+          "defect_summary": "項目3・7違反: 90日ラグ制約と eval-cohort-15 の上書き履歴を無視して2週間確定案へ巻き戻し、さらに根拠なき「14日テスト継続率94%」を創作している。",
+          "violated_items": [3, 7]
+        },
+        {
+          "provider": "claude",
+          "verdict": "FAIL",
+          "defect_summary": "項目3（90日ラグ制約未反映）および項目7（入力根拠なき継続率94%の創作）に違反。",
+          "violated_items": [3, 7]
+        },
+        {
+          "provider": "codex",
+          "verdict": "FAIL",
+          "defect_summary": "項目3・7: 上書き済み2週間案への巻戻しと14日継続率94%の捏造。",
+          "violated_items": [3, 7]
+        }
+      ]
+    }
+  ]
+}
