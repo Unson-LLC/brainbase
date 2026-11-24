@@ -31,6 +31,8 @@ const SUPPORTED_TYPES = new Set(['object', 'array', 'string', 'number', 'integer
 const NULL_NOTE = 'null is also accepted.';
 const CLOSED_EMPTY_OBJECT_NOTE =
   'Must be an empty object ({}); additionalProperties: false was relaxed to additionalProperties: true for Gemini schema compatibility.';
+const EMPTY_ENUM_INTERSECTION_NOTE =
+  'No string value satisfies the intersected enum constraints (empty enum intersection).';
 
 /**
  * JSON Schema keywords rejected or mis-rendered by Gemini FunctionDeclaration
@@ -277,6 +279,11 @@ function mergeNormalizedSchemas(
           );
           if (intersectedEnums.length > 0) {
             result.enum = intersectedEnums;
+          } else {
+            result.minLength = Math.max(typeof result.minLength === 'number' ? result.minLength : 0, 1);
+            result.maxLength = 0;
+            notes.push(EMPTY_ENUM_INTERSECTION_NOTE);
+            result.description = appendDescription(result.description, EMPTY_ENUM_INTERSECTION_NOTE);
           }
         }
       } else {

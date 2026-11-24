@@ -1239,6 +1239,65 @@ describe('MCP tool inputSchema cross-client portability contract (Gemini / OpenA
       required: ['tag'],
     });
 
+    // Disjoint string enum intersections (e.g. closed properties.id enum ['a'] vs other branch
+    // additionalProperties enum ['b']) must NOT relax to an unconstrained string in either branch order,
+    // while non-empty enum intersections (['a', 'b'] ∩ ['b', 'c'] === ['b']) keep the exact intersection.
+    const disjointEnumFirst = {
+      type: 'object',
+      allOf: [
+        { properties: { id: { type: 'string', enum: ['a'] } }, additionalProperties: false },
+        { additionalProperties: { type: 'string', enum: ['b'] } },
+      ],
+    } as unknown as Tool['inputSchema'];
+
+    const disjointEnumSecond = {
+      type: 'object',
+      allOf: [
+        { additionalProperties: { type: 'string', enum: ['b'] } },
+        { properties: { id: { type: 'string', enum: ['a'] } }, additionalProperties: false },
+      ],
+    } as unknown as Tool['inputSchema'];
+
+    for (const candidate of [disjointEnumFirst, disjointEnumSecond]) {
+      const normalized = normalizeMcpToolInputSchemaForPortability(candidate);
+      expect(validateMcpToolInputSchemaPortability(normalized, 'disjoint_enum_tool')).toEqual([]);
+      expect(normalized).toEqual({
+        type: 'object',
+        properties: {
+          id: {
+            type: 'string',
+            minLength: 1,
+            maxLength: 0,
+            description: 'No string value satisfies the intersected enum constraints (empty enum intersection).',
+          },
+        },
+        additionalProperties: false,
+      });
+      // Strictly idempotent on second pass.
+      expect(normalizeMcpToolInputSchemaForPortability(normalized)).toEqual(normalized);
+    }
+
+    const overlappingEnumIntersection = {
+      type: 'object',
+      allOf: [
+        { properties: { id: { type: 'string', enum: ['a', 'b'] } }, additionalProperties: false },
+        { additionalProperties: { type: 'string', enum: ['b', 'c'] } },
+      ],
+    } as unknown as Tool['inputSchema'];
+
+    const normalizedOverlap = normalizeMcpToolInputSchemaForPortability(overlappingEnumIntersection);
+    expect(validateMcpToolInputSchemaPortability(normalizedOverlap, 'overlap_enum_tool')).toEqual([]);
+    expect(normalizedOverlap).toEqual({
+      type: 'object',
+      properties: {
+        id: {
+          type: 'string',
+          enum: ['b'],
+        },
+      },
+      additionalProperties: false,
+    });
+
     // Union combinators (oneOf / anyOf) must keep the looser constraint:
     // - [false, schema] -> schema
     // - [false, open] -> open (additionalProperties omitted)
