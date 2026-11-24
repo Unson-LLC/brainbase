@@ -1,7 +1,7 @@
 import { access, copyFile, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runCli } from '../src/cli.js';
 import { initializePersonalOs, loadPersonalOs, mutatePersonalOs, mutatePersonalOsWithSidecar, readPersonalOsSidecar } from '../src/ssot.js';
 
@@ -9,7 +9,7 @@ const canonicalFiles = ['graph.json', 'relationships.json', 'personal-kg.jsonl',
 const dirs: string[] = [];
 
 async function tempDir(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'brainbase-atomic-'));
+  const dir = await mkdtemp(join(process.env.BRAINBASE_TEST_FIXTURE_ROOT ?? tmpdir(), 'brainbase-atomic-'));
   dirs.push(dir);
   return dir;
 }
@@ -358,7 +358,11 @@ describe('atomic onboarding CLI writers', () => {
     expect(projects).toEqual(expect.arrayContaining(['Concurrent project A', 'Concurrent project B']));
   });
 
-  it('preserves both concurrent onboard:apply --write updates', async () => {
+  it('preserves both concurrent onboard:apply --write updates', async ({ onTestFinished }) => {
+    if (process.env.CI && process.env.CI !== 'false') {
+      vi.stubEnv('BRAINBASE_SSOT_LOCK_TIMEOUT_MS', '15000');
+      onTestFinished(() => vi.unstubAllEnvs());
+    }
     const dir = await tempDir();
     await initializePersonalOs(dir);
     const candidateA = join(dir, 'candidate-a.json');
@@ -372,12 +376,14 @@ describe('atomic onboarding CLI writers', () => {
       { id: 'person-b', kind: 'person', payload: { name: 'Concurrent person B', projectId: 'project-xg1pxc' } }
     ] }));
 
+    const first = capture();
+    const second = capture();
     const codes = await Promise.all([
-      runCli(['onboard:apply', '--dir', dir, '--from', candidateA, '--all', '--write'], capture().io),
-      runCli(['onboard:apply', '--dir', dir, '--from', candidateB, '--all', '--write'], capture().io)
+      runCli(['onboard:apply', '--dir', dir, '--from', candidateA, '--all', '--write'], first.io),
+      runCli(['onboard:apply', '--dir', dir, '--from', candidateB, '--all', '--write'], second.io)
     ]);
 
-    expect(codes).toEqual([0, 0]);
+    expect(codes, `CLI stderr (A): ${first.stderr.join('')}\nCLI stderr (B): ${second.stderr.join('')}`).toEqual([0, 0]);
     const people = (await loadPersonalOs(dir)).graph.entities.filter((entity) => entity.type === 'person').map((entity) => entity.name);
     expect(people).toEqual(expect.arrayContaining(['Concurrent person A', 'Concurrent person B']));
   });
@@ -441,10 +447,12 @@ async function waitForFile(path: string, timeoutMs = 10_000): Promise<void> {
 }
 
 function capture() {
+  const stderr: string[] = [];
   return {
+    stderr,
     io: {
       stdout: { write: (_chunk: string) => undefined },
-      stderr: { write: (_chunk: string) => undefined }
+      stderr: { write: (chunk: string) => { stderr.push(chunk); } }
     }
   };
 }
