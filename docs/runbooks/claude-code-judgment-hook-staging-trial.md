@@ -18,6 +18,11 @@
 
 試す人のアカウントは、WorkOSかSlackの普通のログインで入れるものにします。stagingの試験用入口のアカウントは、端末のログインの承認を断られます。
 
+手元のbrainbase（自分の端末で動かすbrainbase）の判断フックを入れている人は、試す前に外します。組織の判断フックと両方が同じClaude Codeで動くと、2つのフックがそれぞれターンを開き、別々のturn_refでresolve_turnを求めます。Hostは別のフックのturn_refを受け付けないので、`judgment_hook_http_503_judgment_turn_resolution_binding_invalid`が出て、そのターンの監査は未完了のまま終わります。
+
+- 確かめ方: Claude Codeで`/hooks`を開くか、`~/.claude/settings.json`とリポジトリの`.claude/settings.json`・`.claude/settings.local.json`の`hooks`を見ます。`UserPromptSubmit`に`brainbase judgment`のフックが2つあれば、両方入っています。コマンドに`scripts/claude-hooks/judgment-hook-entry.sh`を含むものが手元のbrainbase、`--registration`を含むものが手順4で入れる組織のフックです。
+- 外し方: 手元のbrainbaseを登録したcheckoutで`node scripts/claude-hooks/register-user-hooks.mjs --remove`を実行します。ほかのフックは残ります。外したくないときは、試す間だけ手元のフックを読まない起動（`claude --setting-sources project,local`）にします。この場合は、手順4を`--settings .claude/settings.local.json`のようにproject側の設定に登録します。
+
 ## 試す人の手順
 
 1. Node.js 20以上を入れる。
@@ -87,6 +92,7 @@ Claude Codeの画面に`⚠️ Brainbase判断フック:`で始まる警告が�
 - `judgment_repository_unidentified`: originのURLからホスト・所有者・名前を読み取れない。手順4を`--project <project>`つきでやり直す。
 - `judgment_turn_login_changed`: ターンの途中でログインし直した。そのターンの残りは送っていない。次の依頼から新しいログインで送る。
 - `judgment_turn_destination_changed`: ターンの途中で設定ファイルの送り先かprojectが変わった。回答は送っていない。次の依頼から新しい送り先に送る。
+- `judgment_hook_http_503_judgment_turn_resolution_binding_invalid`（理由に`judgment_binding_turn_ref_mismatch`）が出て、終わりに「監査は未完了のまま終了」と出る: 手元のbrainbaseの判断フックも動いている。「前提」の確かめ方で2つ入っていないかを見て、手元のフックを外してから新しい依頼を送る。
 
 ## やめるとき
 
