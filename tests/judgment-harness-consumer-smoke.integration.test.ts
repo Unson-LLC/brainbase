@@ -58,6 +58,12 @@ describe('judgment harness tarball consumer smoke (AC-05)', () => {
         executionOutcome: 'passed',
         nodeEvidence: 'passed',
         eventAdapter: 'passed',
+        reasoningAudit: {
+          status: 'passed',
+          overallStatus: 'pass',
+          overallScore: 1,
+          observationCount: 6
+        },
         queueReadbackSmoke: 'passed',
         outbox: {
           enqueue: 'queued',
@@ -74,7 +80,8 @@ describe('judgment harness tarball consumer smoke (AC-05)', () => {
           expect.objectContaining({ subpath: '@unson/brainbase-mcp/judgment-execution-outcome' }),
           expect.objectContaining({ subpath: '@unson/brainbase-mcp/judgment-node-evidence' }),
           expect.objectContaining({ subpath: '@unson/brainbase-mcp/judgment-event-adapter' }),
-          expect.objectContaining({ subpath: '@unson/brainbase-mcp/judgment-event-outbox' })
+          expect.objectContaining({ subpath: '@unson/brainbase-mcp/judgment-event-outbox' }),
+          expect.objectContaining({ subpath: '@unson/brainbase-mcp/judgment-reasoning-audit' })
         ])
       }
     });

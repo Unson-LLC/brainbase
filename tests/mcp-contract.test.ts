@@ -62,7 +62,24 @@ describe('MCP contract', () => {
     });
     const review = toolDefinitions.find((tool) => tool.name === 'brainbase_onboarding_review');
     expect((review?.inputSchema as { properties?: { actions?: { minItems?: number } } }).properties?.actions?.minItems).toBe(1);
-    expect((review?.inputSchema as { properties?: { actions?: { items?: { oneOf?: unknown[] } } } }).properties?.actions?.items?.oneOf).toHaveLength(4);
+    const reviewItem = (review?.inputSchema as {
+      properties?: {
+        actions?: {
+          items?: {
+            type?: string;
+            required?: string[];
+            oneOf?: unknown[];
+            properties?: Record<string, { type?: string; enum?: string[] }>;
+          };
+        };
+      };
+    }).properties?.actions?.items;
+    expect(reviewItem?.oneOf).toBeUndefined();
+    expect(reviewItem?.type).toBe('object');
+    expect(reviewItem?.required).toEqual(['candidateId', 'decision', 'reason']);
+    expect(reviewItem?.properties?.decision).toMatchObject({ type: 'string', enum: ['approve', 'edit', 'reject', 'merge'] });
+    expect(reviewItem?.properties).toHaveProperty('payload');
+    expect(reviewItem?.properties).toHaveProperty('mergeIntoCandidateId');
     const resolver = toolDefinitions.find(tool => tool.name === 'resolve_entity');
     expect(resolver).toMatchObject({
       name: 'resolve_entity',

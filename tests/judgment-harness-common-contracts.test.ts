@@ -11,6 +11,9 @@ import {
   type JudgmentNodeResult
 } from '../src/judgment-node-evidence.js';
 import {
+  DEFAULT_JUDGMENT_EVENT_PROJECT_CODE,
+  isProjectCodeAllowed,
+  normalizeJudgmentEventProjectCode,
   sanitizeJudgmentAnswer,
   toKnowledgeEventFromJudgmentEpisode
 } from '../src/judgment-event-adapter.js';
@@ -179,6 +182,97 @@ describe('portable judgment harness common contracts', () => {
     expect(toKnowledgeEventFromJudgmentEpisode({ completion_status: 'partial' })).toBeNull();
   });
 
+  it('propagates episode project_code, validates format, and aligns with allowedProjectCodes', () => {
+    const baseEpisode = {
+      episode_id: 'episode-proj-1',
+      session_id: 'session-proj-1',
+      turn_id: 'turn-proj-1',
+      finalized_at: '2026-11-24T00:00:00.000Z',
+      answer_digest: 'digest-proj-1',
+      completion_status: 'complete',
+      final_answer: 'Project-scoped judgment summary.'
+    };
+
+    const defaultEvent = toKnowledgeEventFromJudgmentEpisode(baseEpisode);
+    const nonBrainbaseEvent = toKnowledgeEventFromJudgmentEpisode({
+      ...baseEpisode,
+      project_code: '  itsaplan  '
+    });
+    expect(defaultEvent?.applicability_scope).toEqual({
+      scope: 'judgment_episode',
+      project_code: DEFAULT_JUDGMENT_EVENT_PROJECT_CODE
+    });
+    expect(nonBrainbaseEvent?.applicability_scope).toEqual({
+      scope: 'judgment_episode',
+      project_code: 'itsaplan'
+    });
+    // Event ID derivation stays backward-compatible regardless of project_code.
+    expect(nonBrainbaseEvent?.event_id).toBe(defaultEvent?.event_id);
+
+    // Nested episode project_code sources work when top-level project_code is missing or blank.
+    expect(toKnowledgeEventFromJudgmentEpisode({
+      ...baseEpisode,
+      project_code: '   ',
+      applicability_scope: { project_code: 'unson-lab' }
+    })?.applicability_scope.project_code).toBe('unson-lab');
+    expect(toKnowledgeEventFromJudgmentEpisode({
+      ...baseEpisode,
+      payload: { project_code: 'sales.ops_1' }
+    })?.applicability_scope.project_code).toBe('sales.ops_1');
+    expect(toKnowledgeEventFromJudgmentEpisode({
+      ...baseEpisode,
+      adoption: { request: { project_code: 'req-proj' }, receipt: { project_code: 'rec-proj' } }
+    })?.applicability_scope.project_code).toBe('req-proj');
+    expect(toKnowledgeEventFromJudgmentEpisode({
+      ...baseEpisode,
+      adoption: { receipt: { project_code: 'rec-proj' } }
+    })?.applicability_scope.project_code).toBe('rec-proj');
+
+    // Malformed project_code values fail loudly instead of silently misattributing to brainbase.
+    for (const invalid of ['../escape', 'foo/bar', 'UPPERCASE', 'has space', 'a'.repeat(65), 123]) {
+      expect(() => toKnowledgeEventFromJudgmentEpisode({
+        ...baseEpisode,
+        project_code: invalid
+      })).toThrow('project_code is invalid');
+    }
+    expect(() => toKnowledgeEventFromJudgmentEpisode(baseEpisode, {
+      fallbackProjectCode: '../bad'
+    })).toThrow('fallbackProjectCode is invalid');
+
+    // Token projectCodes allowlist alignment (mirrors downstream requireProjectAccess).
+    expect(toKnowledgeEventFromJudgmentEpisode(
+      { ...baseEpisode, project_code: 'itsaplan' },
+      { allowedProjectCodes: ['brainbase', 'itsaplan'] }
+    )?.applicability_scope.project_code).toBe('itsaplan');
+    expect(toKnowledgeEventFromJudgmentEpisode(
+      { ...baseEpisode, project_code: 'outside-project' },
+      { allowedProjectCodes: ['brainbase', 'itsaplan'] }
+    )).toBeNull();
+    expect(() => toKnowledgeEventFromJudgmentEpisode(
+      { ...baseEpisode, project_code: 'outside-project' },
+      { allowedProjectCodes: ['brainbase', 'itsaplan'], onProjectOutOfScope: 'reject' }
+    )).toThrow(expect.objectContaining({ code: 'knowledge_project_access_denied' }));
+
+    // Missing episode.project_code falls back to brainbase; if token does not allow brainbase, skip safely.
+    expect(toKnowledgeEventFromJudgmentEpisode(baseEpisode, {
+      allowedProjectCodes: ['itsaplan']
+    })).toBeNull();
+    expect(toKnowledgeEventFromJudgmentEpisode(baseEpisode, {
+      fallbackProjectCode: 'itsaplan',
+      allowedProjectCodes: ['itsaplan']
+    })?.applicability_scope.project_code).toBe('itsaplan');
+
+    // Empty list and wildcards fail closed.
+    expect(toKnowledgeEventFromJudgmentEpisode(
+      { ...baseEpisode, project_code: 'itsaplan' },
+      { allowedProjectCodes: [] }
+    )).toBeNull();
+    expect(normalizeJudgmentEventProjectCode('*')).toBeNull();
+    expect(isProjectCodeAllowed('itsaplan', ['*'])).toBe(false);
+    expect(isProjectCodeAllowed(null, ['brainbase'])).toBe(false);
+    expect(isProjectCodeAllowed('itsaplan', ['brainbase', 'itsaplan'])).toBe(true);
+  });
+
   it('keeps organization identity in the Org adapter while portable event fields match', () => {
     const ossEvent = toKnowledgeEventFromJudgmentEpisode({
       episode_id: 'episode-1',
@@ -241,8 +335,10 @@ describe('portable judgment harness common contracts', () => {
       './judgment-host',
       './judgment-execution-outcome',
       './judgment-node-evidence',
+      './judgment-project-binding',
       './judgment-event-adapter',
-      './judgment-event-outbox'
+      './judgment-event-outbox',
+      './judgment-reasoning-audit'
     ]) {
       expect(packageJson.exports[name]).toEqual({
         types: expect.stringMatching(/^\.\/dist\/.+\.d\.ts$/u),

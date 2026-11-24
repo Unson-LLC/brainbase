@@ -216,6 +216,9 @@ export function assertPortableGraphBundle(bundle: unknown): asserts bundle is Po
 }
 
 function parseGraphRetrievalResponse(value: unknown): GraphRetrievalResponse {
+  const validOptionalCount = (candidate: unknown): candidate is number | undefined => (
+    candidate === undefined || (typeof candidate === 'number' && Number.isInteger(candidate) && candidate >= 0)
+  );
   if (!isRecord(value)
     || (value.graphVersion !== 1 && value.graphVersion !== 2)
     || (value.schemaVersion !== 1 && value.schemaVersion !== 2)
@@ -230,6 +233,8 @@ function parseGraphRetrievalResponse(value: unknown): GraphRetrievalResponse {
     || !['semantic', 'lexical', 'seed'].includes(String(value.semantic.method))
     || !Array.isArray(value.candidates)
     || !Array.isArray(value.results)
+    || !validOptionalCount(value.totalScopedCount)
+    || !validOptionalCount(value.returnedCount)
     || !Array.isArray(value.observedRelations)
     || !Array.isArray(value.observedRelationCatalog)
     || !isRecord(value.traversal)
@@ -249,7 +254,12 @@ function parseGraphRetrievalResponse(value: unknown): GraphRetrievalResponse {
   // This route searches only the token owner's own snapshot (the owner-private
   // area), never the organization's shared Graph. A service from before the
   // owner_private label answered organization_graph for the same area.
-  return { ...value, authority: 'owner_private' } as unknown as GraphRetrievalResponse;
+  // Older services that omit totalScopedCount/returnedCount leave them
+  // undefined rather than fabricating a denominator from returned results.
+  return {
+    ...value,
+    authority: 'owner_private',
+  } as unknown as GraphRetrievalResponse;
 }
 
 function parseImportResult(value: unknown): PortableGraphImportResult {

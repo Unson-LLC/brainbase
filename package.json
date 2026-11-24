@@ -39,6 +39,10 @@
       "types": "./dist/judgment-frame.d.ts",
       "import": "./dist/judgment-frame.js"
     },
+    "./judgment-reasoning-audit": {
+      "types": "./dist/judgment-reasoning-audit.d.ts",
+      "import": "./dist/judgment-reasoning-audit.js"
+    },
     "./judgment-history": {
       "types": "./dist/judgment-history.d.ts",
       "import": "./dist/judgment-history.js"
@@ -78,6 +82,10 @@
     "./judgment-frame-evidence": {
       "types": "./dist/judgment-frame-evidence.d.ts",
       "import": "./dist/judgment-frame-evidence.js"
+    },
+    "./judgment-project-binding": {
+      "types": "./dist/judgment-project-binding.d.ts",
+      "import": "./dist/judgment-project-binding.js"
     },
     "./judgment-event-adapter": {
       "types": "./dist/judgment-event-adapter.d.ts",
@@ -170,6 +178,10 @@
     "./company-os-objectives": {
       "types": "./dist/company-os-objectives.d.ts",
       "import": "./dist/company-os-objectives.js"
+    },
+    "./claude-code-judgment-hook": {
+      "types": "./dist/claude-code-judgment-hook.d.ts",
+      "import": "./dist/claude-code-judgment-hook.js"
     },
     "./company-os-evaluation": {
       "types": "./dist/company-os-evaluation.d.ts",
@@ -291,6 +303,10 @@
       "types": "./dist/ontology-release-trust.d.ts",
       "import": "./dist/ontology-release-trust.js"
     },
+    "./brainbase-login": {
+      "types": "./dist/brainbase-login.d.ts",
+      "import": "./dist/brainbase-login.js"
+    },
     "./canonical-document-writer": {
       "types": "./dist/canonical-document-writer.d.ts",
       "import": "./dist/canonical-document-writer.js"
@@ -363,6 +379,10 @@
       "types": "./dist/mcp-runtime.d.ts",
       "import": "./dist/mcp-runtime.js"
     },
+    "./mcp-tool-schema-portability": {
+      "types": "./dist/mcp-tool-schema-portability.d.ts",
+      "import": "./dist/mcp-tool-schema-portability.js"
+    },
     "./durable-waits": {
       "types": "./dist/durable-waits.d.ts",
       "import": "./dist/durable-waits.js"
@@ -390,6 +410,10 @@
     "./company-os-impact-review": {
       "types": "./dist/company-os-impact-review.d.ts",
       "import": "./dist/company-os-impact-review.js"
+    },
+    "./world-model-impact-index": {
+      "types": "./dist/world-model-impact-index.d.ts",
+      "import": "./dist/world-model-impact-index.js"
     },
     "./streamable-http": {
       "types": "./dist/streamable-http.d.ts",
