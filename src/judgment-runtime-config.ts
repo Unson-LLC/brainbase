@@ -71,6 +71,7 @@ export interface JudgmentRuntimeConfig {
   readonly autonomyMode: JudgmentAutonomyMode;
   readonly autonomyCanaryProjects: readonly string[];
   readonly reasoningGateMode: ReasoningGateMode;
+  readonly reasoningGateTelemetry?: string;
   readonly reasoningGateCanaryProjects: readonly string[];
 }
 
@@ -295,6 +296,9 @@ export function resolveJudgmentRuntimeConfig(
           : [])
   );
 
+  const reasoningGateTelemetry = base?.reasoningGateTelemetry
+    ?? nonEmptyTrimmed(effectiveEnv.BRAINBASE_JUDGMENT_REASONING_GATE_TELEMETRY)?.toLowerCase();
+
   const projectCode = options.projectCode !== undefined
     ? options.projectCode
     : base
@@ -317,6 +321,7 @@ export function resolveJudgmentRuntimeConfig(
     autonomyMode: autonomy.mode,
     autonomyCanaryProjects: autonomy.canaryProjects,
     reasoningGateMode,
+    ...(reasoningGateTelemetry ? { reasoningGateTelemetry } : {}),
     reasoningGateCanaryProjects
   });
 }

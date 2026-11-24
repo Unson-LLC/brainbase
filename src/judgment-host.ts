@@ -26,6 +26,7 @@ import {
   type JudgmentKnowledgeEvent
 } from './judgment-event-adapter.js';
 import type { JudgmentKnowledgeEventSink } from './judgment-event-outbox.js';
+import { containsJudgmentFrameCredential } from './judgment-frame.js';
 import { canonicalJson } from './judgment-resolution-contract.js';
 import {
   AUDIT_LINE_STRIP_PREFIX,
@@ -37,6 +38,27 @@ import {
   type ReasoningGateHostConfig,
   type ReasoningGateMode
 } from './judgment-reasoning-gate-prompt.js';
+import {
+  DEFAULT_SESSION_WORLD_MODEL_UPDATE_TIMEOUT_MS,
+  SESSION_MINI_WORLD_MODEL_SCHEMA_VERSION_V2,
+  SESSION_WORLD_MODEL_FILENAME,
+  SESSION_WORLD_MODEL_LOCK_FILENAME,
+  WM_V2_LIMITS,
+  parseSessionMiniWorldModelV2,
+  readSessionMiniWorldModelV2,
+  renderSessionMiniWorldModelPinV2,
+  sessionWorldModelPaths,
+  toLearningCandidateEvidenceDraftFromSessionWMV2,
+  withSessionWorldModelLock,
+  writeSessionMiniWorldModelV2,
+  type SessionMiniWorldModelV2,
+  type SessionWMLearningEvidenceDraftResultV2,
+  type SessionWMLearningEvidenceDraftV2,
+  type SessionWorldModelPaths,
+  type SessionWorldModelUpdateEventV2,
+  type SessionWorldModelUpdaterV2,
+  type SessionWorldModelWriteResult
+} from './judgment-session-world-model.js';
 
 import { taskProgressScopeSchema, taskProgressObservationSchema, type JudgmentTaskProgressAdapter } from './judgment-task-progress.js';
 import {
@@ -85,11 +107,30 @@ export {
   AUDIT_LINE_STRIP_PREFIX,
   COMPACT_FOUR_BLOCK_GATE_PROMPT_V2,
   COMPACT_FOUR_BLOCK_GATE_PROMPT_V3,
+  DEFAULT_SESSION_WORLD_MODEL_UPDATE_TIMEOUT_MS,
   REASONING_GATE_MODES,
+  SESSION_MINI_WORLD_MODEL_SCHEMA_VERSION_V2,
+  SESSION_WORLD_MODEL_FILENAME,
+  SESSION_WORLD_MODEL_LOCK_FILENAME,
+  WM_V2_LIMITS,
+  parseSessionMiniWorldModelV2,
+  readSessionMiniWorldModelV2,
+  renderSessionMiniWorldModelPinV2,
   resolveReasoningGateMode,
+  sessionWorldModelPaths,
   shouldApplyReasoningGate,
+  toLearningCandidateEvidenceDraftFromSessionWMV2,
+  withSessionWorldModelLock,
+  writeSessionMiniWorldModelV2,
   type ReasoningGateHostConfig,
-  type ReasoningGateMode
+  type ReasoningGateMode,
+  type SessionMiniWorldModelV2,
+  type SessionWMLearningEvidenceDraftResultV2,
+  type SessionWMLearningEvidenceDraftV2,
+  type SessionWorldModelPaths,
+  type SessionWorldModelUpdateEventV2,
+  type SessionWorldModelUpdaterV2,
+  type SessionWorldModelWriteResult
 };
 
 type Environment = Record<string, string | undefined>;
@@ -193,6 +234,23 @@ export interface JudgmentHookOutput {
   };
 }
 
+/**
+ * Non-digest runtime telemetry emitted on `UserPromptSubmit` for Dogfooding Layer 1
+ * observability (`reasoningGateApplied / eligibleTurns`). Never included in
+ * `episode_digest`, `receipt_digest`, or hook stdout contracts.
+ */
+export interface ReasoningGateTelemetryEvent {
+  readonly event: 'judgment_reasoning_gate_evaluated';
+  readonly session_ref: string;
+  readonly turn_id: string;
+  readonly project_code: string | null;
+  readonly replay: boolean;
+  readonly reasoning_gate_mode: ReasoningGateMode;
+  readonly reasoning_gate_applied: boolean;
+  readonly reasoning_gate_eligible: boolean;
+  readonly session_wm_injected: boolean;
+}
+
 export interface JudgmentHostOptions {
   env?: Environment;
   /** Pre-resolved immutable runtime config; when provided, lower-level code never falls back to `process.env`. */
@@ -206,6 +264,15 @@ export interface JudgmentHostOptions {
   autonomyCanaryProjects?: readonly string[];
   reasoningGateMode?: ReasoningGateMode | 'compact_4block_v2';
   reasoningGateCanaryProjects?: readonly string[];
+  /** Optional non-digest reasoning gate telemetry callback (fail-open). */
+  onReasoningGateTelemetry?: (event: ReasoningGateTelemetryEvent) => void;
+  /**
+   * Optional PR-B ephemeral session mini world model v2 updater.
+   * Invoked strictly AFTER `withTurnLock` releases on audited `Stop` completions.
+   */
+  sessionWorldModelUpdater?: SessionWorldModelUpdaterV2;
+  /** Fail-open timeout in ms for `sessionWorldModelUpdater.enqueue()`. Defaults to 1500 ms. */
+  sessionWorldModelUpdateTimeoutMs?: number;
   trustedConversationMessages?: ConversationMessage[];
   /** Optional adapter-owned queue. The default Host lifecycle remains unchanged. */
   knowledgeEventSink?: JudgmentKnowledgeEventSink;
@@ -1428,15 +1495,62 @@ export function buildOwnerReferenceLine(request: JudgmentRequest, receipt: Judgm
   return buildOwnerAudit(request, receipt).display_line;
 }
 
+function emitReasoningGateTelemetry(
+  options: JudgmentHostOptions,
+  runtimeConfig: JudgmentRuntimeConfig,
+  telemetry: ReasoningGateTelemetryEvent
+): void {
+  try {
+    options.onReasoningGateTelemetry?.(telemetry);
+  } catch {
+    // Non-digest telemetry must never affect hook output.
+  }
+  const stderrMode = runtimeConfig.reasoningGateTelemetry;
+  const shouldWriteStderr = stderrMode === 'stderr'
+    || (telemetry.reasoning_gate_mode !== 'off' && stderrMode !== 'off');
+  if (shouldWriteStderr) {
+    try {
+      process.stderr.write(`${JSON.stringify(telemetry)}\n`);
+    } catch {
+      // Non-digest telemetry must never affect hook output.
+    }
+  }
+}
+
 function successOutput(
   request: JudgmentRequest,
   receipt: JudgmentReceipt,
   ownerAudit: JudgmentOwnerAudit = buildOwnerAudit(request, receipt),
-  runtimeConfig: JudgmentRuntimeConfig = resolveJudgmentRuntimeConfig({}, {})
+  runtimeConfig: JudgmentRuntimeConfig,
+  options: JudgmentHostOptions,
+  replay = false
 ): JudgmentHookOutput {
   const ownerReferenceLine = ownerAudit.display_line;
-  const reasoningGateMode = resolveEffectiveReasoningGateMode(runtimeConfig, request.project_code ?? receipt.project_code);
-  const applyReasoningGate = reasoningGateMode !== 'off' && shouldApplyReasoningGate(receipt);
+  const projectCode = request.project_code ?? receipt.project_code;
+  const reasoningGateMode = resolveEffectiveReasoningGateMode(runtimeConfig, projectCode);
+  const reasoningGateEligible = shouldApplyReasoningGate(receipt);
+  const applyReasoningGate = reasoningGateMode !== 'off' && reasoningGateEligible;
+  let sessionWmPin: string | null = null;
+  if (applyReasoningGate && reasoningGateMode === 'compact_4block_with_wm') {
+    const wmState = readSessionMiniWorldModelV2(
+      runtimeConfig.journalRoot,
+      request.conversation_context.session_ref
+    );
+    if (wmState) {
+      sessionWmPin = renderSessionMiniWorldModelPinV2(wmState, containsJudgmentFrameCredential);
+    }
+  }
+  emitReasoningGateTelemetry(options, runtimeConfig, {
+    event: 'judgment_reasoning_gate_evaluated',
+    session_ref: request.conversation_context.session_ref,
+    turn_id: request.turn_id,
+    project_code: projectCode ?? null,
+    replay,
+    reasoning_gate_mode: reasoningGateMode,
+    reasoning_gate_applied: applyReasoningGate,
+    reasoning_gate_eligible: reasoningGateEligible,
+    session_wm_injected: sessionWmPin !== null
+  });
   const executionPlan = {
     status: receipt.status,
     active_edges: receipt.active_edges,
@@ -1464,7 +1578,8 @@ function successOutput(
       : `If no portable Brainbase MCP call occurs, put this exact line immediately after the judgment line:\n${ZERO_CALL_DISPLAY_LINE}`,
     `Execution plan: ${JSON.stringify(executionPlan)}`,
     `audit_contract: ${JSON.stringify(auditContract)}`,
-    ...(applyReasoningGate ? ['', COMPACT_FOUR_BLOCK_GATE_PROMPT_V3] : [])
+    ...(applyReasoningGate ? ['', COMPACT_FOUR_BLOCK_GATE_PROMPT_V3] : []),
+    ...(sessionWmPin ? ['', sessionWmPin] : [])
   ].join('\n');
   return {
     continue: true,
@@ -1489,7 +1604,7 @@ export async function runJudgmentHost(payload: JudgmentHookPayload, options: Jud
       if (!requestText || episode.request_text_digest !== sha256(requestText)) {
         throw new Error('judgment_episode_binding_mismatch');
       }
-      return successOutput(episode.adoption.request, episode.adoption.receipt, episode.adoption.owner_audit, runtimeConfig);
+      return successOutput(episode.adoption.request, episode.adoption.receipt, episode.adoption.owner_audit, runtimeConfig, options, true);
     } catch (error) {
       if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
     }
@@ -1530,7 +1645,7 @@ export async function runJudgmentHost(payload: JudgmentHookPayload, options: Jud
       episode_digest: sha256(canonicalJson(episodeWithoutDigest))
     };
     writeImmutableJson(paths.episode, episode as unknown as Record<string, unknown>);
-    return successOutput(adoption.request, adoption.receipt, adoption.owner_audit, runtimeConfig);
+    return successOutput(adoption.request, adoption.receipt, adoption.owner_audit, runtimeConfig, options);
   });
 }
 
@@ -1970,15 +2085,75 @@ async function evaluateAutonomyStop(
   };
 }
 
+interface SessionWorldModelFinalizeCandidate {
+  readonly projectCode: string | undefined;
+  readonly userPrompt: string;
+  readonly finalAnswer: string;
+  readonly priorReceiptsCount: number;
+  readonly ownerAuditComplete: boolean;
+}
+
+async function enqueueSessionWorldModelUpdateFailOpen(input: {
+  runtimeConfig: JudgmentRuntimeConfig;
+  options: JudgmentHostOptions;
+  sessionRef: string;
+  turnId: string;
+  candidate: SessionWorldModelFinalizeCandidate;
+}): Promise<void> {
+  const updater = input.options.sessionWorldModelUpdater;
+  if (!updater || !input.candidate.ownerAuditComplete) return;
+  const mode = resolveEffectiveReasoningGateMode(input.runtimeConfig, input.candidate.projectCode);
+  if (mode !== 'compact_4block_with_wm') return;
+
+  const previousState = readSessionMiniWorldModelV2(input.runtimeConfig.journalRoot, input.sessionRef);
+  if (previousState?.updated_after_turn_id === input.turnId) return;
+
+  const turnSequence = Math.max(
+    input.candidate.priorReceiptsCount + 1,
+    (previousState?.turn_sequence ?? 0) + 1
+  );
+  const event: SessionWorldModelUpdateEventV2 = {
+    session_ref: input.sessionRef,
+    turn_id: input.turnId,
+    turn_sequence: turnSequence,
+    user_prompt: input.candidate.userPrompt,
+    final_answer: input.candidate.finalAnswer,
+    previous_state: previousState
+  };
+
+  const configuredTimeout = input.options.sessionWorldModelUpdateTimeoutMs;
+  const timeoutMs = typeof configuredTimeout === 'number' && Number.isFinite(configuredTimeout) && configuredTimeout > 0
+    ? configuredTimeout
+    : DEFAULT_SESSION_WORLD_MODEL_UPDATE_TIMEOUT_MS;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      Promise.resolve().then(() => updater.enqueue(event)),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error('session_world_model_update_timeout')), timeoutMs);
+      })
+    ]);
+  } catch {
+    // Complete fail-open: exceptions or timeouts must never fail finalizeEpisode().
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 async function finalizeEpisode(
   payload: JudgmentHookPayload,
   runtimeConfig: JudgmentRuntimeConfig,
-  knowledgeEventSink?: JudgmentKnowledgeEventSink
+  options: JudgmentHostOptions
 ): Promise<JudgmentFinalReceipt | JudgmentStopBlock> {
+  const knowledgeEventSink = options.knowledgeEventSink;
   const { sessionRef, turnId } = hookIdentity(payload);
   const paths = journalPaths(sessionRef, turnId, runtimeConfig.journalRoot);
-  const answerDigest = sha256(typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : '');
-  return withTurnLock(paths.lock, async () => {
+  const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : '';
+  const answerDigest = sha256(answer);
+  const lockedResult = await withTurnLock<{
+    output: JudgmentFinalReceipt | JudgmentStopBlock;
+    wmCandidate: SessionWorldModelFinalizeCandidate | null;
+  }>(paths.lock, async () => {
     let episode: JudgmentEpisode;
     try {
       episode = readEpisode(paths.episode);
@@ -1992,6 +2167,10 @@ async function finalizeEpisode(
     }
     const events = readEvents(paths.events);
     const eventSetDigest = sha256(canonicalJson(events));
+    const expectedAuditLines = requiredAuditLines(episode, events);
+    const body = normalizedAnswerBody(answer, expectedAuditLines);
+    const projectCode = episode.adoption.request.project_code ?? episode.adoption.receipt.project_code;
+    const priorReceiptsCount = episode.adoption.request.conversation_context.prior_receipts.length;
     try {
       const existing = readFinal(paths.final);
       if (existing.initial_receipt_digest !== episode.initial_receipt_digest
@@ -2005,15 +2184,22 @@ async function finalizeEpisode(
         sessionRef,
         turnId,
         existing,
-        payload.last_assistant_message ?? ''
+        answer
       );
-      return existing;
+      return {
+        output: existing,
+        wmCandidate: {
+          projectCode,
+          userPrompt: episode.adoption.request.request,
+          finalAnswer: body,
+          priorReceiptsCount,
+          ownerAuditComplete: existing.owner_audit_complete === true
+        }
+      };
     } catch (error) {
       if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
     }
-    const expectedAuditLines = requiredAuditLines(episode, events);
     const expectedAuditLinesDigest = sha256(canonicalJson(expectedAuditLines));
-    const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : '';
     const missingKnowledge = episode.adoption.receipt.selected_dag_ids.includes('knowledge.v1')
       && !events.some((event) => event.success && event.satisfies.includes('knowledge.resolve'));
     const missingOwnerAudit = !answerContainsExactAuditPrefix(answer, expectedAuditLines);
@@ -2026,7 +2212,6 @@ async function finalizeEpisode(
     } catch (error) {
       if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
     }
-    const body = normalizedAnswerBody(answer, expectedAuditLines);
     const binding = continuation?.answer_body_binding;
     const missingAnswerBody = Boolean(binding) && (
       binding?.character_count !== body.length || binding.body_digest !== sha256(body)
@@ -2065,9 +2250,12 @@ async function finalizeEpisode(
         ] : [])
       ];
       return {
-        decision: 'block',
-        block_kind: 'audit_repair',
-        reason: `Brainbase judgment episodeを完了する前に${reasons.join('。その後')}。監査行の後に、元の回答本文をそのまま続けてください。`
+        output: {
+          decision: 'block',
+          block_kind: 'audit_repair',
+          reason: `Brainbase judgment episodeを完了する前に${reasons.join('。その後')}。監査行の後に、元の回答本文をそのまま続けてください。`
+        },
+        wmCandidate: null
       };
     }
     const finalWithoutDigest = {
@@ -2089,8 +2277,29 @@ async function finalizeEpisode(
     };
     writeImmutableJson(paths.final, final as unknown as Record<string, unknown>);
     await enqueueFinalizedKnowledgeEvent(knowledgeEventSink, sessionRef, turnId, final, answer);
-    return final;
+    return {
+      output: final,
+      wmCandidate: {
+        projectCode,
+        userPrompt: episode.adoption.request.request,
+        finalAnswer: body,
+        priorReceiptsCount,
+        ownerAuditComplete: final.owner_audit_complete === true
+      }
+    };
   });
+
+  // Strictly AFTER withTurnLock has released: fail-open PR-B session mini WM v2 enqueue.
+  if (lockedResult.wmCandidate) {
+    await enqueueSessionWorldModelUpdateFailOpen({
+      runtimeConfig,
+      options,
+      sessionRef,
+      turnId,
+      candidate: lockedResult.wmCandidate
+    });
+  }
+  return lockedResult.output;
 }
 
 async function enqueueFinalizedKnowledgeEvent(
@@ -2130,7 +2339,7 @@ export async function processJudgmentHook(
     if (progressBlock) return progressBlock;
     const autonomyBlock = await evaluateAutonomyStop(payload, runtimeConfig, options);
     if (autonomyBlock) return autonomyBlock;
-    const output = await finalizeEpisode(payload, runtimeConfig, options.knowledgeEventSink);
+    const output = await finalizeEpisode(payload, runtimeConfig, options);
     if ('decision' in output && output.decision === 'block' && payload.stop_hook_active === true) {
       throw new Error('judgment_stop_repair_exhausted');
     }
