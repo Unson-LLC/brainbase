@@ -840,7 +840,7 @@ describe('Objective editor common UI contract', () => {
       expect(text).toContain('constraint-night@1夜は働かない');
       expect(text).toContain('制約の参照はここでは表示だけです。');
       expect(text).toContain('判断に利用可能');
-      expect(findButtons(panel).map((button) => button.textContent)).toEqual(['目的を直す']);
+      expect(findButtons(panel).map((button) => button.textContent)).toEqual(['目的を編集']);
       // The workspace itself holds no form.
       expect(findAll(root, (node) => node.tagName === 'FORM')).toHaveLength(0);
     });
@@ -898,7 +898,7 @@ describe('Objective editor common UI contract', () => {
       const row = rowsOf(byClass(root, 'bb-objective-ledger')[0])[0];
       expect(collectText(row)).toContain('未確認');
       expect(collectText(row)).not.toContain('使える');
-      expect(findButtons(byClass(rail, 'bb-objective-rail')[0]).map((button) => button.textContent)).toEqual(['目的を直す']);
+      expect(findButtons(byClass(rail, 'bb-objective-rail')[0]).map((button) => button.textContent)).toEqual(['目的を編集']);
     });
 
     it('isolates readiness by objective ID and revision when an older request finishes late', async () => {
@@ -950,16 +950,16 @@ describe('Objective editor common UI contract', () => {
       const panel = byClass(rail, 'bb-objective-rail')[0];
       expect(collectText(byClass(panel, 'bb-ws-rail-head')[0])).toContain('睡眠を守る');
       expect(collectText(panel)).toContain('評価基準はまだありません。');
-      expect(collectText(panel)).toContain('直して保存すると同じ目的の新しい版を作ります。保存結果を読み戻して確認し、確認できない場合はその状態を表示します。');
+      expect(collectText(panel)).toContain('編集して保存すると同じ目的の新しい版を作ります。保存結果を読み戻して確認し、確認できない場合はその状態を表示します。');
       expect(collectText(panel)).toContain('criteria: 評価基準がありません');
     });
 
     it('opens the edit form in the rail, saves a new revision and shows the read-back', async () => {
       const { rail, controller, calls } = await mountWorkspace();
-      findButtons(rail).find((button) => button.textContent === '目的を直す').dispatch('click');
+      findButtons(rail).find((button) => button.textContent === '目的を編集').dispatch('click');
       let panel = byClass(rail, 'bb-objective-rail')[0];
       expect(panel.attributes['data-rail-mode']).toBe('form');
-      expect(collectText(byClass(panel, 'bb-ws-rail-head')[0])).toContain('目的を直す');
+      expect(collectText(byClass(panel, 'bb-ws-rail-head')[0])).toContain('目的を編集');
       const form = findAll(panel, (node) => node.tagName === 'FORM')[0];
       expect(findButtons(form).map((button) => button.textContent)).toEqual(expect.arrayContaining(['保存', 'キャンセル']));
       findAll(form, (node) => nodeName(node) === 'meaning')[0].value = '総負荷を二割減らす';
@@ -1057,7 +1057,7 @@ describe('Objective editor common UI contract', () => {
       const { root } = await mountWorkspace();
       const wrapper = byClass(root, 'bb-objective-workspace')[0];
       expect(wrapper.children.map((node) => node.className.split(' ')[0])).toEqual(['bb-ws-page', 'bb-ws-summary', 'bb-ws-ledger']);
-      expect(collectText(byClass(root, 'bb-ws-lead')[0])).toBe('目指す状態と評価基準を、版つきで確かめて直します。');
+      expect(collectText(byClass(root, 'bb-ws-lead')[0])).toBe('目指す状態と評価基準を、版つきで確かめて編集します。');
       expect(collectText(byClass(root, 'bb-ws-help-bubble')[0])).toContain('下の「現状と見通し」');
     });
 

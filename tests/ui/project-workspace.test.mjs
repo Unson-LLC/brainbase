@@ -6,6 +6,7 @@ import {
   projectKnowledgeEdges,
   projectKnowledgeEntities,
   projectKnowledgeUnknowns,
+  projectKnowledgeRecordDirectory,
 } from '../../ui/project-workspace.js';
 import { buttonsNamed, collectText, control, findAll, section, FakeDocument } from './graph-ui-harness.mjs';
 
@@ -38,6 +39,361 @@ const edge = (overrides = {}) => ({
   counterpart: { id: 'person-a', type: 'person', name: '佐藤 花子', active: true, digest: 'sha256:person' },
   digest: 'sha256:edge',
   ...overrides,
+});
+
+describe('tabbed record explorer', () => {
+  const recordDetail = () => detail({ overview: {
+    directMaterials: { state: 'partial', total: 3, note: '本文は一部未取得です。', items: [{ id: 'doc-a', title: '導入資料', bodyState: 'unretrieved', contentAsOf: '2026-09-27T00:00:00Z', relation: '直接', relatedTaskId: 'task-a' }] },
+    relatedMaterials: { state: 'unknown', items: [{ id: 'doc-a', title: '導入資料', bodyState: 'unknown' }] },
+  } });
+  const recordContext = () => normalizeProjectContext(project.id, { state: 'partial', sections: [
+    { id: 'tasks', title: 'タスク', state: 'ok', items: [{ id: 'task-a', title: '一覧へ移さない仕事', kind: 'task' }] },
+    { id: 'knowledge', title: '知識', state: 'partial', total: 4, message: '一部だけ取得しました。', source: '合成の出典', asOf: '2026-09-28T00:00:00Z', items: [{ id: 'record-a', title: '引き継ぎ手順', kind: 'policy', body: '既存の本文', relatedTaskId: 'task-a', relatedTaskIds: ['task-b'], provenance: { sourceKind: 'import' } }] },
+    { id: 'glossary', title: '用語集', state: 'failed', message: '用語集を取得できません。', items: [] },
+  ] });
+
+  it('keeps supplied directory records distinct from Graph membership and retains read evidence', () => {
+    const directory = projectKnowledgeRecordDirectory(recordDetail(), recordContext());
+    expect(directory.map(record => record.id)).toEqual(['person-a', 'service-a', 'doc-a', 'record-a']);
+    expect(directory.find(record => record.id === 'doc-a').directorySources).toHaveLength(2);
+    expect(directory.find(record => record.id === 'doc-a').directorySources[0].item).toMatchObject({ bodyState: 'unretrieved', contentAsOf: '2026-09-27T00:00:00Z', relatedTaskId: 'task-a' });
+    expect(directory.find(record => record.id === 'record-a')).toMatchObject({ category: 'knowledge', body: '既存の本文', relatedTaskIds: ['task-b'], provenance: { sourceKind: 'import' } });
+    expect(projectKnowledgeEntities(recordDetail()).map(record => record.id)).toEqual(['project-atlas', 'person-a', 'service-a']);
+  });
+
+  it('uses five counted type controls and a common record row, preserving failures and partial totals', async () => {
+    const mount = vi.fn(() => ({ destroy: vi.fn(), select: vi.fn(), setFilter: vi.fn() }));
+    const view = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: recordDetail(), context: recordContext(), detailPresentation: 'tabs', mountGraph: mount, readEntity: async () => ({ state: 'failed' }) });
+    view.setTab('graph'); await tick();
+    expect(mount.mock.calls[0][1].nodes.map(node => node.id)).toEqual(['project-atlas', 'person-a', 'service-a']);
+    const filters = findAll(view.element, node => node.attributes.role === 'group' && node.attributes['aria-label'] === '種類で絞り込む')[0];
+    expect(filters.children.map(node => collectText(node))).toEqual(['すべて4', '人物1', '資料1', '判断', '知識1']);
+    const rows = () => findAll(view.element, node => String(node.className).includes('bb-pkw-record-row'));
+    expect(rows()).toHaveLength(4);
+    expect(collectText(section(view.element, '情報を探す'))).not.toContain('一覧へ移さない仕事');
+    const states = section(view.element, '情報を探す');
+    expect(collectText(states)).toContain('一部取得');
+    expect(collectText(states)).toContain('用語集を取得できません。');
+    expect(collectText(states)).toContain('合成の出典');
+    filters.children[2].dispatch('click');
+    expect(rows()).toHaveLength(1); expect(collectText(rows()[0])).toContain('導入資料');
+    expect(rows()[0].attributes['aria-label']).toBe('導入資料の詳細を取得して図に加える');
+    const search = findAll(view.element, node => node.attributes.name === 'project-record-search')[0];
+    search.value = '存在しない合成語'; search.dispatch('input');
+    expect(rows()).toHaveLength(0); expect(collectText(section(view.element, '情報を探す'))).toContain('条件に一致する記録はありません。');
+    view.destroy();
+  });
+
+  it('adds a directory-only ID only after a matching entity read succeeds and offers retry on failure', async () => {
+    let fail = true;
+    const readEntity = vi.fn(async () => fail ? { state: 'failed', message: '合成の読込失敗' } : { state: 'ok', payload: { entity: { id: 'doc-a', type: 'document', name: '導入資料', digest: 'synthetic-digest' }, incoming: [], outgoing: [] } });
+    const mounts = [];
+    const view = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: recordDetail(), context: recordContext(), detailPresentation: 'tabs', mountGraph: (_canvas, options) => { mounts.push(options); return { destroy: vi.fn(), select: vi.fn() }; }, readEntity });
+    view.setTab('graph'); await tick(); view.select('doc-a'); await tick(); await tick();
+    expect(mounts.at(-1).nodes.some(node => node.id === 'doc-a')).toBe(false);
+    expect(collectText(section(view.element, '選択した記録'))).toContain('合成の読込失敗');
+    fail = false; buttonsNamed(section(view.element, '選択した記録'), '再試行')[0].dispatch('click'); await tick(); await tick();
+    expect(mounts.at(-1).nodes.some(node => node.id === 'doc-a')).toBe(true);
+    expect(mounts.at(-1).edges).toHaveLength(projectKnowledgeEdges(recordDetail()).length);
+    expect(readEntity).toHaveBeenCalledTimes(2);
+    expect(findAll(section(view.element, '選択した記録'), node => node.tagName === 'DETAILS')[0].open).toBe(true);
+    view.destroy();
+  });
+
+  it('rejects a reader returning a different entity and leaves the graph unchanged', async () => {
+    const mount = vi.fn(() => ({ destroy: vi.fn(), select: vi.fn() }));
+    const view = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: recordDetail(), detailPresentation: 'tabs', mountGraph: mount, readEntity: async () => ({ state: 'ok', payload: { entity: { id: 'other-record', type: 'document', name: '別の資料' }, incoming: [], outgoing: [] } }) });
+    view.setTab('graph'); await tick(); view.select('doc-a'); await tick(); await tick();
+    expect(collectText(section(view.element, '選択した記録'))).toContain('表示しようとしたデータが、選択中のものと一致しません。');
+    expect(mount.mock.calls.at(-1)[1].nodes.some(node => ['doc-a', 'other-record'].includes(node.id))).toBe(false);
+    view.destroy();
+  });
+
+  it('refreshes directory items on context progress without remounting Sigma and keeps a root fallback', async () => {
+    const doc = new FakeDocument(), mount = vi.fn(() => ({ destroy: vi.fn(), select: vi.fn() }));
+    const view = createProjectKnowledgeWorkspace({ document: doc, detail: detail(), context: { state: 'loading', sections: [] }, detailPresentation: 'tabs', mountGraph: mount });
+    view.setTab('graph'); await tick();
+    const canvas = findAll(view.element, node => String(node.className).includes('bb-pkw-find-canvas'))[0];
+    view.setContext(recordContext());
+    expect(mount).toHaveBeenCalledTimes(1);
+    expect(findAll(view.element, node => String(node.className).includes('bb-pkw-find-canvas'))[0]).toBe(canvas);
+    expect(collectText(section(view.element, '情報を探す'))).toContain('引き継ぎ手順');
+    view.destroy();
+    const fallback = createProjectKnowledgeWorkspace({ document: doc, detail: detail(), detailPresentation: 'tabs' });
+    fallback.setTab('graph'); fallback.select('person-a');
+    buttonsNamed(fallback.element, project.name)[0].dispatch('click');
+    expect(collectText(section(fallback.element, '選択した記録'))).toContain(project.name);
+    fallback.destroy();
+  });
+
+  it('keeps source body and explicit work references in the open record details without pretending a Graph read succeeded', () => {
+    const onOpenTask = vi.fn();
+    const view = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: recordDetail(), context: recordContext(), detailPresentation: 'tabs', recordNavigation: { onOpenTask } });
+    view.setTab('graph'); view.select('record-a');
+    const selected = section(view.element, '選択した記録');
+    expect(collectText(selected)).toContain('既存の本文');
+    expect(collectText(selected)).toContain('このホストでは記録の詳細取得先が接続されていません。');
+    expect(collectText(selected)).toContain('仕事ID task-b は未確認です。');
+    const open = findAll(selected, node => node.tagName === 'DETAILS' && node.open);
+    expect(open).toHaveLength(1);
+    expect(collectText(open[0])).toContain('出典と状態');
+    buttonsNamed(selected, '一覧へ移さない仕事')[0].dispatch('click');
+    expect(onOpenTask).toHaveBeenCalledWith('task-a', project.id);
+    view.destroy();
+  });
+
+  it('does not replace an active host tab when an earlier Graph read completes late', async () => {
+    let resolve;
+    const renderWork = vi.fn(({ document }) => document.createElement('div'));
+    const view = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: detail(), detailPresentation: 'tabs', hostTabs: [{ id: 'work', label: '仕事と予定', render: renderWork }], readEntity: () => new Promise(done => { resolve = done; }) });
+    view.setTab('graph'); view.select('person-a'); view.setTab('work');
+    const calls = renderWork.mock.calls.length;
+    resolve({ state: 'ok', payload: { entity: { id: 'person-a', type: 'person', name: '佐藤 花子', summary: '遅れて取得した要約' }, incoming: [], outgoing: [] } });
+    await tick();
+    expect(renderWork).toHaveBeenCalledTimes(calls);
+    expect(findAll(view.element, node => node.attributes.role === 'tab' && node.attributes['aria-selected'] === 'true').map(node => node.textContent)).toEqual(['仕事と予定']);
+    view.setTab('graph'); expect(view.getViewState().selectedId).toBe(project.id);
+    view.select('person-a'); expect(collectText(section(view.element, '選択した記録'))).toContain('遅れて取得した要約');
+    view.destroy();
+  });
+
+  it('keeps an existing canonical Graph task node while excluding work from the record directory', async () => {
+    const task = { id: 'canonical-task', type: 'task', name: '正本Graphの仕事', digest: 'synthetic' };
+    const mount = vi.fn(() => ({ destroy: vi.fn(), select: vi.fn() }));
+    const view = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: detail({ knowledge: { entities: [task], edges: [] } }), detailPresentation: 'tabs', mountGraph: mount });
+    view.setTab('graph'); await tick();
+    expect(mount.mock.calls[0][1].nodes.map(node => node.id)).toContain(task.id);
+    expect(findAll(view.element, node => String(node.className).includes('bb-pkw-record-row')).map(node => collectText(node)).join('')).not.toContain(task.name);
+    view.destroy();
+  });
+
+  it('shows only canonical project-incident relationships learned by a selected record read', async () => {
+    const readEntity = async () => ({ state: 'ok', payload: {
+      entity: { id: 'doc-a', type: 'document', name: '導入資料' }, outgoing: [
+        { id: 'real-project-edge', relation: 'supports', direction: 'outgoing', counterpart: project, meaning: '正本に記録された直接の関係' },
+        { id: 'other-project-edge', relation: 'supports', direction: 'outgoing', counterpart: { id: 'another-project', type: 'project', name: '別プロジェクト' }, meaning: '別プロジェクトだけの関係' },
+      ], incoming: [],
+    } });
+    const view = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: recordDetail(), detailPresentation: 'tabs', readEntity });
+    view.setTab('graph'); view.select('doc-a'); await tick();
+    const evidence = findAll(section(view.element, '選択した記録'), node => node.className === 'bb-pkw-evidence-list')[0];
+    expect(collectText(evidence)).toContain('正本に記録された直接の関係');
+    expect(collectText(evidence)).not.toContain('別プロジェクトだけの関係');
+    view.destroy();
+  });
+
+  it('does not let a renderer clear a directory-only selection before its read completes', async () => {
+    let resolve;
+    const mountGraph = (_canvas, options) => ({ destroy: vi.fn(), select: id => options.onSelect(options.nodes.some(node => node.id === id) ? id : null) });
+    const view = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: recordDetail(), detailPresentation: 'tabs', mountGraph, readEntity: () => new Promise(done => { resolve = done; }) });
+    view.setTab('graph'); await tick(); view.select('doc-a');
+    expect(view.getViewState().selectedId).toBe('doc-a');
+    resolve({ state: 'ok', payload: { entity: { id: 'doc-a', type: 'document', name: '導入資料' }, incoming: [], outgoing: [] } });
+    await tick(); await tick();
+    expect(view.getViewState().selectedId).toBe('doc-a');
+    view.destroy();
+  });
+
+  it('restores a known context-only record and a keyboard root option without adding the project to the directory', () => {
+    const first = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: detail(), context: recordContext(), detailPresentation: 'tabs' });
+    first.setTab('graph'); first.select('record-a');
+    const restored = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: detail(), context: recordContext(), detailPresentation: 'tabs', initialViewState: first.getViewState() });
+    expect(restored.getViewState().selectedId).toBe('record-a');
+    expect(collectText(section(restored.element, '選択した記録'))).toContain('既存の本文');
+    const rootButton = findAll(restored.element, node => String(node.className).includes('bb-pkw-record-root-access'))[0];
+    expect(rootButton.attributes['aria-hidden']).toBeUndefined(); rootButton.dispatch('click');
+    expect(restored.getViewState().selectedId).toBe(project.id);
+    expect(findAll(restored.element, node => String(node.className).includes('bb-pkw-record-row')).map(node => node.attributes['data-key'])).not.toContain(project.id);
+    first.destroy(); restored.destroy();
+  });
+
+  it('keeps the Graph exit unavailable until the host confirms its canonical target', () => {
+    let known = false;
+    const onOpenGraph = vi.fn();
+    const view = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: detail(), detailPresentation: 'tabs', recordNavigation: { onOpenGraph, canOpenGraph: () => known } });
+    view.setTab('graph');
+    const exit = () => buttonsNamed(view.element, '情報と関係で見る')[0];
+    expect(exit().disabled).toBe(true);
+    exit().dispatch('click'); expect(onOpenGraph).not.toHaveBeenCalled();
+    known = true; view.setTab('overview'); view.setTab('graph');
+    expect(exit().disabled).toBe(false);
+    exit().dispatch('click'); expect(onOpenGraph).toHaveBeenCalledWith(project.id);
+    view.destroy();
+  });
+
+  it('keeps root relations compact while retaining edge evidence at the selected counterpart', () => {
+    const view = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: detail(), detailPresentation: 'tabs' });
+    view.setTab('graph');
+    const selected = () => section(view.element, '選択した記録');
+    expect(collectText(selected())).toContain('佐藤 花子');
+    expect(collectText(selected())).not.toContain('週次の進行確認');
+    view.select('person-a');
+    expect(collectText(selected())).toContain('週次の進行確認');
+    expect(collectText(selected())).toContain('進行管理');
+    view.destroy();
+  });
+
+  it('preserves the camera and marks only newly read canonical nodes for reveal', async () => {
+    const camera = { x: 0.7, y: 0.4, angle: 0.1, ratio: 0.6 };
+    const mountGraph = vi.fn(() => ({ destroy: vi.fn(), select: vi.fn(), getCameraState: () => camera }));
+    const readEntity = async () => ({ state: 'ok', payload: { entity: { id: 'doc-a', type: 'document', name: '導入資料' }, incoming: [], outgoing: [] } });
+    const view = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: recordDetail(), detailPresentation: 'tabs', mountGraph, readEntity });
+    view.setTab('graph'); await tick();
+    expect(mountGraph.mock.calls[0][1]).toMatchObject({ freshNodeIds: ['person-a', 'service-a'], revealDelay: 80, revealStagger: 28, cameraState: null });
+    view.select('doc-a'); await tick(); await tick();
+    expect(mountGraph.mock.calls.at(-1)[1]).toMatchObject({ cameraState: camera, freshNodeIds: ['doc-a'] });
+    view.setTab('overview'); view.setTab('graph'); await tick();
+    expect(mountGraph.mock.calls.at(-1)[1]).toMatchObject({ freshNodeIds: ['person-a', 'service-a', 'doc-a'], cameraState: null, revealDelay: 80, revealStagger: 28 });
+    expect(view.getViewState()).toMatchObject({ selectedId: project.id, graphSearch: '', graphType: '' });
+    view.destroy();
+  });
+
+  it('preserves materials without record IDs as selectable evidence without Graph reads or invented IDs', async () => {
+    const materials = [{ title: 'IDなし資料', body: '残す本文A', source: '合成の出典A', bodyState: 'retrieved' }, { title: 'IDなし資料', body: '残す本文B', source: '合成の出典B' }];
+    const anonymousDetail = items => detail({ overview: { directMaterials: { state: 'partial', total: 2, items } } });
+    const readEntity = vi.fn();
+    const mountGraph = vi.fn(() => ({ destroy: vi.fn(), select: vi.fn() }));
+    const view = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: anonymousDetail(materials), detailPresentation: 'tabs', readEntity, mountGraph });
+    view.setTab('graph'); await tick();
+    const entries = projectKnowledgeRecordDirectory(anonymousDetail(materials), null).filter(item => !item.id);
+    expect(entries).toHaveLength(2); expect(entries[0].key).not.toBe(entries[1].key);
+    expect(entries[0].type).toBe('document');
+    const row = findAll(view.element, node => node.attributes['data-key'] === entries[0].key)[0]; row.dispatch('click');
+    expect(collectText(section(view.element, '選択した記録'))).toContain('残す本文A');
+    expect(collectText(section(view.element, '選択した記録'))).toContain('合成の出典A');
+    expect(collectText(section(view.element, '選択した記録'))).toContain('対象のデータを確認できませんでした（ID不明）。');
+    expect(readEntity).not.toHaveBeenCalled();
+    expect(mountGraph.mock.calls[0][1].nodes.map(node => node.id)).toEqual(['project-atlas', 'person-a', 'service-a']);
+    const state = { ...view.getViewState(), selectedId: 'person-a' };
+    const restored = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: anonymousDetail([...materials].reverse()), detailPresentation: 'tabs', initialViewState: state, readEntity });
+    expect(collectText(section(restored.element, '選択した記録'))).toContain('残す本文A');
+    const replaced = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: anonymousDetail([{ ...materials[0], body: '別の本文' }]), detailPresentation: 'tabs', initialViewState: state, readEntity });
+    expect(replaced.getViewState().selectedAnonymous).toBeNull();
+    expect(replaced.getViewState().selectedId).toBe(project.id);
+    expect(collectText(section(replaced.element, '選択した記録'))).not.toContain('別の本文');
+    expect(readEntity).not.toHaveBeenCalled();
+    view.destroy(); restored.destroy(); replaced.destroy();
+  });
+
+  it('shows retrieved positive counts without claiming complete totals and keeps unknown zero absent', () => {
+    const completedDetail = detail({ project: { ...project, participantCount: 1 }, participantStatus: 'available', participantFreshness: 'fresh', overview: {
+      directMaterials: { state: 'ok', total: 1, items: [{ id: 'doc-a', title: '資料' }] }, relatedMaterials: { state: 'ok', total: 0, items: [] },
+    } });
+    const context = state => normalizeProjectContext(project.id, { state: 'ok', sections: [
+      { id: 'knowledge', title: '知識', state: 'ok', total: 1, items: [{ id: 'record-a', title: '既知の知識', kind: 'knowledge' }] },
+      { id: 'glossary', title: '用語', state: 'ok', total: 0, items: [] },
+      { id: 'decisions', title: '判断', state, total: 0, items: [] },
+    ] });
+    const view = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: completedDetail, context: context('loading'), detailPresentation: 'tabs' });
+    view.setTab('graph');
+    const labels = () => findAll(view.element, node => node.attributes.role === 'group' && node.attributes['aria-label'] === '種類で絞り込む')[0].children.map(node => collectText(node));
+    expect(labels()).toEqual(['すべて4', '人物1', '資料1', '判断', '知識1']);
+    expect(collectText(section(view.element, '情報を探す'))).toContain('総数未確認');
+    view.setContext(context('ok'));
+    expect(labels()).toEqual(['すべて4', '人物1', '資料1', '判断0', '知識1']);
+    expect(collectText(section(view.element, '情報を探す'))).toContain('5件の記録・図に3件');
+    for (const state of ['unknown', 'failed', 'partial', 'unavailable']) {
+      view.setContext(context(state));
+      expect(labels()[0]).toBe('すべて4'); expect(labels()[3]).toBe('判断');
+      expect(collectText(section(view.element, '情報を探す'))).toContain('5件取得済み・総数未確認');
+    }
+    const stale = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: { ...completedDetail, participantFreshness: 'stale' }, context: context('ok'), detailPresentation: 'tabs' });
+    stale.setTab('graph');
+    expect(findAll(stale.element, node => node.attributes.role === 'group' && node.attributes['aria-label'] === '種類で絞り込む')[0].children.map(node => collectText(node))[1]).toBe('人物1');
+    view.destroy(); stale.destroy();
+  });
+
+  it('keeps a partial envelope message and ignores an unavailable hidden type filter', () => {
+    const context = normalizeProjectContext(project.id, { state: 'partial', message: '取得元の一部のみ読めました。', sections: [{ id: 'knowledge', title: '知識', state: 'ok', total: 0, items: [] }] });
+    expect(context.message).toBe('取得元の一部のみ読めました。');
+    const view = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: detail(), context, detailPresentation: 'tabs', initialViewState: { projectId: project.id, activeTab: 'graph', graphType: 'other' } });
+    expect(view.getViewState().graphType).toBe('');
+    expect(collectText(section(view.element, '情報を探す'))).toContain('取得元の一部のみ読めました。');
+    view.destroy();
+  });
+
+  it('reads the previous canonical record again after an anonymous material selection and restoration', async () => {
+    const payload = detail({ overview: { directMaterials: { state: 'ok', total: 1, items: [{ title: '匿名の資料', body: '既存資料本文' }] } } });
+    const readEntity = vi.fn(async id => ({ state: 'ok', payload: { entity: { id, type: 'person', name: '佐藤 花子', summary: '正本から読み直した本文', digest: 'synthetic-current' }, incoming: [], outgoing: [] } }));
+    const view = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: payload, detailPresentation: 'tabs', readEntity });
+    view.setTab('graph'); view.select('person-a'); await tick();
+    const anonymous = projectKnowledgeRecordDirectory(payload, null).find(record => !record.id);
+    findAll(view.element, node => node.attributes['data-key'] === anonymous.key)[0].dispatch('click');
+    const state = view.getViewState();
+    view.select('person-a'); await tick();
+    expect(readEntity).toHaveBeenCalledTimes(2);
+    expect(collectText(section(view.element, '選択した記録'))).toContain('正本から読み直した本文');
+    const restored = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: payload, detailPresentation: 'tabs', readEntity, initialViewState: state });
+    expect(readEntity).toHaveBeenCalledTimes(2);
+    restored.select('person-a'); await tick();
+    expect(readEntity).toHaveBeenCalledTimes(3);
+    expect(collectText(section(restored.element, '選択した記録'))).toContain('正本から読み直した本文');
+    view.destroy(); restored.destroy();
+  });
+
+  it('returns to the root on type or search changes, cancelling an unfinished selection read', async () => {
+    let resolve;
+    const mountGraph = vi.fn(() => ({ destroy: vi.fn(), select: vi.fn(), setFilter: vi.fn() }));
+    const view = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: recordDetail(), detailPresentation: 'tabs', mountGraph, readEntity: () => new Promise(done => { resolve = done; }) });
+    view.setTab('graph'); await tick(); view.select('doc-a');
+    const filters = findAll(view.element, node => node.attributes.role === 'group' && node.attributes['aria-label'] === '種類で絞り込む')[0];
+    filters.children[1].dispatch('click');
+    expect(view.getViewState().selectedId).toBe(project.id);
+    resolve({ state: 'ok', payload: { entity: { id: 'doc-a', name: '導入資料', type: 'document' }, incoming: [], outgoing: [] } }); await tick();
+    expect(mountGraph).toHaveBeenCalledTimes(1);
+    view.select('person-a');
+    const search = control(view.element, 'project-record-search'); search.value = '一致しない語'; search.dispatch('input');
+    expect(view.getViewState()).toMatchObject({ selectedId: project.id, graphSearch: '一致しない語', graphType: 'person' });
+    expect(collectText(section(view.element, '選択した記録'))).toContain(project.name);
+    view.destroy();
+  });
+
+  it('resets an overview person jump while preserving camera and reveal phase through its readback', async () => {
+    let resolve;
+    const camera = { x: .7, y: .4, angle: 0, ratio: .8 };
+    const phase = { nodes: [{ id: 'person-a', elapsed: 150, delay: 80 }], edges: [] };
+    const mountGraph = vi.fn(() => ({ destroy: vi.fn(), select: vi.fn(), getCameraState: () => camera, getRevealState: () => phase }));
+    const view = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: recordDetail(), detailPresentation: 'tabs', mountGraph, readEntity: () => new Promise(done => { resolve = done; }), initialViewState: { projectId: project.id, activeTab: 'graph', selectedId: project.id, graphSearch: '前の検索', graphType: 'material', graphCameraState: camera } });
+    await tick();
+    view.setContext(recordContext());
+    expect(view.getViewState()).toMatchObject({ graphSearch: '前の検索', graphType: 'material', graphCameraState: camera });
+    view.setTab('overview');
+    findAll(view.element, node => node.attributes['aria-label'] === '佐藤 花子を「情報を探す」で開く')[0].dispatch('click');
+    await tick();
+    expect(view.getViewState()).toMatchObject({ selectedId: 'person-a', graphSearch: '', graphType: '' });
+    expect(mountGraph.mock.calls.at(-1)[1]).toMatchObject({ cameraState: null, revealState: null, revealDelay: 80, revealStagger: 28 });
+    resolve({ state: 'ok', payload: { entity: { id: 'person-a', type: 'person', name: '佐藤 花子' }, incoming: [], outgoing: [] } });
+    await tick(); await tick();
+    expect(mountGraph.mock.calls.at(-1)[1]).toMatchObject({ cameraState: camera, revealState: phase, revealDelay: 0, revealStagger: 0 });
+    view.destroy();
+  });
+
+  it('projects only a host-confirmed canonical root identity while retaining raw audit evidence', async () => {
+    const canonicalRoot = 'canonical-project-atlas';
+    const response = { state: 'ok', payload: { entity: { id: 'doc-a', type: 'document', name: '導入資料' }, incoming: [], outgoing: [{ id: 'actual-doc-root-edge', relation: 'informs', fromId: 'doc-a', toId: canonicalRoot, direction: 'outgoing', digest: 'synthetic-edge-digest', provenance: { sourceKind: 'synthetic' }, counterpart: { id: canonicalRoot, type: 'project', name: project.name, digest: 'canonical-root-digest' } }] } };
+    const original = JSON.stringify(response);
+    for (const [presentation, resolved, expectedNodes, target] of [['tabs', canonicalRoot, 4, project.id], ['tabs', null, 5, canonicalRoot], ['tabs', 'another-canonical-project', 5, canonicalRoot], [undefined, canonicalRoot, 5, canonicalRoot]]) {
+      const mountGraph = vi.fn(() => ({ destroy: vi.fn(), select: vi.fn() }));
+      const readEntity = vi.fn(async () => response);
+      const resolver = vi.fn(() => resolved);
+      const view = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: recordDetail(), detailPresentation: presentation, recordNavigation: { resolveProjectRecordId: resolver }, readEntity, mountGraph });
+      view.setTab('graph'); await tick();
+      const initialIds = mountGraph.mock.calls.at(-1)[1].nodes.map(node => node.id);
+      view.select('doc-a'); await tick(); await tick();
+      const options = mountGraph.mock.calls.at(-1)[1];
+      expect(initialIds).toEqual(['project-atlas', 'person-a', 'service-a']);
+      expect(options.nodes).toHaveLength(expectedNodes);
+      expect(options.edges.find(edge => edge.id === 'actual-doc-root-edge')).toMatchObject({ source: 'doc-a', target, fromId: 'doc-a', toId: canonicalRoot, digest: 'synthetic-edge-digest', counterpart: { id: canonicalRoot } });
+      if (presentation === 'tabs' && resolved === canonicalRoot) {
+        expect(collectText(section(view.element, '選択した記録'))).toContain(canonicalRoot);
+        view.select(canonicalRoot); expect(view.getViewState().selectedId).toBe(project.id);
+        expect(readEntity).toHaveBeenCalledTimes(1);
+        expect(resolver).toHaveBeenCalledWith(project.id);
+      }
+      expect(JSON.stringify(response)).toBe(original);
+      view.destroy();
+    }
+  });
 });
 
 const detail = (overrides = {}) => ({
@@ -781,4 +1137,124 @@ describe('project knowledge workspace lifecycle', () => {
     expect(items().map((item) => collectText(item))).toEqual(['導入計画書evidence_document']);
     workspace.destroy();
   });
+});
+
+describe('opt-in tabbed project detail', () => {
+  it('keeps personal defaults and ignores unsupported tab IDs', () => {
+    const view = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: detail() });
+    expect(findAll(view.element, node => node.attributes.role === 'tab').map(node => node.textContent)).toEqual(['概要', '情報を探す']);
+    expect(view.element.children.some(node => node.attributes.role === 'tablist')).toBe(true);
+    view.setTab('work');
+    expect(findAll(view.element, node => node.attributes.role === 'tab' && node.attributes['aria-selected'] === 'true').map(node => node.textContent)).toEqual(['概要']);
+    expect(collectText(view.element)).toContain('プロジェクトの記録');
+    view.destroy();
+  });
+
+  it('inserts a host tab before the graph and refreshes it without losing selection', () => {
+    const doc = new FakeDocument();
+    const render = vi.fn(({ document, context }) => {
+      const node = document.createElement('p'); node.textContent = context?.message ?? 'work'; return node;
+    });
+    const renderTools = vi.fn(({ document, activeTab }) => {
+      const node = document.createElement('button'); node.textContent = activeTab === 'graph' ? '星' : '設定と星'; return node;
+    });
+    const view = createProjectKnowledgeWorkspace({ document: doc, detail: detail(), detailPresentation: 'tabs', hostTabs: [
+      { id: 'work', label: '仕事と予定', render },
+      { id: 'graph', label: 'duplicate', render },
+      { id: 'bad id', label: 'invalid', render },
+    ], renderTabTools: renderTools });
+    expect(findAll(view.element, node => node.attributes.role === 'tab').map(node => node.textContent)).toEqual(['概要', '仕事と予定', '情報を探す']);
+    expect(render).not.toHaveBeenCalled();
+    view.setTab('work');
+    expect(render).toHaveBeenCalledTimes(1);
+    view.setContext({ state: 'ok', message: 'updated', sections: [] });
+    expect(render).toHaveBeenCalledTimes(2);
+    expect(findAll(view.element, node => node.attributes.role === 'tab' && node.attributes['aria-selected'] === 'true').map(node => node.textContent)).toEqual(['仕事と予定']);
+    expect(section(view.element, '仕事と予定').hidden).toBe(false);
+    expect(collectText(section(view.element, '仕事と予定'))).toBe('updated');
+    view.setTab('graph');
+    const graphPanel = section(view.element, '情報を探す');
+    view.setContext({ state: 'ok', message: 'later', sections: [] });
+    expect(section(view.element, '情報を探す')).toBe(graphPanel);
+    expect(render).toHaveBeenCalledTimes(2);
+    expect(renderTools.mock.calls.at(-1)[0].activeTab).toBe('graph');
+    view.destroy();
+  });
+
+  it('keeps checks on overview and moves service definitions and material evidence into the selected record', () => {
+    const view = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detailPresentation: 'tabs', detail: detail({ overview: {
+      about: { definition: 'Synthetic service definition', owner: 'Sample Owner', goal: 'Current goal' },
+      checks: [], directMaterials: { state: 'partial', total: 3, items: [{ id: 'document-1', title: 'Evidence', bodyState: 'unretrieved' }] },
+    } }) });
+    const overview = findAll(view.element, node => node.attributes.role === 'tabpanel' && node.attributes['aria-label'] === '概要')[0];
+    expect(collectText(overview)).toContain(project.goal);
+    expect(collectText(overview)).not.toContain('Synthetic service definition');
+    expect(collectText(overview)).toContain('確認事項は未確認です。');
+    expect(collectText(overview)).not.toContain('Evidence');
+    view.setTab('graph');
+    expect(collectText(section(view.element, '選択した記録'))).toContain('Synthetic service definition');
+    view.select('document-1');
+    expect(collectText(section(view.element, '選択した記録'))).toContain('本文未取得');
+    expect(collectText(section(view.element, '情報を探す'))).toContain('一部取得');
+    expect(collectText(section(view.element, '選択した記録'))).toContain('このホストでは記録の詳細取得先が接続されていません。');
+    expect(findAll(view.element, node => node.className === 'bb-pkw-kicker')).toHaveLength(0);
+    view.destroy();
+  });
+});
+
+
+it('releases host tab controllers on replacement, leaving and destruction', () => {
+  const doc = new FakeDocument();
+  const release = vi.fn();
+  const render = vi.fn(() => ({ root: doc.createElement('div'), destroy: release }));
+  const view = createProjectKnowledgeWorkspace({ document: doc, detail: detail(), detailPresentation: 'tabs', hostTabs: [{ id: 'work', label: '仕事と予定', render }] });
+  view.setTab('work');
+  expect(release).not.toHaveBeenCalled();
+  view.setContext({ state: 'ok', sections: [] });
+  expect(release).toHaveBeenCalledTimes(1);
+  view.setTab('overview');
+  expect(release).toHaveBeenCalledTimes(2);
+  view.setTab('work');
+  view.destroy();
+  expect(release).toHaveBeenCalledTimes(3);
+});
+
+
+it('restores only same-project state and keeps graph selection through host refreshes', async () => {
+  const doc = new FakeDocument();
+  const mountGraph = vi.fn(() => ({ destroy: vi.fn(), select: vi.fn() }));
+  const view = createProjectKnowledgeWorkspace({ document: doc, detail: detail(), detailPresentation: 'tabs', mountGraph });
+  view.setTab('graph'); view.select('person-a');
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const state = view.getViewState();
+  const graph = section(view.element, '情報を探す');
+  const mounts = mountGraph.mock.calls.length;
+  view.refreshHost({ context: { state: 'ok', sections: [] } });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(view.getViewState()).toMatchObject({ activeTab: 'graph', selectedId: 'person-a' });
+  expect(section(view.element, '情報を探す')).toBe(graph);
+  expect(mountGraph).toHaveBeenCalledTimes(mounts);
+  const restored = createProjectKnowledgeWorkspace({ document: doc, detail: detail(), detailPresentation: 'tabs', initialViewState: state });
+  expect(restored.getViewState()).toMatchObject({ activeTab: 'graph', selectedId: 'person-a' });
+  const other = createProjectKnowledgeWorkspace({ document: doc, detail: detail({ project: { ...project, id: 'project-other' } }), detailPresentation: 'tabs', initialViewState: state });
+  expect(other.getViewState()).toMatchObject({ activeTab: 'overview', selectedId: 'project-other' });
+  view.destroy(); restored.destroy(); other.destroy();
+});
+
+
+it('shows a participant heading count only for a complete matching snapshot', () => {
+  const render = (participantStatus, participantCount, participantFreshness = 'fresh') => {
+    const view = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detailPresentation: 'tabs', detail: detail({
+      project: { ...project, participantCount, accountableCount: 0 }, participantStatus, participantFreshness,
+    }) });
+    const people = section(view.element, '関係者');
+    const heading = findAll(people, node => node.className === 'bb-project-overview-heading')[0];
+    const count = findAll(heading, node => node.tagName === 'SMALL').map(node => node.textContent);
+    view.destroy(); return count;
+  };
+  expect(render('available', 1)).toEqual(['1人']);
+  expect(render('partial', 1)).toEqual([]);
+  expect(render('available', 2)).toEqual([]);
+  expect(render('unknown', 0)).toEqual([]);
+  expect(render('available', 1, 'stale')).toEqual([]);
 });

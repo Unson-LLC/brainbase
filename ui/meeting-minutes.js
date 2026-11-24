@@ -883,7 +883,7 @@ export function createMeetingMinutesUI({
     detailTools.replaceChildren(detailNotice);
     const native = selected && typeof selected.body === 'string' && !isRecord(selected.source_ref);
     const latest = documentRecord.current_version_id === selected?.version_id;
-    if (!native || !latest || documentRecord.withdrawal || !canEdit()) return;
+    if (!native || !latest || documentRecord.withdrawal || !canEdit(detail, documentRecord)) return;
     const editing = state.editingMinutesId === documentRecord.minutes_id;
     const toggle = workspaceKit.workspaceButton(doc, {
       attrs: { 'aria-label': editing ? '編集をやめる' : '本文を編集する', title: editing ? '編集をやめる' : '本文を編集する' },
@@ -1084,15 +1084,23 @@ export function createMeetingMinutesUI({
     );
   }
 
-  function canEdit() {
+  function editDecision(detail, documentRecord) {
     if (typeof canEditMinutes === 'function') {
       try {
-        return canEditMinutes() === true;
+        const result = canEditMinutes({ meeting: detail?.meeting ?? null, document: documentRecord ?? null });
+        if (isRecord(result)) {
+          return { allowed: result.allowed === true, reason: result.reason };
+        }
+        return { allowed: result === true };
       } catch {
-        return false;
+        return { allowed: false };
       }
     }
-    return canEditMinutes !== false;
+    return { allowed: canEditMinutes !== false };
+  }
+
+  function canEdit(detail, documentRecord) {
+    return editDecision(detail, documentRecord).allowed;
   }
 
   function viewerId() {
@@ -1123,17 +1131,21 @@ export function createMeetingMinutesUI({
     line.append(node);
   }
 
-  // One gray notice per detail, only when something cannot be done here.
-  function appendReadOnlyNotice(parent, version) {
+  // Keep source notices compact; each denied document still explains its own edit decision.
+  function appendReadOnlyNotice(parent, version, detail, documentRecord) {
     const source = isRecord(version?.source_ref) ? version.source_ref : null;
-    const editable = canEdit();
+    const decision = editDecision(detail, documentRecord);
+    const editable = decision.allowed;
+    const needsProject = decision.reason === 'project_selection_required';
     if (editable && !source) return false;
     const url = httpUrl(source?.locator);
     const provider = text(source?.provider, '元の記録');
     const notice = makeElement(doc, 'div', { className: 'bb-minutes-edit-guard is-info' });
     if (!editable) {
       notice.append(makeElement(doc, 'p', {
-        textContent: 'この画面では読むことだけができます。確認はプロジェクトの編集権限がある人が行います。',
+        textContent: needsProject
+          ? '確認・編集するには、プロジェクトを1つ選んでください。'
+          : 'この画面では読むことだけができます。確認はプロジェクトの編集権限がある人が行います。',
       }));
     }
     if (url) {
@@ -1146,7 +1158,7 @@ export function createMeetingMinutesUI({
       notice.append(line);
     } else if (source) {
       notice.append(makeElement(doc, 'p', { textContent: '本文を直すときは、議事録を取り込んだ元で編集してください。' }));
-    } else {
+    } else if (!needsProject) {
       notice.append(makeElement(doc, 'p', { textContent: '本文を直すのも、プロジェクトの編集権限がある人です。' }));
     }
     parent.append(notice);
@@ -1692,7 +1704,7 @@ export function createMeetingMinutesUI({
     const viewingOld = Boolean(selected && latest && selected.version_id !== latest.version_id);
     const withdrawal = isRecord(documentRecord.withdrawal) ? documentRecord.withdrawal : null;
     const native = isRecord(selected) && typeof selected.body === 'string' && !isRecord(selected.source_ref);
-    const editing = state.editingMinutesId === documentRecord.minutes_id && native && !viewingOld && !withdrawal && canEdit();
+    const editing = state.editingMinutesId === documentRecord.minutes_id && native && !viewingOld && !withdrawal && canEdit(detail, documentRecord);
     const section = makeElement(doc, 'section', { className: tablePage ? 'mp-detail-section' : 'bb-minutes-document' });
     if (tablePage) decorateDetailTools(documentRecord, selected, versions, detail);
     if (withdrawal) {
@@ -1716,9 +1728,9 @@ export function createMeetingMinutesUI({
     const actions = makeElement(doc, 'div', { className: 'bb-minutes-version-actions' });
     actions.append(stateChip(selectedState, { detailed: true }));
     if (!withdrawal && !editing) {
-      if (selected && canEdit() && !isRecord(selected.confirmation) && selectedState.code !== 'unknown' && selectedState.code !== 'creating') {
+      if (selected && canEdit(detail, documentRecord) && !isRecord(selected.confirmation) && selectedState.code !== 'unknown' && selectedState.code !== 'creating') {
         const confirm = button(doc, 'この版を確認済みにする', async () => {
-          if (!canEdit()) {
+          if (!canEdit(detail, documentRecord)) {
             rerender(detail, documentRecord, selected);
             return;
           }
@@ -1739,14 +1751,14 @@ export function createMeetingMinutesUI({
         }, { className: 'bb-minutes-button is-primary' });
         actions.append(confirm);
       }
-      if (!tablePage && native && !viewingOld && canEdit()) {
+      if (!tablePage && native && !viewingOld && canEdit(detail, documentRecord)) {
         actions.append(button(doc, '編集', () => {
           state.editingMinutesId = documentRecord.minutes_id;
           state.withdrawingMinutesId = null;
           rerender(detail, documentRecord, selected);
         }));
       }
-      if (canEdit() && mayWithdraw(documentRecord)) {
+      if (canEdit(detail, documentRecord) && mayWithdraw(documentRecord)) {
         actions.append(button(doc, '取り下げる', () => {
           state.withdrawingMinutesId = documentRecord.minutes_id;
           state.editingMinutesId = null;
@@ -1756,13 +1768,13 @@ export function createMeetingMinutesUI({
     }
     if (tablePage) { detailDrawer.footer.replaceChildren(...actions.children); }
     else section.append(actions);
-    if (!withdrawal && canEdit() && !mayWithdraw(documentRecord)) {
+    if (!withdrawal && canEdit(detail, documentRecord) && !mayWithdraw(documentRecord)) {
       section.append(makeElement(doc, 'p', { className: 'bb-minutes-withdraw-guard', textContent: '取り下げられるのは、この議事録を作った人だけです。' }));
     }
-    if (!withdrawal && state.withdrawingMinutesId === documentRecord.minutes_id && canEdit() && mayWithdraw(documentRecord)) {
+    if (!withdrawal && state.withdrawingMinutesId === documentRecord.minutes_id && canEdit(detail, documentRecord) && mayWithdraw(documentRecord)) {
       section.append(renderWithdrawConfirm(detail, documentRecord, selected));
     }
-    if (!noticeState.placed && appendReadOnlyNotice(section, selected)) noticeState.placed = true;
+    if ((!noticeState.placed || !canEdit(detail, documentRecord)) && appendReadOnlyNotice(section, selected, detail, documentRecord)) noticeState.placed = true;
     const content = makeElement(doc, 'div', { className: 'bb-minutes-version-content' });
     const bodyRoot = makeElement(doc, 'div', {
       className: 'bb-minutes-external-body-slot',
@@ -1878,7 +1890,7 @@ export function createMeetingMinutesUI({
     } else { row.append(save, cancel); form.append(row); }
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
-      if (!canEdit()) {
+      if (!canEdit(detail, documentRecord)) {
         state.editingMinutesId = null;
         rerender(detail, documentRecord, selected);
         return;
@@ -1924,7 +1936,7 @@ export function createMeetingMinutesUI({
     panel.append(facts);
     const row = makeElement(doc, 'div', { className: 'bb-minutes-actions' });
     const confirm = button(doc, '取り下げる', async () => {
-      if (!canEdit() || !mayWithdraw(documentRecord)) {
+      if (!canEdit(detail, documentRecord) || !mayWithdraw(documentRecord)) {
         state.withdrawingMinutesId = null;
         rerender(detail, documentRecord, selected);
         return;
@@ -2037,7 +2049,7 @@ export function createMeetingMinutesUI({
     const noticeState = { placed: false };
     if (documents.length === 0) {
       detailPane.append(makeElement(doc, 'p', { className: 'bb-minutes-warning', textContent: '議事録文書を読み取れません。' }));
-      appendReadOnlyNotice(detailPane, null);
+      appendReadOnlyNotice(detailPane, null, detail, null);
       noticeState.placed = true;
     }
     if (tablePage && documents.length > 1) {

@@ -2,6 +2,9 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import {
   workspaceButton,
+  workspaceSummaryCard,
+  workspaceIdentityChip,
+  workspaceViewMotion,
   workspaceStatusPill,
   workspaceProgressBar,
   workspaceEmptyState,
@@ -310,9 +313,9 @@ describe('readable colors', () => {
 
   it('limits content-aligned topbar gutters to an explicit desktop opt-in', () => {
     const css = readFileSync(new URL('../../ui/workspace-kit.css', import.meta.url), 'utf8');
-    const desktop = css.slice(css.lastIndexOf('@media (min-width: 761px)'));
+    const desktop = css.match(/@media \(min-width: 761px\) \{[\s\S]*?\n\}/u)[0];
     expect(desktop).toContain('.bb-ws-topbar.bb-ws-topbar--content-aligned { padding-inline: var(--bb-space-5); }');
-    expect(desktop).toContain('padding-inline-start: calc(var(--bb-space-6) - var(--bb-space-5));');
+    expect(desktop).toContain('.bb-ws-topbar.bb-ws-topbar--content-aligned > h1 { padding-inline-start: calc(var(--bb-space-6) - var(--bb-space-5)); }');
     expect(desktop).not.toMatch(/height\s*:/);
     expect(desktop).not.toMatch(/font(?:-size)?\s*:/);
     expect(css).not.toContain('.bb-ws-topbar--content-aligned.has-tabs > h1 { position:');
@@ -524,3 +527,28 @@ describe('shared dismissal motion', () => {
    expect(clicked).toBe(1);
    expect(text(workspaceFilterOption(doc, { label: 'すべて', count: 0 }))).toBe('すべて 0');
  });
+
+
+describe('summary and identity composition', () => {
+  it('keeps supplied text inert and identity activation host-owned', () => {
+    const doc = { createElement: tag => new FakeElement(tag) };
+    const click = vi.fn();
+    const chip = workspaceIdentityChip(doc, { name: '<Sample>', detail: 'Owner', onClick: click, label: 'Open Sample' });
+    const card = workspaceSummaryCard(doc, { content: chip, label: 'Summary' });
+    expect(card.children[0].children[0]).toBe(chip);
+    expect(chip.attributes['aria-label']).toBe('Open Sample');
+    expect(chip.children[1].textContent).toBe('<Sample>');
+    chip.listeners.get('click')();
+    expect(click).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not animate when reduced motion is requested', () => {
+    const animate = vi.fn();
+    const root = { animate, ownerDocument: { defaultView: { matchMedia: () => ({ matches: true }) } } };
+    expect(workspaceViewMotion(root, { direction: 'back' })).toBeNull();
+    expect(animate).not.toHaveBeenCalled();
+    root.ownerDocument.defaultView.matchMedia = () => ({ matches: false });
+    workspaceViewMotion(root, { direction: 'back' });
+    expect(animate).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ transform: 'translateX(-24px)' })]), expect.objectContaining({ duration: 240 }));
+  });
+});

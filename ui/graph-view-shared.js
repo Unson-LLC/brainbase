@@ -20,7 +20,7 @@
  * `graph-view-shared.css` with the screen CSS.
  */
 
-import { workspaceButton, workspaceNotice } from './workspace-kit.js';
+import { workspaceButton, workspaceNotice, workspaceFormRow } from './workspace-kit.js';
 import {
   PROJECT_ICON_MAX_BYTES,
   PROJECT_ICON_MIME_TYPES,
@@ -196,8 +196,8 @@ const FIELD_LABELS = Object.freeze({
 });
 
 const CORRECTION_KIND_LABELS = Object.freeze({
-  update_entity: '記録を直した',
-  update_edge: '関係を直した',
+  update_entity: '記録を変更',
+  update_edge: '関係を変更',
   create_edge: '関係を加えた',
   create_entity: '記録を加えた',
 });
@@ -219,8 +219,8 @@ export const GRAPH_CORRECTION_FIELDS = Object.freeze({
 export const GRAPH_CORRECTION_ERROR_MESSAGES = Object.freeze({
   correction_reason_required: '理由を1文で書いてください。',
   correction_reason_invalid: '理由は改行を含まない1文（500文字まで）にしてください。',
-  correction_no_change: '変更がありません。直したい項目を書き換えてください。',
-  correction_digest_required: '元にした記録を確かめられません。読み直してから、もう一度直してください。',
+  correction_no_change: '変更がありません。変更したい項目を書き換えてください。',
+  correction_digest_required: '元にした記録を確かめられません。読み直してから、もう一度編集してください。',
   correction_delete_not_allowed: '記録は削除できません。終わったものは終了日で表します。',
   correction_relation_not_allowed: 'この種類の関係は、ここでは加えられません。',
   correction_relation_change_not_allowed: '関係の種類は変えられません。今の関係を終えてから、新しい関係を加えてください。',
@@ -229,12 +229,12 @@ export const GRAPH_CORRECTION_ERROR_MESSAGES = Object.freeze({
   correction_entity_type_not_allowed: 'ここで作れるのは人と会社だけです。',
   correction_name_required: '名前を書いてください。',
   entity_already_exists: '同じ名前の記録がすでにあります。今の記録を開いて確かめてください。',
-  correction_field_not_allowed: 'この項目は、ここでは直せません。',
-  correction_changes_required: '変更がありません。直したい項目を書き換えてください。',
-  correction_scope_not_allowed: 'この画面では、この記録や関係は直せません。',
+  correction_field_not_allowed: 'この項目は、ここでは編集できません。',
+  correction_changes_required: '変更がありません。変更したい項目を書き換えてください。',
+  correction_scope_not_allowed: 'この画面では、この記録や関係は編集できません。',
   entity_not_found: '対象の記録が見つかりません。読み直してください。',
   edge_not_found: '対象の関係が見つかりません。読み直してください。',
-  entity_id_ambiguous: '同じIDの記録が複数あるため直せません。CLIで確かめてください。',
+  entity_id_ambiguous: '同じIDの記録が複数あるため編集できません。CLIで確かめてください。',
   graph_not_initialized: 'Brainbaseのデータがまだありません。',
   migration_required: 'Graphの移行が必要です。ホストは自動で移行しません。',
   readback_mismatch: '保存後に読み直した内容が一致しませんでした。読み直して確かめてください。',
@@ -737,7 +737,7 @@ export function renderGraphIssues(doc, issues) {
   return workspaceNotice(doc, {
     label: '一部読めません',
     tone: 'warning',
-    text: noticeBody(doc, makeElement(doc, 'p', { text: `出典や訂正の履歴のうち、読めない記録が${issues.length}件あります。読めた記録だけを表示しています。` }), list),
+    text: noticeBody(doc, makeElement(doc, 'p', { text: `出典や変更履歴のうち、読めない記録が${issues.length}件あります。読めた記録だけを表示しています。` }), list),
   });
 }
 
@@ -775,7 +775,7 @@ export function renderEvidenceAndHistory(doc, { source = null, issues = [], hist
     }
     section(
       '読めない記録',
-      makeElement(doc, 'p', { text: `この記録の出典や訂正の履歴のうち、壊れていて読めない記録が${unreadable.length}件あります。表示している内容は読めた記録だけから作っているため、最後の訂正や出典が抜けているかもしれません。` }),
+      makeElement(doc, 'p', { text: `この記録の出典や変更履歴のうち、壊れていて読めない記録が${unreadable.length}件あります。表示している内容は読めた記録だけから作っているため、最後の変更や出典が抜けているかもしれません。` }),
       list,
     );
   }
@@ -784,12 +784,12 @@ export function renderEvidenceAndHistory(doc, { source = null, issues = [], hist
     for (const record of corrections) {
       const fields = Array.isArray(record.changedFields) ? record.changedFields.map((field) => FIELD_LABELS[field] ?? field).join('・') : '';
       list.append(makeElement(doc, 'li', {
-        text: `${formatDateTime(record.at)} ${CORRECTION_KIND_LABELS[record.kind] ?? '直した'}${fields ? `（${fields}）` : ''}。理由: ${String(record.reason ?? '')}`,
+        text: `${formatDateTime(record.at)} ${record.kind === 'update_entity' && fields ? `${fields}を変更` : `${CORRECTION_KIND_LABELS[record.kind] ?? '変更'}${fields ? `（${fields}）` : ''}`}。理由: ${String(record.reason ?? '')}`,
       }));
     }
-    section(`訂正の履歴（${corrections.length}件）`, list);
+    section(`変更履歴（${corrections.length}件）`, list);
   } else if (Array.isArray(history)) {
-    section('訂正の履歴', makeElement(doc, 'p', { className: 'bb-graph-empty', text: 'この記録は、まだ訂正されていません。' }));
+    section('変更履歴', makeElement(doc, 'p', { className: 'bb-graph-empty', text: 'この記録は、まだ変更されていません。' }));
   }
   return details;
 }
@@ -891,16 +891,16 @@ export function renderProvenance(doc, provenance) {
   return wrap;
 }
 
-export function renderCorrectionHistory(doc, history) {
+export function renderCorrectionHistory(doc, history, { presentation } = {}) {
   if (!Array.isArray(history) || history.length === 0) return null;
-  const details = makeElement(doc, 'details', { className: 'bb-graph-history' });
-  details.append(makeElement(doc, 'summary', { text: `訂正の履歴（${history.length}件）` }));
+  const details = makeElement(doc, presentation === 'inline' ? 'div' : 'details', { className: 'bb-graph-history' });
+  if (presentation !== 'inline') details.append(makeElement(doc, 'summary', { text: `変更履歴（${history.length}件）` }));
   const list = makeElement(doc, 'ol', { className: 'bb-graph-history-list' });
   for (const record of history) {
     if (!isRecord(record)) continue;
     const fields = Array.isArray(record.changedFields) ? record.changedFields.map((field) => FIELD_LABELS[field] ?? field).join('・') : '';
     list.append(makeElement(doc, 'li', {
-      text: `${formatDateTime(record.at)} ${CORRECTION_KIND_LABELS[record.kind] ?? '直した'}${fields ? `（${fields}）` : ''}。理由: ${String(record.reason ?? '')}`,
+      text: `${formatDateTime(record.at)} ${record.kind === 'update_entity' && fields ? `${fields}を変更` : `${CORRECTION_KIND_LABELS[record.kind] ?? '変更'}${fields ? `（${fields}）` : ''}`}。理由: ${String(record.reason ?? '')}`,
     }));
   }
   details.append(list);
@@ -1106,7 +1106,7 @@ function mcpNote(payload) {
   return `次にMCPの ${tools.join('・')} を使うときから、この内容が使われます。`;
 }
 
-function fieldControl(doc, form, field, callbacks) {
+function fieldControl(doc, form, field, callbacks, { appearance } = {}) {
   const definition = GRAPH_CORRECTION_FIELDS[field];
   const id = `${form.formId}-${field}`;
   const wrap = makeElement(doc, 'div', { className: 'bb-graph-field' });
@@ -1129,10 +1129,14 @@ function fieldControl(doc, form, field, callbacks) {
     if (form.draft[field]) {
       preview.append(button(doc, 'アイコンを外す', () => callbacks.onInput(field, null), { className: 'bb-ws-button is-quiet' }));
     }
+    if (appearance === 'quiet') {
+      input.hidden = true;
+      preview.append(workspaceButton(doc, { text: '画像を選ぶ', size: 'compact', onClick: () => input.click?.() }));
+    }
     wrap.append(input, preview);
     if (form.fieldErrors?.[field]) wrap.append(makeElement(doc, 'small', { className: 'bb-graph-field-error', text: form.fieldErrors[field], attrs: { role: 'alert' } }));
     if (definition.help) wrap.append(makeElement(doc, 'small', { className: 'bb-graph-help', text: definition.help }));
-    return wrap;
+    return appearance === 'quiet' ? quietCorrectionField(doc, wrap, { id, label: definition.label, top: true }) : wrap;
   }
   const control = definition.control === 'textarea'
     ? makeElement(doc, 'textarea', { attrs: { id, name: field, rows: 3, maxlength: definition.max } })
@@ -1143,22 +1147,29 @@ function fieldControl(doc, form, field, callbacks) {
   control.addEventListener('change', update);
   wrap.append(control);
   if (definition.help) wrap.append(makeElement(doc, 'small', { className: 'bb-graph-help', text: definition.help }));
-  return wrap;
+  return appearance === 'quiet' ? quietCorrectionField(doc, wrap, { id, label: definition.label, top: definition.control === 'textarea' || Boolean(definition.help) }) : wrap;
 }
 
-function reasonControl(doc, form, callbacks) {
+function quietCorrectionField(doc, wrap, { id, label, top = false, required = false }) {
+  const slot = makeElement(doc, 'div', { className: 'bb-graph-field-control' });
+  for (const child of Array.from(wrap.children).slice(1)) slot.append(child);
+  const row = workspaceFormRow(doc, { label, labelFor: id, control: slot, appearance: 'quiet', top, required });
+  row.className += ' bb-graph-quiet-field'; return row;
+}
+
+function reasonControl(doc, form, callbacks, { appearance } = {}) {
   const id = `${form.formId}-reason`;
   const wrap = makeElement(doc, 'div', { className: 'bb-graph-field is-reason' });
   wrap.append(makeElement(doc, 'label', { text: '理由（1文、必須）', attrs: { for: id } }));
   const control = makeElement(doc, 'input', {
-    attrs: { id, name: 'reason', type: 'text', required: true, maxlength: 500, placeholder: '例: 役割が変わったため。', 'aria-required': 'true' },
+    attrs: { id, name: 'reason', type: 'text', required: true, maxlength: 500, placeholder: appearance === 'quiet' ? '1文で書いてください' : '例: 役割が変わったため。', 'aria-required': 'true' },
   });
   control.value = String(form.reason ?? '');
   const update = (event) => callbacks.onReason(event?.target?.value ?? control.value);
   control.addEventListener('input', update);
   control.addEventListener('change', update);
-  wrap.append(control, makeElement(doc, 'small', { className: 'bb-graph-help', text: '直した理由は履歴に残り、後から「いつ何を直したか」をたどれます。' }));
-  return wrap;
+  wrap.append(control, makeElement(doc, 'small', { className: 'bb-graph-help', text: '変更の理由は履歴に残り、あとから「いつ何を変えたか」をたどれます。' }));
+  return appearance === 'quiet' ? quietCorrectionField(doc, wrap, { id, label: '理由', required: true, top: true }) : wrap;
 }
 
 function selectControl(doc, { id, name, label, options, value, onChange, disabled = false }) {
@@ -1286,12 +1297,12 @@ function creationProjects(projects) {
  * The correction panel.  `form` is the state held by `createGraphCorrection`;
  * callbacks are the controller's handlers.
  */
-export function renderCorrectionPanel(doc, form, callbacks) {
-  const panel = makeElement(doc, 'section', { className: `bb-graph-correction is-${form.phase}`, attrs: { 'aria-label': form.title, tabindex: '-1' } });
+export function renderCorrectionPanel(doc, form, callbacks, { appearance, showHeading = true } = {}) {
+  const panel = makeElement(doc, 'section', { className: `bb-graph-correction is-${form.phase}${appearance === 'inline' ? ' bb-graph-correction--inline bb-ws-settings-inline' : ''}`, attrs: { 'aria-label': form.title, tabindex: '-1' } });
   const head = makeElement(doc, 'div', { className: 'bb-graph-correction-head' });
   head.append(makeElement(doc, 'h3', { text: form.title }));
   if (form.subject) head.append(makeElement(doc, 'p', { className: 'bb-graph-lead', text: form.subject }));
-  panel.append(head);
+  if (showHeading) panel.append(head);
 
   if (form.phase === 'saved') {
     const payload = form.saved;
@@ -1343,10 +1354,10 @@ export function renderCorrectionPanel(doc, form, callbacks) {
     formElement.append(renderCreateEntityFields(doc, form, callbacks));
   } else {
     const group = makeElement(doc, 'div', { className: 'bb-graph-fields' });
-    for (const field of form.fields) group.append(fieldControl(doc, form, field, callbacks));
+    for (const field of form.fields) group.append(fieldControl(doc, form, field, callbacks, { appearance: appearance === 'inline' ? 'quiet' : undefined }));
     formElement.append(group);
   }
-  formElement.append(reasonControl(doc, form, callbacks));
+  formElement.append(reasonControl(doc, form, callbacks, { appearance: appearance === 'inline' ? 'quiet' : undefined }));
   const actions = makeElement(doc, 'div', { className: 'bb-graph-actions' });
   const saving = form.phase === 'saving';
   const iconReadPending = form.iconReadPending === true;
@@ -1364,8 +1375,9 @@ export function renderCorrectionPanel(doc, form, callbacks) {
       text: submitLabel,
       attrs: { type: 'submit', disabled: saving || iconReadPending || iconHasError },
     }),
-    button(doc, '取り消す', callbacks.onClose, { attrs: { disabled: saving } }),
+    button(doc, 'キャンセル', callbacks.onClose, { attrs: { disabled: saving } }),
   );
+  if (appearance === 'inline') { const buttons = Array.from(actions.children); actions.replaceChildren(...buttons.reverse()); }
   formElement.append(actions);
   panel.append(formElement);
   return panel;
@@ -1385,12 +1397,13 @@ export function createGraphCorrection({ client, rerender, onSaved, onConflict, n
   let form = null;
   let focusPending = false;
   let sequence = 0;
+  let revision = 0;
   // A file read can finish after a newer selection, removal, cancellation or
   // form switch.  Invalidate the older read before touching the draft.
   let iconReadGeneration = 0;
   // Label/input ids stay unique when two screens are on one page.
   const idPrefix = `bb-graph-form-${Math.random().toString(36).slice(2, 8)}`;
-  const redraw = () => rerender?.();
+  const redraw = () => { revision += 1; rerender?.(); };
 
   function baseForm(kind, extra) {
     sequence += 1;
@@ -1514,9 +1527,10 @@ export function createGraphCorrection({ client, rerender, onSaved, onConflict, n
 
   const controller = {
     get form() { return form; },
+    get revision() { return revision; },
     get callbacks() { return callbacks; },
     /** Correct an entity.  `fields` limits what the form shows.  Null when the scope allows no field of it. */
-    openEntity(record, { fields, title = '記録を直す', subject } = {}) {
+    openEntity(record, { fields, title = '記録を編集', subject } = {}) {
       const shown = allowed.entity(record.type) ? allowed.fields(fields ?? graphEntityCorrectionFields(record.type)) : [];
       if (shown.length === 0) return null;
       const values = graphRecordValues(record);
@@ -1544,7 +1558,7 @@ export function createGraphCorrection({ client, rerender, onSaved, onConflict, n
       const draft = { ...original };
       if (mode === 'end' && !draft.validTo) draft.validTo = localDay(now());
       form = baseForm('update_edge', {
-        title: title ?? (mode === 'role' ? '役割を直す' : mode === 'end' ? '関わりを終える' : '関係を直す'),
+        title: title ?? (mode === 'role' ? '役割を編集' : mode === 'end' ? '関わりを終える' : '関係を編集'),
         subject: subject ?? null,
         targetId: edge.id,
         expectedDigest: edge.digest,
@@ -1673,9 +1687,9 @@ export function createGraphCorrection({ client, rerender, onSaved, onConflict, n
       return target;
     },
     /** The open panel, or null. */
-    render(doc) {
+    render(doc, options) {
       if (!form) return null;
-      const panel = renderCorrectionPanel(doc, form, callbacks);
+      const panel = renderCorrectionPanel(doc, form, callbacks, options);
       if (focusPending) {
         focusPending = false;
         const focus = () => {

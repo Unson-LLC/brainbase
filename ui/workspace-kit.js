@@ -84,10 +84,11 @@ export function workspacePageHeader(doc, { crumbs = [], title, lead, help, prese
 }
 
 /** Shared search presentation. The caller keeps the input, value and handlers. */
-export function workspaceSearchControl(doc, { input, appearance } = {}) {
+export function workspaceSearchControl(doc, { input, appearance, width } = {}) {
   if (!input || typeof input.tagName !== 'string') throw new TypeError('search_input_required');
   const search = el(doc, 'label', { className: 'bb-ws-search-control' });
   if (appearance === 'compact') toggleWorkspaceClass(search, 'bb-ws-search-control--compact', true);
+  if (Number.isFinite(width) && width > 0) search.style?.setProperty('--bb-search-control-width', `${width}px`);
   search.append(workspaceActionIcon(doc, 'search'), input);
   return search;
 }
@@ -1427,6 +1428,7 @@ export function workspaceActionIcon(doc, name) {
   const paths = { edit: 'M4 20h4L19 9l-4-4L4 16z M13.5 6.5l4 4', undo: 'M4 5v5h5 M4.6 10A8 8 0 1 1 6.3 17.7', check: 'M5 12l5 5 9-10', sliders: 'M4 8h8M18 8h2M4 16h2M12 16h8 M17.4 8a2.4 2.4 0 1 1-4.8 0 2.4 2.4 0 0 1 4.8 0 M11.4 16a2.4 2.4 0 1 1-4.8 0 2.4 2.4 0 0 1 4.8 0', plus: 'M12 5v14M5 12h14', search: 'M21 21l-4.35-4.35M19 11a8 8 0 1 1-16 0 8 8 0 0 1 16 0', filter: 'M4 7h16M7 12h10M10 17h4', sort: 'M8 4v16m-3-3 3 3 3-3M16 20V4m-3 3 3-3 3 3', close: 'M6 6l12 12M18 6L6 18', sparkles: 'M12 3l1.8 6.7 6.7 1.8-6.7 1.8L12 20l-1.8-6.7-6.7-1.8 6.7-1.8z M19 2v4 M17 4h4' };
   Object.assign(paths, {
     copy: 'M9 9h12v12H9z M5 15H3V3h12v2',
+    star: 'M12 3.5l2.6 5.3 5.9.9-4.2 4.1 1 5.8-5.3-2.8-5.3 2.8 1-5.8-4.2-4.1 5.9-.9z',
     lock: 'M6 10h12v11H6z M8 10V7a4 4 0 1 1 8 0v3',
     clock: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0 M12 7v5l3 2',
     users: 'M12.2 8a3.2 3.2 0 1 1-6.4 0 3.2 3.2 0 0 1 6.4 0 M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5 M16 5.2a3.2 3.2 0 0 1 0 5.6 M18 14.8c1.9.7 3 2.5 3 5.2',
@@ -1672,12 +1674,18 @@ export function workspaceConditionChips(doc, { items = [], reset, resetLabel = '
   return root;
 }
 
-export function workspacePills(doc, { label, items = [], value, onChange } = {}) {
-  const root = el(doc, 'div', { className: 'bb-ws-pills', attrs: { role: 'group', 'aria-label': label } });
+export function workspacePills(doc, { label, items = [], value, onChange, appearance } = {}) {
+  const root = el(doc, 'div', { className: `bb-ws-pills${appearance === 'record-types' ? ' bb-ws-pills--record-types' : ''}`, attrs: { role: 'group', 'aria-label': label } });
   const buttons = items.map(item => {
     const button = workspaceButton(doc, { text: item.label, disabled: Boolean(item.disabled),
       attrs: { 'aria-pressed': String(item.value === value) }, onClick: () => onChange?.(item.value, item) });
     if (item.icon) button.prepend(item.icon);
+    if (appearance === 'record-types') {
+      button.textContent = '';
+      if (item.color) { const dot = el(doc, 'i', { attrs: { 'aria-hidden': 'true' } }); dot.style?.setProperty('--bb-pill-dot', item.color); button.append(dot); }
+      button.append(el(doc, 'span', { text: item.label }));
+      if (Number.isInteger(item.count) && item.count >= 0) button.append(el(doc, 'small', { text: item.count }));
+    }
     root.append(button); return button;
   });
   root.update = next => buttons.forEach((button, i) => button.setAttribute('aria-pressed', String(items[i].value === next)));
@@ -1692,10 +1700,10 @@ export function workspaceControlRow(doc, { label, control, tight = false } = {})
   return root;
 }
 
-export function workspaceFormRow(doc, { label, control, required = false, top = false, appearance } = {}) {
+export function workspaceFormRow(doc, { label, control, required = false, top = false, appearance, labelFor } = {}) {
   const root = el(doc, 'div', { className: `bb-ws-form-row${top ? ' is-top' : ''}${appearance === 'quiet' ? ' is-quiet' : ''}${appearance === 'stacked' ? ' is-stacked' : ''}` });
-  const caption = el(doc, control?.id ? 'label' : 'span', { className: 'bb-ws-form-label', text: label,
-    attrs: { for: control?.id || undefined } });
+  const caption = el(doc, labelFor || control?.id ? 'label' : 'span', { className: 'bb-ws-form-label', text: label,
+    attrs: { for: labelFor || control?.id || undefined } });
   if (required) {
     caption.append(el(doc, 'span', { className: 'bb-ws-form-required', text: '※', attrs: { 'aria-label': '必須' } }));
     control?.setAttribute('aria-required', 'true');
@@ -1707,7 +1715,7 @@ export function workspaceFormRow(doc, { label, control, required = false, top = 
 }
 
 /** Uses the canonical modal, Escape/backdrop/close animation and focus return. */
-export function workspaceInputFrame(doc, { title, opener, onClose, beforeClose, tools = [], preview, rows = [], footer = [], showTitle = true } = {}) {
+export function workspaceInputFrame(doc, { title, opener, onClose, beforeClose, tools = [], preview, rows = [], footer = [], showTitle = true, showFooter = true } = {}) {
   const drawer = workspaceDetailDrawer(doc, { title, opener, onClose, beforeClose });
   drawer.dialog.classList.add('bb-ws-input-frame');
   if (tools.length) drawer.dialog.classList.add('has-tools');
@@ -1716,7 +1724,7 @@ export function workspaceInputFrame(doc, { title, opener, onClose, beforeClose, 
   const toolRow = el(doc, 'div', { className: 'bb-ws-input-tools' }); toolRow.append(...tools);
   const heading = el(doc, 'h2', { text: title }); if (showTitle) top.append(heading); if (preview) top.append(preview);
   const form = el(doc, 'div', { className: 'bb-ws-input-fields' }); form.append(...rows);
-  const foot = el(doc, 'div', { className: 'bb-ws-input-footer' }); foot.append(...footer);
+  const foot = el(doc, 'div', { className: 'bb-ws-input-footer' }); foot.append(...footer); foot.hidden = !showFooter;
   drawer.dialog.querySelector('.bb-ws-detail-closebar').prepend(toolRow);
   drawer.setContent(top, form, foot);
   return { ...drawer, top, tools: toolRow, fields: form, footer: foot,
@@ -1727,7 +1735,7 @@ export function workspaceInputFrame(doc, { title, opener, onClose, beforeClose, 
 export function workspaceCardRow(doc, { cells = [], stripe, selected = false, key, onSelect, label, preview = false, columnGap, selectionAppearance, appearance } = {}) {
   const root = el(doc, onSelect ? 'button' : 'div', { className: `bb-ws-card-row${selected ? ' is-selected' : ''}${preview ? ' is-preview' : ''}${selectionAppearance === 'soft' ? ' bb-ws-card-row--soft-selected' : ''}${appearance === 'compact-panel' ? ' bb-ws-card-row--compact-panel' : ''}${appearance === 'busy' ? ' bb-ws-card-row--busy' : ''}`,
     attrs: { type: onSelect ? 'button' : undefined, 'data-key': key, 'aria-label': label, 'aria-pressed': onSelect ? String(selected) : undefined } });
-  if (stripe) root.style.setProperty('--bb-card-stripe', stripe);
+  if (stripe) root.style?.setProperty('--bb-card-stripe', stripe);
   if (Number.isFinite(columnGap) && columnGap >= 0) root.style?.setProperty('--bb-ws-card-column-gap', `${columnGap}px`);
   for (const cell of cells) {
     const descriptor = cell && typeof cell === 'object' && typeof cell.tagName !== 'string' && ('className' in cell || 'content' in cell) ? cell : null;
@@ -1766,6 +1774,40 @@ export function workspaceCardRowSkeleton(doc, { cells = [], stripe, columnGap } 
   return root;
 }
 
+/** A content summary with an optional accent stripe and supporting column. */
+export function workspaceSummaryCard(doc, { content, aside, stripe, label } = {}) {
+  const root = el(doc, 'section', { className: `bb-ws-summary-card${aside ? ' has-aside' : ''}`, attrs: { 'aria-label': label } });
+  if (stripe) root.style?.setProperty('--bb-card-stripe', stripe);
+  const main = el(doc, 'div', { className: 'bb-ws-summary-card-main' });
+  appendContent(main, doc, content); root.append(main);
+  if (aside) { const side = el(doc, 'div', { className: 'bb-ws-summary-card-aside' }); appendContent(side, doc, aside); root.append(side); }
+  return root;
+}
+
+/** A person's display initial; the visible name is supplied alongside it. */
+export function workspaceAvatar(doc, { name = '', initial } = {}) {
+  return el(doc, 'span', { className: 'bb-ws-avatar', text: initial ?? Array.from(String(name).trim())[0] ?? '', attrs: { 'aria-hidden': 'true' } });
+}
+
+/** Host-owned identity navigation, without assigning permissions or roles. */
+export function workspaceIdentityChip(doc, { name, detail, onClick, label, initial } = {}) {
+  const root = el(doc, onClick ? 'button' : 'span', { className: 'bb-ws-identity-chip', attrs: { type: onClick ? 'button' : undefined, 'aria-label': label } });
+  root.append(workspaceAvatar(doc, { name, initial }), el(doc, 'span', { text: name }));
+  if (detail) root.append(el(doc, 'small', { text: detail }));
+  if (onClick) root.addEventListener('click', onClick);
+  return root;
+}
+
+/** One navigation entrance, explicitly invoked by the owning route. */
+export function workspaceViewMotion(root, { direction = 'forward' } = {}) {
+  if (!root?.animate || root.ownerDocument?.defaultView?.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return null;
+  const back = direction === 'back';
+  return root.animate([
+    { opacity: 0, transform: `translateX(${back ? -24 : 24}px)` },
+    { opacity: 1, transform: 'none' },
+  ], { duration: back ? 240 : 280, easing: 'cubic-bezier(.2,.7,.2,1)' });
+}
+
 /** FLIP keyed retained or redrawn rows; capture immediately before a host redraw. */
 export function workspaceRowMotion(root) {
   let previous = new Map();
@@ -1791,4 +1833,23 @@ export function workspaceRowMotion(root) {
     },
     destroy() { for (const animation of animations) animation.cancel(); animations.clear(); previous.clear(); },
   };
+}
+
+
+/** A section inside an input frame, with an optional in-place editing action. */
+export function workspaceSettingsSection(doc, { title, count, action, content, label = title } = {}) {
+  const root = el(doc, 'section', { className: 'bb-ws-settings-section', attrs: { 'aria-label': label } });
+  const head = el(doc, 'div', { className: 'bb-ws-settings-heading' });
+  const heading = el(doc, 'h3', { text: title });
+  if (Number.isInteger(count) && count > 0) heading.append(el(doc, 'small', { text: `${count}件` }));
+  head.append(heading); if (action) head.append(action); root.append(head);
+  appendContent(root, doc, content); return root;
+}
+
+
+/** A supplied category label with a decorative dot; it infers no record type. */
+export function workspaceDotPill(doc, { label, color } = {}) {
+  const root = el(doc, 'span', { className: 'bb-ws-dot-pill' });
+  if (color) { const dot = el(doc, 'i', { attrs: { 'aria-hidden': 'true' } }); dot.style?.setProperty('--bb-pill-dot', color); root.append(dot); }
+  root.append(el(doc, 'span', { text: label })); return root;
 }

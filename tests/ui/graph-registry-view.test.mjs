@@ -97,7 +97,7 @@ function searchForm(root) {
   return findAll(root, (node) => node.tagName === 'FORM' && node.className.includes('bb-gr-search'))[0];
 }
 
-/** One relation's line in a part of the record's screen: つながり, 根拠と履歴 or 直す. */
+/** One relation's line in a part of the record's screen: つながり, 根拠と履歴 or 編集. */
 function relationItem(rail, label, name) {
   const skipped = ['bb-gr-reach', 'bb-graph-history-list', 'bb-graph-issue-list'];
   return findAll(section(rail, label), (node) => node.tagName === 'LI'
@@ -234,9 +234,9 @@ describe('情報と関係: the record as its own screen (D14)', () => {
     // The list is gone: the screen is the record's.
     expect(section(root, '検索結果')).toBeUndefined();
     expect(railHead(rail)).toBe('人田中 太郎');
-    // 何者か → つながり → 根拠と履歴 → 直す; there is no read path for 使われた場所 yet, so no such part.
+    // 何者か → つながり → 根拠と履歴 → 編集; there is no read path for 使われた場所 yet, so no such part.
     const parts = findAll(rail, (node) => node.tagName === 'SECTION' && String(node.className).includes('bb-gr-page-section')).map((node) => node.attributes['aria-label']);
-    expect(parts).toEqual(['何者か', 'つながり', '根拠と履歴', '直す']);
+    expect(parts).toEqual(['何者か', 'つながり', '根拠と履歴', '編集']);
     const identity = visibleText(section(rail, '何者か'));
     expect(identity).toContain('種類人');
     expect(identity).toContain('説明導入の最終判断を担当');
@@ -274,7 +274,7 @@ describe('情報と関係: the record as its own screen (D14)', () => {
     expect(visibleText(evidence)).toBe('');
     expect(findAll(evidence, (node) => node.tagName === 'SUMMARY')[0].textContent).toBe('根拠と履歴');
     const parts = findAll(evidence, (node) => node.tagName === 'H4').map((node) => node.textContent);
-    expect(parts).toEqual(['出どころ', '訂正の履歴', '有効期間', 'つながりの出典', 'ID']);
+    expect(parts).toEqual(['出どころ', '変更履歴', '有効期間', 'つながりの出典', 'ID']);
     const text = collectText(evidence);
     expect(text).toContain('このMacのGraph');
     expect(text).toContain('MCPの search・get_context・resolve_entity で次から使われます');
@@ -297,18 +297,18 @@ describe('情報と関係: the record as its own screen (D14)', () => {
     await writeGraphV2(dataDir);
     const { root, rail } = await mountView();
     resultRow(root, 'person-tanaka').dispatch('click');
-    await waitFor(() => section(rail, '直す'));
-    const fix = section(rail, '直す');
+    await waitFor(() => section(rail, '編集'));
+    const fix = section(rail, '編集');
     const text = visibleText(fix);
-    expect(text.indexOf('影響する先')).toBeLessThan(text.indexOf('この記録を直す'));
+    expect(text.indexOf('影響する先')).toBeLessThan(text.indexOf('この記録を編集'));
     expect(text).toContain('この人を名前・別名で探す検索と、MCPの search・get_context・resolve_entity（次の呼び出しから）');
     expect(text).toContain('つながる2件の記録（Acme、Atlas導入）の詳細に出る、この記録の名前とつながり');
-    expect(text).toContain('訂正入口');
+    expect(text).toContain('編集入口');
     expect(text).toContain('承認待ちの提出ではなく');
     expect(text).toContain('保存後に読み直して一致を確かめ');
-    expect(buttonsNamed(fix, 'この記録を直す')).toHaveLength(1);
+    expect(buttonsNamed(fix, 'この記録を編集')).toHaveLength(1);
     expect(buttonsNamed(fix, '関係を加える')).toHaveLength(1);
-    expect(buttonsNamed(fix, 'この関係を直す')).toHaveLength(2);
+    expect(buttonsNamed(fix, 'この関係を編集')).toHaveLength(2);
     expect(findAll(rail, (node) => node.tagName === 'FORM' && node.className.includes('bb-graph-form'))).toHaveLength(0);
   });
 
@@ -590,9 +590,9 @@ describe('情報と関係: corrections', () => {
     const { root, rail } = await mountView();
     resultRow(root, 'person-tanaka').dispatch('click');
     await waitFor(() => section(rail, '何者か'));
-    buttonsNamed(rail, 'この記録を直す')[0].dispatch('click');
-    // The form opens under 直す.
-    expect(section(section(rail, '直す'), 'この記録を直す')).toBeDefined();
+    buttonsNamed(rail, 'この記録を編集')[0].dispatch('click');
+    // The form opens under 編集.
+    expect(section(section(rail, '編集'), 'この記録を編集')).toBeDefined();
     expect(control(rail, 'aliases').value).toBe('Tanaka');
     expect(control(rail, 'goal')).toBeUndefined();
     type(rail, 'aliases', 'Tanaka、タナカ');
@@ -606,7 +606,7 @@ describe('情報と関係: corrections', () => {
       reason: '読みを別名に加える。',
       changes: { aliases: ['Tanaka', 'タナカ'] },
     });
-    const panel = collectText(section(rail, 'この記録を直す'));
+    const panel = collectText(section(rail, 'この記録を編集'));
     expect(panel).toContain('別名Tanaka、タナカ');
     expect(panel).toContain('次にMCPの search・get_context・resolve_entity を使うときから、この内容が使われます。');
     await waitFor(() => visibleText(section(rail, '何者か')).includes('別名Tanaka、タナカ'));
@@ -621,16 +621,16 @@ describe('情報と関係: corrections', () => {
     await writeGraphV2(dataDir);
     const { rail, view } = await mountView();
     await view.openEntity('person-tanaka');
-    buttonsNamed(relationItem(rail, '直す', 'Acme'), 'この関係を直す')[0].dispatch('click');
-    // The form opens inside that relation, under 直す.
-    expect(section(relationItem(rail, '直す', 'Acme'), '関係を直す')).toBeDefined();
+    buttonsNamed(relationItem(rail, '編集', 'Acme'), 'この関係を編集')[0].dispatch('click');
+    // The form opens inside that relation, under 編集.
+    expect(section(relationItem(rail, '編集', 'Acme'), '関係を編集')).toBeDefined();
     type(rail, 'validTo', '2026-09-01');
     type(rail, 'reason', '9月に退職した。');
     await applyGraphCorrection(dataDir, {
       kind: 'update_edge', edgeId: EDGES.tanakaAcme.id, expectedDigest: graphRecordDigest(EDGES.tanakaAcme), reason: '役割を記録する。', changes: { role: '顧問' },
     }, { now: FIXTURE_NOW });
     await submit(rail);
-    const conflict = collectText(section(rail, '関係を直す'));
+    const conflict = collectText(section(rail, '関係を編集'));
     expect(conflict).toContain('ほかの保存で内容が変わっていた');
     expect(conflict).toContain('役割顧問');
     expect(control(rail, 'validTo').value).toBe('2026-09-01');
@@ -641,7 +641,7 @@ describe('情報と関係: corrections', () => {
     expect(posts[0].body.expectedDigest).toBe(graphRecordDigest(EDGES.tanakaAcme));
     expect(posts[1].body.expectedDigest).not.toBe(graphRecordDigest(EDGES.tanakaAcme));
     expect(posts[1].body.changes).toEqual({ validTo: dayToRfc3339('2026-09-01') });
-    expect(collectText(section(rail, '関係を直す'))).toContain('終了日2026-09-01');
+    expect(collectText(section(rail, '関係を編集'))).toContain('終了日2026-09-01');
     await waitFor(() => visibleText(relationItem(rail, 'つながり', 'Acme')).includes('2026-09-01 に終了'));
   });
 
@@ -674,7 +674,7 @@ describe('情報と関係: corrections', () => {
 });
 
 describe('情報と関係: host extensions', () => {
-  const CORRECTION_BUTTONS = ['この記録を直す', '関係を加える', 'この関係を直す'];
+  const CORRECTION_BUTTONS = ['この記録を編集', '関係を加える', 'この関係を編集'];
   const correctionButtons = (node) => findAll(node, (item) => item.tagName === 'BUTTON' && CORRECTION_BUTTONS.includes(item.textContent));
 
   async function mountWith(options) {
@@ -690,7 +690,7 @@ describe('情報と関係: host extensions', () => {
     const { root } = await mountWith({ canCorrect: false, emptyNotice: { text: '組織のGraphにはまだ記録がありません。' } });
     const text = collectText(root);
     expect(text).toContain('Graphに何がどう登録されているかを確かめます。');
-    expect(text).not.toContain('誤りを直します');
+    expect(text).not.toContain('記録を編集します');
     const results = collectText(section(root, '検索結果'));
     expect(results).toContain('未登録');
     expect(results).toContain('組織のGraphにはまだ記録がありません。');
@@ -702,8 +702,8 @@ describe('情報と関係: host extensions', () => {
     const { rail, view } = await mountWith({ canCorrect: false });
     await view.openEntity('person-tanaka');
     expect(section(rail, 'つながり')).toBeDefined();
-    // Without a host note there is nothing to say under 直す, so the part is not drawn.
-    expect(section(rail, '直す')).toBeUndefined();
+    // Without a host note there is nothing to say under 編集, so the part is not drawn.
+    expect(section(rail, '編集')).toBeUndefined();
     expect(correctionButtons(rail)).toEqual([]);
     // A person can normally gain a relation; here even a correction opened by code is refused before sending.
     view.correction.openCreate(view.state.detail.payload.entity);
@@ -730,13 +730,13 @@ describe('情報と関係: host extensions', () => {
     expect(collectText(first)).toBe('読み取り元別のGraphを表示だけしています。');
     expect(collectText(rail)).not.toContain('このMacのGraph');
     expect(collectText(rail)).not.toContain('MCPの search');
-    expect(byClass(section(rail, '直す'), 'bb-ws-notice').map((node) => collectText(node))).toEqual(['この画面からは直せません。']);
+    expect(byClass(section(rail, '編集'), 'bb-ws-notice').map((node) => collectText(node))).toEqual(['この画面からは直せません。']);
     // The default keeps the 出典 notice and the buttons.
     await api.close();
     const plain = await mountView();
     await plain.view.openEntity('org-acme');
     expect(collectText(byClass(section(plain.rail, '根拠と履歴'), 'bb-ws-notice')[0])).toContain('このMacのGraph');
-    expect(buttonsNamed(plain.rail, 'この記録を直す')).toHaveLength(1);
+    expect(buttonsNamed(plain.rail, 'この記録を編集')).toHaveLength(1);
     expect(collectText(plain.rail)).not.toContain('この画面からは直せません。');
   });
 
@@ -746,19 +746,19 @@ describe('情報と関係: host extensions', () => {
   it('draws only the corrections the host scope allows and shows the host note where the others would be', async () => {
     await writeGraphV2(dataDir);
     const { root, rail, view } = await mountWith({ correctionScope: PROJECT_ONLY, readOnlyNote: SCOPE_NOTE });
-    expect(collectText(root)).toContain('誤りを直します');
+    expect(collectText(root)).toContain('記録を編集します');
 
     // A person: nothing can be corrected here, and the note says why.
     await view.openEntity('person-tanaka');
     expect(section(rail, 'つながり')).toBeDefined();
     expect(correctionButtons(rail)).toEqual([]);
-    expect(byClass(section(rail, '直す'), 'bb-ws-notice').map((node) => collectText(node))).toEqual([SCOPE_NOTE]);
+    expect(byClass(section(rail, '編集'), 'bb-ws-notice').map((node) => collectText(node))).toEqual([SCOPE_NOTE]);
 
     // A project: only the record itself, with the fields in the scope.
     await view.openEntity('project-atlas');
-    expect(correctionButtons(rail).map((node) => node.textContent)).toEqual(['この記録を直す']);
-    expect(byClass(section(rail, '直す'), 'bb-ws-notice').map((node) => collectText(node))).toEqual([SCOPE_NOTE]);
-    buttonsNamed(rail, 'この記録を直す')[0].dispatch('click');
+    expect(correctionButtons(rail).map((node) => node.textContent)).toEqual(['この記録を編集']);
+    expect(byClass(section(rail, '編集'), 'bb-ws-notice').map((node) => collectText(node))).toEqual([SCOPE_NOTE]);
+    buttonsNamed(rail, 'この記録を編集')[0].dispatch('click');
     expect(['name', 'aliases', 'summary', 'validFrom', 'validTo', 'goal', 'status'].filter((name) => control(rail, name))).toEqual(
       ['name', 'aliases', 'summary', 'validFrom', 'validTo', 'goal'],
     );
