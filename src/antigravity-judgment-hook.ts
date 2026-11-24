@@ -124,16 +124,20 @@ export interface AntigravityHookOptions {
   allowedTranscriptRoots?: readonly string[];
   /** Optional OS turn-state lock overrides (primarily for tests). */
   turnLock?: TurnStateLockOptions;
-  /** Optional POSIX `openat` helper executable override for transcript reads (strictly for tests). */
+  /** Optional Linux `openat2` helper executable override for transcript reads (strictly for tests). */
   transcriptOpenatBinary?: string;
+  /** Optional runtime platform override (strictly for tests). */
+  platform?: NodeJS.Platform;
 }
 
 export interface TranscriptReadOptions {
   conversationId: string;
   allowedTranscriptRoots?: readonly string[];
   env?: NodeJS.ProcessEnv;
-  /** Override for the POSIX `openat` helper executable path (strictly for tests). */
+  /** Override for the Linux `openat2` helper executable path (strictly for tests). */
   openatHelperBinary?: string;
+  /** Override runtime platform check (strictly for tests). */
+  platform?: NodeJS.Platform;
 }
 
 const TURN_SCHEMA = 'brainbase-antigravity-judgment-turn-v1';
@@ -195,6 +199,7 @@ interface Context {
   allowedTranscriptRoots?: readonly string[];
   turnLock?: TurnStateLockOptions;
   transcriptOpenatBinary?: string;
+  platform?: NodeJS.Platform;
 }
 
 type LoginPin = { expected?: string | null; used?: string | null };
@@ -796,27 +801,23 @@ function matchesConversationTranscriptStructure(
 }
 
 interface TranscriptOpenatTestFaults {
-  /** Skip Linux openat2(2) to exercise the staged openat + /proc/self/fd path deterministically. */
-  forceStagedOpenat?: boolean;
-  /** Rename a path inside the helper right after opening the first intermediate directory fd. */
-  renameAfterFirstDirOpen?: { from: string; to: string };
-  /** Rename a path inside the helper right before opening the leaf file via dir_fd. */
-  renameBeforeLeafOpen?: { from: string; to: string };
+  /** Force Linux openat2(2) to fail with the specified errno to verify immediate fail-closed rejection (no fallback). */
+  forceOpenat2Errno?: 'ENOSYS' | 'EPERM';
   /** Rename a path inside the helper right after reading tail bytes from file_fd. */
   renameAfterTailRead?: { from: string; to: string };
 }
 
 interface TranscriptOpenTestHooks {
   onBeforeOpen?: (canonicalPath: string) => void;
-  /** Override for the POSIX `openat` helper executable path (strictly for tests). */
+  /** Override for the Linux `openat2` helper executable path (strictly for tests). */
   openatHelperBinary?: string;
   /** Override fixed absolute candidate binaries searched when no explicit binary override is set (strictly for tests). */
   openatHelperCandidates?: readonly string[];
-  /** Override timeout in ms for the POSIX `openat` helper (strictly for tests). */
+  /** Override timeout in ms for the Linux `openat2` helper (strictly for tests). */
   helperTimeoutMs?: number;
-  /** Override platform check to test non-POSIX fail-closed behavior. */
+  /** Override platform check to test non-Linux fail-closed behavior. */
   platform?: NodeJS.Platform;
-  /** Deterministic race-condition fault injection inside the openat helper (strictly for tests). */
+  /** Deterministic fault injection inside the openat2 helper (strictly for tests). */
   openatTestFaults?: TranscriptOpenatTestFaults;
 }
 
@@ -906,14 +907,13 @@ function resolveAuthorizedTranscriptPath(
 }
 
 function buildPythonOpenatTailReader(faults?: TranscriptOpenatTestFaults): string {
-  const forceStaged = faults?.forceStagedOpenat === true;
-  const renameAfterFirstDir = faults?.renameAfterFirstDirOpen;
-  const renameBeforeLeaf = faults?.renameBeforeLeafOpen;
+  const forceOpenat2Errno = faults?.forceOpenat2Errno;
   const renameAfterRead = faults?.renameAfterTailRead;
 
   const lines: string[] = [
     'import ctypes, errno, os, platform, stat, sys',
     'def fail(): sys.exit(1)',
+    'if not sys.platform.startswith("linux"): fail()',
     'if len(sys.argv) < 4: fail()',
     'if not (hasattr(os, "O_NOFOLLOW") and hasattr(os, "O_DIRECTORY") and hasattr(os, "O_NONBLOCK") and (os.open in getattr(os, "supports_dir_fd", ()))): fail()',
     'root = sys.argv[1]',
@@ -934,35 +934,33 @@ function buildPythonOpenatTailReader(faults?: TranscriptOpenatTestFaults): strin
     '        fail()',
     '    if not actual or actual.endswith(" (deleted)") or actual != expected_path:',
     '        fail()',
-    'def try_openat2_beneath(root_fd, rel_bytes, flags):',
-    ...(forceStaged
-      ? ['    return None']
+    'def openat2_beneath(root_fd, rel_bytes, flags):',
+    '    arch = platform.machine().lower()',
+    '    if arch not in ("x86_64", "amd64", "aarch64", "arm64", "i386", "i686", "armv7l", "armv6l", "riscv64", "s390x", "ppc64le", "ppc64", "loongarch64"):',
+    '        fail()',
+    '    class OpenHow(ctypes.Structure):',
+    '        _fields_ = [("flags", ctypes.c_uint64), ("mode", ctypes.c_uint64), ("resolve", ctypes.c_uint64)]',
+    '    try:',
+    '        libc = ctypes.CDLL(None, use_errno=True)',
+    '        syscall_fn = libc.syscall',
+    '        syscall_fn.restype = ctypes.c_long',
+    '    except (OSError, AttributeError):',
+    '        fail()',
+    '    RESOLVE_NO_SYMLINKS = 0x04',
+    '    RESOLVE_BENEATH = 0x08',
+    '    how = OpenHow(flags, 0, RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS)',
+    '    ctypes.set_errno(0)',
+    ...(forceOpenat2Errno
+      ? [
+        `    ctypes.set_errno(errno.${forceOpenat2Errno})`,
+        '    res = -1',
+      ]
       : [
-        '    if not sys.platform.startswith("linux"):',
-        '        return None',
-        '    arch = platform.machine().lower()',
-        '    if arch not in ("x86_64", "amd64", "aarch64", "arm64", "i386", "i686", "armv7l", "armv6l", "riscv64", "s390x", "ppc64le", "ppc64", "loongarch64"):',
-        '        return None',
-        '    class OpenHow(ctypes.Structure):',
-        '        _fields_ = [("flags", ctypes.c_uint64), ("mode", ctypes.c_uint64), ("resolve", ctypes.c_uint64)]',
-        '    try:',
-        '        libc = ctypes.CDLL(None, use_errno=True)',
-        '        syscall_fn = libc.syscall',
-        '        syscall_fn.restype = ctypes.c_long',
-        '    except (OSError, AttributeError):',
-        '        return None',
-        '    RESOLVE_NO_SYMLINKS = 0x04',
-        '    RESOLVE_BENEATH = 0x08',
-        '    how = OpenHow(flags, 0, RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS)',
-        '    ctypes.set_errno(0)',
         '    res = syscall_fn(ctypes.c_long(437), ctypes.c_int(root_fd), ctypes.c_char_p(rel_bytes), ctypes.byref(how), ctypes.c_size_t(ctypes.sizeof(how)))',
-        '    if res >= 0:',
-        '        return int(res)',
-        '    err = ctypes.get_errno()',
-        '    if err in (errno.ENOSYS, errno.EPERM):',
-        '        return None',
-        '    fail()',
       ]),
+    '    if res >= 0:',
+    '        return int(res)',
+    '    fail()',
     'cloexec = getattr(os, "O_CLOEXEC", 0)',
     'dir_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_NONBLOCK | cloexec',
     'root_walk_flags = getattr(os, "O_PATH", os.O_RDONLY) | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_NONBLOCK | cloexec',
@@ -983,34 +981,10 @@ function buildPythonOpenatTailReader(faults?: TranscriptOpenatTestFaults): strin
     '    root_lstat = os.lstat(root)',
     '    if root_lstat.st_dev != root_st.st_dev or root_lstat.st_ino != root_st.st_ino: fail()',
     '    rel_bytes = os.fsencode("/".join(segments))',
-    '    opened_via_openat2 = try_openat2_beneath(cur_fd, rel_bytes, file_flags)',
-    '    if opened_via_openat2 is not None:',
-    '        file_fd = opened_via_openat2',
-    '        verify_fd_exact_path(cur_fd, root)',
-    '        os.close(cur_fd)',
-    '        cur_fd = -1',
-    '    else:',
-    '        expected_dir = root',
-    '        for seg_idx, seg in enumerate(segments[:-1]):',
-    '            next_fd = os.open(seg, dir_flags, dir_fd=cur_fd)',
-    '            os.close(cur_fd)',
-    '            cur_fd = next_fd',
-    '            if not stat.S_ISDIR(os.fstat(cur_fd).st_mode): fail()',
-    '            expected_dir = expected_dir + "/" + seg',
-    ...(renameAfterFirstDir
-      ? [
-        '            if seg_idx == 0:',
-        `                os.rename(${JSON.stringify(renameAfterFirstDir.from)}, ${JSON.stringify(renameAfterFirstDir.to)})`,
-      ]
-      : []),
-    '            verify_fd_exact_path(cur_fd, expected_dir)',
-    ...(renameBeforeLeaf
-      ? [`        os.rename(${JSON.stringify(renameBeforeLeaf.from)}, ${JSON.stringify(renameBeforeLeaf.to)})`]
-      : []),
-    '        file_fd = os.open(segments[-1], file_flags, dir_fd=cur_fd)',
-    '        verify_fd_exact_path(cur_fd, expected_dir)',
-    '        os.close(cur_fd)',
-    '        cur_fd = -1',
+    '    file_fd = openat2_beneath(cur_fd, rel_bytes, file_flags)',
+    '    verify_fd_exact_path(cur_fd, root)',
+    '    os.close(cur_fd)',
+    '    cur_fd = -1',
     '    st = os.fstat(file_fd)',
     '    if not stat.S_ISREG(st.st_mode): fail()',
     '    verify_fd_exact_path(file_fd, expected_exact_path)',
@@ -1061,7 +1035,6 @@ const PYTHON_OPENAT_TAIL_READER = buildPythonOpenatTailReader();
 const DEFAULT_OPENAT_HELPER_CANDIDATES: readonly string[] = [
   '/usr/bin/python3',
   '/usr/local/bin/python3',
-  '/opt/homebrew/bin/python3',
   '/bin/python3',
 ];
 
@@ -1086,7 +1059,7 @@ function resolveOpenatHelperBinary(
   platform: NodeJS.Platform = process.platform,
   candidates: readonly string[] = DEFAULT_OPENAT_HELPER_CANDIDATES,
 ): string | null {
-  if (platform === 'win32') {
+  if (platform !== 'linux') {
     return null;
   }
   if (override !== undefined) {
@@ -1103,11 +1076,12 @@ function resolveOpenatHelperBinary(
 
 /**
  * Reads up to `maxBytes` from the tail of a transcript file strictly via
- * kernel-enforced `openat2(RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS)` (or staged
- * `openat(dir_fd, seg, O_NOFOLLOW)`) plus mandatory `/proc/self/fd/{fd}` exact
- * path verification before and after reading.
- * Fails closed (`null`) if the helper cannot run or any kernel check rejects;
- * NEVER falls back to path-based `openSync` or bare `PATH` lookups.
+ * Linux 5.6+ kernel-enforced `openat2(RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS)`
+ * plus mandatory `/proc/self/fd/{fd}` exact path verification before and after reading.
+ * Fails closed (`null`) immediately on non-Linux platforms, if `openat2` is unavailable
+ * or denied (`ENOSYS` / `EPERM` / any error), if fixed `python3` is missing, or if any
+ * kernel check rejects; NEVER falls back to staged `openat`, path-based `openSync`, or
+ * bare `PATH` lookups.
  */
 function readTailViaKernelOpenat(
   canonicalRoot: string,
@@ -1121,6 +1095,10 @@ function readTailViaKernelOpenat(
     openatTestFaults?: TranscriptOpenatTestFaults;
   },
 ): Buffer | null {
+  const effectivePlatform = options?.platform ?? process.platform;
+  if (effectivePlatform !== 'linux') {
+    return null;
+  }
   if (!canonicalRoot || !isAbsolute(canonicalRoot) || canonicalRoot === '/' || canonicalRoot.includes('\0')) {
     return null;
   }
@@ -1129,7 +1107,7 @@ function readTailViaKernelOpenat(
   }
   const helperBin = resolveOpenatHelperBinary(
     options?.openatHelperBinary,
-    options?.platform,
+    effectivePlatform,
     options?.openatHelperCandidates,
   );
   if (!helperBin) {
@@ -1180,7 +1158,7 @@ function readTranscriptTailEntries(
         openatHelperBinary: testHooks?.openatHelperBinary ?? options.openatHelperBinary,
         openatHelperCandidates: testHooks?.openatHelperCandidates,
         helperTimeoutMs: testHooks?.helperTimeoutMs,
-        platform: testHooks?.platform,
+        platform: testHooks?.platform ?? options.platform,
         openatTestFaults: testHooks?.openatTestFaults,
       },
     );
@@ -1765,6 +1743,8 @@ function transcriptOptionsFor(conversationId: string, context: Context): Transcr
       ? { allowedTranscriptRoots: context.allowedTranscriptRoots } : {}),
     ...(context.transcriptOpenatBinary !== undefined
       ? { openatHelperBinary: context.transcriptOpenatBinary } : {}),
+    ...(context.platform !== undefined
+      ? { platform: context.platform } : {}),
   };
 }
 
@@ -2317,6 +2297,8 @@ export async function handleAntigravityJudgmentHook(
       ...(options.turnLock !== undefined ? { turnLock: options.turnLock } : {}),
       ...(options.transcriptOpenatBinary !== undefined
         ? { transcriptOpenatBinary: options.transcriptOpenatBinary } : {}),
+      ...(options.platform !== undefined
+        ? { platform: options.platform } : {}),
     };
 
     if (eventName === 'PreInvocation') return await handlePreInvocation(payload, conversationId, context);
@@ -2461,6 +2443,7 @@ export const __antigravityHookTestInternals = {
   withTurnStateLock,
   readTranscriptTailEntries,
   resolveOpenatHelperBinary,
+  PYTHON_OPENAT_TAIL_READER,
   turnKey,
   lockPathFor,
   statePath,

@@ -1961,7 +1961,7 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
     }
   });
 
-  it('blocks intermediate directory rename escapes outside allowed root via openat2 and mandatory /proc/self/fd verification', async () => {
+  it('uses Linux openat2(RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS) exclusively without staged openat fallback and fails closed on ENOSYS/EPERM, rename escapes, and non-Linux platforms (darwin)', async () => {
     const dir = await tempDir();
     const allowedRoot = join(dir, 'brain');
     const outsideDir = join(dir, 'outside-escape');
@@ -1975,39 +1975,38 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
       step_index: 0,
       source: 'USER_EXPLICIT',
       type: 'USER_INPUT',
-      content: 'SECRET_ESCAPED_CONTENT',
+      content: 'OPENAT2_VERIFIED_CONTENT',
     }) + '\n');
 
     const escapedConvDir = join(outsideDir, 'escaped-conv');
     const readOpts = { conversationId: 'conv-rename-escape', allowedTranscriptRoots: [allowedRoot] };
 
-    // Baseline: both Linux openat2(RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS) and staged openat succeed when unmoved.
-    expect(__antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts)).toHaveLength(1);
+    // 1. Verify production helper script uses Linux openat2(2) exclusively and has NO staged openat fallback path.
+    const helperSource = __antigravityHookTestInternals.PYTHON_OPENAT_TAIL_READER;
+    expect(helperSource).toContain('sys.platform.startswith("linux")');
+    expect(helperSource).toContain('RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS');
+    expect(helperSource).toContain('syscall_fn(ctypes.c_long(437)');
+    expect(helperSource).toContain('verify_fd_exact_path(file_fd, expected_exact_path)');
+    expect(helperSource).not.toContain('segments[:-1]');
+    expect(helperSource).not.toContain('return None');
+
+    // 2. Normal path on Linux succeeds via openat2(2) with no fallback path present.
+    const baseline = __antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts);
+    expect(baseline).toHaveLength(1);
+    expect(baseline[0].content).toBe('OPENAT2_VERIFIED_CONTENT');
+
+    // 3. openat2 unavailable / denied (ENOSYS / EPERM) fails closed immediately with [] (zero fallback).
     expect(__antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
-      openatTestFaults: { forceStagedOpenat: true },
-    })).toHaveLength(1);
+      openatTestFaults: { forceOpenat2Errno: 'ENOSYS' },
+    })).toEqual([]);
+    expect(__antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
+      openatTestFaults: { forceOpenat2Errno: 'EPERM' },
+    })).toEqual([]);
 
-    // Case 1: Intermediate conversation directory is renamed outside allowedRoot right after cur_fd opens it (staged openat).
-    const afterFirstDirEscape = __antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
-      openatTestFaults: {
-        forceStagedOpenat: true,
-        renameAfterFirstDirOpen: { from: convDir, to: escapedConvDir },
-      },
-    });
-    expect(afterFirstDirEscape).toEqual([]);
-    renameSync(escapedConvDir, convDir);
+    // 4. Missing file / symlink swap / pre-open & post-read rename escape are rejected by openat2 + /proc/self/fd.
+    const missingTranscript = join(logsDir, 'transcript_full.jsonl');
+    expect(__antigravityHookTestInternals.readTranscriptTailEntries(missingTranscript, readOpts)).toEqual([]);
 
-    // Case 2: Intermediate conversation directory is renamed outside allowedRoot right before opening the leaf via held cur_fd.
-    const beforeLeafEscape = __antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
-      openatTestFaults: {
-        forceStagedOpenat: true,
-        renameBeforeLeafOpen: { from: convDir, to: escapedConvDir },
-      },
-    });
-    expect(beforeLeafEscape).toEqual([]);
-    renameSync(escapedConvDir, convDir);
-
-    // Case 3: Conversation directory is renamed outside allowedRoot after openat2 opens and reads the tail (before stdout flush).
     const afterReadEscape = __antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
       openatTestFaults: {
         renameAfterTailRead: { from: convDir, to: escapedConvDir },
@@ -2016,7 +2015,6 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
     expect(afterReadEscape).toEqual([]);
     renameSync(escapedConvDir, convDir);
 
-    // Case 4: Conversation directory is renamed outside allowedRoot right before helper opens via openat2.
     const beforeOpenEscape = __antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
       onBeforeOpen: () => {
         renameSync(convDir, escapedConvDir);
@@ -2024,6 +2022,91 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
     });
     expect(beforeOpenEscape).toEqual([]);
     renameSync(escapedConvDir, convDir);
+
+    // 5. macOS (platform: 'darwin') and non-Linux platforms fail closed for transcript reads ([]),
+    //    while handleAntigravityJudgmentHook completes without throwing and preserves fail-open output.
+    expect(__antigravityHookTestInternals.resolveOpenatHelperBinary(undefined, 'darwin')).toBeNull();
+    expect(__antigravityHookTestInternals.resolveOpenatHelperBinary(undefined, 'win32')).toBeNull();
+    expect(__antigravityHookTestInternals.readTranscriptTailEntries(insideTranscript, readOpts, {
+      platform: 'darwin',
+    })).toEqual([]);
+    expect(extractLatestNonSystemUserInput(insideTranscript, { ...readOpts, platform: 'darwin' })).toBeNull();
+    expect(extractLastAssistantMessage(insideTranscript, { ...readOpts, platform: 'darwin' })).toBeUndefined();
+
+    const { home, repo, configPath, env } = await setupConfig();
+    const darwinTranscript = await canonicalTranscriptPath(home, 'conv-darwin');
+    await writeFile(darwinTranscript, [
+      JSON.stringify({ step_index: 0, source: 'USER_EXPLICIT', type: 'USER_INPUT', content: 'DARWIN_TRANSCRIPT_PROMPT' }),
+      JSON.stringify({ step_index: 2, source: 'MODEL', type: 'PLANNER_RESPONSE', content: 'DARWIN_TRANSCRIPT_ANSWER' }),
+    ].join('\n') + '\n');
+
+    const { fetchImpl, sent } = mockHost();
+    const darwinOpts = {
+      env,
+      fetch: fetchImpl,
+      accessToken: token,
+      configPath,
+      registrationId: REG,
+      platform: 'darwin' as NodeJS.Platform,
+    };
+
+    // System-only lastUserInput cannot fall back to transcript on darwin -> no-op fail-open {}, zero HTTP.
+    const darwinSystemOnly = await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-darwin',
+      invocationNum: 1,
+      cwd: repo,
+      transcriptPath: darwinTranscript,
+      lastUserInput: 'Reason Network: system only',
+    }, darwinOpts);
+    expect(darwinSystemOnly).toEqual({});
+    expect(sent).toHaveLength(0);
+
+    // Explicit lastUserInput + Stop on darwin: hook runs fail-open without throwing and omits transcript-derived last_assistant_message.
+    const darwinPre = await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-darwin-explicit',
+      invocationNum: 1,
+      cwd: repo,
+      transcriptPath: darwinTranscript,
+      lastUserInput: 'Direct prompt on macOS',
+    }, darwinOpts);
+    expect(Array.isArray(darwinPre.injectSteps)).toBe(true);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].body.prompt).toBe('Direct prompt on macOS');
+
+    const darwinStop = await handleAntigravityJudgmentHook({
+      hookEventName: 'Stop',
+      conversationId: 'conv-darwin-explicit',
+      cwd: repo,
+      transcriptPath: darwinTranscript,
+      terminationReason: 'NO_TOOL_CALL',
+    }, darwinOpts);
+    expect(darwinStop).toEqual({ decision: '' });
+    expect(sent).toHaveLength(2);
+    expect(sent[1].body.last_assistant_message).toBeUndefined();
+
+    // Even when OS flock is also unavailable (typical macOS default without util-linux flock),
+    // handleAntigravityJudgmentHook never throws and returns strict fail-open responses.
+    const darwinNoFlockOpts = {
+      ...darwinOpts,
+      turnLock: { flockBinary: '/nonexistent/flock-darwin' },
+    };
+    expect(await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-darwin-noflock',
+      invocationNum: 1,
+      cwd: repo,
+      transcriptPath: darwinTranscript,
+      lastUserInput: 'Direct prompt without flock',
+    }, darwinNoFlockOpts)).toEqual({});
+    expect(await handleAntigravityJudgmentHook({
+      hookEventName: 'Stop',
+      conversationId: 'conv-darwin-noflock',
+      cwd: repo,
+      transcriptPath: darwinTranscript,
+      terminationReason: 'NO_TOOL_CALL',
+    }, darwinNoFlockOpts)).toEqual({ decision: '' });
   });
 
   it('strictly binds pending context re-authorization to bearer token fingerprint, non-null loginId, and confirmed effective project_code', async () => {
