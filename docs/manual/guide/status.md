@@ -4,9 +4,13 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
-## Candidate — v0.50.29（npm公開前）
+## Candidate — v0.50.30（npm公開前）
 
-0.50.28に、Gemini / OpenAI / Claude / Codex 間でMCPツールの `inputSchema` を正規化・検証する公開subpath `mcp-tool-schema-portability`（#1046、#1063）を最小差分で加えるpatch更新候補です。既存の公開API、MCPツール、既定の振る舞い、認証・権限の契約は変更しません。npm公開と利用ホストへの配備は別途確認します。
+0.50.29に、Antigravity CLIの判断フック対応（公開subpath `antigravity-judgment-hook`・CLI `judgment:antigravity-hook` / `judgment:install --target antigravity`・`'antigravity'` ホスト対応、#1077）と本人JWTのホスト側project解決（#1032）、`judgment-event-adapter` の `project_code` ハードコード解消と outbox の `projectCodes` スコーピング整合（RFC-002 PR-1、#1070）、および RFC-001 v2.0 の推論品質基盤（既定OFFのライブ推論ゲート v3.1・セッション内ミニ世界モデル v2 と非digestテレメトリ・公開subpath `judgment-reasoning-audit` とオフライン7項目二値監査 / PoLL 2-of-3 審査、#1045・#1047・#1061・#1062・#1069）を加える更新候補です。TypeScriptの公開型で `JudgmentKnowledgeEvent['applicability_scope']['project_code']` を `'brainbase'` から `string` へ拡張し、`RemoteJudgmentHookHost`・`JudgmentExecutionHostType`・`JudgmentRuntimeRuntimeContext['host']` に `'antigravity'` を追加するため、厳格な型検査を使う呼び出し側は移行が必要です（詳細は `docs/releases/0.50.30.md` を参照）。既存のランタイム既定動作・MCPツール・認証・権限の境界は維持します。npm公開と利用ホストへの配備は別途確認します。
+
+## Released — v0.50.29
+
+0.50.28に、Gemini / OpenAI / Claude / Codex 間でMCPツールの `inputSchema` を正規化・検証する公開subpath `mcp-tool-schema-portability`（#1046、#1063）を最小差分で加えたpatch更新です（#1076）。既存の公開API、MCPツール、既定の振る舞い、認証・権限の契約は変更しません。npmには2026-11-25 03:48:12 JSTに公開しました。利用ホストへの配備は、この記録だけでは確認できません。
 
 ## Released — v0.50.28
 
