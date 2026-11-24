@@ -247,7 +247,8 @@ export function toKnowledgeEventFromJudgmentEpisode(
   if (outcome && outcome.status !== 'completed') return null;
   const projectCode = resolveEpisodeProjectCode(episode, options);
   if (!projectCode) return null;
-  const sourceType = outcome?.host.type === 'claude-code' ? 'agent_judgment' : 'codex_judgment';
+  const sourceType = outcome?.host.type === 'claude-code' || outcome?.host.type === 'antigravity'
+    ? 'agent_judgment' : 'codex_judgment';
 
   return {
     schema_version: 'knowledge_event.v1',

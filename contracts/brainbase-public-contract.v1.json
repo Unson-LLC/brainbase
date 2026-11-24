@@ -262,6 +262,7 @@
       "doctor",
       "graph:bundles",
       "graph:upgrade",
+      "judgment:antigravity-hook",
       "judgment:claude-code-hook",
       "judgment:hook",
       "judgment:install",
