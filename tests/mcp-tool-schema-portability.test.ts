@@ -663,6 +663,269 @@ describe('MCP tool inputSchema cross-client portability contract (Gemini / OpenA
     });
   });
 
+  it('propagates preserveUndeclaredRequired and intersection/union modes into array items and additionalProperties schemas', () => {
+    // Exact repro from cross-model review #4: array items split across allOf branches.
+    const arrayRepro = {
+      type: 'object',
+      allOf: [
+        { properties: { config: { type: 'array', items: { type: 'object', properties: { id: { type: 'string' } } } } } },
+        { properties: { config: { type: 'array', items: { type: 'object', required: ['id'] } } } },
+      ],
+    } as unknown as Tool['inputSchema'];
+
+    const normalizedArrayRepro = normalizeMcpToolInputSchemaForPortability(arrayRepro);
+    expect(validateMcpToolInputSchemaPortability(normalizedArrayRepro, 'array_repro_tool')).toEqual([]);
+    const reproConfig = (normalizedArrayRepro.properties as Record<string, Record<string, unknown>>).config;
+    expect(reproConfig).toEqual({
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { id: { type: 'string' } },
+        required: ['id'],
+      },
+    });
+
+    // Nested array items, __proto__ retention, orphan pruning, outer array + allOf,
+    // single-branch array pruning, and additionalProperties object schema merging.
+    const richArrayAndMap = JSON.parse(`{
+      "type": "object",
+      "properties": {
+        "outer_array": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" }
+            }
+          },
+          "allOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["id", "outer_array_orphan"]
+              }
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "properties": {
+            "config_proto": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" },
+                  "__proto__": { "type": "integer" }
+                }
+              }
+            },
+            "nested_matrix": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "__proto__": { "type": "boolean" }
+                  }
+                }
+              }
+            },
+            "single_branch_array": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "present": { "type": "string" }
+                },
+                "required": ["present", "single_branch_orphan"]
+              }
+            },
+            "single_branch_orphan_only": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "present": { "type": "string" }
+                },
+                "required": ["orphan_only"]
+              }
+            },
+            "typed_map": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string" },
+                  "__proto__": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "config_proto": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["id", "__proto__", "orphan_key"]
+              }
+            },
+            "nested_matrix": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["id", "__proto__", "matrix_orphan"]
+                }
+              }
+            },
+            "typed_map": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "required": ["id", "__proto__", "map_orphan"]
+              }
+            }
+          }
+        }
+      ]
+    }`) as Tool['inputSchema'];
+
+    const normalizedRich = normalizeMcpToolInputSchemaForPortability(richArrayAndMap);
+    expect(validateMcpToolInputSchemaPortability(normalizedRich, 'rich_array_map_tool')).toEqual([]);
+    const richProps = normalizedRich.properties as Record<string, Record<string, unknown>>;
+
+    expect(richProps.outer_array).toEqual({
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { id: { type: 'string' } },
+        required: ['id'],
+      },
+    });
+
+    const configProtoItems = richProps.config_proto.items as Record<string, unknown>;
+    const configProtoItemProps = configProtoItems.properties as Record<string, unknown>;
+    expect(Object.getPrototypeOf(configProtoItemProps)).toBe(Object.prototype);
+    expect(Object.hasOwn(configProtoItemProps, 'id')).toBe(true);
+    expect(Object.hasOwn(configProtoItemProps, '__proto__')).toBe(true);
+    expect(configProtoItems.required).toEqual(['id', '__proto__']);
+
+    const matrixLeaf = (richProps.nested_matrix.items as Record<string, unknown>).items as Record<string, unknown>;
+    const matrixLeafProps = matrixLeaf.properties as Record<string, unknown>;
+    expect(Object.getPrototypeOf(matrixLeafProps)).toBe(Object.prototype);
+    expect(Object.hasOwn(matrixLeafProps, 'id')).toBe(true);
+    expect(Object.hasOwn(matrixLeafProps, '__proto__')).toBe(true);
+    expect(matrixLeaf.required).toEqual(['id', '__proto__']);
+
+    expect(richProps.single_branch_array).toEqual({
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { present: { type: 'string' } },
+        required: ['present'],
+      },
+    });
+
+    expect(richProps.single_branch_orphan_only).toEqual({
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { present: { type: 'string' } },
+      },
+    });
+
+    const typedMapAdd = richProps.typed_map.additionalProperties as Record<string, unknown>;
+    const typedMapAddProps = typedMapAdd.properties as Record<string, unknown>;
+    expect(Object.getPrototypeOf(typedMapAddProps)).toBe(Object.prototype);
+    expect(Object.hasOwn(typedMapAddProps, 'id')).toBe(true);
+    expect(Object.hasOwn(typedMapAddProps, '__proto__')).toBe(true);
+    expect(typedMapAdd.required).toEqual(['id', '__proto__']);
+
+    // Idempotent on second pass.
+    const secondPass = normalizeMcpToolInputSchemaForPortability(normalizedRich);
+    expect(validateMcpToolInputSchemaPortability(secondPass, 'rich_array_map_tool')).toEqual([]);
+    expect(JSON.stringify(secondPass)).toBe(JSON.stringify(normalizedRich));
+
+    // Union combinators (oneOf / anyOf) must continue to merge array items in union mode
+    // (required = intersection of branch required keys, never union).
+    const unionArrays = {
+      type: 'object',
+      properties: {
+        oneof_items: {
+          oneOf: [
+            {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: { id: { type: 'string' }, a: { type: 'string' } },
+                required: ['id', 'a'],
+              },
+            },
+            {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: { id: { type: 'string' }, b: { type: 'integer' } },
+                required: ['id', 'b'],
+              },
+            },
+          ],
+        },
+        anyof_split_items: {
+          anyOf: [
+            {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: { id: { type: 'string' } },
+              },
+            },
+            {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['id'],
+              },
+            },
+          ],
+        },
+      },
+    } as unknown as Tool['inputSchema'];
+
+    const normalizedUnion = normalizeMcpToolInputSchemaForPortability(unionArrays);
+    expect(validateMcpToolInputSchemaPortability(normalizedUnion, 'union_array_tool')).toEqual([]);
+    const unionProps = normalizedUnion.properties as Record<string, Record<string, unknown>>;
+
+    expect(unionProps.oneof_items).toEqual({
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          a: { type: 'string' },
+          b: { type: 'integer' },
+        },
+        required: ['id'],
+      },
+    });
+
+    expect(unionProps.anyof_split_items).toEqual({
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { id: { type: 'string' } },
+      },
+    });
+  });
+
   it('publishes ./mcp-tool-schema-portability with all 11 exported symbols (8 runtime functions + 3 types) matching dist output', async () => {
     const manifest = JSON.parse(await readFile(path.join(process.cwd(), 'package.json'), 'utf8'));
     expect(manifest.exports['./mcp-tool-schema-portability']).toEqual({
