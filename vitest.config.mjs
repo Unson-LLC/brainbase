@@ -14,6 +14,7 @@ export function sharedRunnerTimeouts(env) {
 // and run significantly faster with isolate: false by reusing imported modules.
 const ISOLATED_TEST_PATTERNS = [
   'tests/ui/world-*.test.mjs',
+  'tests/ui/meeting-minutes-page.test.mjs',
   'tests/judgment-history-scan-cache.test.ts',
   'tests/judgment-value-proof-journal-cache.test.ts',
   'tests/build-stage3b-candidate-bundle.test.ts',
