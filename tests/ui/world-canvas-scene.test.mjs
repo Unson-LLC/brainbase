@@ -427,3 +427,23 @@ describe('World production asset closure', () => {
     }
   });
 });
+
+
+describe('RQ-151 help across real district transitions', () => {
+  it.each([false, true])('preserves user help state open=%s on city entry and exit', async (open) => {
+    const app = await mount({ presentation: 'standard' });
+    const toggle = app.root.querySelector('.bb-world-legend-toggle');
+    const panel = app.root.querySelector('.bb-world-legend-panel');
+    if (open) toggle.click();
+    buttonsNamed(app.rail, 'Alphaの区画に入る ›')[0].click();
+    await waitFor(() => districtRenderer());
+    frame();
+    expect(districtRenderer().domElement.hidden).toBe(false);
+    expect(panel.hidden).toBe(!open);
+    expect(toggle.getAttribute('aria-expanded')).toBe(String(open));
+    buttonsNamed(app.root, '全体に戻る')[0].click();
+    expect(districtRenderer().domElement.hidden).toBe(true);
+    expect(panel.hidden).toBe(!open);
+    expect(toggle.getAttribute('aria-expanded')).toBe(String(open));
+  });
+});

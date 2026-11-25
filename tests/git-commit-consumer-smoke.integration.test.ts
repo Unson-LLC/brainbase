@@ -1,11 +1,12 @@
 import { execFileSync } from 'node:child_process';
+import { statfsSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 
-const GIT_CONSUMER_TEST_TIMEOUT_MS = 240_000;
+const GIT_CONSUMER_TEST_TIMEOUT_MS = 600_000;
 const temporaryRoots: string[] = [];
 
 afterEach(async () => {
@@ -36,13 +37,34 @@ describe('exact git commit consumer contract', () => {
     }));
 
     const dependency = `git+${pathToFileURL(repositoryRoot).href}#${sha}`;
-    execFileSync('npm', ['install', '--save-exact', `@unson/brainbase-mcp@${dependency}`], {
+    // pacote prepares git dependencies inside `<npm-cache>/_cacache/tmp/git-clone*`,
+    // extracting ~389 devDependencies (~20k files) and running `npm run build` there.
+    // On shared WSL2 CI runners, doing that on the shared disk cache (~/.npm) takes
+    // ~140s under disk contention. When /dev/shm tmpfs has >= 1 GiB free, putting
+    // a throwaway npm cache inside consumerRoot (/dev/shm) keeps extraction,
+    // TypeScript compilation, and cleanup in RAM (~30s faster on busy runners).
+    let isolatedCache: string | undefined;
+    if (process.env.BRAINBASE_TEST_FIXTURE_ROOT) {
+      try {
+        const stats = statfsSync(consumerRoot);
+        if (stats.bavail * stats.bsize >= 1024 * 1024 * 1024) {
+          isolatedCache = path.join(consumerRoot, 'npm-cache');
+        }
+      } catch {
+        // Fall back to the default npm cache when statfs is unavailable.
+      }
+    }
+    execFileSync('npm', ['install', '--save-exact', '--prefer-offline', '--no-audit', '--no-fund', `@unson/brainbase-mcp@${dependency}`], {
       cwd: consumerRoot,
       encoding: 'utf8',
       env: {
         ...process.env,
+        ...(isolatedCache ? { NPM_CONFIG_CACHE: isolatedCache } : {}),
         NPM_CONFIG_AUDIT: 'false',
-        NPM_CONFIG_FUND: 'false'
+        NPM_CONFIG_FUND: 'false',
+        NPM_CONFIG_PREFER_OFFLINE: 'true',
+        NPM_CONFIG_PROGRESS: 'false',
+        NPM_CONFIG_UPDATE_NOTIFIER: 'false'
       }
     });
 

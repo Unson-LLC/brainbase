@@ -566,7 +566,7 @@ export async function runQueueTaskContractScenario(
                     assert.ok(!(key in (tools[i].inputSchema.properties ?? {})));
             }
             assert.deepEqual(
-                tools.map((t) => t.inputSchema.required),
+                tools.map((t) => t.inputSchema.required ?? []),
                 [
                     [],
                     ['task_id'],

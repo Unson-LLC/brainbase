@@ -1,6 +1,6 @@
 {
   "name": "@unson/brainbase-mcp",
-  "version": "0.50.30",
+  "version": "0.51.0",
   "description": "Local-first Brainbase judgment OS that lets supported AI agents reuse a user's approved goals, priorities, decisions, and judgment criteria.",
   "type": "module",
   "license": "MIT",
@@ -387,10 +387,6 @@
       "types": "./dist/mcp-tool-schema-portability.d.ts",
       "import": "./dist/mcp-tool-schema-portability.js"
     },
-    "./resource-reservations": {
-      "types": "./dist/resource-reservations.d.ts",
-      "import": "./dist/resource-reservations.js"
-    },
     "./durable-waits": {
       "types": "./dist/durable-waits.d.ts",
       "import": "./dist/durable-waits.js"
@@ -407,10 +403,6 @@
       "types": "./dist/judgment-view-http.d.ts",
       "import": "./dist/judgment-view-http.js"
     },
-    "./execution-authority-http": {
-      "types": "./dist/execution-authority-http.d.ts",
-      "import": "./dist/execution-authority-http.js"
-    },
     "./server-support": {
       "types": "./dist/server-support.d.ts",
       "import": "./dist/server-support.js"
@@ -422,6 +414,10 @@
     "./company-os-impact-review": {
       "types": "./dist/company-os-impact-review.d.ts",
       "import": "./dist/company-os-impact-review.js"
+    },
+    "./world-model-impact-index": {
+      "types": "./dist/world-model-impact-index.d.ts",
+      "import": "./dist/world-model-impact-index.js"
     },
     "./streamable-http": {
       "types": "./dist/streamable-http.d.ts",
@@ -524,14 +520,6 @@
     "./problem-candidates": {
       "types": "./dist/problem-candidates.d.ts",
       "import": "./dist/problem-candidates.js"
-    },
-    "./resource-reservation-http": {
-      "types": "./dist/resource-reservation-http.d.ts",
-      "import": "./dist/resource-reservation-http.js"
-    },
-    "./execution-authority": {
-      "types": "./dist/execution-authority.d.ts",
-      "import": "./dist/execution-authority.js"
     },
     "./knowledge-continuation": {
       "types": "./dist/knowledge-continuation.d.ts",

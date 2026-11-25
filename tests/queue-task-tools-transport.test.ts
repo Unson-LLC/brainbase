@@ -4,6 +4,7 @@ import {
     QUEUE_TASK_CONTRACT_SCENARIO_NAMES,
     runQueueTaskContractScenario,
     createQueueReferenceSeed,
+    type QueueTaskContractTranscript,
 } from '../src/testing/queue-task-tools-contract.js';
 import {
     createStdioQueueAdapter,
@@ -14,19 +15,28 @@ const adapterFor = (transport: string) =>
     transport === 'stdio' ? createStdioQueueAdapter() : createHttpQueueAdapter();
 // Each scenario starts the server over stdio or HTTP. On the shared CI machine
 // under load, AC-8 over stdio took up to 29.9s on 2026-11-23 and timed out at
-// 30s several times (UNS-5551), so the limits are twice the longest pass seen.
-const SCENARIO_TIMEOUT_MS = 60_000;
+// 30s several times (UNS-5551), so the limits give headroom on shared runners.
 const BOTH_TRANSPORTS_TIMEOUT_MS = 160_000;
+const recordedTranscripts = new Map<string, QueueTaskContractTranscript>();
 describe.each(['stdio', 'http'] as const)('queue task tools over %s', (transport) => {
     for (const name of QUEUE_TASK_CONTRACT_SCENARIO_NAMES)
-        it(name, () => runQueueTaskContractScenario(name, adapterFor(transport), assert), SCENARIO_TIMEOUT_MS);
+        it.concurrent(
+            name,
+            async () => {
+                const transcript = await runQueueTaskContractScenario(name, adapterFor(transport), assert);
+                recordedTranscripts.set(`${transport}:${name}`, transcript);
+            },
+            transport === 'stdio' ? 120_000 : 60_000,
+        );
 });
 it('AC-10 runs the same queue contract over stdio and Streamable HTTP', async () => {
     const transcripts = [];
     for (const transport of ['stdio', 'http']) {
         const results = [];
-        for (const name of QUEUE_TASK_CONTRACT_SCENARIO_NAMES)
-            results.push(await runQueueTaskContractScenario(name, adapterFor(transport), assert));
+        for (const name of QUEUE_TASK_CONTRACT_SCENARIO_NAMES) {
+            const cached = recordedTranscripts.get(`${transport}:${name}`);
+            results.push(cached ?? (await runQueueTaskContractScenario(name, adapterFor(transport), assert)));
+        }
         transcripts.push(results);
     }
     // Every scenario on both transports; up to 80.2s passed on 2026-11-23.

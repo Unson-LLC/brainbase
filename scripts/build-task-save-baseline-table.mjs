@@ -239,7 +239,7 @@ function cell(value) {
 
 export function renderMarkdown(table) {
     const lines = [];
-    lines.push('# Task 保存 新旧比較表（固定SHA確定）');
+    lines.push(`# Task 保存 新旧比較表（${table.complete ? '固定SHA確定' : '未確定'}）`);
     lines.push('');
     lines.push(`- work_package: ${table.work_package}`);
     lines.push(`- itsaplan: ${table.itsaplan}`);
@@ -251,7 +251,7 @@ export function renderMarkdown(table) {
     lines.push('');
     lines.push('> この sha256 は取得した証拠ファイルの内容ハッシュであり、基準の固定SHAでも実行成果物hashでもない。');
     lines.push('');
-    lines.push('| 証拠ファイル | 取得 | ファイル sha256 | 備考 |');
+    lines.push('| 証拠ファイル | 取得 | fileSha256 | 備考 |');
     lines.push('| --- | --- | --- | --- |');
     for (const artifact of table.evidence) {
         lines.push(`| \`${artifact.file}\` | ${artifact.acquired ? '済' : '未'} | ${cell(artifact.fileSha256)} | ${artifact.reason} |`);
