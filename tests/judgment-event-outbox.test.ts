@@ -477,13 +477,36 @@ describe('portable judgment knowledge event outbox', () => {
       ...event('event-d-conflict', 'denied-project'),
       project_code: 'itsaplan'
     } as JudgmentKnowledgeEvent;
+    const numericScopeProjectEvent = {
+      ...event('event-d2-numeric', 'itsaplan'),
+      applicability_scope: {
+        scope: 'judgment_episode',
+        project_code: 123
+      } as unknown as JudgmentKnowledgeEvent['applicability_scope'],
+      project_code: 'itsaplan'
+    } as JudgmentKnowledgeEvent;
+    const objectScopeProjectEvent = {
+      ...event('event-d3-object', 'itsaplan'),
+      applicability_scope: {
+        scope: 'judgment_episode',
+        project_code: { code: 'itsaplan' }
+      } as unknown as JudgmentKnowledgeEvent['applicability_scope'],
+      project_code: 'itsaplan'
+    } as JudgmentKnowledgeEvent;
+    const paddedScopeProjectEvent = {
+      ...event('event-d4-padded', ' itsaplan '),
+      project_code: 'itsaplan'
+    } as JudgmentKnowledgeEvent;
     enqueueJudgmentKnowledgeEvent(missingProjectEvent, { directory: paths.outboxDir });
     enqueueJudgmentKnowledgeEvent(conflictingProjectEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(numericScopeProjectEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(objectScopeProjectEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(paddedScopeProjectEvent, { directory: paths.outboxDir });
     const scopedCheck = await deliverJudgmentKnowledgeEventOutbox({
       paths,
       allowedProjectCodes: ['itsaplan'],
       delivery: {
-        post: async () => { throw new Error('out-of-scope or missing project_code should not be posted'); },
+        post: async () => { throw new Error('out-of-scope, missing, or invalid project_code should not be posted'); },
         readback: async () => { throw new Error('unreachable'); }
       }
     });
@@ -492,9 +515,30 @@ describe('portable judgment knowledge event outbox', () => {
       delivered: 0,
       failed: 0,
       dead_lettered: 0,
-      deferred: 2,
-      out_of_scope: 2,
-      pending: 2
+      deferred: 5,
+      out_of_scope: 5,
+      pending: 5
+    });
+
+    // Padded entries in allowedProjectCodes must NOT be implicitly trimmed (exact downstream includes parity).
+    const strictAllowlistPaths = pathsFor(join(root, 'strict-allowlist'));
+    enqueueJudgmentKnowledgeEvent(event('event-strict-1', 'itsaplan'), { directory: strictAllowlistPaths.outboxDir });
+    const paddedAllowlistResult = await deliverJudgmentKnowledgeEventOutbox({
+      paths: strictAllowlistPaths,
+      allowedProjectCodes: [' itsaplan '],
+      delivery: {
+        post: async () => { throw new Error('padded allowlist entry must not match exact project_code'); },
+        readback: async () => { throw new Error('unreachable'); }
+      }
+    });
+    expect(paddedAllowlistResult).toMatchObject({
+      status: 'processed',
+      delivered: 0,
+      failed: 0,
+      dead_lettered: 0,
+      deferred: 1,
+      out_of_scope: 1,
+      pending: 1
     });
 
     // Critical PR-1 invariant: non-empty candidate_id remains required on post ack for non-brainbase events.
@@ -897,6 +941,76 @@ describe('portable judgment knowledge event outbox', () => {
       status: 'confirmed',
       event_id: 'event-dec-valid',
       candidate_id: 'cand-dec-1'
+    });
+  });
+
+  it('rejects invalid or conflicting project_code even when allowedProjectCodes is omitted', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'brainbase-judgment-outbox-'));
+    roots.push(root);
+    const paths = pathsFor(root);
+
+    const numericScopeEvent = {
+      ...event('event-invalid-num', 'itsaplan'),
+      applicability_scope: {
+        scope: 'judgment_episode',
+        project_code: 123
+      } as unknown as JudgmentKnowledgeEvent['applicability_scope']
+    } as JudgmentKnowledgeEvent;
+    const objectScopeEvent = {
+      ...event('event-invalid-obj', 'itsaplan'),
+      applicability_scope: {
+        scope: 'judgment_episode',
+        project_code: { code: 'itsaplan' }
+      } as unknown as JudgmentKnowledgeEvent['applicability_scope']
+    } as JudgmentKnowledgeEvent;
+    const paddedScopeEvent = {
+      ...event('event-invalid-pad', ' itsaplan ')
+    } as JudgmentKnowledgeEvent;
+    const badScopeContainerEvent = {
+      ...event('event-invalid-scope', 'itsaplan'),
+      applicability_scope: 'not-an-object' as unknown as JudgmentKnowledgeEvent['applicability_scope']
+    } as JudgmentKnowledgeEvent;
+    const conflictingEvent = {
+      ...event('event-conflict', 'proj-a'),
+      project_code: 'proj-b'
+    } as JudgmentKnowledgeEvent;
+    const validEvent = event('event-valid', 'itsaplan');
+
+    enqueueJudgmentKnowledgeEvent(numericScopeEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(objectScopeEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(paddedScopeEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(badScopeContainerEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(conflictingEvent, { directory: paths.outboxDir });
+    enqueueJudgmentKnowledgeEvent(validEvent, { directory: paths.outboxDir });
+
+    const posted: string[] = [];
+    // Notice allowedProjectCodes is intentionally omitted!
+    const result = await deliverJudgmentKnowledgeEventOutbox({
+      paths,
+      delivery: {
+        post: async (candidate) => {
+          posted.push(candidate.event_id);
+          return {
+            event_id: candidate.event_id,
+            candidate_id: 'cand-valid-1',
+            http_status: 202,
+            received_at: '2026-11-25T00:00:00.500Z'
+          };
+        },
+        readback: async ({ event: candidate, post }) => readback(candidate.event_id, post.candidate_id)
+      },
+      now: () => new Date('2026-11-25T00:00:01.000Z')
+    });
+
+    expect(posted).toEqual(['event-valid']);
+    expect(result).toMatchObject({
+      status: 'processed',
+      delivered: 1,
+      failed: 0,
+      dead_lettered: 0,
+      deferred: 5,
+      out_of_scope: 5,
+      pending: 5
     });
   });
 });

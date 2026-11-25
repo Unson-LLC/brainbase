@@ -156,6 +156,21 @@ function isInternalJudgmentControlTool(payload: Record<string, unknown>): boolea
       'mcp__brainbase__brainbase_judgment_repair_read'].includes(toolName);
 }
 
+function invokeFailOpenObserver<T>(observer: ((details: T) => void) | undefined, details: T): void {
+  if (!observer) return;
+  try {
+    const result: unknown = observer(details);
+    if (result !== null && (typeof result === 'object' || typeof result === 'function')
+      && typeof (result as PromiseLike<unknown>).then === 'function') {
+      Promise.resolve(result).catch(() => {
+        /* Fail-open observer cannot affect the hook response or emit unhandled rejections. */
+      });
+    }
+  } catch {
+    /* Fail-open observer cannot affect the hook response. */
+  }
+}
+
 function safeCauseReasonCode(error: unknown): string | undefined {
   let current = typeof error === 'object' && error && 'cause' in error ? error.cause : undefined;
   const visited = new Set<unknown>();
@@ -309,18 +324,14 @@ export async function handleRemoteJudgmentHookRequest(
     }
     if (typeof dispatchResult.reasoningGateApplied === 'boolean'
       && dispatchResult.reasoningGateMode !== undefined) {
-      try {
-        request.onReasoningGateTelemetry?.({
-          eventName,
-          sessionId,
-          turnId,
-          ...(projectCode ? { projectCode } : {}),
-          reasoning_gate_applied: dispatchResult.reasoningGateApplied,
-          reasoning_gate_mode: dispatchResult.reasoningGateMode,
-        });
-      } catch {
-        /* Non-digest telemetry cannot affect the hook response. */
-      }
+      invokeFailOpenObserver(request.onReasoningGateTelemetry, {
+        eventName,
+        sessionId,
+        turnId,
+        ...(projectCode ? { projectCode } : {}),
+        reasoning_gate_applied: dispatchResult.reasoningGateApplied,
+        reasoning_gate_mode: dispatchResult.reasoningGateMode,
+      });
     }
     // The remote runtime's stream validator needs an audit line per tool. A
     // local Claude Code turn has no such validator; the Host decides alone.
@@ -385,7 +396,7 @@ export async function handleRemoteJudgmentHookRequest(
       ? error.code
       : undefined;
     const causeReasonCode = safeCauseReasonCode(error);
-    request.onDispatchError?.({
+    invokeFailOpenObserver(request.onDispatchError, {
       eventName,
       reason,
       errorName: error instanceof Error ? error.name : 'UnknownError',
