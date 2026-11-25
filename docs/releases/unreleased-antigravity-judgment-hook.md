@@ -1,4 +1,6 @@
-# Antigravity judgment host support (`'antigravity'`) — unreleased (breaking)
+# Antigravity judgment host support (`'antigravity'`) — integrated into `0.50.30`
+
+> **Integrated**: This note was superseded by [`docs/releases/0.50.30.md`](./0.50.30.md) (published in `@unson/brainbase-mcp@0.50.30`). Kept for historical reference.
 
 Unreleased; publish needs separate approval. The latest release tag is `v0.50.27`,
 which restricts `RemoteJudgmentHookHost`, `JudgmentExecutionHostType`, and

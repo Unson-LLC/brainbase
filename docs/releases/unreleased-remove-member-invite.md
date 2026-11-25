@@ -1,4 +1,6 @@
-# Organization member invitation removed from the OSS core — unreleased (breaking)
+# Organization member invitation removed from the OSS core — integrated into `0.51.0`
+
+> **Integrated**: This note has been integrated into [`docs/releases/0.51.0.md`](./0.51.0.md). Kept for historical reference.
 
 Unreleased; publish needs separate approval. The latest npm release is 0.50.22,
 which still contains this module. The release that first ships this change must

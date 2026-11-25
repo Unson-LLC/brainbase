@@ -1,4 +1,6 @@
-# Judgment event outbox conditional `candidate_id: null` for `episode` events — unreleased (breaking)
+# Judgment event outbox conditional `candidate_id: null` for `episode` events — integrated into `0.51.0`
+
+> **Integrated**: This note has been integrated into [`docs/releases/0.51.0.md`](./0.51.0.md). Kept for historical reference.
 
 Unreleased; publish needs separate approval. The latest release tag is `v0.50.29`,
 which still types `JudgmentOutboxPostAck['candidate_id']` and

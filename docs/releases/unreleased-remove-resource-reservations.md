@@ -1,4 +1,6 @@
-# Resource reservations removed from the OSS core — unreleased (breaking)
+# Resource reservations removed from the OSS core — integrated into `0.51.0`
+
+> **Integrated**: This note has been integrated into [`docs/releases/0.51.0.md`](./0.51.0.md). Kept for historical reference.
 
 Unreleased; publish needs separate approval. The latest npm release is 0.50.22,
 and its tag `v0.50.22` does not contain this change. It came in with #1027
