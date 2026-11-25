@@ -98,7 +98,9 @@ export function resolveJudgmentKnowledgeEventOutboxPaths(
 
 export interface JudgmentOutboxPostAck {
   event_id: string;
-  candidate_id: string;
+  candidate_id: string | null;
+  candidate_created?: boolean;
+  target_tier?: string;
   http_status?: number | null;
   received_at: string;
   [key: string]: unknown;
@@ -107,11 +109,79 @@ export interface JudgmentOutboxPostAck {
 export interface JudgmentOutboxReadback {
   schema_version: typeof JUDGMENT_EVENT_READBACK_SCHEMA_VERSION;
   event_id: string;
-  candidate_id: string;
+  candidate_id: string | null;
+  candidate_created?: boolean;
+  target_tier?: string;
   processing_stage: 'retrievable';
   semantic_state: 'active';
   readback_at: string;
   [key: string]: unknown;
+}
+
+export interface JudgmentOutboxCandidateIdCheckInput {
+  readonly subjectType: string | null | undefined;
+  readonly postCandidateId: string | null | undefined;
+  readonly readbackCandidateId: string | null | undefined;
+  readonly postCandidateCreated?: unknown;
+  readonly postTargetTier?: unknown;
+  readonly readbackCandidateCreated?: unknown;
+  readonly readbackTargetTier?: unknown;
+}
+
+function isNonEmptyCandidateId(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function hasConsistentEpisodeNullFlags(record: {
+  candidate_created?: unknown;
+  target_tier?: unknown;
+}): boolean {
+  if (record.candidate_created !== undefined && record.candidate_created !== false) {
+    return false;
+  }
+  if (record.target_tier !== undefined && record.target_tier !== 'episode') {
+    return false;
+  }
+  return true;
+}
+
+function isValidPostAckCandidateId(
+  subjectType: string | null | undefined,
+  post: {
+    candidate_id?: unknown;
+    candidate_created?: unknown;
+    target_tier?: unknown;
+  }
+): boolean {
+  if (post.candidate_id === null) {
+    return subjectType === 'episode' && hasConsistentEpisodeNullFlags(post);
+  }
+  return isNonEmptyCandidateId(post.candidate_id);
+}
+
+/**
+ * RFC-002 Layer C PR-3 Contract 1: conditional `candidate_id: null` guard.
+ *
+ * `candidate_id === null` is accepted only when `subjectType === 'episode'`,
+ * both post and readback report `null`, and any explicit `candidate_created`
+ * or `target_tier` flags are consistent (`false` / `'episode'`). Non-episode
+ * subjects always require identical non-empty string `candidate_id` values.
+ */
+export function isValidJudgmentOutboxCandidateIdPair(
+  input: JudgmentOutboxCandidateIdCheckInput
+): boolean {
+  if (input.postCandidateId !== input.readbackCandidateId) return false;
+  if (input.postCandidateId === null) {
+    if (input.subjectType !== 'episode') return false;
+    return hasConsistentEpisodeNullFlags({
+      candidate_created: input.postCandidateCreated,
+      target_tier: input.postTargetTier
+    }) && hasConsistentEpisodeNullFlags({
+      candidate_created: input.readbackCandidateCreated,
+      target_tier: input.readbackTargetTier
+    });
+  }
+  return isNonEmptyCandidateId(input.postCandidateId);
 }
 
 /**
@@ -327,28 +397,50 @@ function errorStatus(error: unknown): number | null {
   return typeof status === 'number' && Number.isInteger(status) ? status : null;
 }
 
+function eventSubjectType(event: unknown): string | null {
+  if (!event || typeof event !== 'object' || Array.isArray(event)) return null;
+  const subject = (event as Record<string, unknown>).subject;
+  if (!subject || typeof subject !== 'object' || Array.isArray(subject)) return null;
+  const type = (subject as Record<string, unknown>).type;
+  return typeof type === 'string' && type.length > 0 ? type : null;
+}
+
 function confirmedReceipt(
   value: unknown,
   eventId: string,
-  candidateId: string,
-  projectCode: string | null
+  candidateId: string | null,
+  projectCode: string | null,
+  subjectType: string | null
 ): boolean {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const receipt = value as Record<string, unknown>;
-  const post = receipt.post && typeof receipt.post === 'object' ? receipt.post as Record<string, unknown> : null;
-  const readback = receipt.readback && typeof receipt.readback === 'object'
+  const post = receipt.post && typeof receipt.post === 'object' && !Array.isArray(receipt.post)
+    ? receipt.post as Record<string, unknown>
+    : null;
+  const readback = receipt.readback && typeof receipt.readback === 'object' && !Array.isArray(receipt.readback)
     ? receipt.readback as Record<string, unknown>
     : null;
+  if (!post || !readback) return false;
+  const validCandidatePair = isValidJudgmentOutboxCandidateIdPair({
+    subjectType,
+    postCandidateId: post.candidate_id as string | null | undefined,
+    readbackCandidateId: readback.candidate_id as string | null | undefined,
+    postCandidateCreated: post.candidate_created,
+    postTargetTier: post.target_tier,
+    readbackCandidateCreated: readback.candidate_created,
+    readbackTargetTier: readback.target_tier
+  });
   return receipt.schema_version === JUDGMENT_EVENT_DELIVERY_RECEIPT_SCHEMA_VERSION
     && receipt.status === 'confirmed'
     && receipt.event_id === eventId
     && receipt.candidate_id === candidateId
     && receipt.project_code === projectCode
-    && post?.event_id === eventId
+    && post.event_id === eventId
     && post.candidate_id === candidateId
-    && readback?.schema_version === JUDGMENT_EVENT_READBACK_SCHEMA_VERSION
+    && readback.schema_version === JUDGMENT_EVENT_READBACK_SCHEMA_VERSION
     && readback.event_id === eventId
     && readback.candidate_id === candidateId
+    && validCandidatePair
     && readback.processing_stage === 'retrievable'
     && readback.semantic_state === 'active';
 }
@@ -401,12 +493,13 @@ function eventProjectCodes(event: JudgmentKnowledgeEvent): {
 function readConfirmedReceipt(
   path: string,
   eventId: string,
-  candidateId: string,
+  candidateId: string | null,
   code: string | null,
+  subjectType: string | null,
   storage: JudgmentOutboxStorage
 ): boolean {
   try {
-    return confirmedReceipt(parseJson(path, storage), eventId, candidateId, code);
+    return confirmedReceipt(parseJson(path, storage), eventId, candidateId, code, subjectType);
   } catch {
     return false;
   }
@@ -499,6 +592,7 @@ function deliverCore(options: Required<Pick<JudgmentOutboxDeliveryOptions, 'path
       }
       processed += 1;
       const eventId = queued.event.event_id;
+      const subjectType = eventSubjectType(queued.event);
       const postAck = queued.delivery.post_ack;
       const attempt = queued.delivery.attempt || 1;
       const readbackAttempt = queued.delivery.readback_attempt || 1;
@@ -509,7 +603,11 @@ function deliverCore(options: Required<Pick<JudgmentOutboxDeliveryOptions, 'path
         continue;
       }
       const receiptPath = join(options.paths.deliveryReceiptDir, `${eventId}.json`);
-      if (postAck && readConfirmedReceipt(receiptPath, eventId, postAck.candidate_id, code, storage)) {
+      if (
+        postAck
+        && isValidPostAckCandidateId(subjectType, postAck)
+        && readConfirmedReceipt(receiptPath, eventId, postAck.candidate_id, code, subjectType, storage)
+      ) {
         try {
           storage.unlink(target);
           delivered += 1;
@@ -527,7 +625,7 @@ function deliverCore(options: Required<Pick<JudgmentOutboxDeliveryOptions, 'path
         if (!confirmedPost) {
           failureKind = 'post';
           confirmedPost = await delivery.post(queued.event);
-          if (confirmedPost.event_id !== eventId || !confirmedPost.candidate_id) {
+          if (confirmedPost.event_id !== eventId || !isValidPostAckCandidateId(subjectType, confirmedPost)) {
             const error = new Error('knowledge_event_delivery_ack_identity_mismatch') as JudgmentOutboxDeliveryError;
             error.code = 'knowledge_event_delivery_ack_identity_mismatch';
             error.phase = 'post';
@@ -547,13 +645,26 @@ function deliverCore(options: Required<Pick<JudgmentOutboxDeliveryOptions, 'path
           };
           atomicWrite(target, ackQueued, storage);
           queued = ackQueued;
+        } else if (confirmedPost.event_id !== eventId || !isValidPostAckCandidateId(subjectType, confirmedPost)) {
+          const error = new Error('knowledge_event_delivery_ack_identity_mismatch') as JudgmentOutboxDeliveryError;
+          error.code = 'knowledge_event_delivery_ack_identity_mismatch';
+          error.phase = 'post';
+          throw error;
         }
 
         failureKind = 'readback';
         const readback = await delivery.readback({ event: queued.event, post: confirmedPost });
         if (readback.schema_version !== JUDGMENT_EVENT_READBACK_SCHEMA_VERSION
           || readback.event_id !== eventId
-          || readback.candidate_id !== confirmedPost.candidate_id
+          || !isValidJudgmentOutboxCandidateIdPair({
+            subjectType,
+            postCandidateId: confirmedPost.candidate_id,
+            readbackCandidateId: readback.candidate_id,
+            postCandidateCreated: confirmedPost.candidate_created,
+            postTargetTier: confirmedPost.target_tier,
+            readbackCandidateCreated: readback.candidate_created,
+            readbackTargetTier: readback.target_tier
+          })
           || readback.processing_stage !== 'retrievable'
           || readback.semantic_state !== 'active') {
           const error = new Error('knowledge_event_readback_identity_or_state_mismatch') as JudgmentOutboxDeliveryError;

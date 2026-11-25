@@ -26,8 +26,9 @@ it.each([
       assert.equal((await import('./workspace-kit.js')).oldKit, true);
       const fresh = await import('./workspace-kit.js?capability=loading-stage-v1');
       assert.equal(typeof fresh.workspaceLoadingStage, 'function');
-    `], { cwd: dir, encoding: 'utf8' });
+    `], { cwd: dir, encoding: 'utf8', timeout: 15_000 });
+    expect(result.error).toBeUndefined();
     expect(result.stderr).toBe('');
     expect(result.status).toBe(0);
   } finally { rmSync(dir, { recursive: true, force: true }); }
-});
+}, 20_000);

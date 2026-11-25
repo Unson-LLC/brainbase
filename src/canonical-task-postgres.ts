@@ -83,6 +83,7 @@ const MUTABLE_COLUMNS: Readonly<Record<string, string>> = Object.freeze({
   priority: 'priority',
   assignee_person_id: 'assignee_person_id',
   assignee_display_name: 'assignee_display_name',
+  start_at: 'start_at',
   due_at: 'due_at',
   waiting_on: 'waiting_on',
   waiting_on_person_id: 'waiting_on_person_id',
@@ -321,6 +322,7 @@ export class CanonicalTaskPostgresRepository {
       completion_contract: row.completion_contract ?? null,
       assignee_person_id: row.assignee_person_id ?? null,
       assignee_display_name: row.assignee_display_name ?? null,
+      start_at: isoOrNull(row.start_at),
       due_at: isoOrNull(row.due_at),
       waiting_on: row.waiting_on ?? null,
       waiting_on_person_id: row.waiting_on_person_id ?? null,
@@ -524,6 +526,7 @@ export class CanonicalTaskPostgresRepository {
       // database where an additive column has not been added yet.
       ...(input.purpose_label != null ? [['purpose_label', input.purpose_label] as [string, unknown]] : []),
       ...(input.waiting_on_person_id != null ? [['waiting_on_person_id', input.waiting_on_person_id] as [string, unknown]] : []),
+      ...(input.start_at != null ? [['start_at', input.start_at] as [string, unknown]] : []),
       ...(input.completion_contract != null
         ? [['completion_contract', JSON.stringify(input.completion_contract), '::jsonb'] as [string, unknown, string]]
         : []),

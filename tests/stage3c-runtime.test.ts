@@ -16,6 +16,7 @@ import {
   type RoutineReceiptPort,
   type RoutineRuntimePorts
 } from '../src/routines.js';
+import { scheduledAtFor } from '../src/routine-liveness.js';
 import { resolveRuntimeHostContext } from '../src/runtime-host.js';
 import { createRunReceiptIdentity, type RunReceiptSourceType } from '../src/run-receipt.js';
 import { assertRunReceiptPort } from '../src/run-receipt-port.js';
@@ -826,6 +827,36 @@ describe('Stage 3c injected runtime contracts', () => {
     });
   });
 
+  it('schedules daily Tokyo midnight on the current local day', () => {
+    const scheduled = scheduledAtFor({
+      routine: 'midnight',
+      automation_id: 'midnight',
+      source_type: 'custom',
+      project_id: 'project',
+      timezone: 'Asia/Tokyo',
+      schedule: { kind: 'daily', hour: 0, minute: 0 },
+      grace_minutes: 5,
+      required_artifacts: ['artifact']
+    }, new Date('2026-10-18T01:00:00.000Z'));
+
+    expect(scheduled.toISOString()).toBe('2026-10-17T15:00:00.000Z');
+  });
+
+  it('schedules weekly Tokyo Sunday midnight at the same instant', () => {
+    const scheduled = scheduledAtFor({
+      routine: 'sunday',
+      automation_id: 'sunday',
+      source_type: 'custom',
+      project_id: 'project',
+      timezone: 'Asia/Tokyo',
+      schedule: { kind: 'weekly', hour: 0, minute: 0, day_of_week: 0 },
+      grace_minutes: 5,
+      required_artifacts: ['artifact']
+    }, new Date('2026-10-17T15:00:00.000Z'));
+
+    expect(scheduled.toISOString()).toBe('2026-10-17T15:00:00.000Z');
+  });
+
   it('uses the expectation timezone and weekday supplied by the consumer', () => {
     expect(routineScheduleMatches({
       routine: 'sunday',
@@ -837,5 +868,219 @@ describe('Stage 3c injected runtime contracts', () => {
       grace_minutes: 5,
       required_artifacts: ['artifact']
     }, new Date('2026-10-18T00:00:00.000Z'))).toBe(true);
+  });
+});
+
+type RunStoreMethod = 'claim' | 'markRunnerStarted' | 'markReceiptPersisted' | 'complete' | 'release';
+type RunStoreFault = { readonly method: RunStoreMethod; readonly when: 'before' | 'after' };
+
+/**
+ * Wraps a runStore so every call that moves the stored record is logged as
+ * `method:from>to`, where a state is `status(phase)` and `(new)` is a missing
+ * record. A fault throws before the call, or after it has written (a lost response).
+ */
+function observedRunStore(store: AutomationRunStorePort, seen: Set<string>, fault?: RunStoreFault): AutomationRunStorePort {
+  const stateOf = async (input: Parameters<AutomationRunStorePort['read']>[0]) => {
+    const stored = await store.read(input);
+    return stored.status === 'missing' ? '(new)' : `${stored.status}(${stored.phase})`;
+  };
+  const observe = <M extends RunStoreMethod>(method: M) => async (input: Parameters<AutomationRunStorePort[M]>[0]) => {
+    if (fault?.method === method && fault.when === 'before') throw new Error(`${method} lost before write`);
+    const before = await stateOf(input);
+    const result = await (store[method] as (value: typeof input) => unknown)(input);
+    const after = await stateOf(input);
+    if (before !== after) seen.add(`${method}:${before}>${after}`);
+    if (fault?.method === method && fault.when === 'after') throw new Error(`${method} lost after write`);
+    return result;
+  };
+  return {
+    claim: observe('claim') as AutomationRunStorePort['claim'],
+    markRunnerStarted: observe('markRunnerStarted'),
+    markReceiptPersisted: observe('markReceiptPersisted'),
+    complete: observe('complete'),
+    release: observe('release'),
+    read: (input) => store.read(input)
+  };
+}
+
+/** Expands the `method: from[, from] -> to | to` lines of the spec's stored-record diagram. */
+async function automationRunDiagramSteps(): Promise<string[]> {
+  const { readFile } = await import('node:fs/promises');
+  const spec = await readFile(new URL('../docs/specs/automation-run-states-v1.md', import.meta.url), 'utf8');
+  const block = /## 保存された記録の遷移[\s\S]*?```text\n([\s\S]*?)```/u.exec(spec);
+  if (block === null) throw new Error('stored-record diagram not found in automation-run-states-v1');
+  return block[1].split('\n').filter((line) => line.trim() !== '').flatMap((line) => {
+    const match = /^(\w+):\s+(.+?)\s+->\s+(.+?)\s*$/u.exec(line);
+    if (match === null) throw new Error(`unreadable diagram line: ${line}`);
+    const sources = match[2].split(',').map((source) => source.trim());
+    const targets = match[3].split('|').map((target) => target.trim());
+    return sources.flatMap((source) => targets.map((target) => `${match[1]}:${source}>${target}`));
+  });
+}
+
+describe('automation run stored-record transitions', () => {
+  type Scenario = {
+    readonly name: string;
+    readonly fault?: RunStoreFault;
+    readonly checkpointFails?: boolean;
+    readonly transitionFailsTo?: 'runner_started' | 'receipt_persisted' | 'completed';
+    readonly runnerFails?: boolean;
+    readonly receiptPersistFails?: boolean;
+    /** Start the same run again after the failure and expect it to succeed. */
+    readonly startsAgain?: boolean;
+  };
+  const scenarios: readonly Scenario[] = [
+    { name: 'success' },
+    { name: 'checkpoint fails', checkpointFails: true, startsAgain: true },
+    { name: 'runner-start marker lost before write', fault: { method: 'markRunnerStarted', when: 'before' } },
+    { name: 'runner-start marker lost after write', fault: { method: 'markRunnerStarted', when: 'after' } },
+    { name: 'transition to runner_started fails', transitionFailsTo: 'runner_started' },
+    { name: 'runner fails', runnerFails: true },
+    { name: 'receipt persist fails', receiptPersistFails: true },
+    { name: 'receipt marker lost before write', fault: { method: 'markReceiptPersisted', when: 'before' } },
+    { name: 'receipt marker lost after write', fault: { method: 'markReceiptPersisted', when: 'after' } },
+    { name: 'transition to receipt_persisted fails', transitionFailsTo: 'receipt_persisted' },
+    { name: 'complete lost before write', fault: { method: 'complete', when: 'before' } },
+    { name: 'complete lost after write', fault: { method: 'complete', when: 'after' } },
+    { name: 'transition to completed fails', transitionFailsTo: 'completed' }
+  ];
+
+  async function runScenarios(): Promise<Set<string>> {
+    const seen = new Set<string>();
+    for (const [index, scenario] of scenarios.entries()) {
+      const { host } = hostPorts();
+      const externalRunId = `automation-states-${index}`;
+      let checkpointCalls = 0;
+      const service = new AutomationRunService({
+        ...host,
+        lifecycle: {
+          checkpoint: () => {
+            checkpointCalls += 1;
+            if (scenario.checkpointFails && checkpointCalls === 1) throw new Error('checkpoint lost');
+          },
+          transition: ({ to }) => {
+            if (scenario.transitionFailsTo === to) throw new Error(`transition to ${to} lost`);
+          }
+        },
+        runner: {
+          start: async () => {
+            if (scenario.runnerFails) throw new Error('runner failed');
+            return { receipt: makeReceipt(externalRunId, 'github_actions') };
+          }
+        },
+        receipt: {
+          persist: () => {
+            if (scenario.receiptPersistFails) throw new Error('receipt persist failed');
+            return { ok: true };
+          },
+          query: () => []
+        },
+        runStore: observedRunStore(memoryRunStore(), seen, scenario.fault)
+      } as AutomationRunPorts);
+      const request = {
+        workflowId: 'portable-workflow',
+        projectId: 'portable-project',
+        organizationId: 'org-injected',
+        actorId: 'actor-injected',
+        externalRunId
+      };
+      const outcome = await service.start(request).then(() => 'ok', () => 'failed');
+      expect(outcome, scenario.name).toBe(scenario.name === 'success' ? 'ok' : 'failed');
+      if (scenario.startsAgain) await expect(service.start(request), scenario.name).resolves.toBeDefined();
+    }
+    return seen;
+  }
+
+  it('is drawn exactly by the spec diagram, in both directions', async () => {
+    const seen = await runScenarios();
+    expect([...seen].sort()).toEqual((await automationRunDiagramSteps()).sort());
+  });
+
+  it('makes a failed checkpoint retryable and runs the runner once on the next start', async () => {
+    const { host } = hostPorts();
+    const runStore = memoryRunStore();
+    const releases: string[] = [];
+    let checkpointCalls = 0;
+    let runnerCalls = 0;
+    const service = new AutomationRunService({
+      ...host,
+      lifecycle: {
+        checkpoint: () => {
+          checkpointCalls += 1;
+          if (checkpointCalls === 1) throw new Error('checkpoint lost');
+        }
+      },
+      runner: {
+        start: async () => {
+          runnerCalls += 1;
+          return { receipt: makeReceipt('automation-checkpoint-retry-1', 'github_actions') };
+        }
+      },
+      receipt: { persist: () => ({ ok: true }), query: () => [] },
+      runStore: {
+        ...runStore,
+        release: (input) => {
+          releases.push(`${input.outcome}:${input.phase}`);
+          return runStore.release(input);
+        }
+      }
+    } as AutomationRunPorts);
+    const request = {
+      workflowId: 'portable-workflow',
+      projectId: 'portable-project',
+      organizationId: 'org-injected',
+      actorId: 'actor-injected',
+      externalRunId: 'automation-checkpoint-retry-1'
+    };
+
+    await expect(service.start(request)).rejects.toThrow('checkpoint lost');
+    expect(releases).toEqual(['retryable:retryable']);
+    expect(runnerCalls).toBe(0);
+    await expect(service.start(request)).resolves.toMatchObject({
+      normalizedReceipt: { run: { external_run_id: 'automation-checkpoint-retry-1' } }
+    });
+    expect(runnerCalls).toBe(1);
+  });
+
+  it('keeps a lost runner-start marker uncertain, because the runner may already have been called', async () => {
+    const { host } = hostPorts();
+    const runStore = memoryRunStore();
+    const releases: string[] = [];
+    let runnerCalls = 0;
+    const service = new AutomationRunService({
+      ...host,
+      lifecycle: { checkpoint: () => undefined },
+      runner: {
+        start: async () => {
+          runnerCalls += 1;
+          return { receipt: makeReceipt('automation-marker-lost-1', 'github_actions') };
+        }
+      },
+      receipt: { persist: () => ({ ok: true }), query: () => [] },
+      runStore: {
+        ...runStore,
+        markRunnerStarted: () => {
+          throw new Error('runner start checkpoint lost');
+        },
+        release: (input) => {
+          releases.push(`${input.outcome}:${input.phase}`);
+          return runStore.release(input);
+        }
+      }
+    } as AutomationRunPorts);
+    const request = {
+      workflowId: 'portable-workflow',
+      projectId: 'portable-project',
+      organizationId: 'org-injected',
+      actorId: 'actor-injected',
+      externalRunId: 'automation-marker-lost-1'
+    };
+
+    await expect(service.start(request)).rejects.toThrow('runner start checkpoint lost');
+    expect(releases).toEqual(['uncertain:unknown']);
+    await expect(service.start(request)).rejects.toMatchObject({
+      code: 'automation_run_uncertain', status: 409
+    });
+    expect(runnerCalls).toBe(0);
   });
 });
