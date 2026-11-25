@@ -271,6 +271,10 @@ describe('portable judgment harness common contracts', () => {
     expect(isProjectCodeAllowed('itsaplan', ['*'])).toBe(false);
     expect(isProjectCodeAllowed(null, ['brainbase'])).toBe(false);
     expect(isProjectCodeAllowed('itsaplan', ['brainbase', 'itsaplan'])).toBe(true);
+    // Strict exact match: neither candidate nor allowlist entries are implicitly trimmed.
+    expect(isProjectCodeAllowed('itsaplan', [' itsaplan '])).toBe(false);
+    expect(isProjectCodeAllowed(' itsaplan ', ['itsaplan'])).toBe(false);
+    expect(isProjectCodeAllowed(' itsaplan ', [' itsaplan '])).toBe(false);
   });
 
   it('keeps organization identity in the Org adapter while portable event fields match', () => {

@@ -12,16 +12,17 @@ out as a breaking TypeScript change and choose its version accordingly.
 |---|---|---|
 | type | `RemoteJudgmentHookHost` from `@unson/brainbase-mcp/remote-judgment-hook-http` | Widened from `'remote' \| 'claude-code'` to `'remote' \| 'claude-code' \| 'antigravity'`. `handleRemoteJudgmentHookRequest` now accepts `x-brainbase-judgment-host: antigravity` under the same owner-local-bridge or person-authenticated JWT boundaries as `claude-code`, including `PreToolUse` and hosted Stop journal publishing. |
 | type | `JudgmentExecutionHostType` from `@unson/brainbase-mcp/judgment-execution-outcome` | Widened from `'codex' \| 'claude-code'` to `'codex' \| 'claude-code' \| 'antigravity'`. `normalizeJudgmentExecutionOutcome` and `EXECUTION_OUTCOME_HOSTS` accept `'antigravity'`. |
-| type | `JudgmentRuntimeRuntimeContext['host']` and `['entrypoint']` from `@unson/brainbase-mcp/judgment-runtime-resolution` | Widened `host` from `'codex' \| 'claude-code'` to `'codex' \| 'claude-code' \| 'antigravity'` and `entrypoint` to include `'antigravity'`. |
+| type | `JudgmentRuntimeRuntimeContext['host']` and `['entrypoint']` from `@unson/brainbase-mcp/judgment-runtime-resolution` | Widened `host` from `'codex' \| 'claude-code'` to `'codex' \| 'claude-code' \| 'antigravity'` and `entrypoint` from `'codex' \| 'claude_code' \| 'mana' \| 'company_os' \| 'unknown'` to include `'antigravity'`. |
 | function | `selectJudgmentProjectBinding` from `@unson/brainbase-mcp/judgment-project-binding` | Honors explicit `configuredProjectCode` ahead of `relayProjectCode` for `hostRuntime === 'antigravity'` (matching `'claude-code'`). |
 | function | `toKnowledgeEventFromJudgmentEpisode` from `@unson/brainbase-mcp/judgment-event-adapter` | Emits `source.type: 'agent_judgment'` for `outcome.host.type === 'antigravity'` (matching `'claude-code'`). |
 
 ### Why this is a breaking TypeScript change
 
 TypeScript consumers that perform exhaustive checks on `RemoteJudgmentHookHost`,
-`JudgmentExecutionHostType`, or `JudgmentRuntimeRuntimeContext['host']`, or that
-assign those properties to narrower literal unions, will fail to compile under
-`--strict` until `'antigravity'` is handled:
+`JudgmentExecutionHostType`, `JudgmentRuntimeRuntimeContext['host']`, or
+`JudgmentRuntimeRuntimeContext['entrypoint']`, or that assign those properties
+to narrower literal unions, will fail to compile under `--strict` until
+`'antigravity'` is handled:
 
 ```ts
 import type { RemoteJudgmentHookHost } from '@unson/brainbase-mcp/remote-judgment-hook-http';
@@ -51,6 +52,15 @@ const narrow: 'remote' | 'claude-code' = host; // TS2322
   identical runtime behavior.
 - Unknown `x-brainbase-judgment-host` values continue to be rejected with HTTP 400
   `judgment_hook_host_unsupported`.
+- **Supported platform scope for Antigravity CLI `transcriptPath` reading (Linux 5.6+ allowlisted architectures)**:
+  `transcriptPath` reading (`last_assistant_message` / non-system `USER_INPUT`
+  backfill) requires kernel-enforced `openat2(RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS)`
+  on Linux 5.6+ (allowlisted `platform.machine()` architectures: `x86_64`, `amd64`,
+  `aarch64`, `arm64`, `i386`, `i686`, `armv7l`, `armv6l`, `riscv64`, `s390x`,
+  `ppc64le`, `ppc64`, `loongarch64`), `/proc/self/fd`, fixed-path `python3`, and
+  OS `flock`. Unsupported platforms (macOS, Windows, unlisted architectures, or
+  containers restricting `openat2`) fail closed for transcript reads without
+  falling back, while hook responses remain fail-open (`{}` / `{"decision":""}`).
 
 ## Consumers
 
@@ -62,9 +72,11 @@ const narrow: 'remote' | 'claude-code' = host; // TS2322
 ## Migration
 
 1. Update exhaustive `switch` statements or literal union annotations on
-   `RemoteJudgmentHookHost`, `JudgmentExecutionHostType`, and
-   `JudgmentRuntimeRuntimeContext['host']` to include `'antigravity'`.
-2. In downstream Host wrappers that branch on `options.host === 'claude-code'`,
-   handle `'antigravity'` explicitly instead of falling back to `'codex'`.
+   `RemoteJudgmentHookHost`, `JudgmentExecutionHostType`,
+   `JudgmentRuntimeRuntimeContext['host']`, and
+   `JudgmentRuntimeRuntimeContext['entrypoint']` to include `'antigravity'`.
+2. In downstream Host wrappers that branch on `options.host === 'claude-code'` or
+   `runtime.entrypoint === 'claude_code'`, handle `'antigravity'` explicitly
+   instead of falling back to `'codex'` or `'unknown'`.
 
 No npm publication, version bump or deployment is included.

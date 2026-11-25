@@ -1496,16 +1496,27 @@ export function buildOwnerReferenceLine(request: JudgmentRequest, receipt: Judgm
   return buildOwnerAudit(request, receipt).display_line;
 }
 
+function invokeFailOpenObserver<T>(observer: ((event: T) => void) | undefined, event: T): void {
+  if (!observer) return;
+  try {
+    const result: unknown = observer(event);
+    if (result !== null && (typeof result === 'object' || typeof result === 'function')
+      && typeof (result as PromiseLike<unknown>).then === 'function') {
+      Promise.resolve(result).catch(() => {
+        // Non-digest telemetry must never affect hook output or emit unhandled rejections.
+      });
+    }
+  } catch {
+    // Non-digest telemetry must never affect hook output.
+  }
+}
+
 function emitReasoningGateTelemetry(
   options: JudgmentHostOptions,
   runtimeConfig: JudgmentRuntimeConfig,
   telemetry: ReasoningGateTelemetryEvent
 ): void {
-  try {
-    options.onReasoningGateTelemetry?.(telemetry);
-  } catch {
-    // Non-digest telemetry must never affect hook output.
-  }
+  invokeFailOpenObserver(options.onReasoningGateTelemetry, telemetry);
   const stderrMode = runtimeConfig.reasoningGateTelemetry;
   const shouldWriteStderr = stderrMode === 'stderr'
     || (telemetry.reasoning_gate_mode !== 'off' && stderrMode !== 'off');

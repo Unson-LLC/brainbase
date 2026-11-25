@@ -107,6 +107,7 @@ import {
   normalizeAntigravityHookBaseUrl,
   parseAntigravityHookConfig,
   registerAntigravityJudgmentHooks,
+  resolveAntigravityHookEndpoint,
   type AntigravityHookConfig
 } from './antigravity-judgment-hook.js';
 import type { CanonicalEntity, DecisionRecord, PersonalKgEntry, PersonalOs, RelationshipRecord } from './types.js';
@@ -817,6 +818,7 @@ async function judgmentInstallAntigravity(parsed: ParsedArgs, io: CliIo): Promis
       ...(repositories.length > 0 ? { repositories: [...new Set(repositories)] } : {}),
       registration: { id: registrationId, settings: settingsReal },
     };
+    resolveAntigravityHookEndpoint(config);
   }
   const cliPath = fileURLToPath(new URL('./cli.js', import.meta.url));
   const command = antigravityHookCommand(process.execPath, cliPath, configPath, registrationId);
@@ -910,9 +912,10 @@ async function applyAntigravityRegistration(plan: AntigravityRegistrationPlan, i
     }
     throw error;
   }
+  const resolvedEndpoint = resolveAntigravityHookEndpoint(config!).toString();
   write(io, [
     `Antigravityの判断フックを登録しました（${settingsPath}）。`,
-    `送り先: ${config!.origin}`,
+    `送り先: ${resolvedEndpoint}`,
     `project: ${config!.project_code ?? 'Hostが決める'}`,
     ...(config!.allow_non_git ? ['非Gitディレクトリ: 許可（allow_non_git: true）'] : []),
     ...(config!.cwd_prefixes ? [`対象ディレクトリ: ${config!.cwd_prefixes.join(', ')}`] : []),

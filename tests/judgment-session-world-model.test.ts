@@ -1024,29 +1024,109 @@ describe('RFC-001 v2.0 PR-B Session Mini World Model v2', () => {
         },
       ]);
 
-      // Telemetry observer failure must remain fail-open
-      const failOpenResp = await handleRemoteJudgmentHookRequest({
-        method: 'POST',
-        url: '/host/judgment/hook',
-        authorization: 'Bearer expected',
-        bearerToken: 'expected',
-        projectCode: 'brainbase',
-        body: Buffer.from(JSON.stringify({
+      // Telemetry observer failure must remain fail-open (both sync throws and async rejections)
+      const unhandledRejections: unknown[] = [];
+      const onUnhandled = (reason: unknown) => { unhandledRejections.push(reason); };
+      process.on('unhandledRejection', onUnhandled);
+      try {
+        const failOpenResp = await handleRemoteJudgmentHookRequest({
+          method: 'POST',
+          url: '/host/judgment/hook',
+          authorization: 'Bearer expected',
+          bearerToken: 'expected',
+          projectCode: 'brainbase',
+          body: Buffer.from(JSON.stringify({
+            hook_event_name: 'UserPromptSubmit',
+            session_id: 'remote-sess-2',
+            turn_id: 'turn-1',
+          })),
+          isAuthorized: (auth, token) => auth === `Bearer ${token}`,
+          onReasoningGateTelemetry: () => { throw new Error('observer_failed'); },
+          dispatch: async () => ({
+            output: { continue: true },
+            receiptId: 'res-remote-2',
+            routeResolutionSha256: 'b'.repeat(64),
+            reasoningGateApplied: false,
+            reasoningGateMode: 'off',
+          }),
+        });
+        expect(failOpenResp?.status).toBe(200);
+
+        const asyncRejectResp = await handleRemoteJudgmentHookRequest({
+          method: 'POST',
+          url: '/host/judgment/hook',
+          authorization: 'Bearer expected',
+          bearerToken: 'expected',
+          projectCode: 'brainbase',
+          body: Buffer.from(JSON.stringify({
+            hook_event_name: 'UserPromptSubmit',
+            session_id: 'remote-sess-3',
+            turn_id: 'turn-1',
+          })),
+          isAuthorized: (auth, token) => auth === `Bearer ${token}`,
+          onReasoningGateTelemetry: async () => {
+            await new Promise((resolveDelay) => setTimeout(resolveDelay, 5));
+            throw new Error('async_http_telemetry_rejected');
+          },
+          dispatch: async () => ({
+            output: { continue: true },
+            receiptId: 'res-remote-3',
+            routeResolutionSha256: 'c'.repeat(64),
+            reasoningGateApplied: true,
+            reasoningGateMode: 'compact_4block_with_wm',
+          }),
+        });
+        expect(asyncRejectResp?.status).toBe(200);
+
+        const asyncDispatchErrorResp = await handleRemoteJudgmentHookRequest({
+          method: 'POST',
+          url: '/host/judgment/hook',
+          authorization: 'Bearer expected',
+          bearerToken: 'expected',
+          projectCode: 'brainbase',
+          body: Buffer.from(JSON.stringify({
+            hook_event_name: 'UserPromptSubmit',
+            session_id: 'remote-sess-4',
+            turn_id: 'turn-1',
+          })),
+          isAuthorized: (auth, token) => auth === `Bearer ${token}`,
+          onDispatchError: async () => {
+            throw new Error('async_dispatch_error_observer_rejected');
+          },
+          dispatch: async () => { throw new Error('judgment_receipt_context_mismatch'); },
+        });
+        expect(asyncDispatchErrorResp).toEqual({
+          status: 503,
+          body: { error: 'judgment_receipt_context_mismatch' },
+        });
+
+        // Host emitReasoningGateTelemetry with async rejecting observer must also stay fail-open
+        const root = await tempDir();
+        const hostAsyncRejectOut = await runJudgmentHost({
           hook_event_name: 'UserPromptSubmit',
-          session_id: 'remote-sess-2',
-          turn_id: 'turn-1',
-        })),
-        isAuthorized: (auth, token) => auth === `Bearer ${token}`,
-        onReasoningGateTelemetry: () => { throw new Error('observer_failed'); },
-        dispatch: async () => ({
-          output: { continue: true },
-          receiptId: 'res-remote-2',
-          routeResolutionSha256: 'b'.repeat(64),
-          reasoningGateApplied: false,
-          reasoningGateMode: 'off',
-        }),
-      });
-      expect(failOpenResp?.status).toBe(200);
+          prompt: '設計方針を評価して',
+          session_id: 'wm-async-telemetry-fail-open',
+          turn_id: 'turn-async-1',
+          cwd: root,
+        }, {
+          env: {
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal'),
+            BRAINBASE_JUDGMENT_REASONING_GATE_MODE: 'compact_4block_with_wm',
+            BRAINBASE_JUDGMENT_REASONING_GATE_TELEMETRY: 'off',
+          },
+          onReasoningGateTelemetry: async () => {
+            await new Promise((resolveDelay) => setTimeout(resolveDelay, 5));
+            throw new Error('async_host_telemetry_rejected');
+          },
+        });
+        expect(hostAsyncRejectOut.continue).toBe(true);
+
+        // Allow delayed async rejections to settle and verify zero unhandled rejections.
+        await new Promise((resolveDelay) => setTimeout(resolveDelay, 30));
+        expect(unhandledRejections).toEqual([]);
+      } finally {
+        process.off('unhandledRejection', onUnhandled);
+      }
     });
   });
 
