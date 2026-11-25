@@ -221,7 +221,7 @@ const toolConfigs: Record<QueueTaskToolName, ToolConfig> = {
             task_id: id,
             expected_version: version,
             kind: { type: 'string', enum: kinds },
-            ref: { type: 'object' },
+            ref: { type: 'object', additionalProperties: true },
             idempotency_key: str,
         },
         required: ['task_id', 'expected_version', 'kind', 'ref'],
@@ -262,7 +262,7 @@ export const queueTaskToolDefinitions: readonly Tool[] = QUEUE_TASK_TOOL_NAMES.m
         inputSchema: {
             type: 'object',
             properties: config.properties,
-            required: config.required,
+            ...(config.required.length > 0 ? { required: config.required } : {}),
             additionalProperties: false,
         },
         annotations: {

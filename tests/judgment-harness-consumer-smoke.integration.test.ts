@@ -3,7 +3,7 @@ import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createReleaseArtifact } from '../scripts/npm-release.mjs';
+import { ensureBuiltPackage, getConsumerReleaseArtifact } from './helpers/consumer-build-guard.js';
 
 const JUDGMENT_HARNESS_CONSUMER_TIMEOUT_MS = 120_000;
 const temporaryRoots: string[] = [];
@@ -35,10 +35,10 @@ describe('judgment harness tarball consumer smoke (AC-05)', () => {
       encoding: 'utf8',
       env: environment
     });
-    execute('npm', ['run', 'build']);
+    ensureBuiltPackage(root, execute);
     const sha = execute('git', ['rev-parse', 'HEAD']).trim();
     const version = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')).version;
-    const artifact = await createReleaseArtifact(root, artifactRoot, version, sha, execute);
+    const artifact = await getConsumerReleaseArtifact(root, artifactRoot, version, sha, execute);
 
     const smokeOutput = execFileSync(process.execPath, [
       path.join(root, 'scripts/judgment-harness-consumer-smoke.mjs'),

@@ -55,7 +55,6 @@ interface ZonedParts {
 function zonedParts(date: Date, timezone: string): ZonedParts {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: timezone,
-    hour12: false,
     hourCycle: 'h23',
     year: 'numeric',
     month: '2-digit',

@@ -36,13 +36,54 @@ description: Brainbase OSSの@unson/brainbase-mcpをnpmへ公開、検証、監�
 
 ```bash
 npm run build
-npm run test:integration:release-evidence
+BRAINBASE_RELEASE_EVIDENCE_BASE=<base-sha> npm run test:integration:release-evidence
 npx vitest run tests/npm-release.test.ts tests/npm-release-workflow.test.ts
 npm pack --dry-run
 git diff --check
 ```
 
-公開候補のread-only検証:
+### マージ前の VERIFY
+
+マージ前の検証依頼では、上の Brainbase checks を対象 PR の exact head で実行する。
+source 変更を含む、または同じ SHA の全体テスト証拠がない場合は `npm test` も実行する。
+公開前証拠の integration test は未公開の候補を対象にできる。
+
+#### registry 未公開確認の適用範囲
+
+`test:integration:release-evidence` は必ず `BRAINBASE_RELEASE_EVIDENCE_BASE=<対象 PR の base SHA>` を付けて実行する。
+適用可否はテストが `planRelease` と同じ版比較（base と head の `package.json` version）で決め、registry の状態では決めない。
+`release:plan` CLI の「同じ gitHead で公開済みなら release_required=false」という registry 短絡は使わない。
+
+| PR | 判定 | registry 未公開確認 | 記録 |
+|---|---|---|---|
+| 公開しない PR（base が HEAD と別 commit で HEAD の祖先、かつ版を上げない） | `release_required=false` | 対象外。証拠スクリプトは HEAD で必ず実行し、registry 段の失敗だけを N/A（vitest では skipped）にする | `N/A（release_required=false、公開しない PR）`。PASS に数えない |
+| 公開する PR（版を上げる。base が develop でも同じ） | `release_required=true` | 必須。E404 で未公開を証明できなければ FAIL | 成功時のみ PASS |
+| base が HEAD と同じ commit、HEAD の祖先でない（bump 済みの ref・先行する ref を含む） | fail closed | 必須 | 成功時のみ PASS |
+| base 不明・env なし | fail closed | 必須 | 成功時のみ PASS |
+| base / head が読めない | 例外 | テスト失敗 | FAIL |
+
+- clean worktree、production audit、tarball 整合、収集中の HEAD・worktree 変化は、N/A の PR でも必ず検査し、失敗すれば FAIL にする。
+  テスト「binds clean worktree, production audit, and tarball integrity to the current HEAD (never skipped)」の PASS をその証拠にする。
+- N/A は「実施して通った」ではない。registry 段のテストは skipped と表示され、
+  `[release-evidence] registry absence for current HEAD: N/A (not PASS)` 行が出る。この行を証拠に添え、コマンド全体の exit 0 を registry 未公開確認の PASS として記録しない。
+- 公開済み版での E404 失敗を env なしの実行結果として PASS 扱いしない。正しい base SHA を付けて再実行する。
+- 未公開確認そのもの（`scripts/npm-prepublication-evidence.mjs`）は緩めない。適用範囲だけを上の表で決める。
+検証 skill のパスと commit、対象 head、各チェックの結果と証拠を記録する。
+RUNNER_VERIFY の PASS はこの段階のチェックがすべて成功した場合だけ記録する。
+上の表で N/A になった registry 未公開確認は、成功扱いにも失敗扱いにもせず N/A として残す。
+失敗、実行不能、head 不一致は PASS にしない。merge-line の必須条件は変更しない。
+
+`release:validate` の main 到達性、`release:verify` の registry 照合、registry 版の
+fresh install は後続段階で確認する。未マージ・未公開であること自体はマージ前 VERIFY の
+失敗理由にせず、これらを「未実施（マージ後・公開後）」と記録する。
+マージ前の PASS を公開完了やマージの許可と扱わない。
+
+### マージ後・公開後の read-only 検証
+
+マージ後、release SHA が main から到達可能になった段階で `release:validate` を実行する。
+公開後に `release:verify` と Brainbase Convergence を照合する。
+trusted-ref を develop や候補 head へ差し替えて main 到達性の条件を回避しない。
+
 
 ```bash
 npm run release:validate -- \
@@ -57,8 +98,8 @@ npm run release:verify -- --version <version> --sha <full-release-sha>
 ## Required Workflow
 
 1. `npm-package-publish`を読み、このprofileの全keyを渡す。
-2. Brainbase checksとread-only validationをcurrent release SHAで実行する。
-3. PR merge後の`npm-publish.yml`を同じSHAへ結び付けて監視する。
+2. マージ前の依頼では「マージ前の VERIFY」だけを current head で実行し、後続段階を別記する。
+3. マージ・公開が許可された作業では、PR merge後の`npm-publish.yml`と read-only validation を release SHA へ結び付けて監視する。
 4. Brainbase Convergenceを照合し、staging tagを含む部分失敗を残す。
 
 ## Publication Boundary

@@ -51,42 +51,63 @@ describe('purpose based knowledge lookup', () => {
     expect((properties.required_fields as Record<string, unknown>).minItems).toBe(1);
     expect((properties.required_fields as Record<string, unknown>).description).toContain('for Graph text use content');
     expect((properties.required_fields as Record<string, unknown>).description).toContain('body only when the source projection explicitly exposes a body field');
-    const nextAction = properties.next_action as Record<string, unknown>;
-    const finishVariant = (nextAction.oneOf as Array<Record<string, unknown>>).find((variant) => {
-      const variantProperties = variant.properties as Record<string, unknown>;
-      return (variantProperties.kind as Record<string, unknown>).const === 'finish';
+    const nextAction = properties.next_action as {
+      type: string;
+      required: string[];
+      additionalProperties: boolean;
+      oneOf?: unknown;
+      properties: Record<string, Record<string, unknown>>;
+    };
+    expect(nextAction.oneOf).toBeUndefined();
+    expect(nextAction.type).toBe('object');
+    expect(nextAction.required).toEqual(['kind']);
+    expect(nextAction.additionalProperties).toBe(false);
+    expect(nextAction.properties.kind).toEqual({
+      type: 'string',
+      enum: ['search', 'read', 'follow_relation', 'finish'],
     });
-    expect(finishVariant?.required).toEqual([
-      'kind',
+    for (const finishField of [
       'assessment',
       'status',
       'reference_ids',
       'field_evidence',
       'unresolved_items',
       'termination_reason',
-    ]);
+    ]) {
+      expect(nextAction.properties).toHaveProperty(finishField);
+    }
   });
 
-  it('declares every next_action field inside its own variant so clients that render only oneOf can see it', () => {
+  it('declares every next_action field in a flat portable object without oneOf or const', () => {
     const tool = knowledgeLookupTools.find((candidate) => candidate.name === 'brainbase_knowledge_lookup');
     const nextAction = (tool?.inputSchema.properties as Record<string, Record<string, unknown>>).next_action;
-    expect(nextAction.properties).toBeUndefined();
-    const variants = nextAction.oneOf as Array<{ properties: Record<string, unknown>; required: string[]; additionalProperties: boolean }>;
-    const byKind = Object.fromEntries(variants.map((variant) => [
-      (variant.properties.kind as Record<string, unknown>).const,
-      variant,
+    expect(nextAction.oneOf).toBeUndefined();
+    expect(JSON.stringify(tool?.inputSchema)).not.toContain('"oneOf"');
+    expect(JSON.stringify(tool?.inputSchema)).not.toContain('"const"');
+    const nextProperties = nextAction.properties as Record<string, Record<string, unknown>>;
+    expect(Object.keys(nextProperties)).toEqual(expect.arrayContaining([
+      'kind',
+      'query',
+      'entity_types',
+      'seed_ids',
+      'entity_id',
+      'entity_type',
+      'relation',
+      'direction',
+      'target_types',
+      'assessment',
+      'status',
+      'reference_ids',
+      'field_evidence',
+      'unresolved_items',
+      'termination_reason',
+      'required_fields',
+      'why_different',
     ]));
-    expect(Object.keys(byKind).sort()).toEqual(['finish', 'follow_relation', 'read', 'search']);
-    for (const variant of variants) {
-      expect(variant.additionalProperties).toBe(false);
-      for (const key of variant.required) expect(variant.properties).toHaveProperty(key);
-      expect(variant.properties).toHaveProperty('required_fields');
-      expect(variant.properties).toHaveProperty('why_different');
-    }
-    expect(byKind.read.required).toEqual(['kind', 'entity_id', 'entity_type']);
-    expect(byKind.follow_relation.required).toEqual(['kind', 'seed_ids', 'relation', 'direction']);
-    expect(Object.keys(byKind.search.properties)).toEqual(expect.arrayContaining(['query', 'entity_types', 'seed_ids']));
-    expect(byKind.read.properties).not.toHaveProperty('status');
+    expect(nextProperties.kind).toEqual({
+      type: 'string',
+      enum: ['search', 'read', 'follow_relation', 'finish'],
+    });
   });
 
   it('shares public field validation with the continuation host', () => {

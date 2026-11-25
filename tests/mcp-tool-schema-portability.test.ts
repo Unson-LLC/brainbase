@@ -1,8 +1,22 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
+import { createServer, toolDefinitions } from '../src/server.js';
+import { foundationPublicToolDefinitions, type FoundationPublicConnection } from '../src/foundation-public-provider.js';
+import { foundationAdoptionTools, foundationPublicTools } from '../src/foundation-authenticated-tools.js';
+import { judgmentFrameTools, judgmentModelOutcomeTools } from '../src/judgment-frame.js';
+import { judgmentFrameReadTools } from '../src/judgment-frame-read.js';
+import { knowledgeLookupTools } from '../src/knowledge-lookup.js';
+import { queueTaskToolDefinitions } from '../src/queue-task-tools.js';
+import {
+  createLocalMcpServer,
+  runLocalMcpServer,
+  type LocalMcpRuntimeTool,
+} from '../src/mcp-runtime.js';
 import {
   applyMcpToolSchemaProfile,
   assertMcpToolSchemasPortable,
@@ -17,8 +31,100 @@ import {
   type McpToolSchemaProfile,
 } from '../src/mcp-tool-schema-portability.js';
 
+async function listToolsFromServer(server: ReturnType<typeof createServer>): Promise<Tool[]> {
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: 'schema-portability-test', version: '1.0.0' });
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+  try {
+    return (await client.listTools()).tools;
+  } finally {
+    await client.close();
+    await server.close();
+  }
+}
+
+const dummyFoundation: FoundationPublicConnection = {
+  provider: {
+    describe: () => { throw new Error('unused'); },
+    read: async () => { throw new Error('unused'); },
+    validate: async () => { throw new Error('unused'); },
+    validateProblem: async () => { throw new Error('unused'); },
+  },
+  resolveContext: () => null,
+};
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe('MCP tool inputSchema cross-client portability contract (Gemini / OpenAI / Claude / Codex)', () => {
-  it('normalizes prefixItems tuple schemas (such as presented_sections) into Gemini-compatible array items', () => {
+  it('lists only Gemini-compatible schemas from createServer() in local, managed_cloud, and foundation_connected modes', async () => {
+    vi.stubEnv('BRAINBASE_PERSONAL_KNOWLEDGE_MODE', 'local');
+    vi.stubEnv('BRAINBASE_PERSONAL_KG_STORAGE_MODE', 'local');
+    const localTools = await listToolsFromServer(createServer());
+    expect(localTools.length).toBeGreaterThan(0);
+    expect(localTools.flatMap(validateMcpToolSchemaPortability)).toEqual([]);
+
+    const foundationTools = await listToolsFromServer(createServer({ foundation: dummyFoundation }));
+    expect(foundationTools.length).toBeGreaterThan(localTools.length);
+    expect(foundationTools.flatMap(validateMcpToolSchemaPortability)).toEqual([]);
+
+    vi.stubEnv('BRAINBASE_PERSONAL_KNOWLEDGE_MODE', 'managed_cloud');
+    vi.stubEnv('BRAINBASE_PERSONAL_KG_STORAGE_MODE', 'managed_cloud');
+    const managedTools = await listToolsFromServer(createServer());
+    expect(managedTools.length).toBe(4);
+    expect(managedTools.flatMap(validateMcpToolSchemaPortability)).toEqual([]);
+  });
+
+  it('keeps every raw exported MCP tool definition across the repository portable without relying on runtime patching', () => {
+    const allExportedGroups: Array<{ group: string; tools: readonly Tool[] }> = [
+      { group: 'server.toolDefinitions', tools: toolDefinitions as unknown as Tool[] },
+      { group: 'foundation-public-provider.foundationPublicToolDefinitions', tools: foundationPublicToolDefinitions as unknown as Tool[] },
+      { group: 'foundation-authenticated-tools.foundationPublicTools', tools: foundationPublicTools },
+      { group: 'foundation-authenticated-tools.foundationAdoptionTools', tools: foundationAdoptionTools },
+      { group: 'judgment-frame.judgmentFrameTools', tools: judgmentFrameTools },
+      { group: 'judgment-frame.judgmentModelOutcomeTools', tools: judgmentModelOutcomeTools },
+      { group: 'judgment-frame-read.judgmentFrameReadTools', tools: judgmentFrameReadTools },
+      { group: 'knowledge-lookup.knowledgeLookupTools', tools: knowledgeLookupTools },
+      { group: 'queue-task-tools.queueTaskToolDefinitions', tools: queueTaskToolDefinitions },
+    ];
+
+    for (const { group, tools } of allExportedGroups) {
+      expect(tools.length, `${group} should contain tools`).toBeGreaterThan(0);
+      const issues = tools.flatMap(validateMcpToolSchemaPortability);
+      expect(issues, `${group} has non-portable MCP tool schemas`).toEqual([]);
+    }
+  });
+
+  it('lists portable schemas from createLocalMcpServer() across all shared tool suites', async () => {
+    const noopHandler: LocalMcpRuntimeTool['handler'] = async () => ({ content: [] });
+    const allHostedTools: Tool[] = [
+      ...foundationPublicTools,
+      ...foundationAdoptionTools,
+      ...judgmentFrameTools,
+      ...judgmentModelOutcomeTools,
+      ...judgmentFrameReadTools,
+      ...knowledgeLookupTools,
+      ...queueTaskToolDefinitions,
+    ];
+    const server = createLocalMcpServer({
+      name: 'portability-suite',
+      version: '1.0.0',
+      tools: allHostedTools.map((definition) => ({ definition, handler: noopHandler })),
+    });
+    const listed = await listToolsFromServer(server);
+    expect(listed.map((t) => t.name)).toEqual(allHostedTools.map((t) => t.name));
+    expect(() => assertMcpToolSchemasPortable(listed)).not.toThrow();
+  });
+
+  it('is idempotent on already-portable schemas such as queueTaskToolDefinitions', () => {
+    for (const tool of queueTaskToolDefinitions) {
+      expect(normalizeMcpToolInputSchemaForPortability(tool.inputSchema)).toEqual(tool.inputSchema);
+    }
+  });
+
+  it('normalizes prefixItems tuple schemas (such as presented_sections) into Gemini-compatible array items', async () => {
     const nonPortableTool: Tool = {
       name: 'brainbase_onboarding_first_value',
       description: 'Reproducer for Antigravity Gemini 400 missing items error.',
@@ -58,6 +164,17 @@ describe('MCP tool inputSchema cross-client portability contract (Gemini / OpenA
         enum: ['覚えていたこと', 'つながったこと', '次にできること'],
       },
     });
+
+    const server = createLocalMcpServer({
+      name: 'reproducer-host',
+      version: '1.0.0',
+      tools: [{ definition: nonPortableTool, handler: async () => ({ content: [] }) }],
+    });
+    const [listed] = await listToolsFromServer(server);
+    expect(validateMcpToolSchemaPortability(listed)).toEqual([]);
+    expect(listed.inputSchema.properties?.presented_sections).toEqual(
+      normalizedTool.inputSchema.properties?.presented_sections,
+    );
   });
 
   it('normalizes tuple items arrays, const, array type, untyped enums, oneOf/anyOf/allOf, $ref, empty schemas, and orphan required keys', () => {
@@ -168,7 +285,7 @@ describe('MCP tool inputSchema cross-client portability contract (Gemini / OpenA
     expect(() => assertMcpToolSchemasPortable([broken])).toThrow(/broken_tool/);
   });
 
-  it('resolves host schema profile from env and separates lossless standard from gemini normalization', () => {
+  it('resolves host schema profile from env and separates lossless standard from gemini normalization', async () => {
     const defaultProfile: McpToolSchemaProfile = resolveMcpToolSchemaProfile({});
     expect(defaultProfile).toBe('standard');
     expect(resolveMcpToolSchemaProfile({ BRAINBASE_MCP_SCHEMA_PROFILE: '' })).toBe('standard');
@@ -234,6 +351,34 @@ describe('MCP tool inputSchema cross-client portability contract (Gemini / OpenA
       maxItems: 3,
       items: { type: 'string', enum: ['覚えていたこと', 'つながったこと', '次にできること'] },
     });
+
+    // createLocalMcpServer & runLocalMcpServer respect schemaProfile: 'standard' losslessly.
+    const standardServer = createLocalMcpServer({
+      name: 'standard-host',
+      version: '1.0.0',
+      schemaProfile: 'standard',
+      tools: [{ definition: richTool, handler: async () => ({ content: [] }) }],
+    });
+    const [listedStandard] = await listToolsFromServer(standardServer);
+    expect(listedStandard.inputSchema).toEqual(richTool.inputSchema);
+
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({ name: 'run-local-standard-test', version: '1.0.0' });
+    const handle = await runLocalMcpServer({
+      name: 'standard-run-host',
+      version: '1.0.0',
+      schemaProfile: 'standard',
+      tools: [{ definition: richTool, handler: async () => ({ content: [] }) }],
+      transport: serverTransport,
+    });
+    await client.connect(clientTransport);
+    try {
+      const [listedRun] = (await client.listTools()).tools;
+      expect(listedRun.inputSchema).toEqual(richTool.inputSchema);
+    } finally {
+      await client.close();
+      await handle.close();
+    }
   });
 
   it('normalizes nullable variants, union-with-null enums, heterogeneous unions, and nested objects/additionalProperties idempotently', () => {
@@ -1378,6 +1523,30 @@ describe('MCP tool inputSchema cross-client portability contract (Gemini / OpenA
     }
     for (const fnSymbol of runtimeSymbols) {
       expect(dts).toContain(`export declare function ${fnSymbol}`);
+    }
+  });
+
+  it('publishes ./mcp-tool-schema-portability and re-exports profile helpers via ./mcp-runtime', async () => {
+    const manifest = JSON.parse(await readFile(path.join(process.cwd(), 'package.json'), 'utf8'));
+    expect(manifest.exports['./mcp-tool-schema-portability']).toEqual({
+      types: './dist/mcp-tool-schema-portability.d.ts',
+      import: './dist/mcp-tool-schema-portability.js',
+    });
+    const direct = await import(pathToFileURL(path.join(process.cwd(), 'dist/mcp-tool-schema-portability.js')).href);
+    const runtime = await import(pathToFileURL(path.join(process.cwd(), 'dist/mcp-runtime.js')).href);
+    for (const symbol of [
+      'resolveMcpToolSchemaProfile',
+      'applyMcpToolSchemaProfile',
+      'normalizeMcpToolInputSchemaForPortability',
+      'normalizeMcpToolInputSchemaForProfile',
+      'normalizeMcpToolForPortability',
+      'validateMcpToolInputSchemaPortability',
+      'validateMcpToolSchemaPortability',
+      'assertMcpToolSchemasPortable',
+    ]) {
+      expect(typeof direct[symbol]).toBe('function');
+      expect(typeof runtime[symbol]).toBe('function');
+      expect(runtime[symbol]).toBe(direct[symbol]);
     }
   });
 });

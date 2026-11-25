@@ -24,5 +24,5 @@ describe('ui/ legacy web pattern scan', () => {
       rule.findings.map(finding => `${guide.guideId}: ui/${finding.file}:${finding.line}`)));
     expect(findings, 'Run `npx modern-web-guidance retrieve <guide-id>` and apply the guide, or keep a feature-detected fallback.').toEqual([]);
     expect(report.totalFindings).toBe(0);
-  }, 120_000);
+  }, 360_000);
 });

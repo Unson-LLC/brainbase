@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   createGraphFoundationReaders,
   type GraphFoundationHistoryRow,
@@ -36,7 +36,12 @@ const CONTEXT: FoundationStoreContext = {
 
 let db: TestDb | undefined;
 
-afterEach(async () => {
+beforeAll(async () => {
+  db = new PGlite();
+  await db.waitReady;
+});
+
+afterAll(async () => {
   if (db) await db.close();
   db = undefined;
 });
@@ -121,8 +126,16 @@ async function setOwner(): Promise<void> {
 }
 
 async function createDatabase(): Promise<void> {
-  db = new PGlite();
+  if (!db) {
+    db = new PGlite();
+    await db.waitReady;
+  }
   await db.exec(`
+    RESET ROLE;
+    DROP SCHEMA IF EXISTS public CASCADE;
+    CREATE SCHEMA public;
+    GRANT USAGE ON SCHEMA public TO PUBLIC;
+    DROP ROLE IF EXISTS app_runtime;
     CREATE TABLE public.projects (
       id text PRIMARY KEY,
       code text NOT NULL UNIQUE

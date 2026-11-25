@@ -45,6 +45,18 @@ The lock is created with a hard link, so the folder of the credentials file must
 
 While polling, the CLI checks the code's expiry again after each wait, so a longer wait after `slow_down` does not send a request past the expiry.
 
+## Move a trial login saved under a reserved name
+
+This applies if an earlier trial build saved your login under a name ending in `.lock`, `.replacing`, `.removing`, or `.probe-` followed by one or more hexadecimal digits, regardless of case. The updated CLI refuses that path with `login_credentials_path_invalid`.
+
+1. Close Claude Code and stop other hooks and CLI commands that use the same credentials directory, including on other machines if it is shared. A file such as `work.json.removing` can also be a recovery file for `work.json`. Work only on the file you explicitly chose for the trial login. If you cannot tell which file it is, leave it in place and ask the trial administrator before running commands against either path.
+2. Choose an unused, non-reserved filename in the same private directory, such as `work-trial.json`. Use a destination with no existing file, symlink, or adjacent lock or recovery files.
+3. Choose one of these two options.
+
+   - If you still have the trial build that accepted the old path, run `brainbase logout --credentials "$OLD"` with that build and confirm it succeeds. Install the updated build and run `brainbase login --server "$API_URL" --credentials "$NEW"`. Use the original API and account. Here `OLD` and `NEW` are the absolute paths you chose, and `API_URL` is your API URL.
+   - If you have already updated or want to keep the saved login, move the confirmed regular file to the new name in the same directory. Keep its permissions at 0600 and the directory at 0700. On macOS or Linux, use `mv -n "$OLD" "$NEW"` after checking that the destination is unused. Confirm that the old path is gone and the new path holds the file before continuing. If the old file has already disappeared, leave any recovery files in place and sign in again at the new path.
+4. Update every `--credentials` argument and set `BRAINBASE_CREDENTIALS_FILE` to the new absolute path in the environment that starts your hooks. Run `brainbase login:status --credentials "$NEW"` and check the expected server and expiry. If the login has expired, sign in again at the new path. Restart Claude Code or the other hook runner and check that a test event reaches the expected project.
+
 ## Server contract
 
 - `POST /api/auth/device/code` with `{ code_verifier, receipt_required: true }` → `{ device_code, user_code?, verification_uri, verification_uri_complete?, expires_in, interval }`
