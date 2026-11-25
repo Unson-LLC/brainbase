@@ -64,7 +64,7 @@ test('says whose what each objective waits for, from its own record', () => {
 test('a row opens what can be done: the host\'s way to correct the objective', () => {
   const asked = [];
   const { root, rows, dialog } = draw({ objectiveAction: (context) => ({ label: '目的を直す・現状を記録する', onSelect: () => asked.push(context) }) });
-  assert.match(collectText(root), /行を押すと、目的の詳細と、この目的でできること（直す・現状を記録する）が開きます。/);
+  assert.match(collectText(root), /行を押すと、目的の詳細と、この目的でできること（編集・現状を記録する）が開きます。/);
   rows[0].click();
   const opened = dialog();
   assert.ok(opened?.open, 'the row opens the objective');

@@ -2,10 +2,50 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
-## 0.50.25 candidate — npm公開前
+## 0.51.0 candidate — npm公開前
+
+- 0.50.31に `develop`（`8271da54`）を統合するminor更新候補。0.50.25〜0.50.31で `main` に先行出荷した機能・セキュリティ修正はすべて保持する。
+- **破壊的変更（組織機能のOSSからの削除）**: 予約（`./resource-reservations`・`./resource-reservation-http`、#1027）、メンバー招待（`./organization-member-invite`・`./organization-member-invite-http`、#1037、`develop` のみ存在）、実行の意図（`./execution-authority`・`./execution-authority-http`、#1040）をOSSから外した。前提となる組織版 `brainbase-organization` への移設PR（#1428・#1476・#1473）はいずれも `main` マージ済み。移行手順は `docs/releases/0.51.0.md` を参照。
+- **破壊的変更（TypeScript公開型）**: `judgment-event-outbox`（#1084、RFC-002 PR-3b）で `JudgmentOutboxPostAck['candidate_id']` と `JudgmentOutboxReadback['candidate_id']` を `string | null` へ拡張し、`event.subject.type === 'episode'` かつ post/readback 双方が整合するときに限り `candidate_id: null` を受理する（非 `episode` は従来どおり非空文字列必須で fail-closed）。
+- **新規追加・改善**: 世界モデルの逆引き影響インデックスと反証リンクを公開subpath `world-model-impact-index` として追加（#1044）。MCPツール定義へのポータビリティ適用（#1046・#1063）、Canonical Task の nullable `start_at` 追加（#1010）、`judgment-host` の有効Git作業ツリー探索とタスク準備再計画ゲート（#970・#973・#976）、`automation-run`・`knowledge-continuation`・`durable-waits` の状態遷移整合と再試行修正（#1015・#1034・#1035・#1036）、注意/エラー通知の区別と非キャンバス世界の凡例開閉・プロジェクト概要メトリクスの container query 化（#960・#961・#996）、運用runbook追記（#1057・#1079）を含む。npm公開と利用ホストへの配備は別途確認する。
+
+## 0.50.31
+
+- 0.50.30に、持込記録の一覧を重複させず、共有部品の右詳細・手順の帯・候補の選択で組み立てられる明示選択を追加したpatch更新（#1081、#1082）。個人版の既定の一覧と詳細は維持する。
+- 詳細の取得先IDと取り込みの識別情報を照合し、古い応答や閲覧できなくなった記録を残さない。候補の操作欄は中間幅でも読める形へ切り替える。持込記録に関する表示語をそろえる。
+- 今回の更新は取得・認可・保存の契約を変更しない。npmには2026-11-25 08:20:16 JSTに公開した。利用ホストへの配備は別途確認する。
+
+## 0.50.30
+
+- 0.50.29に、Antigravity CLI判断フック（公開subpath `antigravity-judgment-hook`・CLI `judgment:antigravity-hook` / `judgment:install --target antigravity`、#1077）と本人JWTのホスト側project解決（#1032）、RFC-002 PR-1の `judgment-event-adapter` `project_code` マルチプロジェクト伝播と outbox `projectCodes` スコーピング（#1070）、および RFC-001 v2.0（既定OFFのライブ推論ゲート v3.1・セッション内ミニ世界モデル v2 と非digestテレメトリ・公開subpath `judgment-reasoning-audit` とオフライン7項目二値監査 / PoLL 2-of-3 審査、#1045・#1047・#1061・#1062・#1069）を加えたpatch更新（#1083）。
+- Antigravity CLI判断フックの `transcriptPath` 読み取り（`last_assistant_message` / 非システム `USER_INPUT` 補完）は、カーネル強制のルート境界・シンボリックリンク禁止保証のため Linux 5.6+（`openat2(RESOLVE_BENEATH | RESOLVE_NO_SYMLINKS)`・対応アーキテクチャ `platform.machine()` 許可リスト: `x86_64` / `amd64` / `aarch64` / `arm64` / `i386` / `i686` / `armv7l` / `armv6l` / `riscv64` / `s390x` / `ppc64le` / `ppc64` / `loongarch64`・`/proc/self/fd`・固定パス `python3`）および OS `flock` 環境を対象とする。macOS / Windows や未対応アーキテクチャ等の非対応環境（または `openat2` が制限されたコンテナ環境）ではフォールバックせず安全側（fail-closed）で transcript 読み取りを拒否（空扱い）し、フック本体は fail-open 応答（`{}` / `{"decision":""}`）を維持する。
+- TypeScriptの公開型破壊的変更を含む: `JudgmentKnowledgeEvent['applicability_scope']['project_code']` を `'brainbase'` リテラルから `string` へ拡張（#1070）し、`RemoteJudgmentHookHost`・`JudgmentExecutionHostType`・`JudgmentRuntimeRuntimeContext['host']`・`JudgmentRuntimeRuntimeContext['entrypoint']` に `'antigravity'` を追加（#1077）。移行手順は `docs/releases/0.50.30.md` に記録する。
+- 本人JWT認証の `claude-code` 呼び出しで `project` を省略した場合の挙動は、従来の `invalid_project_code` からHost側での自動解決（`resolveProjectCode` または本人の単一project）または新規エラー（`judgment_project_unresolved` / `judgment_project_lookup_failed`）へ変わる（#1032）。それ以外の既存のランタイム既定動作と認証・権限の境界は維持する。npmには2026-11-25 07:25:23 JSTに公開した。利用ホストへの配備は別途確認する。
+
+## 0.50.29
+
+- 0.50.28に、Gemini / OpenAI / Claude / Codex 間でMCPツールの `inputSchema` を正規化・検証する公開subpath `mcp-tool-schema-portability`（#1046、#1063）を最小差分で加えたpatch更新（#1076）。
+- 追加だけで、既存のsubpath、MCPツール、既定の振る舞いは変更しない。npmには2026-11-25 03:48:12 JSTに公開した。利用ホストへの配備は別途確認する。
+
+## 0.50.28
+
+- 議事録の共通UIの`canEditMinutes`へ対象の会議・文書を渡し、編集可否と不可理由を受け取れる後方互換の契約を加えたpatch更新（#1073）。プロジェクト選択の案内を権限不足と分ける。
+- 従来のbooleanを返すホストも利用でき、認証・権限の判定は変更しない。npmには2026-11-24 23:45:53 JSTに公開した。利用ホストへの配備は別途確認する。
+
+## 0.50.27
+
+- 0.50.26に、プロジェクト詳細をホスト追加タブ・概要・記録探索・その場の設定編集で組み立てる共通UIを加えたpatch更新（#1071、#1072）。初期表示の記録集合と正規IDによる追加を保ち、明示的な詳細表示では配置・ラベル・拡大縮小をそろえ、ID未取得の資料、未確認・部分取得・失敗の区別、入力中のfocusと保存結果確認を保持する。
+- 個人版の既定2タブと取得・認可経路は維持。編集操作の表示を「編集」「キャンセル」「変更履歴」にそろえ、判断そのものの訂正・取り消しは変えない。npmには2026-11-24 16:23:45 JSTに公開した。利用ホストへの配備は別途確認する。
+
+## 0.50.26
+
+- 0.50.25のClaude Codeの判断フックで、ターンの記録に最後に成功した`brainbase_resolve_turn`の契約を付けて送るpatch更新（#1065）。これまでは最初の受け取りを付けていたため、組織版の判断の履歴に出なかった。resolve_turnが無いターンは今までどおり最初の受け取りを付ける。別の人・別のテナント・別のproject・別のturnの契約は送らない。
+- 公開APIと既定の振る舞いは変更しない。npmには2026-11-24 12:56:28 JSTに公開した。利用ホストへの配備は別途確認する。
+
+## 0.50.25
 
 - 0.50.24に、`brainbase login` で本人のtokenを手元に保存して自動で更新する公開subpath `brainbase-login`（#1041）と、Claude Codeの判断フックを `judgment:install --target claude-code` で登録する公開subpath `claude-code-judgment-hook`（#1042）を加えるpatch更新候補。
-- 追加だけで、既存のsubpathと既定の振る舞いは変更しない。npm公開と利用ホストへの配備は別途確認する。
+- 追加だけで、既存のsubpathと既定の振る舞いは変更しない。npmには2026-11-24 02:40:55 JSTに公開した。
 
 ## 0.50.24
 

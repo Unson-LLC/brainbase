@@ -142,7 +142,7 @@ describe('プロジェクトと関係者 with the owner\'s own share', () => {
     const text = visibleText(own);
     expect(text).toContain('読み取りのみ');
     expect(text).toContain(`${ownShareHandoverText(HANDOVER)}`);
-    expect(text).toContain('に手元のOSSから送った束');
+    expect(text).toContain('に自分のBrainbaseから持ち込み');
     // The snapshot ID and digest stay reachable in the record details, not in the visible copy.
     expect(text).not.toContain('snapshot-1');
     expect(text).not.toContain('sha256:fixture');
@@ -164,7 +164,7 @@ describe('プロジェクトと関係者 with the owner\'s own share', () => {
     rowsIn(own).find((row) => row.attributes['data-key'] === 'project-atlas').dispatch('click');
     await waitFor(() => visibleText(ownSection(root)).includes('発起人'));
     const detail = byClass(ownSection(root), 'bb-graph-own-detail')[0];
-    expect(visibleText(detail)).toContain('プロジェクト（引き継いだ自分の分）');
+    expect(visibleText(detail)).toContain('持ち込んだ記録・プロジェクト');
     expect(visibleText(detail)).toContain(`責任${OWNER_NAME}`);
     expect(visibleText(detail)).not.toContain('null');
     expect(visibleText(detail)).not.toContain('self');
@@ -174,14 +174,14 @@ describe('プロジェクトと関係者 with the owner\'s own share', () => {
   });
 
   it('labels a missing handover digest as unconfirmed instead of hiding it', () => {
-    expect(ownShareHandoverRows({ graphId: 'snapshot-1', projectCode: 'project-a' })).toContainEqual(['digest', '未確認']);
+    expect(ownShareHandoverRows({ graphId: 'snapshot-1', projectCode: 'project-a' })).toContainEqual(['照合用のコード', '未確認']);
   });
 
   it('says it has not been handed over yet, with the commands that send and list it', async () => {
     await writeGraphV2(dataDir);
     const { root } = await mountProjects({ host: ownHost('none') });
     const text = visibleText(ownSection(root));
-    expect(text).toContain('まだ引き継いでいません');
+    expect(text).toContain('まだ何も持ち込まれていません');
     for (const command of GRAPH_OWN_SHARE_COMMANDS) expect(text).toContain(command);
     expect(GRAPH_OWN_SHARE_COMMANDS).toEqual(['brainbase graph:upgrade', 'brainbase graph:bundles']);
     expect(keysIn(hostPart(root))).toEqual(['project-atlas', 'project-beta']);
@@ -228,9 +228,9 @@ describe('引き継いだ自分の分 on its own', () => {
     const own = ownSection(root);
     expect(own.attributes['data-authority']).toBe('owner_private');
     const lead = visibleText(own);
-    expect(lead).toContain('手元のOSSから送った最新の束です');
-    expect(lead).toContain('組織の記録ではなく、あなたにだけ表示しています');
-    expect(lead).toContain('組織の事実へ昇格します');
+    expect(lead).toContain('自分のBrainbaseから持ち込んだ最新の記録です');
+    expect(lead).toContain('組織の記録とは別に、あなただけに表示されます');
+    expect(lead).toContain('組織の記録に書き込むものを選びます');
     expect(lead).toContain('読み取りのみ');
     expect(lead).toContain(ownShareHandoverText(HANDOVER));
     expect(lead).not.toContain('snapshot-1');
@@ -238,7 +238,7 @@ describe('引き継いだ自分の分 on its own', () => {
     expect(keysIn(own)).toContain(OWNER_PERSON_ID);
     expect(keysIn(own)).not.toContain('self');
     expect(lead).toContain(OWNER_NAME);
-    expect(lead).toMatch(/束の中の記録 \d+件/u);
+    expect(lead).toMatch(/持ち込んだ記録 \d+件/u);
     expect(host.requests).toEqual([`${OWN_BASE}/search?limit=50`]);
     // Read-only: no correction anywhere.
     expect(buttonsNamed(root, 'この記録を直す')).toEqual([]);
@@ -257,14 +257,14 @@ describe('引き継いだ自分の分 on its own', () => {
     const detail = byClass(ownSection(root), 'bb-graph-own-detail')[0];
     expect(visibleText(section(detail, '判断根拠'))).toContain('判断小さく始める');
     buttonsNamed(detail, 'Atlas導入')[0].dispatch('click');
-    await waitFor(() => visibleText(byClass(ownSection(root), 'bb-graph-own-detail')[0]).includes('プロジェクト（引き継いだ自分の分）'));
+    await waitFor(() => visibleText(byClass(ownSection(root), 'bb-graph-own-detail')[0]).includes('持ち込んだ記録・プロジェクト'));
     buttonsNamed(byClass(ownSection(root), 'bb-graph-own-detail')[0], '閉じる')[0].dispatch('click');
     expect(byClass(ownSection(root), 'bb-graph-own-detail')).toEqual([]);
   });
 
   it('says it has not been handed over with the commands, and never shows a failure as zero items', async () => {
     const none = visibleText((await mountOwnShare(ownHost('none'))).root);
-    expect(none).toContain('まだ引き継いでいません');
+    expect(none).toContain('まだ何も持ち込まれていません');
     for (const command of GRAPH_OWN_SHARE_COMMANDS) expect(none).toContain(command);
 
     const host = ownHost('failed');
@@ -272,7 +272,7 @@ describe('引き継いだ自分の分 on its own', () => {
     const failed = visibleText(ownSection(root));
     expect(failed).toContain('読み取り失敗');
     expect(failed).toContain('0件ではありません');
-    expect(failed).not.toContain('束の中の記録');
+    expect(byClass(ownSection(root), 'bb-graph-own-caption')).toEqual([]);
     host.mode = 'ok';
     buttonsNamed(ownSection(root), '再試行')[0].dispatch('click');
     await waitFor(() => keysIn(ownSection(root)).includes('project-own-only'));
@@ -288,6 +288,118 @@ describe('引き継いだ自分の分 on its own', () => {
     resolveRead(jsonResponse(200, { status: 'not_handed_over', source: OWN_SOURCE }));
     await pending;
     expect(root.children.length).toBe(0);
+  });
+});
+
+class DrawerDocument extends FakeDocument {
+  constructor() { super(); this.body = this.createElement('body'); this.defaultView = { matchMedia: () => ({ matches: true }) }; }
+  createElement(tag) {
+    const node = super.createElement(tag);
+    node.ownerDocument = this;
+    node.classList = { add: name => { node.className += ` ${name}`; }, remove: name => { node.className = node.className.split(' ').filter(value => value !== name).join(' '); } };
+    node.focus = () => { this.activeElement = node; };
+    node.showModal = () => { node.open = true; };
+    node.close = () => { node.open = false; };
+    node.remove = () => { if (node.parentNode) node.parentNode.children = node.parentNode.children.filter(child => child !== node); node.removed = true; };
+    node.isConnected = true;
+    return node;
+  }
+}
+
+describe('explicit details-only composition', () => {
+  it('never uses a different snapshot for a pending name or a relation counterpart', async () => {
+    const host = ownHost(), doc = new DrawerDocument(), root = doc.createElement('div');
+    const search = await (await host.fetch(`${OWN_BASE}/search`)).json();
+    const record = await (await host.fetch(`${OWN_BASE}/entities/decision-scope`)).json();
+    const handoverB = { ...HANDOVER, digest: 'snapshot-b' };
+    let hold = false, resolveEntity;
+    const view = createOwnShareView({ root, document: doc, autoLoad: false, presentation: 'details-only', fetcher: path => {
+      if (path.includes('/search')) return Promise.resolve(jsonResponse(200, { ...search, handover: handoverB, results: search.results.map(entity => ({ ...entity, name: 'Snapshot B list name' })) }));
+      if (hold) return new Promise(resolve => { resolveEntity = resolve; });
+      return Promise.resolve(jsonResponse(200, { ...record, handover: handoverB, entity: { ...record.entity, name: 'Snapshot B detail' }, outgoing: record.outgoing.map(edge => ({ ...edge, counterpart: { ...edge.counterpart, name: 'Snapshot B counterpart' } })) }));
+    } });
+    await view.search('');
+    const first = await view.openEntity('decision-scope', { expectedHandover: HANDOVER });
+    expect(first.state).toBe('unknown'); expect(first.pending).toBe(null);
+    expect(collectText(doc.body)).not.toContain('Snapshot B');
+    await view.openEntity('decision-scope', { expectedHandover: handoverB });
+    hold = true;
+    const next = view.openEntity('project-atlas', { expectedHandover: HANDOVER });
+    expect(view.state.detail.pending).toBe(null); expect(collectText(doc.body)).not.toContain('Snapshot B');
+    resolveEntity(await host.fetch(`${OWN_BASE}/entities/project-atlas`)); await next;
+    expect(view.state.detail.state).toBe('unknown'); expect(collectText(doc.body)).not.toContain('Snapshot B');
+    view.destroy();
+  });
+
+  it('keeps a detail during refresh loading but revokes it after a failed or missing snapshot, including a late detail read', async () => {
+    for (const response of [jsonResponse(200, { status: 'not_handed_over', source: OWN_SOURCE }), jsonResponse(403, { error: { code: 'forbidden', message: 'Unavailable' } }), jsonResponse(502, { error: { message: 'Read failed' } })]) {
+      const host = ownHost(), doc = new DrawerDocument(), root = doc.createElement('div');
+      const original = await (await host.fetch(`${OWN_BASE}/entities/decision-scope`)).json();
+      let refresh = false, holdEntity = false, resolveSearch, resolveEntity;
+      const view = createOwnShareView({ root, document: doc, autoLoad: false, presentation: 'details-only', fetcher: path => {
+        if (refresh && path.includes('/search')) return new Promise(resolve => { resolveSearch = resolve; });
+        if (holdEntity && path.includes('/entities/')) return new Promise(resolve => { resolveEntity = resolve; });
+        return host.fetch(path);
+      } });
+      await view.search(''); await view.openEntity('decision-scope');
+      refresh = true; const reading = view.search('');
+      expect(doc.body.children[0].open).toBe(true); expect(collectText(doc.body)).toContain('最初の利用者の手戻りを小さくするため');
+      resolveSearch(response); await reading;
+      expect(view.state.detail).toBe(null); expect(doc.body.children[0].open).toBe(false);
+      expect(collectText(doc.body)).not.toContain('最初の利用者の手戻りを小さくするため');
+      refresh = false; await view.search(''); holdEntity = true;
+      const pending = view.openEntity('decision-scope');
+      refresh = true; const missing = view.search(''); resolveSearch(response); await missing;
+      resolveEntity(jsonResponse(200, original)); await pending;
+      expect(view.state.detail).toBe(null); expect(doc.body.children[0].open).toBe(false);
+      view.destroy();
+    }
+  });
+
+  it('exposes the existing search read without drawing a duplicate list and retains decision details and relation navigation', async () => {
+    const host = ownHost(), doc = new DrawerDocument(), root = doc.createElement('div'), changes = [];
+    const view = createOwnShareView({ root, document: doc, fetcher: host.fetch, presentation: 'details-only', autoLoad: false, onState: read => changes.push(read), detailCopy: { kicker: 'Imported records', outgoingTitle: 'From this record', incomingTitle: 'To this record' } });
+    await view.search('');
+    expect(changes.map(read => read.state)).toEqual(['loading', 'ok']);
+    expect(changes[1].payload.handover).toEqual(HANDOVER);
+    expect(root.children).toEqual([]);
+    const opener = doc.createElement('button'); opener.focus();
+    await view.openEntity('decision-scope', { opener });
+    const dialog = doc.body.children[0];
+    expect(dialog.open).toBe(true); expect(collectText(dialog)).toContain('最初の利用者の手戻りを小さくするため');
+    expect(collectText(dialog)).toContain('From this record');
+    expect(buttonsNamed(dialog, '閉じる')).toHaveLength(1);
+    await buttonsNamed(dialog, 'Atlas導入')[0].dispatch('click');
+    expect(view.state.detail.id).toBe('project-atlas');
+    dialog.dispatch('cancel');
+    expect(dialog.open).toBe(false); expect(view.state.detail).toBe(null); expect(doc.activeElement).toBe(opener);
+    view.destroy(); expect(doc.body.children).toEqual([]);
+  });
+
+  it('rejects stale same-ID reads, mismatched IDs and snapshot identities, and never reopens after close or disposal', async () => {
+    const host = ownHost(), doc = new DrawerDocument(), root = doc.createElement('div');
+    const original = await (await host.fetch(`${OWN_BASE}/entities/decision-scope`)).json();
+    const pending = [];
+    const view = createOwnShareView({ root, document: doc, autoLoad: false, presentation: 'details-only', fetcher: path => path.includes('/entities/') ? new Promise(resolve => pending.push(resolve)) : host.fetch(path) });
+    await view.search('');
+    const first = view.openEntity('decision-scope'), second = view.openEntity('decision-scope');
+    pending[1](jsonResponse(200, { ...original, entity: { ...original.entity, summary: 'Newest read' } })); await second;
+    pending[0](jsonResponse(200, original)); await first;
+    expect(view.state.detail.payload.entity.summary).toBe('Newest read');
+    const wrong = view.openEntity('decision-scope'); pending[2](jsonResponse(200, { ...original, entity: { ...original.entity, id: 'another-id' } })); await wrong;
+    expect(view.state.detail.state).toBe('invalid');
+    const snapshot = view.openEntity('decision-scope'); pending[3](jsonResponse(200, { ...original, handover: { ...HANDOVER, digest: 'different-snapshot' } })); await snapshot;
+    expect(view.state.detail.state).toBe('unknown');
+    const late = view.openEntity('decision-scope'); view.closeDetail({ immediate: true });
+    const reopened = view.openEntity('decision-scope');
+    pending[4](jsonResponse(200, original)); await late; expect(view.state.detail.state).toBe('loading');
+    pending[5](jsonResponse(200, original)); await reopened; expect(view.state.detail.state).toBe('ok');
+    const expected = view.openEntity('decision-scope', { expectedHandover: { ...HANDOVER, digest: 'old-list-snapshot' } });
+    pending[6](jsonResponse(200, original)); await expected; expect(view.state.detail.state).toBe('unknown');
+    const closed = view.openEntity('decision-scope'); view.closeDetail({ immediate: true }); pending[7](jsonResponse(200, original)); await closed;
+    expect(view.state.detail).toBe(null); expect(doc.body.children[0].open).toBe(false);
+    const disposed = view.openEntity('decision-scope'); view.destroy(); pending[8](jsonResponse(200, original)); await disposed;
+    expect(doc.body.children).toEqual([]); expect(root.children).toEqual([]);
   });
 });
 
@@ -321,7 +433,7 @@ describe('引き継いだ自分の目的', () => {
   it('says it has not been handed over, has no objective, or could not be read, never zero items for a failure', async () => {
     expect(visibleText((await mountObjectives(ownHost('none'))).root)).toContain('brainbase graph:upgrade');
     const bare = ownerPrivateBundle({ foundation: null });
-    expect(visibleText((await mountObjectives(ownHost('ok', bare))).root)).toContain('この束には、目的の定義がありません。');
+    expect(visibleText((await mountObjectives(ownHost('ok', bare))).root)).toContain('持ち込んだ記録には、目的の定義がありません。');
     const tampered = ownerPrivateBundle();
     tampered.graph.foundation.records[1].definition.desiredState = '書き換え';
     const failed = visibleText((await mountObjectives(ownHost('ok', tampered))).root);
@@ -338,8 +450,8 @@ it('compact own objectives preserve bundle provenance and never convert unavaila
   expect(collectText(root)).toContain('snapshot-1'); expect(collectText(root)).toContain('sha256:fixture');
   host.mode = 'failed'; await view.load();
   expect(collectText(root)).toContain('取得できません'); expect(collectText(root)).toContain('出典は確認できません');
-  expect(collectText(root)).not.toContain('まだ引き継いでいません'); expect(notices.at(-1).message).toContain('0件ではありません');
-  host.mode = 'none'; await view.load(); expect(collectText(root)).toContain('まだ引き継いだ目的はありません');
+  expect(collectText(root)).not.toContain('まだ何も持ち込まれていません'); expect(notices.at(-1).message).toContain('0件ではありません');
+  host.mode = 'none'; await view.load(); expect(collectText(root)).toContain('目的はまだ持ち込まれていません');
   view.destroy();
 });
 

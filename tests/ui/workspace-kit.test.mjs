@@ -2,6 +2,11 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import {
   workspaceButton,
+  workspaceCandidateChoices,
+  workspaceStepBand,
+  workspaceSummaryCard,
+  workspaceIdentityChip,
+  workspaceViewMotion,
   workspaceStatusPill,
   workspaceProgressBar,
   workspaceEmptyState,
@@ -47,6 +52,37 @@ const findAll = (node, predicate, found = []) => {
   return found;
 };
 const byClass = (node, className) => findAll(node, (item) => String(item.className).split(' ').includes(className));
+
+describe('controlled workflow presentation', () => {
+  it('shows only supplied choices and waits for the host to accept a selection', () => {
+    const change = vi.fn();
+    const root = workspaceCandidateChoices(doc, { label: 'Record choices', value: 'a', items: [{ value: 'a', label: 'Alpha', reason: 'Same alias' }, { value: 'b', label: 'Beta' }, { value: 'c', label: 'Unavailable', disabled: true }], onChange: change });
+    expect(root.children).toHaveLength(3);
+    root.children[1].listeners.get('click')();
+    expect(change).toHaveBeenCalledWith('b', expect.objectContaining({ label: 'Beta' }));
+    expect(root.children[0].attributes['aria-pressed']).toBe('true');
+    root.update('b');
+    expect(root.children.map(button => button.attributes['aria-pressed'])).toEqual(['false', 'true', 'false']);
+    root.children[2].listeners.get('click')();
+    expect(change).toHaveBeenCalledTimes(1);
+    root.update('b', { disabled: true }); root.children[0].listeners.get('click')();
+    expect(change).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps step completion separate from selection and preserves unknown status text', () => {
+    const change = vi.fn();
+    const root = workspaceStepBand(doc, { label: 'Steps', value: 'one', steps: [{ id: 'one', label: 'Inspect', status: 'Not confirmed' }, { id: 'two', label: 'Apply', status: 'Complete', complete: true }, { id: 'three', label: 'Locked', disabled: true }], onChange: change });
+    const controls = byClass(root, 'bb-ws-step');
+    expect(text(root)).toContain('Not confirmed');
+    expect(controls[0].className).not.toContain('is-complete');
+    expect(controls[1].className).toContain('is-complete');
+    controls[1].listeners.get('click')();
+    expect(change).toHaveBeenCalledWith('two', expect.objectContaining({ label: 'Apply' }));
+    expect(controls[0].attributes['aria-current']).toBe('step');
+    root.update('two'); expect(controls[1].attributes['aria-current']).toBe('step');
+    controls[2].listeners.get('click')(); expect(change).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('compact list presentation primitives', () => {
   it('keeps confirmed segment proportions and puts review last without changing caller data', () => {
@@ -131,12 +167,12 @@ describe('workspace kit (the organization edition screen pattern)', () => {
     expect(byClass(page, 'bb-ws-help-bubble')[0].textContent).toBe(lead);
   });
 
-  it('labels a notice and marks warnings as alerts', () => {
+  it('labels a notice and marks warnings as status', () => {
     const info = workspaceNotice(doc, { label: '出典', text: 'このMacのGraph' });
     expect(info.className).toBe('bb-ws-notice is-info');
     expect(info.attributes.role).toBeUndefined();
     expect(text(info)).toBe('出典このMacのGraph');
-    expect(workspaceNotice(doc, { label: '移行', text: '必要', tone: 'warning' }).attributes.role).toBe('alert');
+    expect(workspaceNotice(doc, { label: '移行', text: '必要', tone: 'warning' }).attributes.role).toBe('status');
   });
 
   it('shows an unknown metric as 未確認, never as zero', () => {
@@ -310,9 +346,9 @@ describe('readable colors', () => {
 
   it('limits content-aligned topbar gutters to an explicit desktop opt-in', () => {
     const css = readFileSync(new URL('../../ui/workspace-kit.css', import.meta.url), 'utf8');
-    const desktop = css.slice(css.lastIndexOf('@media (min-width: 761px)'));
+    const desktop = css.match(/@media \(min-width: 761px\) \{[\s\S]*?\n\}/u)[0];
     expect(desktop).toContain('.bb-ws-topbar.bb-ws-topbar--content-aligned { padding-inline: var(--bb-space-5); }');
-    expect(desktop).toContain('padding-inline-start: calc(var(--bb-space-6) - var(--bb-space-5));');
+    expect(desktop).toContain('.bb-ws-topbar.bb-ws-topbar--content-aligned > h1 { padding-inline-start: calc(var(--bb-space-6) - var(--bb-space-5)); }');
     expect(desktop).not.toMatch(/height\s*:/);
     expect(desktop).not.toMatch(/font(?:-size)?\s*:/);
     expect(css).not.toContain('.bb-ws-topbar--content-aligned.has-tabs > h1 { position:');
@@ -524,3 +560,28 @@ describe('shared dismissal motion', () => {
    expect(clicked).toBe(1);
    expect(text(workspaceFilterOption(doc, { label: 'すべて', count: 0 }))).toBe('すべて 0');
  });
+
+
+describe('summary and identity composition', () => {
+  it('keeps supplied text inert and identity activation host-owned', () => {
+    const doc = { createElement: tag => new FakeElement(tag) };
+    const click = vi.fn();
+    const chip = workspaceIdentityChip(doc, { name: '<Sample>', detail: 'Owner', onClick: click, label: 'Open Sample' });
+    const card = workspaceSummaryCard(doc, { content: chip, label: 'Summary' });
+    expect(card.children[0].children[0]).toBe(chip);
+    expect(chip.attributes['aria-label']).toBe('Open Sample');
+    expect(chip.children[1].textContent).toBe('<Sample>');
+    chip.listeners.get('click')();
+    expect(click).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not animate when reduced motion is requested', () => {
+    const animate = vi.fn();
+    const root = { animate, ownerDocument: { defaultView: { matchMedia: () => ({ matches: true }) } } };
+    expect(workspaceViewMotion(root, { direction: 'back' })).toBeNull();
+    expect(animate).not.toHaveBeenCalled();
+    root.ownerDocument.defaultView.matchMedia = () => ({ matches: false });
+    workspaceViewMotion(root, { direction: 'back' });
+    expect(animate).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ transform: 'translateX(-24px)' })]), expect.objectContaining({ duration: 240 }));
+  });
+});

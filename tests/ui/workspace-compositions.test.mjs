@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { workspaceConditionChips, workspacePills, workspaceFormRow, workspaceCardRow, workspaceCardRowSkeleton, workspaceCheckbox, workspaceCombobox, workspaceDialogAppearance, workspaceDisclosure, workspaceInlineNotice, workspaceSelectionBar, workspaceStatusPill, workspaceRowMotion, workspaceInputFrame, workspaceDetailDrawer } from '../../ui/workspace-kit.js';
+import { workspaceHelp, workspaceConditionChips, workspacePills, workspaceFormRow, workspaceCardRow, workspaceCardRowSkeleton, workspaceCheckbox, workspaceCombobox, workspaceDialogAppearance, workspaceDisclosure, workspaceInlineNotice, workspaceSelectionBar, workspaceStatusPill, workspaceRowMotion, workspaceInputFrame, workspaceDetailDrawer, workspaceDotPill, workspaceSettingsSection } from '../../ui/workspace-kit.js';
 class ChildNodes extends Array { find=undefined; }
 class Node {
   constructor(doc, tag) { this.ownerDocument=doc; this.tagName=tag.toUpperCase(); this.children=new ChildNodes(); this.attributes={}; this.listeners={}; this.style={setProperty:vi.fn()}; this.top=0; this.className=''; this.classList={add:n=>{this.className+=' '+n},remove:n=>{this.className=this.className.split(' ').filter(x=>x!==n).join(' ')}}; }
@@ -25,11 +25,41 @@ class Node {
 }
 const document = (reduce=false) => { const doc={createElement:tag=>new Node(doc,tag), createElementNS:(_,tag)=>new Node(doc,tag),defaultView:{matchMedia:()=>({matches:reduce}),getComputedStyle:()=>({getPropertyValue:k=>k==='--bb-row-move-duration'?'320ms':'cubic-bezier(.2,.8,.2,1)'})}};doc.body=doc.createElement("body");return doc; };
 describe('business-neutral workspace compositions',()=>{
+  it('opts toolbar help into a decorative question icon without changing default help or its accessible description',()=>{
+    const doc=document();
+    const standard=workspaceHelp(doc,{label:'Details',text:'Explanation'});
+    const toolbar=workspaceHelp(doc,{label:'Details',text:'Explanation',appearance:'toolbar',placement:'bottom-end'});
+    expect(standard.className).toBe('bb-ws-help');expect(standard.children[0].textContent).toBe('i');
+    expect(toolbar.className).toContain('bb-ws-help--toolbar');
+    expect(toolbar.children[0].getAttribute('aria-expanded')).toBe('false');
+    expect(toolbar.children[0].children[0].getAttribute('aria-hidden')).toBe('true');
+    expect(toolbar.children[1].getAttribute('role')).toBe('tooltip');
+    expect(toolbar.children[0].getAttribute('aria-describedby')).toBe(toolbar.children[1].getAttribute('id'));
+  });
   it('keeps condition removal and reset under the host, with accessible names',()=>{
     const remove=vi.fn(),reset=vi.fn();const root=workspaceConditionChips(document(),{items:[{label:'Synthetic condition',onRemove:remove}],reset});
     root.children[0].children[1].click();root.children[1].click();expect(remove).toHaveBeenCalledOnce();expect(reset).toHaveBeenCalledOnce();
     expect(root.children[0].children[1].getAttribute('aria-label')).toBe('Synthetic conditionを解除');
     expect(workspaceConditionChips(document()).children).toHaveLength(0);
+  });
+  it('renders supplied category counts without turning unknown counts into zero',()=>{
+    const doc=document(), change=vi.fn();
+    const root=workspacePills(doc,{appearance:'record-types',label:'Types',items:[{value:'person',label:'People',count:2,color:'var(--bb-color-action)'},{value:'record',label:'Records'}],value:'person',onChange:change});
+    expect(root.className).toContain('bb-ws-pills--record-types');
+    expect(root.children[0].children.map(child=>child.textContent)).toEqual([undefined,'People','2']);
+    expect(root.children[1].children).toHaveLength(1);
+    root.children[1].click();expect(change).toHaveBeenCalledWith('record',{value:'record',label:'Records'});
+    root.update('record');expect(root.children[1].getAttribute('aria-pressed')).toBe('true');
+    const pill=workspaceDotPill(doc,{label:'People',color:'var(--bb-color-action)'});
+    expect(pill.children[0].getAttribute('aria-hidden')).toBe('true');
+  });
+  it('labels nested controls and composes settings without owning actions',()=>{
+    const doc=document(), slot=doc.createElement('div'), input=doc.createElement('input');input.id='nested-input';slot.append(input);
+    const row=workspaceFormRow(doc,{label:'Name',labelFor:'nested-input',control:slot,appearance:'quiet'});
+    expect(row.children[0].tagName).toBe('LABEL');expect(row.children[0].getAttribute('for')).toBe(input.id);
+    const action=doc.createElement('button');const section=workspaceSettingsSection(doc,{title:'Settings',action,content:row});
+    expect(section.children[0].children[1]).toBe(action);expect(section.children[1]).toBe(row);
+    const frame=workspaceInputFrame(doc,{title:'Settings',showFooter:false});expect(frame.footer.hidden).toBe(true);frame.dispose();
   });
   it('reports pill choices without silently taking ownership of state',()=>{
     const onChange=vi.fn();const root=workspacePills(document(),{label:'Mode',items:[{value:'a',label:'Alpha'},{value:'b',label:'Beta',disabled:true}],value:'a',onChange});
@@ -201,4 +231,12 @@ describe('host-controlled unsaved form dismissal', () => {
     expect(input.listeners.input).toBe(onInput);
     expect(workspaceFormRow(doc, { label: 'Default' }).className).not.toContain(`is-${appearance}`);
   });
+});
+
+
+it('resolves the current opener after background trigger replacement',()=>{
+  const doc=document(true);let current=doc.createElement('button');doc.body.append(current);
+  const frame=workspaceInputFrame(doc,{title:'Settings',opener:()=>current});frame.open(current);
+  current.remove();current=doc.createElement('button');doc.body.append(current);
+  frame.close({immediate:true});expect(doc.activeElement).toBe(current);frame.dispose();
 });

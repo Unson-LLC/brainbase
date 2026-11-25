@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import {
   closeSync,
   constants as fsConstants,
@@ -22,11 +23,76 @@ import {
   type JudgmentAutonomyResolver
 } from './judgment-autonomy.js';
 import {
+  normalizeJudgmentEventProjectCode,
   toKnowledgeEventFromJudgmentEpisode,
   type JudgmentKnowledgeEvent
 } from './judgment-event-adapter.js';
 import type { JudgmentKnowledgeEventSink } from './judgment-event-outbox.js';
+import { containsJudgmentFrameCredential } from './judgment-frame.js';
 import { canonicalJson } from './judgment-resolution-contract.js';
+import {
+  AUDIT_LINE_STRIP_PREFIX,
+  COMPACT_FOUR_BLOCK_GATE_PROMPT_V2,
+  COMPACT_FOUR_BLOCK_GATE_PROMPT_V3,
+  REASONING_GATE_MODES,
+  resolveReasoningGateMode,
+  shouldApplyReasoningGate,
+  type ReasoningGateHostConfig,
+  type ReasoningGateMode
+} from './judgment-reasoning-gate-prompt.js';
+import {
+  DEFAULT_SESSION_WORLD_MODEL_UPDATE_TIMEOUT_MS,
+  SESSION_MINI_WORLD_MODEL_SCHEMA_VERSION_V2,
+  SESSION_WORLD_MODEL_FILENAME,
+  SESSION_WORLD_MODEL_LOCK_FILENAME,
+  WM_V2_LIMITS,
+  parseSessionMiniWorldModelV2,
+  readSessionMiniWorldModelV2,
+  renderSessionMiniWorldModelPinV2,
+  sessionWorldModelPaths,
+  toLearningCandidateEvidenceDraftFromSessionWMV2,
+  withSessionWorldModelLock,
+  writeSessionMiniWorldModelV2,
+  type SessionMiniWorldModelV2,
+  type SessionWMLearningEvidenceDraftResultV2,
+  type SessionWMLearningEvidenceDraftV2,
+  type SessionWorldModelPaths,
+  type SessionWorldModelUpdateEventV2,
+  type SessionWorldModelUpdaterV2,
+  type SessionWorldModelWriteResult
+} from './judgment-session-world-model.js';
+
+import { taskProgressScopeSchema, taskProgressObservationSchema, type JudgmentTaskProgressAdapter } from './judgment-task-progress.js';
+
+export {
+  AUDIT_LINE_STRIP_PREFIX,
+  COMPACT_FOUR_BLOCK_GATE_PROMPT_V2,
+  COMPACT_FOUR_BLOCK_GATE_PROMPT_V3,
+  DEFAULT_SESSION_WORLD_MODEL_UPDATE_TIMEOUT_MS,
+  REASONING_GATE_MODES,
+  SESSION_MINI_WORLD_MODEL_SCHEMA_VERSION_V2,
+  SESSION_WORLD_MODEL_FILENAME,
+  SESSION_WORLD_MODEL_LOCK_FILENAME,
+  WM_V2_LIMITS,
+  parseSessionMiniWorldModelV2,
+  readSessionMiniWorldModelV2,
+  renderSessionMiniWorldModelPinV2,
+  resolveReasoningGateMode,
+  sessionWorldModelPaths,
+  shouldApplyReasoningGate,
+  toLearningCandidateEvidenceDraftFromSessionWMV2,
+  withSessionWorldModelLock,
+  writeSessionMiniWorldModelV2,
+  type ReasoningGateHostConfig,
+  type ReasoningGateMode,
+  type SessionMiniWorldModelV2,
+  type SessionWMLearningEvidenceDraftResultV2,
+  type SessionWMLearningEvidenceDraftV2,
+  type SessionWorldModelPaths,
+  type SessionWorldModelUpdateEventV2,
+  type SessionWorldModelUpdaterV2,
+  type SessionWorldModelWriteResult
+};
 
 type Environment = Record<string, string | undefined>;
 
@@ -145,14 +211,43 @@ export interface JudgmentHookOutput {
   };
 }
 
+/**
+ * Non-digest runtime telemetry emitted on `UserPromptSubmit` for Dogfooding Layer 1
+ * observability (`reasoningGateApplied / eligibleTurns`). Never included in
+ * `episode_digest`, `receipt_digest`, or hook stdout contracts.
+ */
+export interface ReasoningGateTelemetryEvent {
+  readonly event: 'judgment_reasoning_gate_evaluated';
+  readonly session_ref: string;
+  readonly turn_id: string;
+  readonly project_code: string | null;
+  readonly replay: boolean;
+  readonly reasoning_gate_mode: ReasoningGateMode;
+  readonly reasoning_gate_applied: boolean;
+  readonly reasoning_gate_eligible: boolean;
+  readonly session_wm_injected: boolean;
+}
+
 export interface JudgmentHostOptions {
   env?: Environment;
+  taskProgress?: JudgmentTaskProgressAdapter;
   resolver?: (request: JudgmentRequest) => Promise<JudgmentReceipt>;
   /** Expected resolver binding; defaults to the built-in local adapter. */
   expectedHostBinding?: JudgmentHostBinding;
   autonomyResolver?: JudgmentAutonomyResolver;
   autonomyMode?: JudgmentAutonomyMode;
   autonomyCanaryProjects?: readonly string[];
+  reasoningGateMode?: ReasoningGateMode | 'compact_4block_v2';
+  reasoningGateCanaryProjects?: readonly string[];
+  /** Optional non-digest reasoning gate telemetry callback (fail-open). */
+  onReasoningGateTelemetry?: (event: ReasoningGateTelemetryEvent) => void;
+  /**
+   * Optional PR-B ephemeral session mini world model v2 updater.
+   * Invoked strictly AFTER `withTurnLock` releases on audited `Stop` completions.
+   */
+  sessionWorldModelUpdater?: SessionWorldModelUpdaterV2;
+  /** Fail-open timeout in ms for `sessionWorldModelUpdater.enqueue()`. Defaults to 1500 ms. */
+  sessionWorldModelUpdateTimeoutMs?: number;
   trustedConversationMessages?: ConversationMessage[];
   /** Optional adapter-owned queue. The default Host lifecycle remains unchanged. */
   knowledgeEventSink?: JudgmentKnowledgeEventSink;
@@ -203,6 +298,7 @@ export interface JudgmentEpisode {
     zero_call_display_line: string | null;
     zero_call_display_line_digest: string | null;
   };
+  task_progress_scope?: ReturnType<typeof taskProgressScopeSchema.parse>;
   episode_digest: string;
 }
 
@@ -270,7 +366,7 @@ export interface JudgmentAutonomyReceipt {
 
 export interface JudgmentStopBlock {
   decision: 'block';
-  block_kind?: 'autonomy_continue' | 'audit_repair';
+  block_kind?: 'autonomy_continue' | 'audit_repair' | 'semantic_replan';
   reason: string;
 }
 
@@ -511,21 +607,26 @@ function readCanonicalTranscript(
 }
 
 function findRepoRoot(start: string): string | null {
-  let current = resolve(start);
-  for (;;) {
-    try {
-      statSync(join(current, '.git'));
-      return current;
-    } catch {
-      const parent = dirname(current);
-      if (parent === current) return null;
-      current = parent;
+  try {
+    const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
+    return execFileSync('git', ['-C', resolve(start), 'rev-parse', '--show-toplevel'], {
+      encoding: 'utf8',
+      env: { ...env, LC_ALL: 'C' },
+      timeout: 2000,
+      stdio: ['ignore', 'pipe', 'pipe']
+    }).replace(/\r?\n$/u, '') || null;
+  } catch (error) {
+    const stderr = error instanceof Error && 'stderr' in error ? String(error.stderr) : '';
+    const reason = stderr.includes('dubious ownership') ? 'unsafe_repository'
+      : error instanceof Error && 'code' in error && error.code === 'ETIMEDOUT' ? 'timeout' : null;
+    if (reason) {
+      process.stderr.write(`${JSON.stringify({ event: 'judgment_repository_discovery_failed', reason })}\n`);
     }
+    return null;
   }
 }
 
-function instructionBindings(cwd: string): Array<{ scope: string; source_ref: string; digest: string }> {
-  const discoveredRoot = findRepoRoot(cwd);
+function instructionBindings(cwd: string, discoveredRoot: string | null): Array<{ scope: string; source_ref: string; digest: string }> {
   if (!discoveredRoot) return [];
   const root = realpathSync(discoveredRoot);
   const workingDirectory = realpathSync(resolve(cwd));
@@ -721,7 +822,7 @@ export function buildJudgmentRequest(
       permission_mode: typeof payload.permission_mode === 'string' && payload.permission_mode ? payload.permission_mode : null,
       project_binding: projectBinding
     },
-    instruction_bindings: instructionBindings(cwd),
+    instruction_bindings: instructionBindings(cwd, repoRoot),
     completeness: transcript.complete ? 'complete' as const : 'partial' as const
   };
   return {
@@ -1276,7 +1377,7 @@ function normalizedAnswerBody(answer: string, expectedLines: string[]): string {
     .map((line) => line.replace(/[ \t]+$/u, ''))
     .filter((line) => !auditLines.has(line));
   while (bodyLines.length > 0 && (
-    bodyLines[0] === '' || /^(?:🧠 |📚 Brainbase|⚠️ (?:Brainbase|判断))/u.test(bodyLines[0])
+    bodyLines[0] === '' || AUDIT_LINE_STRIP_PREFIX.test(bodyLines[0])
   )) bodyLines.shift();
   while (bodyLines.at(-1) === '') bodyLines.pop();
   return bodyLines.join('\n');
@@ -1406,12 +1507,73 @@ export function buildOwnerReferenceLine(request: JudgmentRequest, receipt: Judgm
   return buildOwnerAudit(request, receipt).display_line;
 }
 
+function invokeFailOpenObserver<T>(observer: ((event: T) => void) | undefined, event: T): void {
+  if (!observer) return;
+  try {
+    const result: unknown = observer(event);
+    if (result !== null && (typeof result === 'object' || typeof result === 'function')
+      && typeof (result as PromiseLike<unknown>).then === 'function') {
+      Promise.resolve(result).catch(() => {
+        // Non-digest telemetry must never affect hook output or emit unhandled rejections.
+      });
+    }
+  } catch {
+    // Non-digest telemetry must never affect hook output.
+  }
+}
+
+function emitReasoningGateTelemetry(
+  options: JudgmentHostOptions,
+  env: Environment,
+  telemetry: ReasoningGateTelemetryEvent
+): void {
+  invokeFailOpenObserver(options.onReasoningGateTelemetry, telemetry);
+  const stderrMode = env.BRAINBASE_JUDGMENT_REASONING_GATE_TELEMETRY?.trim().toLowerCase();
+  const shouldWriteStderr = stderrMode === 'stderr'
+    || (telemetry.reasoning_gate_mode !== 'off' && stderrMode !== 'off');
+  if (shouldWriteStderr) {
+    try {
+      process.stderr.write(`${JSON.stringify(telemetry)}\n`);
+    } catch {
+      // Non-digest telemetry must never affect hook output.
+    }
+  }
+}
+
 function successOutput(
   request: JudgmentRequest,
   receipt: JudgmentReceipt,
-  ownerAudit: JudgmentOwnerAudit = buildOwnerAudit(request, receipt)
+  ownerAudit: JudgmentOwnerAudit = buildOwnerAudit(request, receipt),
+  options: JudgmentHostOptions = {},
+  env: Environment = {},
+  { replay = false }: { replay?: boolean } = {}
 ): JudgmentHookOutput {
   const ownerReferenceLine = ownerAudit.display_line;
+  const projectCode = request.project_code ?? receipt.project_code;
+  const reasoningGateMode = resolveReasoningGateMode(options, env, projectCode);
+  const reasoningGateEligible = shouldApplyReasoningGate(receipt);
+  const applyReasoningGate = reasoningGateMode !== 'off' && reasoningGateEligible;
+  let sessionWmPin: string | null = null;
+  if (applyReasoningGate && reasoningGateMode === 'compact_4block_with_wm') {
+    const wmState = readSessionMiniWorldModelV2(
+      journalRoot(env),
+      request.conversation_context.session_ref
+    );
+    if (wmState) {
+      sessionWmPin = renderSessionMiniWorldModelPinV2(wmState, containsJudgmentFrameCredential);
+    }
+  }
+  emitReasoningGateTelemetry(options, env, {
+    event: 'judgment_reasoning_gate_evaluated',
+    session_ref: request.conversation_context.session_ref,
+    turn_id: request.turn_id,
+    project_code: projectCode ?? null,
+    replay,
+    reasoning_gate_mode: reasoningGateMode,
+    reasoning_gate_applied: applyReasoningGate,
+    reasoning_gate_eligible: reasoningGateEligible,
+    session_wm_injected: sessionWmPin !== null
+  });
   const executionPlan = {
     status: receipt.status,
     active_edges: receipt.active_edges,
@@ -1438,7 +1600,9 @@ function successOutput(
       ? 'This route requires a successful portable knowledge call; do not claim a zero-call completion.'
       : `If no portable Brainbase MCP call occurs, put this exact line immediately after the judgment line:\n${ZERO_CALL_DISPLAY_LINE}`,
     `Execution plan: ${JSON.stringify(executionPlan)}`,
-    `audit_contract: ${JSON.stringify(auditContract)}`
+    `audit_contract: ${JSON.stringify(auditContract)}`,
+    ...(applyReasoningGate ? ['', COMPACT_FOUR_BLOCK_GATE_PROMPT_V3] : []),
+    ...(sessionWmPin ? ['', sessionWmPin] : [])
   ].join('\n');
   return {
     continue: true,
@@ -1451,6 +1615,8 @@ function successOutput(
 export async function runJudgmentHost(payload: JudgmentHookPayload, options: JudgmentHostOptions = {}): Promise<JudgmentHookOutput> {
   const env = options.env ?? process.env;
   const expectedHostBinding = normalizeExpectedHostBinding(options.expectedHostBinding);
+  // Fail fast on invalid reasoning gate configuration before acquiring locks or invoking a resolver.
+  resolveReasoningGateMode(options, env);
   const sessionId = typeof payload.session_id === 'string' ? payload.session_id : '';
   const turnId = typeof payload.turn_id === 'string' ? payload.turn_id.trim() : '';
   if (!sessionId || !turnId) throw new TypeError('UserPromptSubmit requires prompt, turn_id, and session_id');
@@ -1463,7 +1629,7 @@ export async function runJudgmentHost(payload: JudgmentHookPayload, options: Jud
       if (!requestText || episode.request_text_digest !== sha256(requestText)) {
         throw new Error('judgment_episode_binding_mismatch');
       }
-      return successOutput(episode.adoption.request, episode.adoption.receipt, episode.adoption.owner_audit);
+      return successOutput(episode.adoption.request, episode.adoption.receipt, episode.adoption.owner_audit, options, env, { replay: true });
     } catch (error) {
       if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
     }
@@ -1489,6 +1655,7 @@ export async function runJudgmentHost(payload: JudgmentHookPayload, options: Jud
       request_text_digest: sha256(request.request),
       initial_receipt_digest: sha256(canonicalJson(adoption.receipt)),
       adoption,
+      ...(options.taskProgress ? { task_progress_scope: taskProgressScopeSchema.parse(options.taskProgress.scope) } : {}),
       audit_contract: {
         schema_version: 'brainbase-owner-audit-contract-v1' as const,
         repair_body_policy: 'preserve' as const,
@@ -1505,7 +1672,7 @@ export async function runJudgmentHost(payload: JudgmentHookPayload, options: Jud
       episode_digest: sha256(canonicalJson(episodeWithoutDigest))
     };
     writeImmutableJson(paths.episode, episode as unknown as Record<string, unknown>);
-    return successOutput(adoption.request, adoption.receipt, adoption.owner_audit);
+    return successOutput(adoption.request, adoption.receipt, adoption.owner_audit, options, env, { replay: false });
   });
 }
 
@@ -1816,6 +1983,97 @@ async function autonomyStopSnapshot(
   });
 }
 
+async function evaluateTaskProgressStop(
+  payload: JudgmentHookPayload, env: Environment, options: JudgmentHostOptions
+): Promise<JudgmentStopBlock | null> {
+  const { sessionRef, turnId } = hookIdentity(payload);
+  const paths = journalPaths(sessionRef, turnId, env);
+  return withTurnLock(paths.lock, async () => {
+    let episode: JudgmentEpisode;
+    try { episode = readEpisode(paths.episode); } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        throw new Error('judgment_orphan_stop');
+      }
+      throw error;
+    }
+    verifyEpisodeAdoption(episode, paths.target, options.expectedHostBinding);
+    if (!episode.task_progress_scope) return null;
+    const scope = taskProgressScopeSchema.parse(episode.task_progress_scope);
+    const adapter = options.taskProgress;
+    if (!adapter || canonicalJson(taskProgressScopeSchema.parse(adapter.scope)) !== canonicalJson(scope)) {
+      throw new Error('judgment_task_progress_binding_changed');
+    }
+    try { readFinal(paths.final); return null; } catch (error) {
+      if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
+    }
+    const events = readEvents(paths.events);
+    const snapshot = {
+      episode_digest: episode.episode_digest,
+      event_set_digest: sha256(canonicalJson(events)),
+      request: episode.adoption.request.request,
+      events
+    };
+    const scopeRef = sha256(canonicalJson(scope));
+    const directory = join(journalRoot(env), 'task-progress', scopeRef);
+    return withTurnLock(`${directory}.lock`, async () => {
+      mkdirSync(directory, { recursive: true, mode: 0o700 });
+      const entries = readdirSync(directory).sort().map((name) => {
+        const entry = readJsonArtifact(join(directory, name));
+        if (entry.entry_digest !== artifactDigest(entry, 'entry_digest')) {
+          throw new Error('judgment_task_progress_journal_corrupt');
+        }
+        return entry;
+      });
+      let preparationCount = 0;
+      let previousDigest: unknown = null;
+      for (const entry of entries) {
+        if (entry.scope_ref !== scopeRef || entry.previous_digest !== previousDigest) {
+          throw new Error('judgment_task_progress_chain_corrupt');
+        }
+        const observation = taskProgressObservationSchema.parse(entry.observation);
+        if (observation.kind === 'preparation_only') preparationCount += 1;
+        if (observation.kind === 'verified_outcome') preparationCount = 0;
+        previousDigest = entry.entry_digest;
+      }
+      const snapshotRef = sha256(canonicalJson({ episode: snapshot.episode_digest, events: snapshot.event_set_digest }));
+      const replay = entries.find((entry) => entry.snapshot_ref === snapshotRef);
+      if (replay) {
+        if (replay.replan_required !== true) return null;
+        throw new Error('judgment_task_progress_replan_requires_new_evidence');
+      }
+      const successfulIds = new Set(events.filter((event) => event.success).map((event) => event.tool_use_id));
+      const observation = taskProgressObservationSchema.parse(await adapter.assess(snapshot));
+      if (observation.kind !== 'waiting'
+        && !observation.evidence_tool_use_ids.every((id) => successfulIds.has(id))) {
+        throw new Error('judgment_task_progress_evidence_not_in_episode');
+      }
+      if (observation.kind === 'verified_outcome') {
+        if (entries.some((entry) => {
+          const prior = taskProgressObservationSchema.parse(entry.observation);
+          return prior.kind === 'verified_outcome' && prior.verification_ref === observation.verification_ref;
+        })) throw new Error('judgment_task_progress_outcome_repeated');
+        if (!await adapter.verifyOutcome({ ...snapshot, observation })) {
+          throw new Error('judgment_task_progress_outcome_unverified');
+        }
+        preparationCount = 0;
+      }
+      if (observation.kind === 'preparation_only') preparationCount += 1;
+      const replanRequired = observation.kind === 'preparation_only' && preparationCount >= 2;
+      const entry = {
+        scope_ref: scopeRef, snapshot_ref: snapshotRef, previous_digest: previousDigest,
+        observation, replan_required: replanRequired
+      };
+      writeImmutableJson(join(directory, `${String(entries.length + 1).padStart(8, '0')}.json`), {
+        ...entry, entry_digest: sha256(canonicalJson(entry))
+      });
+      return replanRequired ? {
+        decision: 'block', block_kind: 'semantic_replan',
+        reason: '同じ完了条件について準備だけの反復を検出しました。資料を増やす継続を止め、業務成果または新しい否定結果を検証できる方針へ切り替えてください。完了・本人受入とは扱いません。'
+      } : null;
+    });
+  });
+}
+
 async function evaluateAutonomyStop(
   payload: JudgmentHookPayload,
   env: Environment,
@@ -1874,16 +2132,81 @@ async function evaluateAutonomyStop(
   };
 }
 
+interface SessionWorldModelFinalizeCandidate {
+  readonly projectCode: string | undefined;
+  readonly userPrompt: string;
+  readonly finalAnswer: string;
+  readonly priorReceiptsCount: number;
+  readonly ownerAuditComplete: boolean;
+}
+
+async function enqueueSessionWorldModelUpdateFailOpen(input: {
+  env: Environment;
+  options: JudgmentHostOptions;
+  sessionRef: string;
+  turnId: string;
+  candidate: SessionWorldModelFinalizeCandidate;
+}): Promise<void> {
+  const updater = input.options.sessionWorldModelUpdater;
+  if (!updater || !input.candidate.ownerAuditComplete) return;
+  let mode: ReasoningGateMode;
+  try {
+    mode = resolveReasoningGateMode(input.options, input.env, input.candidate.projectCode);
+  } catch {
+    return;
+  }
+  if (mode !== 'compact_4block_with_wm') return;
+
+  const previousState = readSessionMiniWorldModelV2(journalRoot(input.env), input.sessionRef);
+  if (previousState?.updated_after_turn_id === input.turnId) return;
+
+  const turnSequence = Math.max(
+    input.candidate.priorReceiptsCount + 1,
+    (previousState?.turn_sequence ?? 0) + 1
+  );
+  const event: SessionWorldModelUpdateEventV2 = {
+    session_ref: input.sessionRef,
+    turn_id: input.turnId,
+    turn_sequence: turnSequence,
+    user_prompt: input.candidate.userPrompt,
+    final_answer: input.candidate.finalAnswer,
+    previous_state: previousState
+  };
+
+  const configuredTimeout = input.options.sessionWorldModelUpdateTimeoutMs;
+  const timeoutMs = typeof configuredTimeout === 'number' && Number.isFinite(configuredTimeout) && configuredTimeout > 0
+    ? configuredTimeout
+    : DEFAULT_SESSION_WORLD_MODEL_UPDATE_TIMEOUT_MS;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      Promise.resolve().then(() => updater.enqueue(event)),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error('session_world_model_update_timeout')), timeoutMs);
+      })
+    ]);
+  } catch {
+    // Complete fail-open: exceptions or timeouts must never fail finalizeEpisode().
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 async function finalizeEpisode(
   payload: JudgmentHookPayload,
   env: Environment,
-  knowledgeEventSink?: JudgmentKnowledgeEventSink,
+  options: JudgmentHostOptions = {},
   expectedHostBinding: JudgmentHostBinding = DEFAULT_HOST_BINDING
 ): Promise<JudgmentFinalReceipt | JudgmentStopBlock> {
+  const knowledgeEventSink = options.knowledgeEventSink;
   const { sessionRef, turnId } = hookIdentity(payload);
   const paths = journalPaths(sessionRef, turnId, env);
-  const answerDigest = sha256(typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : '');
-  return withTurnLock(paths.lock, async () => {
+  const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : '';
+  const answerDigest = sha256(answer);
+  const lockedResult = await withTurnLock<{
+    output: JudgmentFinalReceipt | JudgmentStopBlock;
+    wmCandidate: SessionWorldModelFinalizeCandidate | null;
+  }>(paths.lock, async () => {
     let episode: JudgmentEpisode;
     try {
       episode = readEpisode(paths.episode);
@@ -1897,6 +2220,10 @@ async function finalizeEpisode(
     }
     const events = readEvents(paths.events);
     const eventSetDigest = sha256(canonicalJson(events));
+    const expectedAuditLines = requiredAuditLines(episode, events);
+    const body = normalizedAnswerBody(answer, expectedAuditLines);
+    const projectCode = episode.adoption.request.project_code ?? episode.adoption.receipt.project_code;
+    const priorReceiptsCount = episode.adoption.request.conversation_context.prior_receipts.length;
     try {
       const existing = readFinal(paths.final);
       if (existing.initial_receipt_digest !== episode.initial_receipt_digest
@@ -1910,15 +2237,23 @@ async function finalizeEpisode(
         sessionRef,
         turnId,
         existing,
-        payload.last_assistant_message ?? ''
+        answer,
+        projectCode
       );
-      return existing;
+      return {
+        output: existing,
+        wmCandidate: {
+          projectCode,
+          userPrompt: episode.adoption.request.request,
+          finalAnswer: body,
+          priorReceiptsCount,
+          ownerAuditComplete: existing.owner_audit_complete === true
+        }
+      };
     } catch (error) {
       if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
     }
-    const expectedAuditLines = requiredAuditLines(episode, events);
     const expectedAuditLinesDigest = sha256(canonicalJson(expectedAuditLines));
-    const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : '';
     const missingKnowledge = episode.adoption.receipt.selected_dag_ids.includes('knowledge.v1')
       && !events.some((event) => event.success && event.satisfies.includes('knowledge.resolve'));
     const missingOwnerAudit = !answerContainsExactAuditPrefix(answer, expectedAuditLines);
@@ -1931,7 +2266,6 @@ async function finalizeEpisode(
     } catch (error) {
       if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
     }
-    const body = normalizedAnswerBody(answer, expectedAuditLines);
     const binding = continuation?.answer_body_binding;
     const missingAnswerBody = Boolean(binding) && (
       binding?.character_count !== body.length || binding.body_digest !== sha256(body)
@@ -1970,9 +2304,12 @@ async function finalizeEpisode(
         ] : [])
       ];
       return {
-        decision: 'block',
-        block_kind: 'audit_repair',
-        reason: `Brainbase judgment episodeを完了する前に${reasons.join('。その後')}。監査行の後に、元の回答本文をそのまま続けてください。`
+        output: {
+          decision: 'block',
+          block_kind: 'audit_repair',
+          reason: `Brainbase judgment episodeを完了する前に${reasons.join('。その後')}。監査行の後に、元の回答本文をそのまま続けてください。`
+        },
+        wmCandidate: null
       };
     }
     const finalWithoutDigest = {
@@ -1993,9 +2330,30 @@ async function finalizeEpisode(
       final_digest: sha256(canonicalJson(finalWithoutDigest))
     };
     writeImmutableJson(paths.final, final as unknown as Record<string, unknown>);
-    await enqueueFinalizedKnowledgeEvent(knowledgeEventSink, sessionRef, turnId, final, answer);
-    return final;
+    await enqueueFinalizedKnowledgeEvent(knowledgeEventSink, sessionRef, turnId, final, answer, projectCode);
+    return {
+      output: final,
+      wmCandidate: {
+        projectCode,
+        userPrompt: episode.adoption.request.request,
+        finalAnswer: body,
+        priorReceiptsCount,
+        ownerAuditComplete: final.owner_audit_complete === true
+      }
+    };
   });
+
+  // Strictly AFTER withTurnLock has released: fail-open PR-B session mini WM v2 enqueue.
+  if (lockedResult.wmCandidate) {
+    await enqueueSessionWorldModelUpdateFailOpen({
+      env,
+      options,
+      sessionRef,
+      turnId,
+      candidate: lockedResult.wmCandidate
+    });
+  }
+  return lockedResult.output;
 }
 
 async function enqueueFinalizedKnowledgeEvent(
@@ -2003,9 +2361,15 @@ async function enqueueFinalizedKnowledgeEvent(
   sessionRef: string,
   turnId: string,
   final: JudgmentFinalReceipt,
-  answer: string
+  answer: string,
+  projectCode?: string
 ): Promise<JudgmentKnowledgeEvent | null> {
   if (!sink) return null;
+  const hasExplicitProjectCode = typeof projectCode === 'string' && projectCode.trim().length > 0;
+  const normalizedProjectCode = hasExplicitProjectCode
+    ? normalizeJudgmentEventProjectCode(projectCode)
+    : undefined;
+  if (hasExplicitProjectCode && !normalizedProjectCode) return null;
   const event = toKnowledgeEventFromJudgmentEpisode({
     episode_id: `${sessionRef}:${turnId}`,
     session_id: sessionRef,
@@ -2013,7 +2377,8 @@ async function enqueueFinalizedKnowledgeEvent(
     finalized_at: final.finalized_at,
     answer_digest: final.answer_digest,
     completion_status: 'complete',
-    final_answer: answer
+    final_answer: answer,
+    ...(normalizedProjectCode ? { project_code: normalizedProjectCode } : {})
   });
   if (event) await sink.enqueue(event);
   return event;
@@ -2032,9 +2397,11 @@ export async function processJudgmentHook(
     return event ? { systemMessage: event.display_line } : {};
   }
   if (eventName === 'Stop') {
+    const progressBlock = await evaluateTaskProgressStop(payload, env, options);
+    if (progressBlock) return progressBlock;
     const autonomyBlock = await evaluateAutonomyStop(payload, env, options);
     if (autonomyBlock) return autonomyBlock;
-    const output = await finalizeEpisode(payload, env, options.knowledgeEventSink, expectedHostBinding);
+    const output = await finalizeEpisode(payload, env, options, expectedHostBinding);
     if ('decision' in output && output.decision === 'block' && payload.stop_hook_active === true) {
       throw new Error('judgment_stop_repair_exhausted');
     }

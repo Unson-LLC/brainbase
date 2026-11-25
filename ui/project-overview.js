@@ -6,8 +6,8 @@
  * shared Graph payload.
  */
 
-import { formatDateTime, makeElement, textOrNull } from './graph-view-shared.js';
-import { workspaceNotice } from './workspace-kit.js';
+import { formatDateTime, makeElement, textOrNull, validityText } from './graph-view-shared.js';
+import { workspaceNotice, workspaceSummaryCard, workspaceIdentityChip, workspaceAvatar, workspaceStatusPill, workspaceCardRow, workspaceActionIcon, workspaceButton } from './workspace-kit.js';
 
 const MATERIAL_STATES = new Set(['ok', 'partial', 'unknown', 'failed', 'unavailable', 'loading']);
 const BODY_STATES = new Set(['retrieved', 'unretrieved', 'unavailable', 'failed', 'unknown']);
@@ -53,7 +53,14 @@ function normalizeMaterialItem(item) {
   const contentAsOf = normalizeDate(item.contentAsOf);
   const updatedAt = normalizeDate(item.updatedAt);
   if (!id && !relation && !source && !contentAsOf && !updatedAt && bodyState === 'unknown' && title === '資料名未確認') return null;
-  return { id, title, relation, source, bodyState, contentAsOf, updatedAt };
+  const normalized = { id, title, relation, source, bodyState, contentAsOf, updatedAt };
+  for (const key of ['body', 'description', 'summary', 'relatedTaskId', 'sourceRecordId', 'sourcePath', 'validFrom', 'validTo']) {
+    const value = cleanText(item[key]);
+    if (value) normalized[key] = value;
+  }
+  for (const key of ['relatedTaskIds', 'recordIds', 'unknowns']) if (Array.isArray(item[key])) normalized[key] = item[key].map(cleanText).filter(Boolean);
+  if (item.provenance && typeof item.provenance === 'object' && !Array.isArray(item.provenance)) normalized.provenance = { ...item.provenance };
+  return normalized;
 }
 
 function normalizeMaterials(value) {
@@ -259,5 +266,110 @@ export function renderProjectOverview(doc, value, { projectName = 'プロジェ�
     renderMaterials(doc, `${name}に直接紐づく資料`, overview.directMaterials, actions),
     renderMaterials(doc, '関連資料', overview.relatedMaterials, actions),
   );
+  return root;
+}
+
+/** Existing material evidence retained while a host adopts the tabbed layout. */
+export function renderProjectOverviewMaterials(doc, value, { projectName = 'プロジェクト', actions = {} } = {}) {
+  const overview = normalizeProjectOverview(value);
+  if (!overview) return null;
+  const root = makeElement(doc, 'div', { className: 'bb-pkw-overview-evidence' });
+  root.append(renderMaterials(doc, `${projectName}に直接紐づく資料`, overview.directMaterials, actions), renderMaterials(doc, '関連資料', overview.relatedMaterials, actions));
+  return root;
+}
+
+/** The opt-in overview only rearranges supplied values; it performs no reads. */
+export function renderProjectDetailOverview(doc, detail, { actions = {}, config = {}, context = null, participants = [], participantNotice = null, participantCount = null } = {}) {
+  const project = detail.project;
+  const overview = normalizeProjectOverview(detail.overview);
+  const about = overview?.about ?? {};
+  const root = makeElement(doc, 'div', { className: 'bb-project-overview' });
+  const slotContext = { document: doc, project, detail, context, actions };
+  const facts = (items, className) => {
+    const list = makeElement(doc, 'dl', { className });
+    for (const [label, content, wide] of items) {
+      const item = makeElement(doc, 'div', { className: wide ? 'is-wide' : '' });
+      const value = makeElement(doc, 'dd', { className: content ? '' : 'is-unknown' });
+      value.append(typeof content === 'object' && content ? content : makeElement(doc, 'span', { text: content ?? '未確認' }));
+      item.append(makeElement(doc, 'dt', { text: label }), value); list.append(item);
+    }
+    return list;
+  };
+  const namedPerson = (name) => {
+    if (!name) return null;
+    const node = makeElement(doc, 'span', { className: 'bb-project-overview-person' });
+    node.append(workspaceAvatar(doc, { name }), makeElement(doc, 'span', { text: name })); return node;
+  };
+  const main = makeElement(doc, 'div');
+  const purpose = textOrNull(project.goal);
+  main.append(makeElement(doc, 'h3', { className: `bb-project-overview-purpose${purpose ? '' : ' is-unknown'}`, text: purpose ?? '目的はまだ登録されていません' }));
+  main.append(facts([
+    ['現在の目標', about.goal, true],
+    ['状態', project.status ? workspaceStatusPill(doc, { label: project.status, appearance: 'compact' }) : null],
+    ['責任者', namedPerson(about.owner)],
+    ['最終決裁', namedPerson(about.finalApprover)],
+  ], 'bb-project-overview-facts'));
+  const principles = Array.isArray(project.decisionPrinciples) ? project.decisionPrinciples.map(textOrNull).filter(Boolean) : [];
+  const principleList = principles.length ? makeElement(doc, 'ul') : null;
+  for (const principle of principles) principleList.append(makeElement(doc, 'li', { text: principle }));
+  const identity = makeElement(doc, 'span', { className: 'bb-project-overview-identity' });
+  identity.append(makeElement(doc, 'code', { text: project.id }));
+  if (typeof config.onCopyId === 'function') {
+    const copy = workspaceButton(doc, { variant: 'icon', attrs: { 'aria-label': 'IDをコピー', title: 'IDをコピー' }, onClick: () => config.onCopyId(project.id, copy) });
+    copy.append(workspaceActionIcon(doc, 'copy')); identity.append(copy);
+  }
+  main.append(facts([
+    ['判断の原則', principleList, true],
+    ['有効期間', validityText(project.validFrom, project.validTo)],
+    ['ID', identity],
+    ['出典', about.source ?? textOrNull(detail.source?.authority) ?? textOrNull(detail.source)],
+    ['取得日時', displayDate(about.asOf ?? detail.asOf)],
+  ], 'bb-project-overview-fine'));
+  if (typeof config.onOpenFoundation === 'function') {
+    const foot = makeElement(doc, 'div', { className: 'bb-project-overview-footer' });
+    foot.append(makeElement(doc, 'button', { className: 'bb-project-overview-link', text: '目的と現状で見る', attrs: { type: 'button' } }));
+    foot.children[0].addEventListener('click', () => config.onOpenFoundation(project.id)); main.append(foot);
+  }
+  const next = typeof config.renderNext === 'function' ? config.renderNext(slotContext) : null;
+  const stripe = typeof config.getStripe === 'function' ? config.getStripe(project) : config.stripe;
+  root.append(workspaceSummaryCard(doc, { content: main, aside: next, stripe, label: 'このプロジェクトについて' }));
+  const heading = (title, count, unit = '件') => {
+    const node = makeElement(doc, 'div', { className: 'bb-project-overview-heading' });
+    node.append(makeElement(doc, 'h3', { text: title }));
+    if (count > 0) node.append(makeElement(doc, 'small', { text: `${count}${unit}` }));
+    return node;
+  };
+  // Empty checks historically mean unknown. Only an explicit successful state
+  // supplied alongside the array can establish that no checks remain.
+  const checks = overview?.checks ?? [];
+  if (checks.length || detail.overview?.checksState !== 'ok') {
+    const section = makeElement(doc, 'section', { className: 'bb-project-overview-checks', attrs: { 'aria-label': '次に確認すること' } });
+    section.append(heading('次に確認すること', checks.length));
+    if (!checks.length) section.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: '確認事項は未確認です。' }));
+    for (const check of checks) {
+      const text = makeElement(doc, 'span'); text.append(makeElement(doc, 'strong', { text: check.title }));
+      if (check.summary) text.append(makeElement(doc, 'small', { text: check.summary }));
+      section.append(workspaceCardRow(doc, { cells: [text, workspaceStatusPill(doc, { label: '未確認', tone: 'warning', width: 68 })], stripe: 'var(--bb-color-warning-soft)', onSelect: check.recordId && actions.selectEntity ? () => actions.selectEntity(check.recordId) : undefined }));
+    }
+    root.append(section);
+  }
+  const people = makeElement(doc, 'section', { attrs: { 'aria-label': '関係者' } });
+  people.append(heading('関係者', participantCount, '人'));
+  if (participantNotice) people.append(participantNotice);
+  if (participants.length) {
+    const chips = makeElement(doc, 'div', { className: 'bb-project-overview-people' });
+    for (const edge of participants) {
+      const person = edge.counterpart;
+      chips.append(workspaceIdentityChip(doc, { name: person.name ?? person.title, detail: edge.role, label: `${person.name ?? person.title}を「情報を探す」で開く`, onClick: () => actions.selectEntity?.(person.id) }));
+    }
+    people.append(chips);
+  }
+  root.append(people);
+  if (typeof config.renderConnections === 'function') {
+    const connections = makeElement(doc, 'section', { className: 'bb-project-overview-connections', attrs: { 'aria-label': '接続先' } });
+    connections.append(heading('接続先'));
+    const content = config.renderConnections(slotContext); if (content) connections.append(content);
+    root.append(connections);
+  }
   return root;
 }

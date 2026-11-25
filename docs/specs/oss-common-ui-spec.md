@@ -1,5 +1,71 @@
 # Spec: OSS共通UIの境界と共通パーツの規約
 
+## Imported record composition (explicit opt-in)
+
+`createOwnShareView({ presentation: 'details-only', onState, detailCopy })` keeps
+the existing read-only snapshot client and routes, but does not generate its
+standalone header, search form or duplicate ledger. `search(query)` still reads
+the existing snapshot search and notifies `onState(readState)` at loading and
+completion. Its original results, total, truncated flag and handover identity
+remain available in `state.search`; a failed or unknown read is never an empty
+result. Hosts compose existing authorized data only, and join records by exact
+ID only when the two sources' handover graph ID and digest both agree.
+
+`openEntity(id, { opener, expectedHandover })` opens the shared detail drawer.
+The expected graph ID and digest are copied at activation (or from the current
+successful search when omitted), and must match the detail response. The
+returned entity ID must match the requested ID. A changed current snapshot also
+invalidates the detail; matching names never establish identity. Pending names
+and relation counterparts obey the same snapshot check. A refresh retains an
+existing detail while loading, but a completed unreadable, denied, missing or
+different snapshot invalidates pending detail reads and removes the old detail.
+Relation
+navigation and retry retain the expected snapshot. The drawer preserves aliases,
+summary, validity, project goal/status, decision rationale and relation details.
+`detailCopy` may supply `title`, `kicker`, `outgoingTitle`, `incomingTitle`,
+`outgoingEmpty` and `incomingEmpty`; omitted copy retains existing wording.
+`opener` may be a Node or a supplier of the current trigger. Native dismissal,
+focus return and reduced motion use `workspaceDetailDrawer`. `closeDetail()`
+invalidates pending reads; `destroy()` force-disposes the drawer and invalidates
+all pending reads. Late same-ID responses, including close then reopen, cannot
+replace a newer selection or reopen a closed drawer. Omitting the presentation
+preserves the existing standalone list, inline details and personal behavior.
+
+`workspaceStepBand(document, { facts, label, steps, value, onChange })` composes
+host-owned facts beside an ordered sequence of `{ id, label, status, complete,
+disabled }` steps. Completion is explicit and independent of selection or counts.
+Its returned Node has `update(value)`; activation calls the host without changing
+the controlled value. The band uses existing paper/accent tokens and stacks on
+narrow screens. No organization or permission decision is embedded.
+
+`workspaceCandidateChoices(document, { label, items, value, disabled, onChange })`
+renders only supplied `{ value, label, reason, quiet, disabled }` choices as named
+native buttons with `aria-pressed`. It returns a Node with
+`update(value, { disabled })`. Choice activation never confirms or saves anything;
+the host owns lawful candidates, defaults and persistence. Native Tab/Enter/Space
+remain available. Selection uses a visible check as well as the existing mint
+surface; unknown selection stays unselected.
+
+The `.bb-intake-candidate-*` classes explicitly compose existing card rows,
+buttons, notices and skeletons for a review list. Their desktop columns, wrapped
+candidate text, quiet completed rows and result-check motion are shared; mobile
+stacks the same cells and reduced motion removes the check animation. Applying
+these classes does not change other screens' default row or button presentation.
+
+The matching `.bb-intake-mapping` and `.bb-intake-promotion` classes compose
+host-supplied card cells, status pills and choices. A settled row retains its
+content while reducing its padding; its height is never fixed. Mapping author
+cells marked `.bb-intake-by` move below the other cells when six columns no
+longer fit. Small screens stack the same information. A selected replacement may
+explicitly mark `.bb-intake-current.is-replacing` for a strike-through preview;
+that presentation never implies that a write succeeded.
+
+`workspaceHelp({ appearance: 'toolbar' })` explicitly adds a 32px question-icon
+control and the shared compact explanation surface. Omitting the appearance
+preserves existing help. Accessible description, Escape priority and focus
+behavior stay with the existing help controller. `workspaceActionIcon` also
+provides the decorative `help` and `arrow-right` symbols.
+
 ## 配置
 
 `ui/` はブラウザで直接利用できるES moduleとCSSを保持する。ホストはAPI関数、利用者・プロジェクト文脈、DOM rootを注入し、UIは認証tokenや保存層へ直接接続しない。
@@ -446,3 +512,168 @@ default horizontal and opt-in quiet appearances are unchanged.
 `workspaceActionIcon(document, 'copy')` supplies a decorative copy glyph. The
 host owns its containing button, accessible name, clipboard operation, and
 success or failure announcement.
+
+### Project detail composition (explicit opt-in)
+
+`createGraphProjectsView({ detailPresentation: 'tabs', projectWorkspace })`
+opts into a compact project reading surface while retaining the existing read,
+correction, permissions, retry, and readback contracts. Unspecified presentation
+keeps the current personal/legacy layout. The host owns its title breadcrumb.
+`projectWorkspace` accepts:
+
+- `hostTabs: [{ id, label, render({ document, project, detail, context, activeTab, actions }) }]`:
+  unique, named tab IDs are inserted between overview and graph. Only the active
+  host tab renders; the host owns any requests and caching. The return value
+  can be a Node or `{ root: Node, destroy() }`; the latter is released before
+  replacing its content, leaving the tab, or destroying the workspace.
+  `actions.setTab(id)` switches tabs and `actions.selectEntity(id)` selects an
+  existing/authorized record in the graph. Reserved or invalid IDs are ignored.
+- `renderTabTools(context)`: returns host-owned action nodes beside the shared
+  tab strip. Settings availability, favorite state, and permissions stay in the
+  host. The graph tab can omit settings while keeping its favorite control.
+- `overview: { renderNext(context), renderConnections(context), getStripe(project),
+  stripe, onOpenFoundation(id), onCopyId(id, button) }`: optional content and
+  navigation for the next-event box, connections, project color, foundation,
+  and clipboard result announcement. No slot may infer missing counts or
+  authority. The next box uses `.bb-project-overview-next`, `-next-item`,
+  `-caption`, `-next-date`, `-next-title`, and `-link`; connection rows use
+  `.bb-project-overview-connections-row`. Their visual rules belong to OSS.
+- `onTabChange(id)`: receives the current tab after redraws; context updates keep
+  the selected tab. While graph is active, context updates do not remount it.
+
+During incremental adoption, existing material evidence, source state, and
+internal list entries remain available below the overview; they must not be
+removed before their replacement preserves the same information. An empty
+checks array remains unknown. Only an explicitly successful `checksState` from
+an already authorized host projection establishes confirmed zero checks.
+
+`workspaceSummaryCard({ content, aside, stripe, label })` composes a paper summary
+with a 5px stripe, 8px radius, and optional 1.9:1 supporting column; on narrow
+screens it stacks. It performs no business inference. `workspaceAvatar({ name,
+initial })` provides a decorative 22px initial. `workspaceIdentityChip({ name,
+detail, onClick, label, initial })` composes the avatar, visible name and role
+text into a 40px minimum-height rounded navigation control. The host owns its
+activation and accessible name; neither part assigns identity or permissions.
+
+`workspaceViewMotion(root, { direction: 'forward' | 'back' })` is an explicit
+route entrance: 24px horizontal travel, 280ms forward/240ms back. The route calls
+it once after mounting; data refreshes must not replay it. It returns the Web
+Animation or null and skips motion when reduced motion is requested or the
+Animation API is unavailable. It does not change routing, focus, or history.
+
+For the same project, the tabbed Graph composition retains its workspace instance
+across host-only redraws, including favorites and global context loading. Host
+controls refresh without remounting an active graph or replacing its selected
+record. A fresh authorized detail payload restores only same-project tab,
+selection, graph filters, camera and eligible visual focus/reveal state;
+changing projects resets them. The private
+composition helpers `getViewState`, `initialViewState`, and `refreshHost` do not
+start a new project read or change authorization. Default personal presentation
+keeps its existing redraw behavior. `workspaceActionIcon('star')` provides a
+shared decorative favorite glyph; favorite state and persistence remain host-owned.
+The tabbed opt-in may pass `visualTheme.preserveSelectedTypeColor: true` to keep the existing type/base color while selected; without the flag, personal/default Graph keeps its selected color. This adds no colors and changes neither size nor highlighting.
+The same opt-in may pass `visualTheme.preserveRootLabel: true` to retain the known `rootId` label/forceLabel only; node sets, edges, colors and default behavior remain unchanged.
+
+`mountProjectGraph(container, { layout: 'project-detail', rootId, visualTheme })` is an
+explicit Sigma presentation: a fixed 760×540 frame, root at (380,250), and
+input-order peers at alternating radii 140/190 (horizontal factor 1.12).
+Adding an authorized node recomputes this layout without changing graph
+membership or inventing edges. It uses real Sigma circles/straight edges and
+Canvas label hooks: root/peer/selected radii 17/8/10, type colors, paper 3px or
+selected action 2.5px outline, root label 13px/700 and peer label 11.5px/500
+(selected/hover 700). A selected peer dims every other peer to opacity .16,
+including any peer connected to it; the root stays opaque. Edges incident to the
+selection stay emphasized, while other/filtered edges have opacity .16. Labels keep
+the supplied full names in native controls/title while shortening painted text.
+PC geometry scales with the frame. Only a viewport at most 760px uses readable
+minimum node/font/outline sizes and available-space ellipsis; coordinates still
+fit the same frame. The existing personal/default renderer is unchanged.
+
+Explicit tab activation, including clicking the already-active graph tab, resets
+selection to root, filters to empty and zoom to one;
+an overview person jump selects that person with empty filters/zoom one. Both
+reveal peers over 500ms with 80ms plus peer-rank×28ms delay; edges use their
+actual endpoint peer rank×28ms. Readback after entry adds a node-only 500ms
+pop without entry delay; its newly returned edges appear immediately, matching
+the reference node-only is-pop behavior. An unfinished entry reveal still
+resumes its existing edge timings. Reduced motion shows the final state immediately. Background
+refreshes and readback keep camera, selection, keyboard focus and unfinished
+reveal phase rather than replaying entry. Zoom buttons use .2 steps in .7–1.8
+about the root, while retaining existing camera/pan interaction. Real nodes have
+native keyboard controls with mint 4px focus outlines and existing select
+actions; the root fallback is excluded from focus/ARIA only while these controls
+are mounted and restored on disposal. `getRevealState()`/`revealState` carry
+visual timing for still-present canonical IDs, never record data or new reads.
+
+The tabbed composition may receive
+`recordNavigation.resolveProjectRecordId(projectId)`. A host returns only the
+already-authorized canonical identity of that selected project or null. Only
+that explicit identity is represented by the existing UI root: read counterparts
+do not add a duplicate root dot, UI edge `source`/`target` and counterpart
+selection point at the UI root, and audit endpoints prefer original
+`fromId`/`toId`. Raw fetched records, edge IDs, endpoints, digests and provenance
+are retained. Initial node/edge ID sets are unchanged; a null result, another
+canonical ID, matching names or section membership never imply an identity or
+an edge. Without the callback, personal/default projection is unchanged. This
+does not change server responses, acquisition or authorization.
+
+### Project settings composition (explicit opt-in)
+
+`createGraphProjectsView({ settings })` exposes `openSettings(opener)`,
+`closeSettings(options)`, and `renderSettings()` while retaining the Graph
+correction client and scope. `openSettings` uses `workspaceInputFrame` and
+refreshes its contents in place; it does not open a second editor dialog.
+The shared frame owns basic information, its inline correction, existing
+personal participation editing when allowed, and change history. Existing
+host read-only/source notes and technical record details remain available.
+No archive flag adds or removes Graph editing permissions: existing
+`canCorrect` and `correctionScope` remain authoritative.
+
+The host may supply `renderConnections`, `renderOrganization`, `renderArchive`,
+and `renderIdentity` under `settings`. Each receives `{ document, project,
+detail, projectId, actions: { refreshSettings, closeSettings } }` and returns a
+Node or `{ root, update(context), destroy(), beforeClose() }`. A same-project
+refresh updates the retained slot so an inline connection draft is not lost.
+Changing projects, closing the drawer, or destroying the view releases slots.
+`onOpenChange(open)` synchronizes host controls. The host retains connection
+and archive capabilities, requests, conflicts, and readback; OSS does not
+invent authority or infer mutation success. A slot's `beforeClose()` or the
+settings-level `beforeClose()` may return false while saving. Navigation closes
+immediately without canceling the authorized request or reopening the drawer
+when it later resolves. Basic editing uses the existing correction reason,
+digest conflict, draft retention, and verified save/readback behavior.
+
+`correction.render(document, { appearance: 'inline', showHeading: false })`
+explicitly selects quiet `workspaceFormRow` fields and places cancel/save in
+the same section. The default form appearance stays unchanged. Approved edit
+operations use 編集/キャンセル/変更履歴 in shared Graph screens; stored correction
+kinds, provenance, reasons, and judgment correction/cancellation semantics are
+not rewritten. `workspaceFormRow({ labelFor })` can label an actual nested
+control while a composite field contains help/preview nodes.
+`workspaceInputFrame({ showFooter: false })` hides only the empty footer;
+Escape, backdrop, close, focus return, and motion stay with the shared frame.
+`workspaceSettingsSection({ title, count, action, content })` supplies the
+section heading and content surface without assigning edit capabilities.
+
+The shared `.bb-project-work-*` composition classes style supplied work data
+with existing card rows, status pills, segmented progress and date/owner cells.
+The work table header uses an action-token divider; its legend children are ordered done/remaining/review, with decorative action/mint/review swatches and ink text matching the same progress segments.
+Hosts own scope, counts and cancellation meaning. Mobile rows retain owner,
+due and update values while stacking. `workspacePills({ appearance:
+'record-types', items: [{ value, label, count, color }] })` adds optional supplied
+dots and supplied counts; undefined counts remain absent. In the project detail record index, positive counts mean records retrieved into this index, not source totals. Zero is shown only when absence/completeness is explicit; unknown zero stays absent. The group exposes that count meaning in its accessible description and tooltip. Source completeness is tracked independently, so a positive index count never removes the total-unknown caption.
+`workspaceDotPill({ label, color })` is a decorative category label.
+`workspaceSearchControl({ appearance: 'compact', width })` may override its
+width with a positive numeric pixel value; existing defaults stay unchanged.
+
+A settings opener may be a Node or a supplier `() => currentTrigger`. Hosts that
+recreate tool buttons on background updates pass a supplier, so closing returns
+focus to the current control. Same-detail background refreshes retain the field
+DOM; a required detail/form refresh restores a retained input's focus and caret.
+`correction.revision` records explicit correction redraws without treating draft
+keystrokes as a request to rebuild fields. Forced view disposal bypasses saving
+close guards, releases each live slot, and removes the dialog.
+
+`.bb-ws-focus-only` keeps a supplementary keyboard action visually clipped until
+`:focus-visible` while retaining it in the accessibility tree and keyboard order.
+Its owner provides the name, action, and focused placement.

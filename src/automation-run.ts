@@ -638,14 +638,15 @@ export class AutomationRunService {
 
     let phase: AutomationRunPhase = 'claimed';
     try {
+      // The runner has not been invoked yet, so a failed host checkpoint leaves
+      // the run safe to retry. The phase stays claimed and release marks it
+      // retryable.
       if (lifecycle?.checkpoint) {
-        phase = 'unknown';
         await lifecycle.checkpoint({
           ...preparedLifecycleInput(),
           phase: 'claimed',
           claimToken: claim.claimToken
         });
-        phase = 'claimed';
       }
 
       // The marker is durable and precedes the external call. If it fails, the

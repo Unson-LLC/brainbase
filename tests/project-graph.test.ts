@@ -9,6 +9,27 @@ import {
 } from '../ui/project-graph.js';
 
 describe('project graph projection', () => {
+  it('matches the adopted detail geometry in input order without changing the real graph set', () => {
+    const nodes = [{ id: 'root', type: 'project', label: 'Root' }, ...Array.from({ length: 6 }, (_, i) => ({ id: `person-${i}`, type: 'person', label: `Person ${5 - i}` }))];
+    const edges = nodes.slice(1).map(node => ({ id: `edge-${node.id}`, source: 'root', target: node.id }));
+    const initial = createProjectGraphModel({ nodes, edges }, { layout: 'project-detail', selectedId: 'root' });
+    const viewport = node => [node.x, 540 - node.y];
+    expect(initial.nodes.map(node => node.id)).toEqual(nodes.map(node => node.id));
+    expect(viewport(initial.nodes[0])).toEqual([380, 250]);
+    expect(viewport(initial.nodes[1])).toEqual([380, 110]);
+    expect(initial.nodes[2].x).toBe(564.3);
+    expect(540 - initial.nodes[2].y).toBeCloseTo(155);
+    expect(initial.nodes[0].size).toBe(17); expect(initial.nodes[1].size).toBe(8);
+    const added = createProjectGraphModel({ nodes: [...nodes, { id: 'doc', type: 'document' }], edges: [...edges, { id: 'canonical-doc-edge', source: 'doc', target: 'root' }, { id: 'invalid', source: 'doc', target: 'missing' }] }, { layout: 'project-detail', selectedId: 'root' });
+    expect(added.nodes.at(-1).x).toBe(257.4);
+    expect(540 - added.nodes.at(-1).y).toBeCloseTo(162.7);
+    expect(added.nodes[2].x).toBe(546.4);
+    expect(added.nodes).toHaveLength(8); expect(added.edges).toHaveLength(7);
+    expect(added.nodes.some(node => node.id === 'missing')).toBe(false);
+    const legacy = createProjectGraphModel({ nodes, edges }, { selectedId: 'root' });
+    expect(legacy.nodes.find(node => node.id === 'root').x).toBe(0);
+    expect(legacy.nodes.find(node => node.id === 'root').y).toBe(0);
+  });
   it('drops malformed records and dangling endpoints without fabricating nodes', () => {
     const result = normalizeProjectGraph({
       nodes: [

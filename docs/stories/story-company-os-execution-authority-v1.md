@@ -11,6 +11,8 @@ external_dependencies: []
 
 # 実行直前に失効した権限や不足した資源での操作を止める
 
+> **2026-11-20 移設**: 実行の意図の本体（`ExecutionAuthorityService`）とHTTPの受け口は brainbase-organization の `packages/company-os`（`execution-authority.js`・`execution-authority-http.js`。保存先はPostgreSQL）へ移した。OSSの `./execution-authority` と `./execution-authority-http` は削除済み。この文書は移設前の記録として残す。
+
 ## 利用者成果
 
 承認者として、過去に承認した判断でも現在の許可範囲を外れる行為は実行させたくない。

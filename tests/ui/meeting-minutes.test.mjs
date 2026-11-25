@@ -1302,6 +1302,42 @@ describe('editing and withdrawing minutes', () => {
 
   const buttonNamed = (root, label) => findAll(root, (node) => node.tagName === 'BUTTON' && node.textContent === label);
 
+  it('passes the target meeting and document to a per-document edit decision', async () => {
+    const detail = detailWith();
+    detail.minutes.push({ ...detail.minutes[0], minutes_id: 'minutes-2', current_version_id: 'version-2' });
+    detail.versions.push({ ...detail.versions[0], minutes_id: 'minutes-2', version_id: 'version-2' });
+    const seen = [];
+    const { root } = await open(detail, { canEditMinutes: (target) => {
+      seen.push(target);
+      return { allowed: target.document.minutes_id === 'minutes-1', reason: 'permission_denied' };
+    } });
+    expect(buttonNamed(root, 'この版を確認済みにする')).toHaveLength(1);
+    expect(buttonNamed(root, '編集')).toHaveLength(1);
+    expect(seen.every(target => target.meeting.meeting_id === 'meeting-1')).toBe(true);
+    expect(new Set(seen.map(target => target.document.minutes_id))).toEqual(new Set(['minutes-1', 'minutes-2']));
+    expect(collectText(root)).toContain('編集権限');
+  });
+
+  it('explains project selection instead of claiming a permission failure', async () => {
+    const { root } = await open(detailWith(), {
+      canEditMinutes: () => ({ allowed: false, reason: 'project_selection_required' }),
+    });
+    expect(buttonNamed(root, 'この版を確認済みにする')).toHaveLength(0);
+    expect(collectText(root)).toContain('プロジェクトを1つ選んでください');
+    expect(collectText(root)).not.toContain('編集権限');
+  });
+
+  it('rechecks a structured decision before confirming without sending a denied mutation', async () => {
+    let allowed = true;
+    const { root, calls } = await open(detailWith(), { canEditMinutes: () => ({ allowed, reason: 'permission_denied' }) });
+    const confirm = buttonNamed(root, 'この版を確認済みにする')[0];
+    expect(confirm).toBeTruthy();
+    allowed = false;
+    await confirm.listeners.get('click')();
+    expect(calls.filter(call => call.method === 'POST')).toHaveLength(0);
+    expect(buttonNamed(root, 'この版を確認済みにする')).toHaveLength(0);
+  });
+
   it('turns the body into an editor and saves the edit as a new version', async () => {
     const { root, calls } = await open(detailWith(), {
       afterPost: (current) => ({

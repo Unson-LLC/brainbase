@@ -1045,17 +1045,20 @@ function periodText(period, { compact = false } = {}) {
   return `${ledgerDate(period?.from) ?? '未設定'}〜${ledgerDate(period?.until, startYear) ?? '未設定'}`;
 }
 
-/** A state as a kit notice: failures are alerts, and never read as zero items. */
+/** Recoverable states are warnings; blocked operations are errors, never zero items. */
 function workspaceStatusNotice(doc, value, { label, onRetry, retryLabel = '再試行' } = {}) {
   const normalized = typeof value === 'string' ? { state: value } : value ?? {};
   const status = normalizeState(normalized.state);
   const tone = status === 'verified' ? 'info'
-    : ['unknown', 'saved_unverified'].includes(status) ? 'warning'
+    : ['unknown', 'saved_unverified', 'error_retryable'].includes(status) ? 'warning'
       : 'danger';
   const body = makeElement('div', { className: 'bb-objective-notice-body' });
   body.append(makeElement('p', { text: `${STATUS_LABELS[status] ?? STATUS_LABELS.unknown}：${normalized.message ?? STATUS_LABELS[status] ?? '状態を確認できません。'}` }));
+  if (['unknown', 'error_retryable'].includes(status)) {
+    body.append(makeElement('p', { text: 'データが0件とは確認できていません。再読込して確かめてください。' }));
+  }
   if (status === 'conflict' && normalized.currentRevision) {
-    body.append(makeElement('p', { text: `現在の版: ${normalized.currentRevision}。入力は残しています。現在の版を確かめてから直してください。` }));
+    body.append(makeElement('p', { text: `現在の版: ${normalized.currentRevision}。入力は残しています。現在の版を確かめてから編集してください。` }));
   }
   if (normalized.checked_at) {
     body.append(
@@ -1157,7 +1160,7 @@ export function renderObjectiveWorkspace(root, rail, state, callbacks = {}, page
   wrapper.append(workspacePageHeader(doc, {
     crumbs: Array.isArray(page?.crumbs) ? page.crumbs : [],
     title: nonEmptyText(host?.title) ?? '目的と現状',
-    lead: nonEmptyText(host?.lead) ?? '目指す状態と評価基準を、版つきで確かめて直します。下の「現状と見通し」は、目的とは分けた、いまの理解（観測と仮説）です。',
+    lead: nonEmptyText(host?.lead) ?? '目指す状態と評価基準を、版つきで確かめて編集します。下の「現状と見通し」は、目的とは分けた、いまの理解（観測と仮説）です。',
     source: nonEmptyText(page?.source),
     actions,
   }));
@@ -1217,7 +1220,7 @@ function constraintContent(doc, state, callbacks) {
     className: 'bb-objective-note',
     text: callbacks.constraintsEditable === false || !callbacks.canEdit
       ? '制約の参照はここでは表示だけです。'
-      : '参照の追加と外しは「目的を直す」から行えます。',
+      : '参照の追加と外しは「目的を編集」から行えます。',
   }));
   return content;
 }
@@ -1274,8 +1277,8 @@ function renderObjectiveDetail(doc, state, callbacks) {
   parts.push(workspaceRailBlock(doc, { title: '制約の参照', className: 'bb-objective-constraints-block', content: constraintContent(doc, state, callbacks) }));
   parts.push(workspaceRailBlock(doc, { title: '判断に使えるか', className: 'bb-objective-readiness-block', content: readinessContent(doc, state.readiness, callbacks) }));
   if (callbacks.canEdit) {
-    parts.push(makeElement('p', { className: 'objective-editor-muted bb-objective-revision-note', text: '直して保存すると同じ目的の新しい版を作ります。保存結果を読み戻して確認し、確認できない場合はその状態を表示します。' }));
-    parts.push(workspaceActions(doc, [{ text: '目的を直す', variant: 'primary', onClick: callbacks.onEdit }]));
+    parts.push(makeElement('p', { className: 'objective-editor-muted bb-objective-revision-note', text: '編集して保存すると同じ目的の新しい版を作ります。保存結果を読み戻して確認し、確認できない場合はその状態を表示します。' }));
+    parts.push(workspaceActions(doc, [{ text: '目的を編集', variant: 'primary', onClick: callbacks.onEdit }]));
   }
   return parts;
 }
@@ -1285,7 +1288,7 @@ function renderObjectiveFormRail(doc, state, callbacks) {
   const draft = state.editor.draft;
   const parts = [workspaceRailHead(doc, {
     kicker: '目的',
-    title: creating ? '新しい目的' : '目的を直す',
+    title: creating ? '新しい目的' : '目的を編集',
     sub: creating ? '保存すると版1になります。' : `${draft.id}@${state.editor.expectedRevision ?? draft.revision} を元に新しい版を作ります。`,
   })];
   if (state.save.state !== 'idle' && state.save.state !== 'saving') {
@@ -1366,7 +1369,7 @@ function portMethod(port, name) {
  * Host options used only in the workspace layout (when `rail` is given); the
  * tabs layout without `rail` ignores them:
  * - `title` / `lead`: replace the page head's 目的と現状 and its lead.
- * - `sourceNotice: { label, text }`: a notice right after the page head
+ * - `sourceNotice: { label, text, tone? }`: a notice right after the page head
  *   (`text` is a string or an element).  Default: none.
  * - `pageActions: [{ text, variant, onClick, disabled }]`: host-owned buttons in
  *   the page head after 再読込 / 新しい目的.

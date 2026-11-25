@@ -1,6 +1,6 @@
 {
   "name": "@unson/brainbase-mcp",
-  "version": "0.50.25",
+  "version": "0.51.0",
   "description": "Local-first Brainbase judgment OS that lets supported AI agents reuse a user's approved goals, priorities, decisions, and judgment criteria.",
   "type": "module",
   "license": "MIT",
@@ -38,6 +38,10 @@
     "./judgment-frame": {
       "types": "./dist/judgment-frame.d.ts",
       "import": "./dist/judgment-frame.js"
+    },
+    "./judgment-reasoning-audit": {
+      "types": "./dist/judgment-reasoning-audit.d.ts",
+      "import": "./dist/judgment-reasoning-audit.js"
     },
     "./judgment-history": {
       "types": "./dist/judgment-history.d.ts",
@@ -178,6 +182,10 @@
     "./claude-code-judgment-hook": {
       "types": "./dist/claude-code-judgment-hook.d.ts",
       "import": "./dist/claude-code-judgment-hook.js"
+    },
+    "./antigravity-judgment-hook": {
+      "types": "./dist/antigravity-judgment-hook.d.ts",
+      "import": "./dist/antigravity-judgment-hook.js"
     },
     "./company-os-evaluation": {
       "types": "./dist/company-os-evaluation.d.ts",
@@ -375,9 +383,9 @@
       "types": "./dist/mcp-runtime.d.ts",
       "import": "./dist/mcp-runtime.js"
     },
-    "./resource-reservations": {
-      "types": "./dist/resource-reservations.d.ts",
-      "import": "./dist/resource-reservations.js"
+    "./mcp-tool-schema-portability": {
+      "types": "./dist/mcp-tool-schema-portability.d.ts",
+      "import": "./dist/mcp-tool-schema-portability.js"
     },
     "./durable-waits": {
       "types": "./dist/durable-waits.d.ts",
@@ -395,10 +403,6 @@
       "types": "./dist/judgment-view-http.d.ts",
       "import": "./dist/judgment-view-http.js"
     },
-    "./execution-authority-http": {
-      "types": "./dist/execution-authority-http.d.ts",
-      "import": "./dist/execution-authority-http.js"
-    },
     "./server-support": {
       "types": "./dist/server-support.d.ts",
       "import": "./dist/server-support.js"
@@ -410,6 +414,10 @@
     "./company-os-impact-review": {
       "types": "./dist/company-os-impact-review.d.ts",
       "import": "./dist/company-os-impact-review.js"
+    },
+    "./world-model-impact-index": {
+      "types": "./dist/world-model-impact-index.d.ts",
+      "import": "./dist/world-model-impact-index.js"
     },
     "./streamable-http": {
       "types": "./dist/streamable-http.d.ts",
@@ -512,14 +520,6 @@
     "./problem-candidates": {
       "types": "./dist/problem-candidates.d.ts",
       "import": "./dist/problem-candidates.js"
-    },
-    "./resource-reservation-http": {
-      "types": "./dist/resource-reservation-http.d.ts",
-      "import": "./dist/resource-reservation-http.js"
-    },
-    "./execution-authority": {
-      "types": "./dist/execution-authority.d.ts",
-      "import": "./dist/execution-authority.js"
     },
     "./knowledge-continuation": {
       "types": "./dist/knowledge-continuation.d.ts",

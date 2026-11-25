@@ -1,5 +1,7 @@
 # Company OS reservation canonical HTTP adapter v1
 
+> **2026-11-17 移設**: 予約の本体と受け口は brainbase-organization の `packages/company-os`（台帳はPostgreSQL）へ移した。OSSの `./resource-reservations` と `./resource-reservation-http` は削除済み。この文書は移設前の記録として残す。
+
 この仕様は [story-company-os-reservation-api-v1](../stories/story-company-os-reservation-api-v1.md) と [company-os-reservation-api](../architecture/company-os-reservation-api.md) を実装可能な契約へ落とす。
 
 ## 公開モジュールとhandler

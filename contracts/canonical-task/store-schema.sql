@@ -137,3 +137,6 @@ CREATE INDEX IF NOT EXISTS canonical_tasks_project_codes_idx
     ON canonical_tasks USING GIN (project_codes);
 CREATE INDEX IF NOT EXISTS canonical_tasks_claimed_by_until_idx
     ON canonical_tasks (claimed_by, claimed_until) WHERE claimed_by IS NOT NULL;
+
+-- Planned start of the work; NULL when unplanned. Additive so older rows and callers stay valid.
+ALTER TABLE canonical_tasks ADD COLUMN IF NOT EXISTS start_at TIMESTAMPTZ;

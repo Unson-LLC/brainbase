@@ -11,7 +11,7 @@ permissions:
 jobs:
   check-pr-brainbase-line:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
-    runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
+    runs-on: ${{ fromJSON(vars.CI_RUNNER_BACKUP == 'on' && '"ubuntu-latest"' || '["self-hosted","Linux","X64","unson-ci-linux"]') }}
     timeout-minutes: 5
     steps:
       - name: Check out repository

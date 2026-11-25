@@ -4,7 +4,7 @@
 // orders them, so every Host that resolves a turn picks the same project.
 
 export interface JudgmentProjectBindingCandidates {
-  /** The Host runtime of the turn (`codex` or `claude-code`). */
+  /** The Host runtime of the turn (`codex`, `claude-code`, or `antigravity`). */
   hostRuntime: string;
   /** BRAINBASE_JUDGMENT_PROJECT_CODE as the Host received it. */
   configuredProjectCode?: string | null;
@@ -36,7 +36,9 @@ function present(value: string | null | undefined): string | null {
  */
 export function selectJudgmentProjectBinding(candidates: JudgmentProjectBindingCandidates): string | null {
   const configured = present(candidates.configuredProjectCode);
-  if (candidates.hostRuntime === 'claude-code' && configured) return configured;
+  if ((candidates.hostRuntime === 'claude-code' || candidates.hostRuntime === 'antigravity') && configured) {
+    return configured;
+  }
   return present(candidates.relayProjectCode)
     ?? configured
     ?? present(candidates.ownerRepositoryProjectCode)

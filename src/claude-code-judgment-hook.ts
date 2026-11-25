@@ -347,7 +347,7 @@ export function repositoryIdentity(repoRoot: string, env: NodeJS.ProcessEnv = pr
   return origin.status === 'found' ? repositoryIdentityFromUrl(origin.url) : null;
 }
 
-interface RepositoryScope {
+export interface RepositoryScope {
   /** A git checkout was found. */
   inGit: boolean;
   repository: string | null;
@@ -363,8 +363,7 @@ interface RepositoryScope {
   unidentified?: boolean;
 }
 
-function eventRepository(payload: ClaudeCodeHookPayload, env: NodeJS.ProcessEnv): RepositoryScope {
-  const cwd = typeof payload.cwd === 'string' && payload.cwd ? payload.cwd : process.cwd();
+export function resolveRepositoryScope(cwd: string, env: NodeJS.ProcessEnv = process.env): RepositoryScope {
   const root = findGitRoot(cwd);
   if (!root) return { inGit: false, repository: null, checkout: null };
   const commonDir = gitCommonDir(root);
@@ -381,6 +380,11 @@ function eventRepository(payload: ClaudeCodeHookPayload, env: NodeJS.ProcessEnv)
   return repository === null
     ? { inGit: true, repository: null, checkout, unidentified: true }
     : { inGit: true, repository, checkout };
+}
+
+function eventRepository(payload: ClaudeCodeHookPayload, env: NodeJS.ProcessEnv): RepositoryScope {
+  const cwd = typeof payload.cwd === 'string' && payload.cwd ? payload.cwd : process.cwd();
+  return resolveRepositoryScope(cwd, env);
 }
 
 function isAuditedRepository(scope: RepositoryScope, config: ClaudeCodeHookConfig): boolean {
@@ -484,7 +488,7 @@ function promptIdOf(payload: ClaudeCodeHookPayload): string | null {
 
 // ---- Transport ----
 
-function bearerTransportSafe(url: URL): boolean {
+export function bearerTransportSafe(url: URL): boolean {
   return url.protocol === 'https:'
     || (url.protocol === 'http:' && ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname));
 }
@@ -631,7 +635,7 @@ function isBrainbaseTool(payload: ClaudeCodeHookPayload): boolean {
   return typeof payload.tool_name === 'string' && payload.tool_name.startsWith('mcp__brainbase__');
 }
 
-function digestSummary(value: unknown): { digest: string; bytes: number } {
+export function digestSummary(value: unknown): { digest: string; bytes: number } {
   const text = JSON.stringify(value) ?? 'null';
   return { digest: `sha256:${sha256(text)}`, bytes: Buffer.byteLength(text) };
 }
@@ -950,7 +954,7 @@ export function claudeCodeHookCommand(nodePath: string, cliPath: string, configP
 }
 
 /** The arguments of a command made only of single-quoted words, or null. */
-function singleQuotedWords(command: string): string[] | null {
+export function singleQuotedWords(command: string): string[] | null {
   const words: string[] = [];
   let index = 0;
   while (index < command.length) {

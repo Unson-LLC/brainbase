@@ -9,7 +9,7 @@ import { workspaceTabStrip } from './workspace-kit.js';
  * Everything applies as it changes.  A record opens as its own screen with an
  * address the host keeps (`onRouteChange`): what it is, its connections read
  * as sentences and grouped by the other record's kind, 根拠と履歴 (folded:
- * source, period, corrections, ids) and 直す, which first shows what a fix
+ * source, period, corrections, ids) and 編集, which first shows what a fix
  * reaches.  The right rail stays empty.
  *
  * This screen answers what the Graph knows (ledger D14).  The kinds of
@@ -271,16 +271,16 @@ function textCell(value, fallback) {
  * @param {string} [options.initialEntityId] Opens this exact entity after the initial Graph read.
  * @param {() => Date} [options.now] The owner's clock.
  * @param {boolean} [options.canCorrect=true] When false, no correction control is drawn anywhere
- *   (この記録を直す, 関係を加える, この関係を直す, and この画面で直せること under the kinds of
+ *   (この記録を編集, 関係を加える, この関係を編集, and この画面で編集できること under the kinds of
  *   information), and the client refuses every correction before sending it.
  * @param {{ entityTypes?: string[], fields?: string[], edges?: boolean, createEdges?: boolean }} [options.correctionScope]
  *   With corrections allowed, only these (see `graphCorrectionScope`): `entityTypes` lists the kinds that
- *   offer この記録を直す, `fields` limits its form, `edges: false` withholds この関係を直す and
+ *   offer この記録を編集, `fields` limits its form, `edges: false` withholds この関係を編集 and
  *   `createEdges: false` withholds 関係を加える.  A withheld control is not drawn and the client refuses
  *   such a correction before sending it.  Without it every correction is allowed.
  * @param {string | ((record: { id: string, type: string | null, metadata: object } | null) => string | Element | null)} [options.readOnlyNote]
  *   With `canCorrect: false`, or where `correctionScope` withholds a
- *   control of the open record, a note shown under 直す where the correction buttons would be.
+ *   control of the open record, a note shown under 編集 where the correction buttons would be.
  *   Without it nothing is said about corrections.
  * @param {{ label?: string, text: string | Element }} [options.emptyNotice] Replaces the 未登録 notice
  *   and its `brainbase onboard:*` commands when the host's Graph has nothing registered.
@@ -582,7 +582,7 @@ export function createGraphRegistryView({
     const dir = state.search.state === 'ok' ? textOrNull(state.search.payload.source?.dataDir) : null;
     return workspaceHostNotice(doc, hostSourceNotice(sourceNotice, sourceSubject())) ?? workspaceNotice(doc, {
       label: '出典',
-      text: `このMacのGraph${dir ? `（${dir}）` : ''}だけを表示します。ここで直した内容は、同じGraphを読むMCPの search・get_context・resolve_entity で次から使われます。`,
+      text: `このMacのGraph${dir ? `（${dir}）` : ''}だけを表示します。ここで編集した内容は、同じGraphを読むMCPの search・get_context・resolve_entity で次から使われます。`,
     });
   }
 
@@ -592,7 +592,7 @@ export function createGraphRegistryView({
       workspacePageHeader(doc, {
         crumbs: context.crumbs,
         title: '情報と関係',
-        lead: writable ? 'Graphに何がどう登録されているかを確かめ、誤りを直します。' : 'Graphに何がどう登録されているかを確かめます。',
+        lead: writable ? 'Graphに何がどう登録されているかを確かめ、記録を編集します。' : 'Graphに何がどう登録されているかを確かめます。',
         source: context.source,
       }),
       renderSearchForm(),
@@ -714,14 +714,14 @@ export function createGraphRegistryView({
     return section;
   }
 
-  /** 直す: first what a fix reaches, then the entries; a correction opens where it was asked for. */
+  /** 編集: first what a fix reaches, then the entries; a correction opens where it was asked for. */
   function renderFix(payload) {
     const { entity } = payload;
     const noteSubject = { id: entity.id, type: entity.type, metadata: payload.entity?.metadata ?? {} };
     const edges = [...payload.outgoing, ...payload.incoming];
     if (!writable) {
       const note = hostReadOnlyNote(doc, readOnlyNote, noteSubject);
-      return note ? pageSection('直す', [note], 'bb-gr-fix') : null;
+      return note ? pageSection('編集', [note], 'bb-gr-fix') : null;
     }
     const canFix = scope.entity(entity.type) && scope.fields(graphEntityCorrectionFields(entity.type)).length > 0;
     const relatable = newRelationOptions(entity.type).length > 0 && scope.createEdges;
@@ -734,22 +734,22 @@ export function createGraphRegistryView({
       const shown = counterparts.slice(0, 5).join('、');
       reach.append(makeElement(doc, 'li', { text: `つながる${counterparts.length}件の記録（${shown}${counterparts.length > 5 ? ' ほか' : ''}）の詳細に出る、この記録の名前とつながり` }));
     }
-    children.push(makeElement(doc, 'p', { className: 'bb-graph-block-lead', text: '直す前に、影響する先を確かめてください。直した内容は次に効きます。' }), reach);
+    children.push(makeElement(doc, 'p', { className: 'bb-graph-block-lead', text: '編集する前に、影響する先を確かめてください。編集した内容は次に効きます。' }), reach);
     const entries = [
-      canFix ? '「この記録を直す」' : null,
+      canFix ? '「この記録を編集」' : null,
       relatable ? '「関係を加える」' : null,
-      edgesWritable && editableEdges.length > 0 ? '関係ごとの「この関係を直す」' : null,
+      edgesWritable && editableEdges.length > 0 ? '関係ごとの「この関係を編集」' : null,
     ].filter(Boolean);
     if (entries.length > 0) {
       const last = entries.at(-1);
       const list = entries.length === 1 ? last : `${entries.slice(0, -1).join('、')}、または${last}`;
       children.push(makeElement(doc, 'p', {
         className: 'bb-gr-fix-flow',
-        text: `誤りを見つけたときの訂正入口です。${list}から変更案を入力します。承認待ちの提出ではなく、保存するとその場でGraphに反映され、理由と変更前後が履歴に残ります。保存後に読み直して一致を確かめ、確認できた内容は、次のMCPの search・get_context・resolve_entity で使われます。`,
+        text: `誤りを見つけたときの編集入口です。${list}から変更案を入力します。承認待ちの提出ではなく、保存するとその場でGraphに反映され、理由と変更前後が履歴に残ります。保存後に読み直して一致を確かめ、確認できた内容は、次のMCPの search・get_context・resolve_entity で使われます。`,
       }));
     }
     const actions = [
-      canFix ? workspaceButton(doc, { text: 'この記録を直す', onClick: () => openCorrection('entity', () => correction.openEntity(entity, { title: 'この記録を直す' })) }) : null,
+      canFix ? workspaceButton(doc, { text: 'この記録を編集', onClick: () => openCorrection('entity', () => correction.openEntity(entity, { title: 'この記録を編集' })) }) : null,
       relatable ? workspaceButton(doc, { text: '関係を加える', onClick: () => openCorrection('entity', () => correction.openCreate(entity, { title: '関係を加える' })) }) : null,
     ].filter(Boolean);
     if (actions.length > 0) children.push(workspaceActions(doc, actions));
@@ -757,14 +757,14 @@ export function createGraphRegistryView({
     const inRelation = editableEdges.some((edge) => edge.id === state.panelAt);
     if (!inRelation) children.push(correction.render(doc));
     if (edgesWritable && editableEdges.length > 0) {
-      const list = makeElement(doc, 'ul', { className: 'bb-gr-fix-relations', attrs: { 'aria-label': '関係を直す' } });
+      const list = makeElement(doc, 'ul', { className: 'bb-gr-fix-relations', attrs: { 'aria-label': '関係を編集' } });
       for (const edge of editableEdges) {
         const item = makeElement(doc, 'li', { className: 'bb-gr-fix-relation' });
         const subject = edge.direction === 'outgoing'
           ? `${entity.name} → ${relationLabel(edge.relation)} → ${edge.counterpart.name}`
           : `${edge.counterpart.name} → ${relationLabel(edge.relation)} → ${entity.name}`;
         item.append(relationSentence(edge, entity, { link: false }), workspaceButton(doc, {
-          text: 'この関係を直す',
+          text: 'この関係を編集',
           variant: 'quiet',
           onClick: () => openCorrection(edge.id, () => correction.openEdge(edge, { mode: 'edit', subject })),
         }));
@@ -780,12 +780,12 @@ export function createGraphRegistryView({
     if (!canFix || (newRelationOptions(entity.type).length > 0 && !scope.createEdges) || (edges.length > 0 && !scope.edges)) {
       children.push(hostReadOnlyNote(doc, readOnlyNote, noteSubject));
     }
-    return pageSection('直す', children, 'bb-gr-fix');
+    return pageSection('編集', children, 'bb-gr-fix');
   }
 
   /**
    * The open record as its own screen: back to the list, its name and kind, then
-   * 何者か → つながり → 根拠と履歴 → 直す.  使われた場所 is not drawn: no read path
+   * 何者か → つながり → 根拠と履歴 → 編集.  使われた場所 is not drawn: no read path
    * reaches the work, judgments and minutes that mention a record yet.
    */
   function renderDetailPage() {
