@@ -2,6 +2,12 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
+## 0.51.1 candidate — npm公開前
+
+- 0.51.0（`main` / `8b9acad36`）に `#1088`（`8796d79e7`、Item #165）のみを cherry-pick したpatch更新候補（他の `develop` コミットは含まない）。
+- Antigravity CLI判断フックで、`transcript_full.jsonl` および `.system_generated/steps/<n>/output.txt` から切り詰められたツール結果を復元する処理を追加し、`systemMessage` のみ返却時に `buildSystemMessageStep` が空文字列を返していた不具合を修正し、切り詰めマーカー・バナーURLパースの正規表現ReDoS要因を解消した。
+- 破壊的変更はない（詳細は `docs/releases/0.51.1.md` を参照）。npm公開と利用ホストへの配備は別途確認する。
+
 ## 0.51.0 candidate — npm公開前
 
 - 0.50.31に `develop`（`8271da54`）を統合するminor更新候補。0.50.25〜0.50.31で `main` に先行出荷した機能・セキュリティ修正はすべて保持する。
