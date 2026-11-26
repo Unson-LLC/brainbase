@@ -78,7 +78,20 @@ import {
 import { applyCanonicalWrites, buildCanonicalEdge } from './canonical-edge-builder.js';
 import { createWorldExtension, readWorldVocabulary } from './world-extension.js';
 import { createLocalWebHost, LOCAL_WEB_DEFAULT_PORT } from './local-web-host.js';
-import { assertCredentialsFilePath, BrainbaseLoginError, CREDENTIALS_SCHEMA_VERSION, defaultCredentialsPath, loginWithDeviceCode, normalizeServerUrl, readCredentials, removeCredentials, withCredentialsLock } from './brainbase-login.js';
+import {
+  assertCredentialsFilePath,
+  BrainbaseLoginError,
+  CREDENTIALS_SCHEMA_VERSION,
+  defaultCredentialsPath,
+  loginWithDeviceCode,
+  normalizeMcpResourceUrl,
+  normalizeMcpScope,
+  normalizeMcpTenant,
+  normalizeServerUrl,
+  readCredentials,
+  removeCredentials,
+  withCredentialsLock,
+} from './brainbase-login.js';
 import {
   CLAUDE_CODE_HOOK_CONFIG_SCHEMA,
   canonicalFilePath,
@@ -952,15 +965,44 @@ function explicitValue(parsed: ParsedArgs, key: string, hint: string): string | 
  * back to the default path and delete the default login. Checked before the save
  * path is decided, so nothing is read, removed or sent.
  */
-function assertOnlyLoginOptions(parsed: ParsedArgs, command: string, allowed: readonly string[]): void {
-  const usageHint = `brainbase ${command} ${allowed.map((key) => `[--${key} <${key === 'server' ? 'url' : 'path'}>]`).join(' ')}`;
+const LOGIN_OPTION_VALUE_HINT: Record<string, string> = {
+  credentials: 'path',
+  server: 'url',
+  tenant: 'tenant',
+  scope: 'scope',
+  resource: 'url',
+};
+
+function assertOnlyLoginOptions(
+  parsed: ParsedArgs,
+  command: string,
+  allowed: readonly string[],
+  switches: readonly string[] = [],
+): void {
+  const hintFor = (key: string) => `--${key} <${LOGIN_OPTION_VALUE_HINT[key] ?? 'value'}>`;
+  const usageParts = [
+    ...allowed.map((key) => `[${hintFor(key)}]`),
+    ...switches.map((key) => `[--${key}]`),
+  ];
+  const usageHint = `brainbase ${command} ${usageParts.join(' ')}`;
   const stop = (what: string) => new Error(`${what}。${usageHint} の形で指定してください。何も変えずに止めました。`);
   // A known option without a value (or as --opt=value) gets its own, more precise message first.
-  for (const key of allowed) explicitValue(parsed, key, `--${key} <${key === 'server' ? 'url' : 'path'}>`);
+  for (const key of allowed) explicitValue(parsed, key, hintFor(key));
+  for (const key of switches) {
+    if (parsed.values.has(key)) {
+      throw new Error(`--${key} は値をとりません（--${key} だけを書きます）。何も変えずに止めました。`);
+    }
+    const prefix = `${key}=`;
+    if ([...parsed.flags, ...parsed.values.keys()].some((name) => name.startsWith(prefix))) {
+      throw new Error(`--${key}=… の形は使えません。--${key} だけを書いてください。何も変えずに止めました。`);
+    }
+  }
   for (const name of [...parsed.flags, ...parsed.values.keys()]) {
-    // `--known=value` is refused by explicitValue with its own message.
+    // `--known=value` is refused by explicitValue / switches check above with its own message.
     const base = name.includes('=') ? name.slice(0, name.indexOf('=')) : name;
-    if (!allowed.includes(base)) throw stop(`${command} は --${base} というオプションを知りません`);
+    if (!allowed.includes(base) && !switches.includes(base)) {
+      throw stop(`${command} は --${base} というオプションを知りません`);
+    }
   }
   for (const [key, list] of parsed.values) {
     if (list.length > 1) throw stop(`--${key} が${list.length}回指定されています。1回だけにしてください`);
@@ -977,13 +1019,37 @@ function credentialsPathOf(parsed: ParsedArgs): string {
 }
 
 async function login(parsed: ParsedArgs, io: CliIo): Promise<number> {
-  assertOnlyLoginOptions(parsed, 'login', ['credentials', 'server']);
+  assertOnlyLoginOptions(
+    parsed,
+    'login',
+    ['credentials', 'server', 'tenant', 'scope', 'resource'],
+    ['mcp'],
+  );
+  const mcp = parsed.flags.has('mcp');
+  const tenant = explicitValue(parsed, 'tenant', '--tenant <tenant>');
+  const scope = explicitValue(parsed, 'scope', '--scope <scope>');
+  const resource = explicitValue(parsed, 'resource', '--resource <url>');
+  if (!mcp && (tenant !== undefined || scope !== undefined || resource !== undefined)) {
+    throw new Error('--tenant / --scope / --resource は --mcp と一緒に指定してください。何も変えずに止めました。');
+  }
+  if (mcp) {
+    if (tenant !== undefined) normalizeMcpTenant(tenant);
+    if (scope !== undefined) normalizeMcpScope(scope);
+    if (resource !== undefined) normalizeMcpResourceUrl(resource);
+  }
   const credentialsPath = credentialsPathOf(parsed);
   const serverUrl = explicitValue(parsed, 'server', '--server <url>') ?? (await readCredentials(credentialsPath).catch(() => null))?.server_url;
   if (!serverUrl) throw new Error('login requires --server <url> (your Brainbase API URL)');
   const credentials = await loginWithDeviceCode({
     serverUrl,
     credentialsPath,
+    ...(mcp ? {
+      mcp: {
+        ...(tenant !== undefined ? { tenant } : {}),
+        ...(scope !== undefined ? { scope } : {}),
+        ...(resource !== undefined ? { resource } : {}),
+      },
+    } : {}),
     onPrompt: (prompt) => {
       write(io, [
         'ブラウザで次の URL を開き、ログインして承認してください。',
@@ -995,7 +1061,19 @@ async function login(parsed: ParsedArgs, io: CliIo): Promise<number> {
       ].join('\n'));
     }
   });
-  write(io, `ログインしました（${credentials.server_url}）。保存先: ${credentialsPath}\n`);
+  if (credentials.token_kind === 'mcp_oauth') {
+    write(io, [
+      `遠隔 MCP としてログインしました（${credentials.server_url}）。`,
+      ...(credentials.organization_id ? [`  組織: ${credentials.organization_id}`] : []),
+      ...(credentials.tenant_id ? [`  テナント: ${credentials.tenant_id}`] : []),
+      ...(credentials.scope ? [`  スコープ: ${credentials.scope}`] : []),
+      ...(credentials.resource ? [`  接続先 resource: ${credentials.resource}`] : []),
+      `  保存先: ${credentialsPath}`,
+      ''
+    ].join('\n'));
+  } else {
+    write(io, `ログインしました（${credentials.server_url}）。保存先: ${credentialsPath}\n`);
+  }
   return 0;
 }
 
@@ -1010,6 +1088,13 @@ async function loginStatus(parsed: ParsedArgs, io: CliIo): Promise<number> {
   const expired = Date.parse(credentials.expires_at) <= Date.now();
   write(io, [
     `サーバー: ${credentials.server_url}`,
+    ...(credentials.token_kind === 'mcp_oauth' ? [
+      '接続種別: 遠隔 MCP (OAuth Device Flow)',
+      `組織: ${credentials.organization_id ?? '未指定'}`,
+      `テナント: ${credentials.tenant_id ?? '未指定'}`,
+      `スコープ: ${credentials.scope ?? '未指定'}`,
+      `接続先 resource: ${credentials.resource ?? '未指定'}`,
+    ] : []),
     `token の期限: ${credentials.expires_at}${expired ? '（切れています）' : ''}`,
     `自動の更新: ${credentials.refresh_token ? 'できる' : 'できない（期限が来たら brainbase login をやり直す）'}`,
     `保存先: ${credentialsPath}`,
@@ -2269,7 +2354,7 @@ function usage(): string {
   brainbase judgment:claude-code-hook [--config path]
   brainbase judgment:antigravity-hook [--config path] [--registration id]
   brainbase judgment:hook [--autonomy-mode off|canary|on] [--autonomy-project code] [--reasoning-gate-mode off|compact_4block_v3|compact_4block_with_wm] [--reasoning-gate-projects code,code]
-  brainbase login --server url [--credentials path]
+  brainbase login --server url [--credentials path] [--mcp [--tenant tenant] [--scope scope] [--resource url]]
   brainbase login:status [--credentials path]
   brainbase logout [--credentials path]
   brainbase doctor [--dir path] [--judgment-hooks path]
