@@ -1309,6 +1309,10 @@ function hasTruncatedContentField(entry: TranscriptEntry): boolean {
   return Array.isArray(entry.truncated_fields) && entry.truncated_fields.includes('content');
 }
 
+function isJsonWhitespaceCode(code: number): boolean {
+  return code === 0x20 || code === 0x09 || code === 0x0a || code === 0x0d;
+}
+
 function isValidJsonText(text: string): boolean {
   try {
     JSON.parse(text);
@@ -1318,10 +1322,113 @@ function isValidJsonText(text: string): boolean {
   }
 }
 
+/**
+ * Splits whitespace/newline-concatenated top-level JSON objects/arrays (`{...}` / `[...]`)
+ * in a single strict O(n) character scan without regex backtracking.
+ *
+ * Antigravity CLI concatenates multiple MCP text content blocks with `\n` when writing
+ * `steps/<n>/output.txt` and `transcript*.jsonl` (for example, a primary tool result JSON
+ * followed by a trailing `{"connection_scope":{...}}` block). When 2+ top-level JSON
+ * containers are found and every block validates via `JSON.parse`, returns the individual
+ * blocks so `tool_response.content` restores the original multi-block MCP structure.
+ * For a single JSON value, non-JSON text, or any malformed/partial block, fails open and
+ * returns `[text]`.
+ */
+export function splitConcatenatedJsonTextBlocks(text: string): string[] {
+  const length = text.length;
+  if (length === 0) return [text];
+
+  let i = 0;
+  while (i < length && isJsonWhitespaceCode(text.charCodeAt(i))) {
+    i += 1;
+  }
+  if (i >= length) return [text];
+
+  const firstCode = text.charCodeAt(i);
+  if (firstCode !== 0x7b && firstCode !== 0x5b) {
+    return [text];
+  }
+
+  const candidates: string[] = [];
+  const closeStack: number[] = [];
+
+  while (i < length) {
+    const start = i;
+    const openCode = text.charCodeAt(i);
+    if (openCode === 0x7b) {
+      closeStack.push(0x7d);
+    } else if (openCode === 0x5b) {
+      closeStack.push(0x5d);
+    } else {
+      return [text];
+    }
+
+    i += 1;
+    let inString = false;
+    let escaped = false;
+
+    while (i < length && closeStack.length > 0) {
+      const code = text.charCodeAt(i);
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (code === 0x5c) {
+          escaped = true;
+        } else if (code === 0x22) {
+          inString = false;
+        }
+      } else if (code === 0x22) {
+        inString = true;
+      } else if (code === 0x7b) {
+        closeStack.push(0x7d);
+      } else if (code === 0x5b) {
+        closeStack.push(0x5d);
+      } else if (code === 0x7d || code === 0x5d) {
+        if (closeStack[closeStack.length - 1] !== code) {
+          return [text];
+        }
+        closeStack.pop();
+      }
+      i += 1;
+    }
+
+    if (closeStack.length !== 0 || inString) {
+      return [text];
+    }
+
+    candidates.push(text.slice(start, i));
+
+    const wsStart = i;
+    while (i < length && isJsonWhitespaceCode(text.charCodeAt(i))) {
+      i += 1;
+    }
+    if (i < length && i === wsStart) {
+      return [text];
+    }
+  }
+
+  if (candidates.length < 2) {
+    return [text];
+  }
+
+  for (const block of candidates) {
+    if (!isValidJsonText(block)) {
+      return [text];
+    }
+  }
+
+  return candidates;
+}
+
+function isValidJsonOrConcatenatedJsonText(text: string): boolean {
+  if (isValidJsonText(text)) return true;
+  return splitConcatenatedJsonTextBlocks(text).length > 1;
+}
+
 function isTruncatedToolResult(entry: TranscriptEntry, strippedContent: string): boolean {
   if (hasTruncatedContentField(entry)) return true;
   if (TOOL_OUTPUT_TRUNCATION_BANNER_PATTERN.test(strippedContent)) return true;
-  if (INLINE_TRUNCATION_MARKER_PATTERN.test(strippedContent) && !isValidJsonText(strippedContent)) {
+  if (INLINE_TRUNCATION_MARKER_PATTERN.test(strippedContent) && !isValidJsonOrConcatenatedJsonText(strippedContent)) {
     return true;
   }
   return false;
@@ -1608,6 +1715,20 @@ export function extractToolResultFromTranscript(
     effectiveStepCandidates,
     options,
   );
+}
+
+/**
+ * Extracts a tool result from the authorized transcript / step output and restores
+ * whitespace/newline-concatenated MCP JSON text blocks into individual text block strings.
+ */
+export function extractToolResultTextBlocksFromTranscript(
+  transcriptPath: unknown,
+  stepIdx: unknown,
+  options?: TranscriptReadOptions,
+): string[] | null {
+  const extracted = extractToolResultFromTranscript(transcriptPath, stepIdx, options);
+  if (extracted === null) return null;
+  return splitConcatenatedJsonTextBlocks(extracted);
 }
 
 // ---- Turn state persistence & exclusive lock ----
@@ -2457,14 +2578,14 @@ async function handlePostToolUse(
   if (isBrainbase) {
     toolInput = normalizedToolInput(rawName, normalizedName, toolCall?.args);
     const toolCallId = typeof toolCall?.id === 'string' && toolCall.id.trim() ? toolCall.id.trim() : undefined;
-    const transcriptText = extractToolResultFromTranscript(
+    const transcriptBlocks = extractToolResultTextBlocksFromTranscript(
       payload.transcriptPath,
       payload.stepIdx,
       toolCallId ? { ...transcriptOpts, toolUseId: toolCallId } : transcriptOpts,
     );
-    if (transcriptText !== null) {
+    if (transcriptBlocks !== null) {
       toolResponse = {
-        content: [{ type: 'text', text: transcriptText }],
+        content: transcriptBlocks.map((text) => ({ type: 'text', text })),
         isError: hasError,
       };
     } else {
