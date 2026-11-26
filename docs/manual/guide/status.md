@@ -4,6 +4,10 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
+## Candidate — v0.51.1（npm公開前）
+
+0.51.0（`8b9acad36`）に `#1088`（`8796d79e7`、Item #165）のみを cherry-pick したpatch更新候補です（他の `develop` コミットは含みません）。Antigravity CLI判断フックで切り詰められたツール結果を `transcript_full.jsonl` および `.system_generated/steps/<n>/output.txt` から復元する処理を追加し、`systemMessage` のみ返却時の `buildSystemMessageStep` 空文字不具合を修正し、切り詰めマーカー・バナーURLパースの正規表現ReDoS要因を解消します。破壊的変更はありません（詳細は `docs/releases/0.51.1.md` を参照）。npm公開と利用ホストへの配備は別途確認します。
+
 ## Candidate — v0.51.0（npm公開前）
 
 0.50.31に `develop`（`8271da54`）を統合するminor更新候補です。`main` に先行出荷済みの `0.50.25`〜`0.50.31` の全機能・セキュリティ修正を保持しつつ、組織固有機能3件をOSSから削除します：予約（`./resource-reservations`・`./resource-reservation-http`、#1027、移設先 `brainbase-organization#1428`）、メンバー招待（`./organization-member-invite`・`./organization-member-invite-http`、#1037、移設先 `brainbase-organization#1473`）、実行の意図（`./execution-authority`・`./execution-authority-http`、#1040、移設先 `brainbase-organization#1476`）。併せて `judgment-event-outbox`（#1084、RFC-002 PR-3b）で `JudgmentOutboxPostAck['candidate_id']` / `JudgmentOutboxReadback['candidate_id']` を `string | null` へ拡張し、`episode` イベントに限り整合した `candidate_id: null` を受理します（非 `episode` は従来どおり非空文字列必須で fail-closed）。新規公開subpathとして世界モデルの逆引き影響インデックス `world-model-impact-index`（#1044）を追加し、Canonical Task の nullable `start_at`（#1010）、MCPツール定義のポータビリティ適用（#1046・#1063）、`judgment-host` の有効Git作業ツリー探索と再計画ゲート（#970・#973・#976）、状態遷移整合・UI通知改善（#960・#961・#996・#1015・#1034・#1035・#1036）を含みます。破壊的変更の移行手順は `docs/releases/0.51.0.md` を参照してください。npm公開と利用ホストへの配備は別途確認します。
