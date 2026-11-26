@@ -2,6 +2,12 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
+## 0.51.2 candidate — npm公開前
+
+- 0.51.1（`main` / `1a653d52`）に `#1090`（`543991814`、Item #165）およびテスト専用の実行時間閾値安定化（`6580029ef`）のみを cherry-pick したpatch更新候補（他の `develop` コミットは含まない）。
+- Antigravity CLI判断フックで、複数 JSON ブロックが連結された MCP ツール応答を O(n) で分割する `splitConcatenatedJsonTextBlocks` を追加し、`isTruncatedToolResult`・`extractToolResultTextBlocksFromTranscript`・`handlePostToolUse` で複数 text block として復元するよう更新した。あわせて 500k+ 文字線形時間回帰テストの経過時間上限を 5,000ms へ調整し共有ランナー負荷時の安定性を高めた。
+- 破壊的変更はない（詳細は `docs/releases/0.51.2.md` を参照）。npm公開と利用ホストへの配備は別途確認する。
+
 ## 0.51.1 candidate — npm公開前
 
 - 0.51.0（`main` / `8b9acad36`）に `#1088`（`8796d79e7`、Item #165）のみを cherry-pick したpatch更新候補（他の `develop` コミットは含まない）。
