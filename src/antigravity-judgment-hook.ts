@@ -1623,45 +1623,92 @@ function resolveSiblingFullTranscriptTarget(
   return fullTarget;
 }
 
+type AuthorizedStepOutputResolution =
+  | { kind: 'ok'; target: AuthorizedTranscriptTarget }
+  | { kind: 'missing' }
+  | { kind: 'rejected' };
+
 function resolveAuthorizedStepOutputTarget(
   baseTarget: AuthorizedTranscriptTarget,
   conversationId: string,
   candidatePath: string,
-): AuthorizedTranscriptTarget | null {
+): AuthorizedStepOutputResolution {
   if (!candidatePath || !isAbsolute(candidatePath) || candidatePath.includes('\0')) {
-    return null;
+    return { kind: 'rejected' };
   }
   const sysGenSegments = systemGeneratedPrefixSegments(baseTarget, conversationId);
-  if (!sysGenSegments) return null;
+  if (!sysGenSegments) return { kind: 'rejected' };
   const stepsDirRaw = join(baseTarget.canonicalRoot, ...sysGenSegments, 'steps');
   try {
-    const stepsDirStat = lstatSync(stepsDirRaw);
-    if (stepsDirStat.isSymbolicLink() || !stepsDirStat.isDirectory()) return null;
+    let stepsDirStat: ReturnType<typeof lstatSync>;
+    try {
+      stepsDirStat = lstatSync(stepsDirRaw);
+    } catch (error) {
+      return isEnoentError(error) ? { kind: 'missing' } : { kind: 'rejected' };
+    }
+    if (stepsDirStat.isSymbolicLink() || !stepsDirStat.isDirectory()) return { kind: 'rejected' };
     const stepsDir = realpathSync(stepsDirRaw);
     if (stepsDir !== stepsDirRaw || !isStrictDescendantPath(baseTarget.canonicalRoot, stepsDir)) {
-      return null;
+      return { kind: 'rejected' };
     }
-    const candidateParentStat = lstatSync(dirname(candidatePath));
-    if (candidateParentStat.isSymbolicLink() || !candidateParentStat.isDirectory()) return null;
-    const candidateStat = lstatSync(candidatePath);
-    if (candidateStat.isSymbolicLink() || !candidateStat.isFile()) return null;
+
+    let candidateParentStat: ReturnType<typeof lstatSync>;
+    try {
+      candidateParentStat = lstatSync(dirname(candidatePath));
+    } catch (error) {
+      return isEnoentError(error) ? { kind: 'missing' } : { kind: 'rejected' };
+    }
+    if (candidateParentStat.isSymbolicLink() || !candidateParentStat.isDirectory()) return { kind: 'rejected' };
+
+    let candidateStat: ReturnType<typeof lstatSync>;
+    try {
+      candidateStat = lstatSync(candidatePath);
+    } catch (error) {
+      return isEnoentError(error) ? { kind: 'missing' } : { kind: 'rejected' };
+    }
+    if (candidateStat.isSymbolicLink() || !candidateStat.isFile()) return { kind: 'rejected' };
+
     const canonicalFile = realpathSync(candidatePath);
-    if (!isStrictDescendantPath(stepsDir, canonicalFile)) return null;
+    if (!isStrictDescendantPath(stepsDir, canonicalFile)) return { kind: 'rejected' };
     const relFromSteps = relative(stepsDir, canonicalFile).split(sep);
     if (relFromSteps.length !== 2 || !/^\d+$/u.test(relFromSteps[0]) || relFromSteps[1] !== 'output.txt') {
-      return null;
+      return { kind: 'rejected' };
     }
     if (!verifyNoSymlinkPathUnderRoot(baseTarget.canonicalRoot, canonicalFile).ok) {
-      return null;
+      return { kind: 'rejected' };
     }
     return {
-      canonicalRoot: baseTarget.canonicalRoot,
-      canonicalPath: canonicalFile,
-      segments: [...sysGenSegments, 'steps', relFromSteps[0], 'output.txt'],
+      kind: 'ok',
+      target: {
+        canonicalRoot: baseTarget.canonicalRoot,
+        canonicalPath: canonicalFile,
+        segments: [...sysGenSegments, 'steps', relFromSteps[0], 'output.txt'],
+      },
     };
   } catch {
-    return null;
+    return { kind: 'rejected' };
   }
+}
+
+function isToolResultEntry(entry: TranscriptEntry): boolean {
+  if (entry.type === 'USER_INPUT' || entry.type === 'PLANNER_RESPONSE') return false;
+  return typeof entry.content === 'string' && entry.content.trim().length > 0;
+}
+
+function hasStepIndexInTranscript(entries: readonly TranscriptEntry[], stepIdx: number): boolean {
+  return entries.some((entry) => entry.step_index === stepIdx);
+}
+
+function hasConflictingToolUseIdAtStep(
+  entries: readonly TranscriptEntry[],
+  stepIdx: number,
+  toolUseId: string,
+): boolean {
+  return entries.some((entry) => {
+    if (entry.step_index !== stepIdx) return false;
+    const entryId = entryToolUseId(entry);
+    return entryId !== null && entryId !== toolUseId;
+  });
 }
 
 function findToolEntryInTranscript(
@@ -1670,30 +1717,38 @@ function findToolEntryInTranscript(
   toolUseId?: string,
 ): TranscriptEntry | null {
   const normalizedToolUseId = typeof toolUseId === 'string' && toolUseId.trim() ? toolUseId.trim() : null;
-  for (const targetStep of stepCandidates) {
-    if (normalizedToolUseId !== null) {
+
+  // 1. Prefer exact tool_use_id / tool_call_id match on step candidates first.
+  if (normalizedToolUseId !== null) {
+    for (const targetStep of stepCandidates) {
       for (let index = entries.length - 1; index >= 0; index -= 1) {
         const entry = entries[index];
-        if (entry.step_index !== targetStep) continue;
-        if (entry.type === 'USER_INPUT' || entry.type === 'PLANNER_RESPONSE') continue;
-        if (typeof entry.content !== 'string' || !entry.content.trim()) continue;
+        if (entry.step_index !== targetStep || !isToolResultEntry(entry)) continue;
         if (entryToolUseId(entry) === normalizedToolUseId) return entry;
       }
     }
+    // 2. Fall back to exact tool_use_id / tool_call_id match anywhere in the transcript tail
+    //    (handles step_index shifts between transcript.jsonl and transcript_full.jsonl).
     for (let index = entries.length - 1; index >= 0; index -= 1) {
       const entry = entries[index];
-      if (entry.step_index !== targetStep) continue;
-      if (entry.type === 'USER_INPUT' || entry.type === 'PLANNER_RESPONSE') continue;
-      if (typeof entry.content !== 'string' || !entry.content.trim()) continue;
-      return entry;
+      if (!isToolResultEntry(entry)) continue;
+      if (entryToolUseId(entry) === normalizedToolUseId) return entry;
     }
   }
-  if (normalizedToolUseId !== null) {
+
+  // 3. Untagged step_index match is strictly restricted to the exact primary step (`stepCandidates[0]`).
+  //    Never match a neighboring step (`stepIdx + 1`) without an explicit tool_use_id match, and
+  //    never match an entry whose explicit tool_use_id disagrees with the caller's toolUseId.
+  const primaryStep = stepCandidates[0];
+  if (primaryStep !== undefined) {
     for (let index = entries.length - 1; index >= 0; index -= 1) {
       const entry = entries[index];
-      if (entry.type === 'USER_INPUT' || entry.type === 'PLANNER_RESPONSE') continue;
-      if (typeof entry.content !== 'string' || !entry.content.trim()) continue;
-      if (entryToolUseId(entry) === normalizedToolUseId) return entry;
+      if (entry.step_index !== primaryStep || !isToolResultEntry(entry)) continue;
+      const entryId = entryToolUseId(entry);
+      if (normalizedToolUseId !== null && entryId !== null && entryId !== normalizedToolUseId) {
+        continue;
+      }
+      return entry;
     }
   }
   return null;
@@ -1738,9 +1793,9 @@ function readStepOutputFallback(
   if (explicitUrl !== null) {
     const filePath = parseLocalFileUrlPath(explicitUrl);
     if (!filePath) return null;
-    const stepTarget = resolveAuthorizedStepOutputTarget(baseTarget, conversationId, filePath);
-    if (!stepTarget) return null;
-    return readTarget(stepTarget);
+    const resolution = resolveAuthorizedStepOutputTarget(baseTarget, conversationId, filePath);
+    if (resolution.kind !== 'ok') return null;
+    return readTarget(resolution.target);
   }
 
   const sysGenSegments = systemGeneratedPrefixSegments(baseTarget, conversationId);
@@ -1751,10 +1806,13 @@ function readStepOutputFallback(
     if (!Number.isSafeInteger(stepNum) || stepNum < 0 || seenSteps.has(stepNum)) continue;
     seenSteps.add(stepNum);
     const candidatePath = join(stepsDir, String(stepNum), 'output.txt');
-    const stepTarget = resolveAuthorizedStepOutputTarget(baseTarget, conversationId, candidatePath);
-    if (!stepTarget) continue;
-    const recovered = readTarget(stepTarget);
-    if (recovered !== null) return recovered;
+    const resolution = resolveAuthorizedStepOutputTarget(baseTarget, conversationId, candidatePath);
+    if (resolution.kind === 'missing') continue;
+    if (resolution.kind === 'rejected') return null;
+    // Candidate file exists and passed path checks; fail closed immediately if reading fails
+    // (oversized >512 KiB, empty, truncation banner, non-Linux, or openat2 rejection) rather
+    // than falling through to another step's output.
+    return readTarget(resolution.target);
   }
   return null;
 }
@@ -1764,7 +1822,7 @@ export function extractToolResultFromTranscript(
   stepIdx: unknown,
   options?: TranscriptReadOptions,
 ): string | null {
-  const hasStepIdx = typeof stepIdx === 'number' && Number.isSafeInteger(stepIdx);
+  const hasStepIdx = typeof stepIdx === 'number' && Number.isSafeInteger(stepIdx) && stepIdx >= 0;
   const hintToolUseId = typeof options?.toolUseId === 'string' && options.toolUseId.trim()
     ? options.toolUseId.trim()
     : undefined;
@@ -1776,13 +1834,13 @@ export function extractToolResultFromTranscript(
   if (!baseTarget) return null;
 
   const conversationId = options.conversationId.trim();
-  // Prefer exact step_index match, then immediate neighbor (+1) if wrapper shifted index.
   const stepCandidates = hasStepIdx ? [stepIdx, stepIdx + 1] : [];
 
+  let baseEntries: TranscriptEntry[] = [];
   let matchedEntry: TranscriptEntry | null = null;
   let baseStripped: string | null = null;
   if (existingBaseTarget !== null) {
-    const baseEntries = readTranscriptEntriesFromTarget(existingBaseTarget, options, TRANSCRIPT_TAIL_MAX_BYTES);
+    baseEntries = readTranscriptEntriesFromTarget(existingBaseTarget, options, TRANSCRIPT_TAIL_MAX_BYTES);
     matchedEntry = findToolEntryInTranscript(baseEntries, stepCandidates, hintToolUseId);
     if (matchedEntry && typeof matchedEntry.content === 'string') {
       const stripped = stripToolTimestampHeader(matchedEntry.content);
@@ -1808,12 +1866,14 @@ export function extractToolResultFromTranscript(
 
   // 1. Prefer sibling `transcript_full.jsonl` in the exact same authorized logs directory
   //    (handles both truncated `transcript.jsonl` entries and steps not yet flushed to `transcript.jsonl`).
+  let fullEntries: TranscriptEntry[] = [];
+  let fullEntry: TranscriptEntry | null = null;
   let fullStripped: string | null = null;
   let fullMatchedStep: number | null = null;
   const fullTarget = resolveSiblingFullTranscriptTarget(baseTarget, options);
   if (fullTarget) {
-    const fullEntries = readTranscriptEntriesFromTarget(fullTarget, options, TRANSCRIPT_FULL_TAIL_MAX_BYTES);
-    const fullEntry = findToolEntryInTranscript(fullEntries, effectiveStepCandidates, effectiveToolUseId);
+    fullEntries = readTranscriptEntriesFromTarget(fullTarget, options, TRANSCRIPT_FULL_TAIL_MAX_BYTES);
+    fullEntry = findToolEntryInTranscript(fullEntries, effectiveStepCandidates, effectiveToolUseId);
     if (fullEntry && typeof fullEntry.content === 'string') {
       if (typeof fullEntry.step_index === 'number' && Number.isSafeInteger(fullEntry.step_index)) {
         fullMatchedStep = fullEntry.step_index;
@@ -1832,12 +1892,29 @@ export function extractToolResultFromTranscript(
 
   // 2. Fallback to authorized `<conversation>/.system_generated/steps/<n>/output.txt`
   //    (strictly confined by realpath + no-symlink + Linux openat2 RESOLVE_BENEATH).
-  //    Antigravity writes `steps/<n>/output.txt` before flushing `transcript.jsonl`, so this
-  //    also recovers unflushed steps directly when `stepCandidates` (`[stepIdx, stepIdx + 1]`) are present.
-  const stepFallbackCandidates = [
-    ...(fullMatchedStep !== null ? [fullMatchedStep] : []),
-    ...effectiveStepCandidates.filter((step) => step !== fullMatchedStep),
-  ];
+  const hasMatchedTranscriptEntry = matchedEntry !== null || fullEntry !== null;
+  let stepFallbackCandidates: number[];
+  if (hasMatchedTranscriptEntry) {
+    if (fullEntry === null && matchedStep !== null && effectiveToolUseId
+      && hasConflictingToolUseIdAtStep(fullEntries, matchedStep, effectiveToolUseId)) {
+      return null;
+    }
+    stepFallbackCandidates = [
+      ...(fullMatchedStep !== null ? [fullMatchedStep] : []),
+      ...effectiveStepCandidates.filter((step) => step !== fullMatchedStep),
+    ];
+  } else {
+    // Unflushed direct recovery: Antigravity writes `steps/<stepIdx>/output.txt` before flushing
+    // `transcript.jsonl`. Strictly limit candidates to the exact `[stepIdx]` (never `stepIdx + 1`)
+    // and fail closed if either transcript already has an entry at `stepIdx` (e.g. PLANNER_RESPONSE,
+    // USER_INPUT, non-tool entry, or conflicting tool_use_id).
+    if (!hasStepIdx) return null;
+    if (hasStepIndexInTranscript(baseEntries, stepIdx) || hasStepIndexInTranscript(fullEntries, stepIdx)) {
+      return null;
+    }
+    stepFallbackCandidates = [stepIdx];
+  }
+
   const referenceTexts: string[] = [];
   if (fullStripped !== null) referenceTexts.push(fullStripped);
   if (baseStripped !== null) referenceTexts.push(baseStripped);
