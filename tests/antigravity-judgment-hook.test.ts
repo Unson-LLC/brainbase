@@ -13,6 +13,7 @@ import {
   antigravityNamespacedId,
   extractLastAssistantMessage,
   extractLatestNonSystemUserInput,
+  extractToolResultFromTranscript,
   handleAntigravityJudgmentHook,
   normalizeAntigravityHookBaseUrl,
   normalizeAntigravityToolName,
@@ -26,6 +27,7 @@ import {
   EXECUTION_OUTCOME_HOSTS,
   normalizeJudgmentExecutionOutcome,
 } from '../src/judgment-execution-outcome.js';
+import { processJudgmentHook } from '../src/judgment-host.js';
 import { selectJudgmentProjectBinding } from '../src/judgment-project-binding.js';
 import {
   REMOTE_JUDGMENT_HOOK_PATH,
@@ -2835,5 +2837,601 @@ describe('host acceptance for antigravity across HTTP, binding, and outcome cont
     });
     expect(event?.source.type).toBe('agent_judgment');
     expect(event?.source_pointer.uri).toBe('brainbase-judgment://antigravity/exec-ag-1#turn=turn-ag-1');
+  });
+});
+
+describe('transcript truncation recovery (transcript_full.jsonl & steps/<n>/output.txt) and systemMessage-only injection', () => {
+  it('recovers full brainbase_resolve_turn JSON from sibling transcript_full.jsonl when transcript.jsonl is truncated and injects compact_4block_v3 additionalContext without loss', async () => {
+    const { home, repo, configPath, env } = await setupConfig({ project_code: 'unson-lab' });
+    const turnDir = join(home, 'turns');
+    const testEnv = { ...env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir };
+    const conversationId = 'conv-truncated-resolve';
+    const transcriptPath = await canonicalTranscriptPath(home, conversationId);
+    const fullTranscriptPath = join(dirname(transcriptPath), 'transcript_full.jsonl');
+
+    const fullResolveTurnPayload = {
+      schema_version: 'brainbase-resolve-turn-v1',
+      status: 'resolved',
+      turn_id: 'turn-resolve-1',
+      reasoning_gate_mode: 'compact_4block_v3',
+      frames: Array.from({ length: 40 }, (_, i) => ({
+        id: `frame_${i}`,
+        summary: `Detailed judgment frame ${i}: ${'context-'.repeat(20)}`,
+      })),
+      source_selection: {
+        selected: ['ssot/judgment-policy'],
+        excluded: [],
+      },
+    };
+    const fullResolveTurnJson = JSON.stringify(fullResolveTurnPayload);
+    const truncatedPreview = [
+      'Created At: 2026-11-27T01:00:00+09:00',
+      'Completed At: 2026-11-27T01:00:01+09:00',
+      `The tool's output was truncated due to being too long. You can find the full output in a file at file://${join(dirname(dirname(transcriptPath)), 'steps', '6', 'output.txt')}.`,
+      '',
+      'Here is a preview with the middle of the output truncated:',
+      fullResolveTurnJson.slice(0, 200),
+      `<truncated ${fullResolveTurnJson.length - 300} bytes>`,
+      fullResolveTurnJson.slice(-100),
+    ].join('\n');
+
+    await writeFile(transcriptPath, [
+      JSON.stringify({ step_index: 0, source: 'USER_EXPLICIT', type: 'USER_INPUT', content: 'Implement item 165' }),
+      JSON.stringify({
+        step_index: 6,
+        tool_use_id: 'toolu_resolve_6',
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: truncatedPreview,
+        truncated_fields: ['content'],
+      }),
+    ].join('\n') + '\n');
+
+    await writeFile(fullTranscriptPath, [
+      JSON.stringify({ step_index: 0, source: 'USER_EXPLICIT', type: 'USER_INPUT', content: 'Implement item 165' }),
+      JSON.stringify({
+        step_index: 6,
+        tool_use_id: 'toolu_resolve_6',
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: `Created At: 2026-11-27T01:00:00+09:00\nCompleted At: 2026-11-27T01:00:01+09:00\n${fullResolveTurnJson}`,
+      }),
+    ].join('\n') + '\n');
+
+    // Direct unit check on extractToolResultFromTranscript
+    const extracted = extractToolResultFromTranscript(transcriptPath, 6, {
+      conversationId,
+      env: testEnv,
+      toolUseId: 'toolu_resolve_6',
+    });
+    expect(extracted).toBe(fullResolveTurnJson);
+    expect(JSON.parse(extracted!)).toEqual(fullResolveTurnPayload);
+
+    // End-to-end hook flow: simulated Host parses tool_response.content[0].text as JSON and returns compact_4block_v3
+    const { fetchImpl, sent } = mockHost((body) => {
+      if (body.hook_event_name === 'PostToolUse') {
+        const resp = body.tool_response as { content?: Array<{ type: string; text: string }>; isError?: boolean };
+        const parsed = JSON.parse(resp.content?.[0]?.text ?? 'invalid');
+        expect(parsed.reasoning_gate_mode).toBe('compact_4block_v3');
+        expect(parsed.frames).toHaveLength(40);
+        return {
+          status: 200,
+          body: {
+            schema_version: '1',
+            accepted: true,
+            hook_event_name: body.hook_event_name,
+            session_id: body.session_id,
+            turn_id: body.turn_id,
+            output: {
+              systemMessage: '📚 Brainbase判断解決: 正常応答を確認 ✓',
+              hookSpecificOutput: {
+                additionalContext: '[compact_4block_v3]\n1. 目的\n2. 根拠\n3. 反証\n4. 判断',
+              },
+            },
+          },
+        };
+      }
+      return {
+        status: 200,
+        body: {
+          schema_version: '1',
+          accepted: true,
+          hook_event_name: body.hook_event_name,
+          session_id: body.session_id,
+          turn_id: body.turn_id,
+          output: {},
+        },
+      };
+    });
+
+    const options = { env: testEnv, fetch: fetchImpl, accessToken: token, configPath, registrationId: REG };
+
+    await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId,
+      invocationNum: 1,
+      cwd: repo,
+      transcriptPath,
+      lastUserInput: 'Implement item 165',
+    }, options);
+
+    const postOut = await handleAntigravityJudgmentHook({
+      hookEventName: 'PostToolUse',
+      conversationId,
+      cwd: repo,
+      stepIdx: 6,
+      transcriptPath,
+      toolCall: {
+        id: 'toolu_resolve_6',
+        name: 'mcp_brainbase-unson_brainbase_resolve_turn',
+        args: { prompt: 'Implement item 165' },
+      },
+    }, options);
+    expect(postOut).toEqual({});
+    expect(sent).toHaveLength(2);
+    expect(sent[1].body.tool_name).toBe('mcp__brainbase__brainbase_resolve_turn');
+    expect(sent[1].body.tool_response).toEqual({
+      content: [{ type: 'text', text: fullResolveTurnJson }],
+      isError: false,
+    });
+
+    // Next PreInvocation drains pending compact_4block_v3 additionalContext cleanly
+    const nextPre = await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId,
+      invocationNum: 2,
+      cwd: repo,
+      transcriptPath,
+      lastUserInput: 'Implement item 165',
+    }, options);
+    const steps = nextPre.injectSteps as Array<{ systemMessage: { systemMessage: string; metadata?: { user_markdown?: string } } }>;
+    expect(steps).toHaveLength(1);
+    expect(steps[0].systemMessage.systemMessage).toContain('[compact_4block_v3]');
+    expect(steps[0].systemMessage.metadata?.user_markdown).toBe('📚 Brainbase判断解決: 正常応答を確認 ✓');
+
+    // Verify compatibility with real judgment-host.ts callResultStatus + sourceSelection on a recovered search result
+    const journalDir = join(home, 'host-journal');
+    await processJudgmentHook({
+      hook_event_name: 'UserPromptSubmit',
+      session_id: 'sess-real-host',
+      turn_id: 'turn-real-host',
+      prompt: 'Brainbase内を検索して',
+      cwd: repo,
+    }, { env: { BRAINBASE_JUDGMENT_JOURNAL_DIR: journalDir } });
+    const hostPost = await processJudgmentHook({
+      hook_event_name: 'PostToolUse',
+      session_id: 'sess-real-host',
+      turn_id: 'turn-real-host',
+      tool_use_id: 'toolu_search_recovered',
+      tool_name: 'mcp__brainbase__search',
+      tool_input: { query: 'policy' },
+      tool_response: {
+        content: [{ type: 'text', text: extracted! }],
+        isError: false,
+      },
+    }, { env: { BRAINBASE_JUDGMENT_JOURNAL_DIR: journalDir } });
+    expect(hostPost).toEqual({
+      systemMessage: '📚 Brainbase検索: 「policy」→ 採用: ssot/judgment-policy ✓',
+    });
+  });
+
+  it('matches truncated entries by tool_use_id in transcript_full.jsonl when step_index shifts, and does not misclassify valid JSON containing truncation text', async () => {
+    const dir = await tempDir();
+    const conversationId = 'conv-tool-use-id';
+    const logsDir = join(dir, conversationId, '.system_generated', 'logs');
+    await mkdir(logsDir, { recursive: true });
+    const transcriptPath = join(logsDir, 'transcript.jsonl');
+    const fullTranscriptPath = join(logsDir, 'transcript_full.jsonl');
+
+    const fullJson = JSON.stringify({ ok: true, items: Array.from({ length: 30 }, (_, i) => `item-${i}`) });
+    const literalTruncatedMentionJson = JSON.stringify({
+      note: 'User quoted <truncated 42 bytes> inside a completely valid JSON response',
+    });
+
+    await writeFile(transcriptPath, [
+      JSON.stringify({
+        step_index: 4,
+        tool_use_id: 'toolu_shifted_1',
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: `Created At: 2026-11-27T01:00:00+09:00\n{"ok":true,<truncated 400 bytes>}`,
+        truncated_fields: ['content'],
+      }),
+      JSON.stringify({
+        step_index: 8,
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: `Created At: 2026-11-27T01:01:00+09:00\n${literalTruncatedMentionJson}`,
+      }),
+    ].join('\n') + '\n');
+
+    await writeFile(fullTranscriptPath, [
+      JSON.stringify({
+        step_index: 99,
+        tool_use_id: 'toolu_shifted_1',
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: `Created At: 2026-11-27T01:00:00+09:00\n${fullJson}`,
+      }),
+    ].join('\n') + '\n');
+
+    const readOpts = { conversationId, allowedTranscriptRoots: [dir] };
+    expect(extractToolResultFromTranscript(transcriptPath, 4, {
+      ...readOpts,
+      toolUseId: 'toolu_shifted_1',
+    })).toBe(fullJson);
+    // Valid JSON without truncated_fields is returned untouched even if its prose mentions "<truncated N bytes>".
+    expect(extractToolResultFromTranscript(transcriptPath, 8, readOpts)).toBe(literalTruncatedMentionJson);
+  });
+
+  it('falls back safely to .system_generated/steps/<n>/output.txt when transcript_full.jsonl is still truncated or missing, and rejects oversized outputs', async () => {
+    const dir = await tempDir();
+    const conversationId = 'conv-steps-fallback';
+    const sysGenDir = join(dir, conversationId, '.system_generated');
+    const logsDir = join(sysGenDir, 'logs');
+    const step6Dir = join(sysGenDir, 'steps', '6');
+    const step7Dir = join(sysGenDir, 'steps', '7');
+    const step8Dir = join(sysGenDir, 'steps', '8');
+    await mkdir(logsDir, { recursive: true });
+    await mkdir(step6Dir, { recursive: true });
+    await mkdir(step7Dir, { recursive: true });
+    await mkdir(step8Dir, { recursive: true });
+
+    const transcriptPath = join(logsDir, 'transcript.jsonl');
+    const fullTranscriptPath = join(logsDir, 'transcript_full.jsonl');
+    const step6OutputPath = join(step6Dir, 'output.txt');
+    const step7OutputPath = join(step7Dir, 'output.txt');
+    const step8OutputPath = join(step8Dir, 'output.txt');
+
+    const fullStep6Json = JSON.stringify({
+      tool: 'brainbase_judgment_frame_read',
+      content: 'full-frame-body-'.repeat(500),
+    });
+    const fullStep7Json = JSON.stringify({
+      tool: 'brainbase_judgment_frame_catalog',
+      frames: ['f1', 'f2', 'f3'],
+    });
+    await writeFile(
+      step6OutputPath,
+      `Created At: 2026-11-27T01:13:00+09:00\nCompleted At: 2026-11-27T01:13:02+09:00\n${fullStep6Json}\n`,
+    );
+    await writeFile(step7OutputPath, `${fullStep7Json}\n`);
+    // Step 8 exceeds 512 KiB size cap -> must fail closed (null).
+    await writeFile(step8OutputPath, `{"huge":"${'a'.repeat(600 * 1024)}"}\n`);
+
+    const step6Banner = [
+      'Created At: 2026-11-27T01:13:00+09:00',
+      'Completed At: 2026-11-27T01:13:02+09:00',
+      `The tool's output was truncated due to being too long. You can find the full output in a file at file://${step6OutputPath}.`,
+      '',
+      'Here is a preview with the middle of the output truncated:',
+      '{"tool":"brainbase_judgment_frame_read"',
+      '<truncated 6000 of 8000 bytes from the middle of the output>',
+      '"}',
+    ].join('\n');
+
+    await writeFile(transcriptPath, [
+      JSON.stringify({
+        step_index: 6,
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: step6Banner,
+        truncated_fields: ['content'],
+      }),
+      JSON.stringify({
+        step_index: 7,
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: 'Created At: 2026-11-27T01:14:00+09:00\n{"tool":"brainbase_judgment_frame_catalog"\n<truncated 1200 bytes>',
+        truncated_fields: ['content'],
+      }),
+      JSON.stringify({
+        step_index: 8,
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: `Created At: 2026-11-27T01:15:00+09:00\nThe tool's output was truncated due to being too long. You can find the full output in a file at file://${step8OutputPath}.\n<truncated 500000 bytes>`,
+        truncated_fields: ['content'],
+      }),
+    ].join('\n') + '\n');
+
+    // Realistic Antigravity case: transcript_full.jsonl ALSO carries the steps/6/output.txt truncation banner.
+    await writeFile(fullTranscriptPath, [
+      JSON.stringify({
+        step_index: 6,
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: step6Banner,
+      }),
+    ].join('\n') + '\n');
+
+    const readOpts = { conversationId, allowedTranscriptRoots: [dir] };
+    expect(extractToolResultFromTranscript(transcriptPath, 6, readOpts)).toBe(fullStep6Json);
+    expect(extractToolResultFromTranscript(transcriptPath, 7, readOpts)).toBe(fullStep7Json);
+    expect(extractToolResultFromTranscript(transcriptPath, 8, readOpts)).toBeNull();
+    // Non-Linux fails closed on recovery as well.
+    expect(extractToolResultFromTranscript(transcriptPath, 6, { ...readOpts, platform: 'darwin' })).toBeNull();
+  });
+
+  it('strictly rejects path traversal, cross-conversation URLs, and symlinks for transcript_full.jsonl and steps/<n>/output.txt', async () => {
+    const dir = await tempDir();
+    const allowedRoot = join(dir, 'brain');
+    const outsideDir = join(dir, 'outside-secret');
+    await mkdir(outsideDir, { recursive: true });
+    const outsideSecretFile = join(outsideDir, 'secret.txt');
+    await writeFile(outsideSecretFile, '{"secret":"MUST_NEVER_BE_READ"}\n');
+
+    const conversationId = 'conv-sec-target';
+    const otherConvId = 'conv-sec-other';
+    const targetSysGen = join(allowedRoot, conversationId, '.system_generated');
+    const targetLogs = join(targetSysGen, 'logs');
+    const targetSteps = join(targetSysGen, 'steps');
+    await mkdir(targetLogs, { recursive: true });
+    await mkdir(join(targetSteps, '10'), { recursive: true });
+    await mkdir(join(targetSteps, '11'), { recursive: true });
+
+    const otherStepDir = join(allowedRoot, otherConvId, '.system_generated', 'steps', '10');
+    await mkdir(otherStepDir, { recursive: true });
+    const otherStepOutput = join(otherStepDir, 'output.txt');
+    await writeFile(otherStepOutput, '{"secret":"OTHER_CONVERSATION_SECRET"}\n');
+
+    const nonOutputFile = join(targetSteps, '10', 'not-output.txt');
+    await writeFile(nonOutputFile, '{"secret":"WRONG_FILENAME"}\n');
+
+    const symlinkOutput = join(targetSteps, '11', 'output.txt');
+    await symlink(outsideSecretFile, symlinkOutput);
+    const symlinkStepDir = join(targetSteps, '12');
+    await symlink(outsideDir, symlinkStepDir);
+    const intraSymlinkStepDir = join(targetSteps, '13');
+    await writeFile(join(targetSteps, '10', 'output.txt'), '{"secret":"INTRA_SYMLINK_TARGET"}\n');
+    await symlink(join(targetSteps, '10'), intraSymlinkStepDir);
+
+    const transcriptPath = join(targetLogs, 'transcript.jsonl');
+    const fullTranscriptPath = join(targetLogs, 'transcript_full.jsonl');
+
+    // Place a symlink at transcript_full.jsonl pointing outside -> MUST be rejected.
+    await symlink(outsideSecretFile, fullTranscriptPath);
+
+    const makeTruncatedEntry = (stepIndex: number, fileUrl: string) => JSON.stringify({
+      step_index: stepIndex,
+      source: 'MODEL',
+      type: 'GENERIC',
+      content: [
+        'Created At: 2026-11-27T01:20:00+09:00',
+        `The tool's output was truncated due to being too long. You can find the full output in a file at ${fileUrl}.`,
+        '<truncated 500 bytes>',
+      ].join('\n'),
+      truncated_fields: ['content'],
+    });
+
+    await writeFile(transcriptPath, [
+      makeTruncatedEntry(1, 'file:///etc/passwd'),
+      makeTruncatedEntry(2, `file://${outsideSecretFile}`),
+      makeTruncatedEntry(3, `file://${otherStepOutput}`),
+      makeTruncatedEntry(4, `file://${targetSteps}/10/../../logs/transcript.jsonl`),
+      makeTruncatedEntry(5, `file://${nonOutputFile}`),
+      makeTruncatedEntry(6, `file://${symlinkOutput}`),
+      makeTruncatedEntry(7, `file://${join(symlinkStepDir, 'secret.txt')}`),
+      makeTruncatedEntry(8, 'file://evil.example.com/etc/passwd'),
+      makeTruncatedEntry(9, `file://${join(intraSymlinkStepDir, 'output.txt')}`),
+    ].join('\n') + '\n');
+
+    const readOpts = { conversationId, allowedTranscriptRoots: [allowedRoot] };
+    for (const stepIndex of [1, 2, 3, 4, 5, 6, 7, 8, 9]) {
+      expect(extractToolResultFromTranscript(transcriptPath, stepIndex, readOpts)).toBeNull();
+    }
+  });
+
+  it('injects non-empty turn-guarded model text and user_markdown when Host returns systemMessage without additionalContext', async () => {
+    const { home, repo, configPath, env } = await setupConfig({ project_code: 'proj-sysmsg-only' });
+    const turnDir = join(home, 'turns');
+    const testEnv = { ...env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir };
+
+    const { fetchImpl } = mockHost((body) => ({
+      status: 200,
+      body: {
+        schema_version: '1',
+        accepted: true,
+        hook_event_name: body.hook_event_name,
+        session_id: body.session_id,
+        turn_id: body.turn_id,
+        output: body.hook_event_name === 'UserPromptSubmit'
+          ? { systemMessage: '🧠 判断参照: 初期システムメッセージのみ' }
+          : body.hook_event_name === 'PostToolUse'
+            ? { systemMessage: '📚 Brainbase検索: 「arch」→ 正常応答を確認 ✓' }
+            : {},
+      },
+    }));
+    const options = { env: testEnv, fetch: fetchImpl, accessToken: token, configPath, registrationId: REG };
+
+    // 1. UserPromptSubmit with systemMessage only -> non-empty systemMessage.systemMessage + metadata.user_markdown
+    const firstPre = await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-sysmsg-only',
+      invocationNum: 1,
+      cwd: repo,
+      lastUserInput: 'Check architecture',
+    }, options);
+    const firstSteps = firstPre.injectSteps as Array<{ systemMessage: { systemMessage: string; metadata?: { user_markdown?: string } } }>;
+    expect(firstSteps).toHaveLength(1);
+    expect(firstSteps[0].systemMessage.systemMessage).toContain('[Brainbase Judgment Turn:');
+    expect(firstSteps[0].systemMessage.systemMessage).toContain('🧠 判断参照: 初期システムメッセージのみ');
+    expect(firstSteps[0].systemMessage.metadata?.user_markdown).toBe('🧠 判断参照: 初期システムメッセージのみ');
+
+    // 2. PostToolUse with systemMessage only (exact judgment-host.ts shape) -> queued & drained cleanly
+    const postOut = await handleAntigravityJudgmentHook({
+      hookEventName: 'PostToolUse',
+      conversationId: 'conv-sysmsg-only',
+      cwd: repo,
+      stepIdx: 3,
+      toolCall: { id: 'toolu_sys_1', name: 'mcp_brainbase-unson_search', args: { query: 'arch' } },
+    }, options);
+    expect(postOut).toEqual({});
+
+    const secondPre = await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-sysmsg-only',
+      invocationNum: 2,
+      cwd: repo,
+      lastUserInput: 'Check architecture',
+    }, options);
+    const secondSteps = secondPre.injectSteps as Array<{ systemMessage: { systemMessage: string; metadata?: { user_markdown?: string } } }>;
+    expect(secondSteps).toHaveLength(1);
+    expect(secondSteps[0].systemMessage.systemMessage).toContain('[Brainbase Judgment Turn:');
+    expect(secondSteps[0].systemMessage.systemMessage).toContain('📚 Brainbase検索: 「arch」→ 正常応答を確認 ✓');
+    expect(secondSteps[0].systemMessage.metadata?.user_markdown).toBe('📚 Brainbase検索: 「arch」→ 正常応答を確認 ✓');
+
+    // 3. Pending queue is fully drained on subsequent PreInvocation (no duplicate leak)
+    const thirdPre = await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-sysmsg-only',
+      invocationNum: 3,
+      cwd: repo,
+      lastUserInput: 'Check architecture',
+    }, options);
+    expect(thirdPre).toEqual({});
+  });
+
+  it('evaluates truncation marker and file URL patterns in linear time without quadratic ReDoS backtracking', async () => {
+    const dir = await tempDir();
+    const conversationId = 'conv-redos-regression';
+    const logsDir = join(dir, conversationId, '.system_generated', 'logs');
+    await mkdir(logsDir, { recursive: true });
+    const transcriptPath = join(logsDir, 'transcript.jsonl');
+    const fullTranscriptPath = join(logsDir, 'transcript_full.jsonl');
+
+    const adversarialSpaces = ' '.repeat(120_000);
+    const validJsonWithAdversarialMarker = JSON.stringify({
+      ok: true,
+      note: `<truncated 1 bytes${adversarialSpaces}`,
+    });
+    const invalidTextWithAdversarialMarker = `not-json <truncated 1 bytes${adversarialSpaces}end`;
+    const adversarialUrlBanner = `The tool's output was truncated due to being too long. You can find the full output in a file at file:///${'.'.repeat(60_000)}a`;
+
+    await writeFile(transcriptPath, [
+      JSON.stringify({
+        step_index: 1,
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: 'Created At: 2026-11-27T01:00:00+09:00\n{"ok":true,\n<truncated 400 bytes>',
+        truncated_fields: ['content'],
+      }),
+      JSON.stringify({
+        step_index: 2,
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: `Created At: 2026-11-27T01:01:00+09:00\n${invalidTextWithAdversarialMarker}`,
+      }),
+      JSON.stringify({
+        step_index: 3,
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: `Created At: 2026-11-27T01:02:00+09:00\n${adversarialUrlBanner}`,
+        truncated_fields: ['content'],
+      }),
+    ].join('\n') + '\n');
+
+    await writeFile(fullTranscriptPath, [
+      JSON.stringify({
+        step_index: 1,
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: `Created At: 2026-11-27T01:00:00+09:00\n${validJsonWithAdversarialMarker}`,
+      }),
+    ].join('\n') + '\n');
+
+    const readOpts = { conversationId, allowedTranscriptRoots: [dir] };
+
+    const start1 = performance.now();
+    const recovered1 = extractToolResultFromTranscript(transcriptPath, 1, readOpts);
+    const elapsed1 = performance.now() - start1;
+    expect(recovered1).toBe(validJsonWithAdversarialMarker);
+    expect(elapsed1).toBeLessThan(500);
+
+    const start2 = performance.now();
+    const recovered2 = extractToolResultFromTranscript(transcriptPath, 2, readOpts);
+    const elapsed2 = performance.now() - start2;
+    expect(recovered2).toBe(invalidTextWithAdversarialMarker);
+    expect(elapsed2).toBeLessThan(500);
+
+    const start3 = performance.now();
+    const recovered3 = extractToolResultFromTranscript(transcriptPath, 3, readOpts);
+    const elapsed3 = performance.now() - start3;
+    expect(recovered3).toBeNull();
+    expect(elapsed3).toBeLessThan(500);
+  });
+
+  it('supports tool_call_id matching, no-URL stepIdx+1 fallback, and ignores non-banner file:// URLs in tool body', async () => {
+    const dir = await tempDir();
+    const conversationId = 'conv-fallbacks-and-anchor';
+    const sysGenDir = join(dir, conversationId, '.system_generated');
+    const logsDir = join(sysGenDir, 'logs');
+    const step11Dir = join(sysGenDir, 'steps', '11');
+    const step99Dir = join(sysGenDir, 'steps', '99');
+    await mkdir(logsDir, { recursive: true });
+    await mkdir(step11Dir, { recursive: true });
+    await mkdir(step99Dir, { recursive: true });
+
+    const transcriptPath = join(logsDir, 'transcript.jsonl');
+    const fullTranscriptPath = join(logsDir, 'transcript_full.jsonl');
+    const step11OutputPath = join(step11Dir, 'output.txt');
+    const step99OutputPath = join(step99Dir, 'output.txt');
+
+    const fullCallIdJson = JSON.stringify({ ok: true, via: 'tool_call_id' });
+    const fullStep11Json = JSON.stringify({ ok: true, via: 'stepIdx_plus_1_fallback' });
+    await writeFile(step11OutputPath, `${fullStep11Json}\n`);
+    await writeFile(step99OutputPath, '{"secret":"OTHER_STEP_MUST_NOT_BE_SPOOFED"}\n');
+
+    await writeFile(transcriptPath, [
+      JSON.stringify({
+        step_index: 3,
+        tool_call_id: 'call_shifted_42',
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: 'Created At: 2026-11-27T01:00:00+09:00\n{"ok":true,<truncated 250 bytes>}',
+        truncated_fields: ['content'],
+      }),
+      JSON.stringify({
+        step_index: 10,
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: 'Created At: 2026-11-27T01:01:00+09:00\n{"ok":true\n<truncated 6000 of 8000 bytes from the middle of the output>',
+        truncated_fields: ['content'],
+      }),
+      JSON.stringify({
+        step_index: 20,
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: [
+          'Created At: 2026-11-27T01:02:00+09:00',
+          `{"quoted":"You can find the full output in a file at file://${step99OutputPath}."`,
+          '<truncated 400 bytes>',
+        ].join('\n'),
+        truncated_fields: ['content'],
+      }),
+    ].join('\n') + '\n');
+
+    await writeFile(fullTranscriptPath, [
+      JSON.stringify({
+        step_index: 77,
+        tool_call_id: 'call_shifted_42',
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: `Created At: 2026-11-27T01:00:00+09:00\n${fullCallIdJson}`,
+      }),
+    ].join('\n') + '\n');
+
+    const readOpts = { conversationId, allowedTranscriptRoots: [dir] };
+
+    // tool_call_id fallback when step_index differs between transcript.jsonl and transcript_full.jsonl
+    expect(extractToolResultFromTranscript(transcriptPath, 3, {
+      ...readOpts,
+      toolUseId: 'call_shifted_42',
+    })).toBe(fullCallIdJson);
+
+    // No-URL stepIdx+1 fallback: step_index 10 has no steps/10/output.txt, falls back to steps/11/output.txt
+    expect(extractToolResultFromTranscript(transcriptPath, 10, readOpts)).toBe(fullStep11Json);
+
+    // Spoofed file:// URL inside non-banner body text must NOT redirect to steps/99/output.txt
+    expect(extractToolResultFromTranscript(transcriptPath, 20, readOpts)).toBeNull();
   });
 });
