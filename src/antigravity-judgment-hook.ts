@@ -1292,8 +1292,8 @@ function stripToolTimestampHeader(text: string): string {
 }
 
 const TOOL_OUTPUT_TRUNCATION_BANNER_PATTERN = /^The tool's output was truncated due to being too long\./u;
-const INLINE_TRUNCATION_MARKER_PATTERN = /<truncated\s+\d+(?:\s+of\s+\d+)?\s+bytes(?:\s+[^>]*)?>/iu;
-const TRUNCATED_OUTPUT_FILE_URL_PATTERN = /You can find the full output in (?:a )?file at (file:\/\/[^\s"'<>]+)/u;
+const INLINE_TRUNCATION_MARKER_PATTERN = /<truncated\s+\d+(?:\s+of\s+\d+)?\s+bytes(?:\s[^><\r\n]{0,256})?>/iu;
+const TRUNCATED_OUTPUT_FILE_URL_PATTERN = /^The tool's output was truncated due to being too long\.\s+You can find the full output in (?:a )?file at (file:\/\/[^\s"'<>]+)/u;
 
 function entryToolUseId(entry: TranscriptEntry): string | null {
   if (typeof entry.tool_use_id === 'string' && entry.tool_use_id.trim()) {
@@ -1327,10 +1327,23 @@ function isTruncatedToolResult(entry: TranscriptEntry, strippedContent: string):
   return false;
 }
 
+function trimTrailingUrlPunctuation(rawUrl: string): string {
+  let end = rawUrl.length;
+  while (end > 0) {
+    const ch = rawUrl[end - 1];
+    if (ch === '.' || ch === ',' || ch === ';' || ch === ')' || ch === ']') {
+      end -= 1;
+    } else {
+      break;
+    }
+  }
+  return rawUrl.slice(0, end);
+}
+
 function extractTruncatedOutputFileUrl(text: string): string | null {
   const match = TRUNCATED_OUTPUT_FILE_URL_PATTERN.exec(text);
   if (!match) return null;
-  const cleaned = match[1].replace(/[.,;)\]]+$/u, '');
+  const cleaned = trimTrailingUrlPunctuation(match[1]);
   return cleaned || null;
 }
 

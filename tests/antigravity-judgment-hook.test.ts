@@ -3290,4 +3290,148 @@ describe('transcript truncation recovery (transcript_full.jsonl & steps/<n>/outp
     }, options);
     expect(thirdPre).toEqual({});
   });
+
+  it('evaluates truncation marker and file URL patterns in linear time without quadratic ReDoS backtracking', async () => {
+    const dir = await tempDir();
+    const conversationId = 'conv-redos-regression';
+    const logsDir = join(dir, conversationId, '.system_generated', 'logs');
+    await mkdir(logsDir, { recursive: true });
+    const transcriptPath = join(logsDir, 'transcript.jsonl');
+    const fullTranscriptPath = join(logsDir, 'transcript_full.jsonl');
+
+    const adversarialSpaces = ' '.repeat(120_000);
+    const validJsonWithAdversarialMarker = JSON.stringify({
+      ok: true,
+      note: `<truncated 1 bytes${adversarialSpaces}`,
+    });
+    const invalidTextWithAdversarialMarker = `not-json <truncated 1 bytes${adversarialSpaces}end`;
+    const adversarialUrlBanner = `The tool's output was truncated due to being too long. You can find the full output in a file at file:///${'.'.repeat(60_000)}a`;
+
+    await writeFile(transcriptPath, [
+      JSON.stringify({
+        step_index: 1,
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: 'Created At: 2026-11-27T01:00:00+09:00\n{"ok":true,\n<truncated 400 bytes>',
+        truncated_fields: ['content'],
+      }),
+      JSON.stringify({
+        step_index: 2,
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: `Created At: 2026-11-27T01:01:00+09:00\n${invalidTextWithAdversarialMarker}`,
+      }),
+      JSON.stringify({
+        step_index: 3,
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: `Created At: 2026-11-27T01:02:00+09:00\n${adversarialUrlBanner}`,
+        truncated_fields: ['content'],
+      }),
+    ].join('\n') + '\n');
+
+    await writeFile(fullTranscriptPath, [
+      JSON.stringify({
+        step_index: 1,
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: `Created At: 2026-11-27T01:00:00+09:00\n${validJsonWithAdversarialMarker}`,
+      }),
+    ].join('\n') + '\n');
+
+    const readOpts = { conversationId, allowedTranscriptRoots: [dir] };
+
+    const start1 = performance.now();
+    const recovered1 = extractToolResultFromTranscript(transcriptPath, 1, readOpts);
+    const elapsed1 = performance.now() - start1;
+    expect(recovered1).toBe(validJsonWithAdversarialMarker);
+    expect(elapsed1).toBeLessThan(500);
+
+    const start2 = performance.now();
+    const recovered2 = extractToolResultFromTranscript(transcriptPath, 2, readOpts);
+    const elapsed2 = performance.now() - start2;
+    expect(recovered2).toBe(invalidTextWithAdversarialMarker);
+    expect(elapsed2).toBeLessThan(500);
+
+    const start3 = performance.now();
+    const recovered3 = extractToolResultFromTranscript(transcriptPath, 3, readOpts);
+    const elapsed3 = performance.now() - start3;
+    expect(recovered3).toBeNull();
+    expect(elapsed3).toBeLessThan(500);
+  });
+
+  it('supports tool_call_id matching, no-URL stepIdx+1 fallback, and ignores non-banner file:// URLs in tool body', async () => {
+    const dir = await tempDir();
+    const conversationId = 'conv-fallbacks-and-anchor';
+    const sysGenDir = join(dir, conversationId, '.system_generated');
+    const logsDir = join(sysGenDir, 'logs');
+    const step11Dir = join(sysGenDir, 'steps', '11');
+    const step99Dir = join(sysGenDir, 'steps', '99');
+    await mkdir(logsDir, { recursive: true });
+    await mkdir(step11Dir, { recursive: true });
+    await mkdir(step99Dir, { recursive: true });
+
+    const transcriptPath = join(logsDir, 'transcript.jsonl');
+    const fullTranscriptPath = join(logsDir, 'transcript_full.jsonl');
+    const step11OutputPath = join(step11Dir, 'output.txt');
+    const step99OutputPath = join(step99Dir, 'output.txt');
+
+    const fullCallIdJson = JSON.stringify({ ok: true, via: 'tool_call_id' });
+    const fullStep11Json = JSON.stringify({ ok: true, via: 'stepIdx_plus_1_fallback' });
+    await writeFile(step11OutputPath, `${fullStep11Json}\n`);
+    await writeFile(step99OutputPath, '{"secret":"OTHER_STEP_MUST_NOT_BE_SPOOFED"}\n');
+
+    await writeFile(transcriptPath, [
+      JSON.stringify({
+        step_index: 3,
+        tool_call_id: 'call_shifted_42',
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: 'Created At: 2026-11-27T01:00:00+09:00\n{"ok":true,<truncated 250 bytes>}',
+        truncated_fields: ['content'],
+      }),
+      JSON.stringify({
+        step_index: 10,
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: 'Created At: 2026-11-27T01:01:00+09:00\n{"ok":true\n<truncated 6000 of 8000 bytes from the middle of the output>',
+        truncated_fields: ['content'],
+      }),
+      JSON.stringify({
+        step_index: 20,
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: [
+          'Created At: 2026-11-27T01:02:00+09:00',
+          `{"quoted":"You can find the full output in a file at file://${step99OutputPath}."`,
+          '<truncated 400 bytes>',
+        ].join('\n'),
+        truncated_fields: ['content'],
+      }),
+    ].join('\n') + '\n');
+
+    await writeFile(fullTranscriptPath, [
+      JSON.stringify({
+        step_index: 77,
+        tool_call_id: 'call_shifted_42',
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: `Created At: 2026-11-27T01:00:00+09:00\n${fullCallIdJson}`,
+      }),
+    ].join('\n') + '\n');
+
+    const readOpts = { conversationId, allowedTranscriptRoots: [dir] };
+
+    // tool_call_id fallback when step_index differs between transcript.jsonl and transcript_full.jsonl
+    expect(extractToolResultFromTranscript(transcriptPath, 3, {
+      ...readOpts,
+      toolUseId: 'call_shifted_42',
+    })).toBe(fullCallIdJson);
+
+    // No-URL stepIdx+1 fallback: step_index 10 has no steps/10/output.txt, falls back to steps/11/output.txt
+    expect(extractToolResultFromTranscript(transcriptPath, 10, readOpts)).toBe(fullStep11Json);
+
+    // Spoofed file:// URL inside non-banner body text must NOT redirect to steps/99/output.txt
+    expect(extractToolResultFromTranscript(transcriptPath, 20, readOpts)).toBeNull();
+  });
 });
