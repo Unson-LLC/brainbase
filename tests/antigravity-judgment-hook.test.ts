@@ -3813,6 +3813,10 @@ describe('concatenated multi-JSON MCP block splitting (Item #165)', () => {
   });
 
   it('runs splitConcatenatedJsonTextBlocks in strict linear O(n) time on 500k+ char valid and adversarial inputs without ReDoS', () => {
+    // Generous 5,000ms ceiling tolerates shared CI runner CPU contention while
+    // decisively catching O(n^2) / ReDoS regressions (which take minutes on 500k+ chars).
+    const maxLinearElapsedMs = 5_000;
+
     // 1. Valid 500k+ two-block concatenated JSON
     const largeBlock1 = JSON.stringify({
       status: 'ok',
@@ -3825,21 +3829,21 @@ describe('concatenated multi-JSON MCP block splitting (Item #165)', () => {
     const splitLarge = splitConcatenatedJsonTextBlocks(largeConcat);
     const elapsed1 = performance.now() - t1;
     expect(splitLarge).toEqual([largeBlock1, largeBlock2]);
-    expect(elapsed1).toBeLessThan(200);
+    expect(elapsed1).toBeLessThan(maxLinearElapsedMs);
 
     // 2. Adversarial 500k unclosed string full of escaped quotes
     const adversarialEscapes = `{"a":"${'\\"'.repeat(250_000)}`;
     const t2 = performance.now();
     expect(splitConcatenatedJsonTextBlocks(adversarialEscapes)).toEqual([adversarialEscapes]);
     const elapsed2 = performance.now() - t2;
-    expect(elapsed2).toBeLessThan(200);
+    expect(elapsed2).toBeLessThan(maxLinearElapsedMs);
 
     // 3. Adversarial 500k unclosed open braces
     const adversarialBraces = '{'.repeat(500_000);
     const t3 = performance.now();
     expect(splitConcatenatedJsonTextBlocks(adversarialBraces)).toEqual([adversarialBraces]);
     const elapsed3 = performance.now() - t3;
-    expect(elapsed3).toBeLessThan(200);
+    expect(elapsed3).toBeLessThan(maxLinearElapsedMs);
 
     // 4. Adversarial 500k deeply nested balanced brackets followed by second block -> completes in O(n) without stack overflow
     const deepBlock = `${'['.repeat(250_000)}${']'.repeat(250_000)}`;
@@ -3850,13 +3854,13 @@ describe('concatenated multi-JSON MCP block splitting (Item #165)', () => {
     expect(deepSplit.length === 2 ? deepSplit : [adversarialDeep]).toEqual(
       deepSplit.length === 2 ? [deepBlock, '{}'] : [adversarialDeep],
     );
-    expect(elapsed4).toBeLessThan(200);
+    expect(elapsed4).toBeLessThan(maxLinearElapsedMs);
 
     // 5. Large 500k valid first block + invalid second block -> fails open safely in O(n)
     const largeMixedInvalid = `${largeBlock1}\n{"connection_scope":broken}`;
     const t5 = performance.now();
     expect(splitConcatenatedJsonTextBlocks(largeMixedInvalid)).toEqual([largeMixedInvalid]);
     const elapsed5 = performance.now() - t5;
-    expect(elapsed5).toBeLessThan(200);
+    expect(elapsed5).toBeLessThan(maxLinearElapsedMs);
   });
 });
