@@ -1109,7 +1109,7 @@ export function createGraphWebModule(context: LocalWebModuleContext): LocalWebMo
 }
 
 /**
- * 「あなたの記憶」: the owner's `personal-kg.jsonl`, read only.  The memory
+ * 「マイメモリ」: the owner's `personal-kg.jsonl`, read only.  The memory
  * bodies are private, so these reads require the launch token and the same
  * origin like every write on this host.
  */

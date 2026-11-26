@@ -89,7 +89,7 @@ describe('routes', () => {
   });
 });
 
-describe('あなたの記憶 (story-personal-memory-viewer-v1)', () => {
+describe('マイメモリ (story-personal-memory-viewer-v1)', () => {
   it('lists current memories by default and never mixes in superseded or retracted ones (AC-03, AC-04, AC-05)', async () => {
     const { root, view } = await mount();
     const text = visibleText(root);

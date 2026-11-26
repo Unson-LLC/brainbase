@@ -7,7 +7,7 @@ import { readPersonalKg } from './ssot.js';
 import type { PersonalKgEntry } from './types.js';
 
 /**
- * 「あなたの記憶」 (docs/specs/personal-memory-viewer.md): the owner's own
+ * 「マイメモリ」 (docs/specs/personal-memory-viewer.md): the owner's own
  * memories read from the local `personal-kg.jsonl`, and the judgments that
  * used each one, found back from the judgment journal's `personal_knowledge`
  * references.  Read only.  A memory body travels in the response body only,

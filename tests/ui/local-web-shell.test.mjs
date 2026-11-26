@@ -218,7 +218,7 @@ describe('local Web shell', () => {
     // (ledger D10, 2026-10-17 revision).
     expect(lines).toEqual([
       ['世界', '#world'], ['議事録', '#minutes'], ['プロジェクト', '#projects'], ['目的と現状', '#objectives'],
-      ['判断の履歴', '#value-proofs'], ['情報と関係', '#graph'], ['人と会社', '#people'], ['あなたの記憶', '#memory'],
+      ['判断の履歴', '#value-proofs'], ['情報と関係', '#graph'], ['人と会社', '#people'], ['マイメモリ', '#memory'],
       ['追加', '#extra'], ['設定', '#ontology'],
     ]);
     // The first screen is still the first of the given screens.
@@ -236,7 +236,7 @@ describe('local Web shell', () => {
     // The heading of プロジェクト opens プロジェクトと関係者.
     expect(links.map((link) => [collectText(link), link.attributes.href])).toEqual([
       ['議事録', '#minutes'], ['プロジェクト', '#projects'], ['目的と現状', '#objectives'],
-      ['判断の履歴', '#value-proofs'], ['情報と関係', '#graph'], ['人と会社', '#people'], ['あなたの記憶', '#memory'],
+      ['判断の履歴', '#value-proofs'], ['情報と関係', '#graph'], ['人と会社', '#people'], ['マイメモリ', '#memory'],
       ['設定', '#ontology'],
     ]);
     const groups = findAll(nav, (node) => node.attributes?.role === 'group');
@@ -265,7 +265,7 @@ describe('local Web shell', () => {
     expect(collectText(screen(root, 'value-proofs'))).toContain('判断の記録に接続できません');
   });
 
-  it('reads あなたの記憶 with the launch token and keeps its filters and memory in the address (AC-01, AC-11)', async () => {
+  it('reads マイメモリ with the launch token and keeps its filters and memory in the address (AC-01, AC-11)', async () => {
     const item = { id: 'value-a1', kind: 'value', text: '可逆な決定は早く決める', tags: [], state: 'unrecorded', supersededBy: null, origin: { organizationLabel: '手元', projectLabel: null, workplace: null, inferred: false }, occurredAt: null, updatedAt: '2026-10-01T00:00:00.000Z', recallScope: 'general', history: [] };
     const headers = [];
     const routes = {
@@ -302,13 +302,13 @@ describe('local Web shell', () => {
       .toEqual({ kinds: ['value'], states: ['superseded'], organization: null, memoryId: 'a' });
   });
 
-  it('neither lists nor mounts あなたの記憶 for anyone but the owner (AC-02)', async () => {
+  it('neither lists nor mounts マイメモリ for anyone but the owner (AC-02)', async () => {
     const { fetcher, calls } = hostFetcher(V2);
     const { root, shell } = mount(fetcher, 'memory', { isOwner: false });
     await flush();
     expect(shell.state.active).not.toBe('memory');
     expect(screen(root, 'memory')).toBeUndefined();
-    expect(collectText(root)).not.toContain('あなたの記憶');
+    expect(collectText(root)).not.toContain('マイメモリ');
     expect(calls.some((path) => String(path).startsWith('/api/personal-memory'))).toBe(false);
   });
 
