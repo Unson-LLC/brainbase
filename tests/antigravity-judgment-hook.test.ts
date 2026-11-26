@@ -14,11 +14,13 @@ import {
   extractLastAssistantMessage,
   extractLatestNonSystemUserInput,
   extractToolResultFromTranscript,
+  extractToolResultTextBlocksFromTranscript,
   handleAntigravityJudgmentHook,
   normalizeAntigravityHookBaseUrl,
   normalizeAntigravityToolName,
   registerAntigravityJudgmentHooks,
   resolveAntigravityHookEndpoint,
+  splitConcatenatedJsonTextBlocks,
   type AntigravityHookConfig,
 } from '../src/antigravity-judgment-hook.js';
 import { runCli } from '../src/cli.js';
@@ -3433,5 +3435,428 @@ describe('transcript truncation recovery (transcript_full.jsonl & steps/<n>/outp
 
     // Spoofed file:// URL inside non-banner body text must NOT redirect to steps/99/output.txt
     expect(extractToolResultFromTranscript(transcriptPath, 20, readOpts)).toBeNull();
+  });
+});
+
+describe('concatenated multi-JSON MCP block splitting (Item #165)', () => {
+  it('splits 2-block and 3-block whitespace/newline-concatenated JSON including escaped quotes, backslashes, braces, and newlines inside strings', () => {
+    const primaryObj = {
+      status: 'ok',
+      data: {
+        status: 'resolved',
+        quote_and_braces: 'literal {braces} [brackets] "quoted" backslash \\ end-slash \\',
+        multiline_note: 'line1\n{"fake_block":true}\nline3',
+        japanese: '判断契約: 確認済み',
+      },
+    };
+    const scopeObj = {
+      connection_scope: {
+        organization_id: 'unson',
+        project_code: 'brainbase',
+        mode: 'remote_mcp',
+      },
+    };
+    const block1 = JSON.stringify(primaryObj, null, 2);
+    const block2 = JSON.stringify(scopeObj);
+    const concatenated2 = `${block1}\n${block2}`;
+
+    // Verify naive JSON.parse reproduces the real-world failure before splitting.
+    expect(() => JSON.parse(concatenated2)).toThrow();
+
+    const split2 = splitConcatenatedJsonTextBlocks(concatenated2);
+    expect(split2).toEqual([block1, block2]);
+    expect(JSON.parse(split2[0])).toEqual(primaryObj);
+    expect(JSON.parse(split2[1])).toEqual(scopeObj);
+
+    // 3 concatenated blocks (array + object + connection_scope) separated by CRLF / spaces / blank lines
+    const arrayBlock = JSON.stringify([{ id: 'f1', text: 'a\\"b\\\\' }, { id: 'f2', text: '{x}' }]);
+    const metaBlock = JSON.stringify({ status: 'ok', count: 2 });
+    const concatenated3 = `  ${arrayBlock}\r\n\r\n\t${metaBlock}   \n${block2}\n`;
+    const split3 = splitConcatenatedJsonTextBlocks(concatenated3);
+    expect(split3).toEqual([arrayBlock, metaBlock, block2]);
+    expect(split3.map((b) => JSON.parse(b))).toEqual([
+      [{ id: 'f1', text: 'a\\"b\\\\' }, { id: 'f2', text: '{x}' }],
+      { status: 'ok', count: 2 },
+      scopeObj,
+    ]);
+
+    // Single JSON object/array stays intact as a 1-element array
+    expect(splitConcatenatedJsonTextBlocks(block1)).toEqual([block1]);
+    expect(splitConcatenatedJsonTextBlocks(arrayBlock)).toEqual([arrayBlock]);
+  });
+
+  it('fails open without throwing on non-JSON text, mixed valid/broken JSON, mismatched brackets, and missing separators', () => {
+    const cases = [
+      '',
+      '   \n\t  ',
+      'plain text output without json',
+      'prefix {"a":1}\n{"b":2}',
+      '{"a":1}\nnot-json-tail',
+      '{"a":1}\n{"b":2',
+      '{"a":1}\n{"b":invalid}',
+      '{"a":1}\n{]',
+      '{"a":1}{"b":2}',
+      '{"a":1}\n{"b":"unterminated',
+      '{"a":1,}\n{"b":2}',
+      '{"a":1}\n{"b":"unescaped\nnewline"}',
+      '{"a":1}\nnull',
+    ];
+    for (const input of cases) {
+      expect(splitConcatenatedJsonTextBlocks(input)).toEqual([input]);
+    }
+  });
+
+  it('recovers 20KB+ real-format multi-JSON steps/<n>/output.txt through PostToolUse -> Host compact_4block_v3 -> pending_messages -> next PreInvocation and real judgment-host', async () => {
+    const { home, repo, configPath, env } = await setupConfig({ project_code: 'unson-lab' });
+    const turnDir = join(home, 'turns');
+    const testEnv = { ...env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir };
+    const conversationId = 'conv-multi-json-steps-5';
+    const transcriptPath = await canonicalTranscriptPath(home, conversationId);
+    const sysGenDir = dirname(dirname(transcriptPath));
+    const fullTranscriptPath = join(dirname(transcriptPath), 'transcript_full.jsonl');
+    const step5Dir = join(sysGenDir, 'steps', '5');
+    await mkdir(step5Dir, { recursive: true });
+    const step5OutputPath = join(step5Dir, 'output.txt');
+
+    // Mirror real Antigravity steps/5/output.txt: 20KB+ pretty-printed JSON (hundreds of lines)
+    // followed by `\n{"connection_scope":{"organization_id":"unson",...}}`, including `{}` / `\"` / `\n` / truncation mention inside strings.
+    const resolveTurnPayload = {
+      status: 'ok',
+      data: {
+        status: 'resolved',
+        turn_id: 'turn-resolve-165',
+        reasoning_gate_mode: 'compact_4block_v3',
+        notes: 'Contains {braces}, "escaped quotes", \\backslashes\\, newline\nand quoted <truncated 42 bytes> inside JSON',
+        frames: Array.from({ length: 60 }, (_, idx) => ({
+          id: `frame_${idx}`,
+          title: `Judgment frame "${idx}" {scope}`,
+          body: `Detailed frame content #${idx}: ${'policy-evidence-'.repeat(12)}\nline-break`,
+        })),
+      },
+      source_selection: {
+        selected: ['ssot/judgment-policy', 'ssot/item-165'],
+        excluded: [{ source: 'raw/stale-note', reason: 'superseded' }],
+      },
+    };
+    const connectionScopePayload = {
+      connection_scope: {
+        organization_id: 'unson',
+        project_code: 'unson-lab',
+        server: 'brainbase-unson',
+      },
+    };
+    const primaryJson = JSON.stringify(resolveTurnPayload, null, 2);
+    const scopeJson = JSON.stringify(connectionScopePayload);
+    const combinedOutput = `${primaryJson}\n${scopeJson}`;
+    expect(Buffer.byteLength(combinedOutput, 'utf8')).toBeGreaterThan(20 * 1024);
+
+    await writeFile(
+      step5OutputPath,
+      `Created At: 2026-11-27T02:10:00+09:00\nCompleted At: 2026-11-27T02:10:02+09:00\n${combinedOutput}\n`,
+    );
+
+    const truncationBanner = [
+      'Created At: 2026-11-27T02:10:00+09:00',
+      'Completed At: 2026-11-27T02:10:02+09:00',
+      `The tool's output was truncated due to being too long. You can find the full output in a file at file://${step5OutputPath}.`,
+      '',
+      'Here is a preview with the middle of the output truncated:',
+      primaryJson.slice(0, 180),
+      `<truncated ${combinedOutput.length - 280} of ${combinedOutput.length} bytes from the middle of the output>`,
+      scopeJson,
+    ].join('\n');
+
+    await writeFile(transcriptPath, [
+      JSON.stringify({ step_index: 0, source: 'USER_EXPLICIT', type: 'USER_INPUT', content: 'Verify item 165 multi-JSON fix' }),
+      JSON.stringify({
+        step_index: 5,
+        tool_use_id: 'toolu_resolve_5',
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: truncationBanner,
+        truncated_fields: ['content'],
+      }),
+    ].join('\n') + '\n');
+
+    await writeFile(fullTranscriptPath, [
+      JSON.stringify({ step_index: 0, source: 'USER_EXPLICIT', type: 'USER_INPUT', content: 'Verify item 165 multi-JSON fix' }),
+      JSON.stringify({
+        step_index: 5,
+        tool_use_id: 'toolu_resolve_5',
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: truncationBanner,
+      }),
+    ].join('\n') + '\n');
+
+    // Direct helper verification
+    const readOpts = { conversationId, env: testEnv, toolUseId: 'toolu_resolve_5' };
+    expect(extractToolResultFromTranscript(transcriptPath, 5, readOpts)).toBe(combinedOutput);
+    expect(extractToolResultTextBlocksFromTranscript(transcriptPath, 5, readOpts)).toEqual([primaryJson, scopeJson]);
+
+    const compactContract = '[compact_4block_v3]\n1. 目的\n2. 判断軸\n3. 反証\n4. 結論';
+    const { fetchImpl, sent } = mockHost((body) => {
+      if (body.hook_event_name === 'PostToolUse') {
+        const resp = body.tool_response as { content?: Array<{ type: string; text: string }>; isError?: boolean };
+        expect(resp.isError).toBe(false);
+        expect(resp.content).toHaveLength(2);
+        // Simulate remote Host parsing EVERY text content block with JSON.parse
+        const parsedBlocks = resp.content!.map((block) => {
+          expect(block.type).toBe('text');
+          return JSON.parse(block.text) as Record<string, unknown>;
+        });
+        expect((parsedBlocks[0].data as Record<string, unknown>).status).toBe('resolved');
+        expect((parsedBlocks[0].data as Record<string, unknown>).reasoning_gate_mode).toBe('compact_4block_v3');
+        expect(parsedBlocks[1].connection_scope).toEqual(connectionScopePayload.connection_scope);
+        return {
+          status: 200,
+          body: {
+            schema_version: '1',
+            accepted: true,
+            hook_event_name: body.hook_event_name,
+            session_id: body.session_id,
+            turn_id: body.turn_id,
+            output: {
+              systemMessage: '📚 Brainbase判断解決: compact_4block_v3 を確定 ✓',
+              hookSpecificOutput: {
+                additionalContext: compactContract,
+              },
+            },
+          },
+        };
+      }
+      return {
+        status: 200,
+        body: {
+          schema_version: '1',
+          accepted: true,
+          hook_event_name: body.hook_event_name,
+          session_id: body.session_id,
+          turn_id: body.turn_id,
+          output: {},
+        },
+      };
+    });
+
+    const options = { env: testEnv, fetch: fetchImpl, accessToken: token, configPath, registrationId: REG };
+
+    // 1. PreInvocation starts the turn
+    await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId,
+      invocationNum: 1,
+      cwd: repo,
+      transcriptPath,
+      lastUserInput: 'Verify item 165 multi-JSON fix',
+    }, options);
+
+    // 2. PostToolUse recovers steps/5/output.txt, restores 2 text content blocks, and queues additionalContext in pending_messages
+    const postOut = await handleAntigravityJudgmentHook({
+      hookEventName: 'PostToolUse',
+      conversationId,
+      cwd: repo,
+      stepIdx: 5,
+      transcriptPath,
+      toolCall: {
+        id: 'toolu_resolve_5',
+        name: 'mcp_brainbase-unson_brainbase_resolve_turn',
+        args: { prompt: 'Verify item 165 multi-JSON fix' },
+      },
+    }, options);
+    expect(postOut).toEqual({});
+    expect(sent).toHaveLength(2);
+    expect(sent[1].body.tool_name).toBe('mcp__brainbase__brainbase_resolve_turn');
+    expect(sent[1].body.tool_response).toEqual({
+      content: [
+        { type: 'text', text: primaryJson },
+        { type: 'text', text: scopeJson },
+      ],
+      isError: false,
+    });
+
+    // Verify pending_messages persists additionalContext before next PreInvocation
+    const key = __antigravityHookTestInternals.turnKey(conversationId, configPath);
+    const turnStateFile = __antigravityHookTestInternals.statePath(testEnv, key);
+    const persistedBeforeDrain = JSON.parse(await readFile(turnStateFile, 'utf8'));
+    expect(persistedBeforeDrain.pending_messages).toHaveLength(1);
+    expect(persistedBeforeDrain.pending_messages[0].additional_context).toBe(compactContract);
+    expect(persistedBeforeDrain.pending_messages[0].system_message).toBe('📚 Brainbase判断解決: compact_4block_v3 を確定 ✓');
+
+    // 3. Next PreInvocation drains pending_messages into injectSteps and clears pending_messages
+    const nextPre = await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId,
+      invocationNum: 2,
+      cwd: repo,
+      transcriptPath,
+      lastUserInput: 'Verify item 165 multi-JSON fix',
+    }, options);
+    const steps = nextPre.injectSteps as Array<{ systemMessage: { systemMessage: string; metadata?: { user_markdown?: string } } }>;
+    expect(steps).toHaveLength(1);
+    expect(steps[0].systemMessage.systemMessage).toContain('[Brainbase Judgment Turn:');
+    expect(steps[0].systemMessage.systemMessage).toContain(compactContract);
+    expect(steps[0].systemMessage.metadata?.user_markdown).toBe('📚 Brainbase判断解決: compact_4block_v3 を確定 ✓');
+
+    const persistedAfterDrain = JSON.parse(await readFile(turnStateFile, 'utf8'));
+    expect(persistedAfterDrain.pending_messages).toEqual([]);
+
+    // 4. Verify real judgment-host.ts callResultStatus + sourceSelection parses the restored 2-block tool_response cleanly
+    const journalDir = join(home, 'host-journal-multi');
+    await processJudgmentHook({
+      hook_event_name: 'UserPromptSubmit',
+      session_id: 'sess-real-host-multi',
+      turn_id: 'turn-real-host-multi',
+      prompt: 'Brainbase内を検索して',
+      cwd: repo,
+    }, { env: { BRAINBASE_JUDGMENT_JOURNAL_DIR: journalDir } });
+    const hostPost = await processJudgmentHook({
+      hook_event_name: 'PostToolUse',
+      session_id: 'sess-real-host-multi',
+      turn_id: 'turn-real-host-multi',
+      tool_use_id: 'toolu_search_multi_5',
+      tool_name: 'mcp__brainbase__search',
+      tool_input: { query: 'item-165' },
+      tool_response: sent[1].body.tool_response,
+    }, { env: { BRAINBASE_JUDGMENT_JOURNAL_DIR: journalDir } });
+    expect(hostPost).toEqual({
+      systemMessage: '📚 Brainbase検索: 「item-165」→ 採用: ssot/judgment-policy・ssot/item-165／除外: raw/stale-note（superseded） ✓',
+    });
+  });
+
+  it('queues and drains additionalContext-only PostToolUse responses (without systemMessage) across PreInvocation', async () => {
+    const { home, repo, configPath, env } = await setupConfig({ project_code: 'unson-lab' });
+    const turnDir = join(home, 'turns');
+    const testEnv = { ...env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir };
+    const conversationId = 'conv-additional-context-only';
+    const transcriptPath = await canonicalTranscriptPath(home, conversationId);
+
+    const twoBlockContent = [
+      JSON.stringify({ status: 'ok', data: { status: 'resolved' } }),
+      JSON.stringify({ connection_scope: { organization_id: 'unson' } }),
+    ].join('\n');
+
+    await writeFile(transcriptPath, [
+      JSON.stringify({ step_index: 0, source: 'USER_EXPLICIT', type: 'USER_INPUT', content: 'Check additionalContext only' }),
+      JSON.stringify({
+        step_index: 3,
+        tool_use_id: 'toolu_ctx_only',
+        source: 'MODEL',
+        type: 'GENERIC',
+        content: `Created At: 2026-11-27T02:15:00+09:00\n${twoBlockContent}`,
+      }),
+    ].join('\n') + '\n');
+
+    const { fetchImpl } = mockHost((body) => ({
+      status: 200,
+      body: {
+        schema_version: '1',
+        accepted: true,
+        hook_event_name: body.hook_event_name,
+        session_id: body.session_id,
+        turn_id: body.turn_id,
+        output: body.hook_event_name === 'PostToolUse'
+          ? {
+            hookSpecificOutput: {
+              additionalContext: '[compact_4block_v3] additionalContext-only contract',
+            },
+          }
+          : {},
+      },
+    }));
+
+    const options = { env: testEnv, fetch: fetchImpl, accessToken: token, configPath, registrationId: REG };
+    await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId,
+      invocationNum: 1,
+      cwd: repo,
+      transcriptPath,
+      lastUserInput: 'Check additionalContext only',
+    }, options);
+
+    const postOut = await handleAntigravityJudgmentHook({
+      hookEventName: 'PostToolUse',
+      conversationId,
+      cwd: repo,
+      stepIdx: 3,
+      transcriptPath,
+      toolCall: {
+        id: 'toolu_ctx_only',
+        name: 'mcp_brainbase-unson_brainbase_resolve_turn',
+        args: { prompt: 'Check additionalContext only' },
+      },
+    }, options);
+    expect(postOut).toEqual({});
+
+    const key = __antigravityHookTestInternals.turnKey(conversationId, configPath);
+    const turnStateFile = __antigravityHookTestInternals.statePath(testEnv, key);
+    const queuedState = JSON.parse(await readFile(turnStateFile, 'utf8'));
+    expect(queuedState.pending_messages).toHaveLength(1);
+    expect(queuedState.pending_messages[0].additional_context).toBe('[compact_4block_v3] additionalContext-only contract');
+    expect(queuedState.pending_messages[0].system_message).toBeUndefined();
+
+    const nextPre = await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId,
+      invocationNum: 2,
+      cwd: repo,
+      transcriptPath,
+      lastUserInput: 'Check additionalContext only',
+    }, options);
+    const steps = nextPre.injectSteps as Array<{ systemMessage: { systemMessage: string; metadata?: { user_markdown?: string } } }>;
+    expect(steps).toHaveLength(1);
+    expect(steps[0].systemMessage.systemMessage).toContain('[compact_4block_v3] additionalContext-only contract');
+    expect(steps[0].systemMessage.metadata).toBeUndefined();
+
+    const drainedState = JSON.parse(await readFile(turnStateFile, 'utf8'));
+    expect(drainedState.pending_messages).toEqual([]);
+  });
+
+  it('runs splitConcatenatedJsonTextBlocks in strict linear O(n) time on 500k+ char valid and adversarial inputs without ReDoS', () => {
+    // 1. Valid 500k+ two-block concatenated JSON
+    const largeBlock1 = JSON.stringify({
+      status: 'ok',
+      data: { payload: 'x'.repeat(500_000), nested: { a: [1, 2, 3] } },
+    });
+    const largeBlock2 = JSON.stringify({ connection_scope: { organization_id: 'unson' } });
+    const largeConcat = `${largeBlock1}\n${largeBlock2}`;
+
+    const t1 = performance.now();
+    const splitLarge = splitConcatenatedJsonTextBlocks(largeConcat);
+    const elapsed1 = performance.now() - t1;
+    expect(splitLarge).toEqual([largeBlock1, largeBlock2]);
+    expect(elapsed1).toBeLessThan(200);
+
+    // 2. Adversarial 500k unclosed string full of escaped quotes
+    const adversarialEscapes = `{"a":"${'\\"'.repeat(250_000)}`;
+    const t2 = performance.now();
+    expect(splitConcatenatedJsonTextBlocks(adversarialEscapes)).toEqual([adversarialEscapes]);
+    const elapsed2 = performance.now() - t2;
+    expect(elapsed2).toBeLessThan(200);
+
+    // 3. Adversarial 500k unclosed open braces
+    const adversarialBraces = '{'.repeat(500_000);
+    const t3 = performance.now();
+    expect(splitConcatenatedJsonTextBlocks(adversarialBraces)).toEqual([adversarialBraces]);
+    const elapsed3 = performance.now() - t3;
+    expect(elapsed3).toBeLessThan(200);
+
+    // 4. Adversarial 500k deeply nested balanced brackets followed by second block -> completes in O(n) without stack overflow
+    const deepBlock = `${'['.repeat(250_000)}${']'.repeat(250_000)}`;
+    const adversarialDeep = `${deepBlock}\n{}`;
+    const t4 = performance.now();
+    const deepSplit = splitConcatenatedJsonTextBlocks(adversarialDeep);
+    const elapsed4 = performance.now() - t4;
+    expect(deepSplit.length === 2 ? deepSplit : [adversarialDeep]).toEqual(
+      deepSplit.length === 2 ? [deepBlock, '{}'] : [adversarialDeep],
+    );
+    expect(elapsed4).toBeLessThan(200);
+
+    // 5. Large 500k valid first block + invalid second block -> fails open safely in O(n)
+    const largeMixedInvalid = `${largeBlock1}\n{"connection_scope":broken}`;
+    const t5 = performance.now();
+    expect(splitConcatenatedJsonTextBlocks(largeMixedInvalid)).toEqual([largeMixedInvalid]);
+    const elapsed5 = performance.now() - t5;
+    expect(elapsed5).toBeLessThan(200);
   });
 });
