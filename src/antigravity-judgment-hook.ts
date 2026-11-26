@@ -18,7 +18,7 @@
 // 5. Base URLs with path prefixes (e.g. `https://bb.unson.jp/runtime-mcp`) preserve their
 //    path when resolving `host/judgment/hook`.
 // 6. Strict fail-open outputs with short HTTP timeouts:
-//    - PreInvocation: `{}` (or `{ injectSteps: [{ systemMessage: { systemMessage, metadata? } }], terminationBehavior: '' }`)
+//    - PreInvocation: `{}` (or `{ injectSteps: [{ systemMessage: { systemMessage } }], terminationBehavior: '' }`)
 //    - PreToolUse: `{ decision: 'allow' }` (or `{ decision: 'deny', reason }`)
 //    - PostToolUse: ALWAYS `{}` (any follow-up context is queued with `turn_id` for next PreInvocation)
 //    - Stop: ALWAYS `{ decision: '' }` (never `"continue"`)
@@ -41,7 +41,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
-import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BrainbaseLoginError, getAccessTokenOfLogin, type AccessTokenOptions } from './brainbase-login.js';
 import {
@@ -914,6 +914,117 @@ function resolveAuthorizedTranscriptPath(
   return resolveAuthorizedTranscriptTarget(transcriptPath, options)?.canonicalPath ?? null;
 }
 
+function isEnoentError(error: unknown): boolean {
+  return !!error && typeof error === 'object' && (error as NodeJS.ErrnoException).code === 'ENOENT';
+}
+
+/**
+ * Resolves an authorized transcript location ONLY when the transcript file itself
+ * does not exist yet (`ENOENT`), e.g. on the first tool call before Antigravity
+ * flushes `logs/transcript.jsonl` while `steps/<n>/output.txt` already exists.
+ *
+ * Strictly enforces the same canonical root, conversation structure, and
+ * no-symlink ancestor invariants; fails closed if the file exists (and was
+ * already rejected by `resolveAuthorizedTranscriptTarget`), contains `.`/`..`,
+ * or traverses any symlink inside the authorized root.
+ */
+function resolveAuthorizedMissingTranscriptTarget(
+  transcriptPath: unknown,
+  options?: TranscriptReadOptions,
+): AuthorizedTranscriptTarget | null {
+  if (typeof transcriptPath !== 'string' || !transcriptPath.trim() || transcriptPath.includes('\0')) {
+    return null;
+  }
+  const conversationId = options?.conversationId?.trim() ?? '';
+  if (!isSafeConversationIdSegment(conversationId)) return null;
+
+  const rawPath = transcriptPath.trim();
+  if (!isAbsolute(rawPath)) return null;
+  const rawSegments = rawPath.split(/[/\\]/u);
+  if (rawSegments.includes('..') || rawSegments.includes('.')) {
+    return null;
+  }
+
+  try {
+    lstatSync(rawPath);
+    return null;
+  } catch (error) {
+    if (!isEnoentError(error)) return null;
+  }
+
+  const fileName = basename(rawPath);
+  if (!ALLOWED_TRANSCRIPT_FILENAMES.has(fileName) || !isSafePathSegment(fileName)) {
+    return null;
+  }
+
+  let candidateCanonical: string | null = null;
+  const parentDir = dirname(rawPath);
+  try {
+    const parentStat = lstatSync(parentDir);
+    if (parentStat.isSymbolicLink() || !parentStat.isDirectory()) return null;
+    candidateCanonical = join(realpathSync(parentDir), fileName);
+  } catch (error) {
+    if (!isEnoentError(error)) return null;
+    const parentName = basename(parentDir);
+    if (parentName !== 'logs' || !isSafePathSegment(parentName)) return null;
+    const grandParentDir = dirname(parentDir);
+    try {
+      const grandStat = lstatSync(grandParentDir);
+      if (grandStat.isSymbolicLink() || !grandStat.isDirectory()) return null;
+      candidateCanonical = join(realpathSync(grandParentDir), parentName, fileName);
+    } catch {
+      return null;
+    }
+  }
+
+  if (!candidateCanonical) return null;
+
+  const roots = canonicalTranscriptRoots(options!);
+  if (roots.length === 0) return null;
+  const matchedRoot = roots.find((root) => (
+    root !== sep
+    && root !== '/'
+    && matchesConversationTranscriptStructure(root, candidateCanonical, conversationId)
+  ));
+  if (!matchedRoot) return null;
+
+  try {
+    const rootStat = lstatSync(matchedRoot);
+    if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) return null;
+    if (realpathSync(matchedRoot) !== matchedRoot) return null;
+  } catch {
+    return null;
+  }
+
+  const segments = relative(matchedRoot, candidateCanonical).split(sep);
+  if (segments.length === 0 || !segments.every(isSafePathSegment)) return null;
+
+  let current = matchedRoot;
+  let sawMissingDir = false;
+  for (let i = 0; i < segments.length - 1; i += 1) {
+    current = join(current, segments[i]);
+    if (sawMissingDir) return null;
+    try {
+      const dirStat = lstatSync(current);
+      if (dirStat.isSymbolicLink() || !dirStat.isDirectory()) return null;
+    } catch (error) {
+      if (!isEnoentError(error) || i !== segments.length - 2 || segments[i] !== 'logs') {
+        return null;
+      }
+      sawMissingDir = true;
+    }
+  }
+
+  try {
+    lstatSync(candidateCanonical);
+    return null;
+  } catch (error) {
+    if (!isEnoentError(error)) return null;
+  }
+
+  return { canonicalRoot: matchedRoot, canonicalPath: candidateCanonical, segments };
+}
+
 function buildPythonOpenatReader(
   faults?: TranscriptOpenatTestFaults,
   mode: 'tail' | 'full' = 'tail',
@@ -1658,41 +1769,55 @@ export function extractToolResultFromTranscript(
     ? options.toolUseId.trim()
     : undefined;
   if (!hasStepIdx && !hintToolUseId) return null;
+  if (!options) return null;
 
-  const baseTarget = resolveAuthorizedTranscriptTarget(transcriptPath, options);
-  if (!baseTarget || !options) return null;
+  const existingBaseTarget = resolveAuthorizedTranscriptTarget(transcriptPath, options);
+  const baseTarget = existingBaseTarget ?? resolveAuthorizedMissingTranscriptTarget(transcriptPath, options);
+  if (!baseTarget) return null;
 
   const conversationId = options.conversationId.trim();
-  const baseEntries = readTranscriptEntriesFromTarget(baseTarget, options, TRANSCRIPT_TAIL_MAX_BYTES);
   // Prefer exact step_index match, then immediate neighbor (+1) if wrapper shifted index.
   const stepCandidates = hasStepIdx ? [stepIdx, stepIdx + 1] : [];
-  const matchedEntry = findToolEntryInTranscript(baseEntries, stepCandidates, hintToolUseId);
-  if (!matchedEntry || typeof matchedEntry.content !== 'string') return null;
 
-  const baseStripped = stripToolTimestampHeader(matchedEntry.content);
-  if (!baseStripped) return null;
-  if (!isTruncatedToolResult(matchedEntry, baseStripped)) {
-    return Buffer.byteLength(baseStripped, 'utf8') <= TRANSCRIPT_TOOL_RESULT_MAX_BYTES
-      ? baseStripped
-      : null;
+  let matchedEntry: TranscriptEntry | null = null;
+  let baseStripped: string | null = null;
+  if (existingBaseTarget !== null) {
+    const baseEntries = readTranscriptEntriesFromTarget(existingBaseTarget, options, TRANSCRIPT_TAIL_MAX_BYTES);
+    matchedEntry = findToolEntryInTranscript(baseEntries, stepCandidates, hintToolUseId);
+    if (matchedEntry && typeof matchedEntry.content === 'string') {
+      const stripped = stripToolTimestampHeader(matchedEntry.content);
+      if (stripped) {
+        if (!isTruncatedToolResult(matchedEntry, stripped)) {
+          return Buffer.byteLength(stripped, 'utf8') <= TRANSCRIPT_TOOL_RESULT_MAX_BYTES
+            ? stripped
+            : null;
+        }
+        baseStripped = stripped;
+      }
+    }
   }
 
-  const matchedStep = typeof matchedEntry.step_index === 'number' && Number.isSafeInteger(matchedEntry.step_index)
+  const matchedStep = matchedEntry && typeof matchedEntry.step_index === 'number' && Number.isSafeInteger(matchedEntry.step_index)
     ? matchedEntry.step_index
     : null;
   const effectiveStepCandidates = [
     ...(matchedStep !== null ? [matchedStep] : []),
     ...stepCandidates.filter((step) => step !== matchedStep),
   ];
-  const effectiveToolUseId = entryToolUseId(matchedEntry) ?? hintToolUseId;
+  const effectiveToolUseId = (matchedEntry ? entryToolUseId(matchedEntry) : null) ?? hintToolUseId;
 
-  // 1. Prefer sibling `transcript_full.jsonl` in the exact same authorized logs directory.
+  // 1. Prefer sibling `transcript_full.jsonl` in the exact same authorized logs directory
+  //    (handles both truncated `transcript.jsonl` entries and steps not yet flushed to `transcript.jsonl`).
   let fullStripped: string | null = null;
+  let fullMatchedStep: number | null = null;
   const fullTarget = resolveSiblingFullTranscriptTarget(baseTarget, options);
   if (fullTarget) {
     const fullEntries = readTranscriptEntriesFromTarget(fullTarget, options, TRANSCRIPT_FULL_TAIL_MAX_BYTES);
     const fullEntry = findToolEntryInTranscript(fullEntries, effectiveStepCandidates, effectiveToolUseId);
     if (fullEntry && typeof fullEntry.content === 'string') {
+      if (typeof fullEntry.step_index === 'number' && Number.isSafeInteger(fullEntry.step_index)) {
+        fullMatchedStep = fullEntry.step_index;
+      }
       const candidateStripped = stripToolTimestampHeader(fullEntry.content);
       if (candidateStripped) {
         if (!isTruncatedToolResult(fullEntry, candidateStripped)) {
@@ -1707,12 +1832,23 @@ export function extractToolResultFromTranscript(
 
   // 2. Fallback to authorized `<conversation>/.system_generated/steps/<n>/output.txt`
   //    (strictly confined by realpath + no-symlink + Linux openat2 RESOLVE_BENEATH).
-  const referenceTexts = fullStripped !== null ? [fullStripped, baseStripped] : [baseStripped];
+  //    Antigravity writes `steps/<n>/output.txt` before flushing `transcript.jsonl`, so this
+  //    also recovers unflushed steps directly when `stepCandidates` (`[stepIdx, stepIdx + 1]`) are present.
+  const stepFallbackCandidates = [
+    ...(fullMatchedStep !== null ? [fullMatchedStep] : []),
+    ...effectiveStepCandidates.filter((step) => step !== fullMatchedStep),
+  ];
+  const referenceTexts: string[] = [];
+  if (fullStripped !== null) referenceTexts.push(fullStripped);
+  if (baseStripped !== null) referenceTexts.push(baseStripped);
+  if (referenceTexts.length === 0 && stepFallbackCandidates.length === 0) {
+    return null;
+  }
   return readStepOutputFallback(
     baseTarget,
     conversationId,
     referenceTexts,
-    effectiveStepCandidates,
+    stepFallbackCandidates,
     options,
   );
 }
@@ -2132,12 +2268,18 @@ function buildSystemMessageStep(
     `[Brainbase Judgment Turn: ${turnId}]`,
     `※この判断契約・先頭監査行は当ターン（${turnId}）のみ有効です。過去のターンに注入された旧ターンの判断契約・先頭監査行は上書きされ無効です。`,
   ].join('\n');
-  const modelBody = normalizedContext ?? normalizedMarkdown;
-  const modelText = modelBody ? `${guardHeader}\n\n${modelBody}` : '';
+  const bodyParts: string[] = [];
+  if (normalizedMarkdown) {
+    bodyParts.push(normalizedMarkdown);
+  }
+  if (normalizedContext && normalizedContext !== normalizedMarkdown) {
+    bodyParts.push(normalizedContext);
+  }
+  const modelBody = bodyParts.join('\n\n');
+  const modelText = `${guardHeader}\n\n${modelBody}`;
   return {
     systemMessage: {
       systemMessage: modelText,
-      ...(normalizedMarkdown ? { metadata: { user_markdown: normalizedMarkdown } } : {}),
     },
   };
 }
@@ -2914,6 +3056,7 @@ export function registerAntigravityJudgmentHooks(
 
 /** @internal Exposed strictly for deterministic concurrency and TOCTOU regression tests. */
 export const __antigravityHookTestInternals = {
+  buildSystemMessageStep,
   withTurnStateLock,
   readTranscriptTailEntries,
   resolveOpenatHelperBinary,
