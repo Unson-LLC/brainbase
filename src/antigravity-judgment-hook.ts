@@ -41,7 +41,8 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
-import { delimiter, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { BrainbaseLoginError, getAccessTokenOfLogin, type AccessTokenOptions } from './brainbase-login.js';
 import {
   PRE_TOOL_USE_TOOLS,
@@ -134,6 +135,8 @@ export interface TranscriptReadOptions {
   conversationId: string;
   allowedTranscriptRoots?: readonly string[];
   env?: NodeJS.ProcessEnv;
+  /** Optional tool_use_id / tool_call_id hint when resolving truncated or shifted tool results. */
+  toolUseId?: string;
   /** Override for the Linux `openat2` helper executable path (strictly for tests). */
   openatHelperBinary?: string;
   /** Override runtime platform check (strictly for tests). */
@@ -143,6 +146,8 @@ export interface TranscriptReadOptions {
 const TURN_SCHEMA = 'brainbase-antigravity-judgment-turn-v1';
 const PROJECT_CODE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/u;
 const TRANSCRIPT_TAIL_MAX_BYTES = 256 * 1024;
+const TRANSCRIPT_FULL_TAIL_MAX_BYTES = 1024 * 1024;
+const TRANSCRIPT_TOOL_RESULT_MAX_BYTES = 512 * 1024;
 const TRANSCRIPT_OPENAT_TIMEOUT_MS = 1_500;
 const MAX_PENDING_MESSAGES = 8;
 const DEFAULT_STALE_TURN_MS = 30 * 60 * 1000;
@@ -709,9 +714,12 @@ async function resolveCurrentLoginId(
 
 interface TranscriptEntry {
   step_index?: unknown;
+  tool_use_id?: unknown;
+  tool_call_id?: unknown;
   source?: unknown;
   type?: unknown;
   content?: unknown;
+  truncated_fields?: unknown;
 }
 
 const ALLOWED_TRANSCRIPT_FILENAMES = new Set(['transcript.jsonl', 'transcript_full.jsonl']);
@@ -906,7 +914,10 @@ function resolveAuthorizedTranscriptPath(
   return resolveAuthorizedTranscriptTarget(transcriptPath, options)?.canonicalPath ?? null;
 }
 
-function buildPythonOpenatTailReader(faults?: TranscriptOpenatTestFaults): string {
+function buildPythonOpenatReader(
+  faults?: TranscriptOpenatTestFaults,
+  mode: 'tail' | 'full' = 'tail',
+): string {
   const forceOpenat2Errno = faults?.forceOpenat2Errno;
   const renameAfterRead = faults?.renameAfterTailRead;
 
@@ -990,8 +1001,16 @@ function buildPythonOpenatTailReader(faults?: TranscriptOpenatTestFaults): strin
     '    verify_fd_exact_path(file_fd, expected_exact_path)',
     '    size = st.st_size',
     '    if size <= 0: sys.exit(0)',
-    '    read_size = min(size, max_bytes)',
-    '    offset = size - read_size',
+    ...(mode === 'full'
+      ? [
+        '    if size > max_bytes: fail()',
+        '    read_size = size',
+        '    offset = 0',
+      ]
+      : [
+        '    read_size = min(size, max_bytes)',
+        '    offset = size - read_size',
+      ]),
     '    chunks = []',
     '    remaining = read_size',
     '    pos = offset',
@@ -1008,12 +1027,22 @@ function buildPythonOpenatTailReader(faults?: TranscriptOpenatTestFaults): strin
       ? [`    os.rename(${JSON.stringify(renameAfterRead.from)}, ${JSON.stringify(renameAfterRead.to)})`]
       : []),
     '    verify_fd_exact_path(file_fd, expected_exact_path)',
-    '    if not stat.S_ISREG(os.fstat(file_fd).st_mode): fail()',
+    '    post_st = os.fstat(file_fd)',
+    '    if not stat.S_ISREG(post_st.st_mode): fail()',
+    ...(mode === 'full'
+      ? ['    if post_st.st_size > max_bytes: fail()']
+      : []),
     '    data = b"".join(chunks)',
-    '    if offset > 0:',
-    '        nl = data.find(b"\\n")',
-    '        if nl < 0: sys.exit(0)',
-    '        data = data[nl + 1:]',
+    ...(mode === 'tail'
+      ? [
+        '    if offset > 0:',
+        '        nl = data.find(b"\\n")',
+        '        if nl < 0: sys.exit(0)',
+        '        data = data[nl + 1:]',
+      ]
+      : [
+        '    if len(data) > max_bytes: fail()',
+      ]),
     '    if data:',
     '        sys.stdout.buffer.write(data)',
     '        sys.stdout.buffer.flush()',
@@ -1030,7 +1059,8 @@ function buildPythonOpenatTailReader(faults?: TranscriptOpenatTestFaults): strin
   return lines.join('\n');
 }
 
-const PYTHON_OPENAT_TAIL_READER = buildPythonOpenatTailReader();
+const PYTHON_OPENAT_TAIL_READER = buildPythonOpenatReader(undefined, 'tail');
+const PYTHON_OPENAT_FULL_READER = buildPythonOpenatReader(undefined, 'full');
 
 const DEFAULT_OPENAT_HELPER_CANDIDATES: readonly string[] = [
   '/usr/bin/python3',
@@ -1093,6 +1123,7 @@ function readTailViaKernelOpenat(
     helperTimeoutMs?: number;
     platform?: NodeJS.Platform;
     openatTestFaults?: TranscriptOpenatTestFaults;
+    mode?: 'tail' | 'full';
   },
 ): Buffer | null {
   const effectivePlatform = options?.platform ?? process.platform;
@@ -1114,9 +1145,10 @@ function readTailViaKernelOpenat(
     return null;
   }
   const timeoutMs = options?.helperTimeoutMs ?? TRANSCRIPT_OPENAT_TIMEOUT_MS;
+  const mode = options?.mode ?? 'tail';
   const helperScript = options?.openatTestFaults
-    ? buildPythonOpenatTailReader(options.openatTestFaults)
-    : PYTHON_OPENAT_TAIL_READER;
+    ? buildPythonOpenatReader(options.openatTestFaults, mode)
+    : (mode === 'full' ? PYTHON_OPENAT_FULL_READER : PYTHON_OPENAT_TAIL_READER);
   try {
     const result = spawnSync(
       helperBin,
@@ -1141,25 +1173,25 @@ function readTailViaKernelOpenat(
   }
 }
 
-function readTranscriptTailEntries(
-  transcriptPath: unknown,
-  options?: TranscriptReadOptions,
+function readTranscriptEntriesFromTarget(
+  target: AuthorizedTranscriptTarget,
+  options: TranscriptReadOptions,
+  maxBytes: number,
   testHooks?: TranscriptOpenTestHooks,
 ): TranscriptEntry[] {
-  const target = resolveAuthorizedTranscriptTarget(transcriptPath, options);
-  if (!target || !options) return [];
   try {
     testHooks?.onBeforeOpen?.(target.canonicalPath);
     const rawTail = readTailViaKernelOpenat(
       target.canonicalRoot,
       target.segments,
-      TRANSCRIPT_TAIL_MAX_BYTES,
+      maxBytes,
       {
         openatHelperBinary: testHooks?.openatHelperBinary ?? options.openatHelperBinary,
         openatHelperCandidates: testHooks?.openatHelperCandidates,
         helperTimeoutMs: testHooks?.helperTimeoutMs,
         platform: testHooks?.platform ?? options.platform,
         openatTestFaults: testHooks?.openatTestFaults,
+        mode: 'tail',
       },
     );
     if (rawTail === null || rawTail.length === 0) return [];
@@ -1181,6 +1213,16 @@ function readTranscriptTailEntries(
   } catch {
     return [];
   }
+}
+
+function readTranscriptTailEntries(
+  transcriptPath: unknown,
+  options?: TranscriptReadOptions,
+  testHooks?: TranscriptOpenTestHooks,
+): TranscriptEntry[] {
+  const target = resolveAuthorizedTranscriptTarget(transcriptPath, options);
+  if (!target || !options) return [];
+  return readTranscriptEntriesFromTarget(target, options, TRANSCRIPT_TAIL_MAX_BYTES, testHooks);
 }
 
 function stripUserRequestWrapper(text: string): string {
@@ -1249,24 +1291,310 @@ function stripToolTimestampHeader(text: string): string {
   return body || text.trim();
 }
 
-export function extractToolResultFromTranscript(
-  transcriptPath: unknown,
-  stepIdx: unknown,
-  options?: TranscriptReadOptions,
-): string | null {
-  if (typeof stepIdx !== 'number' || !Number.isSafeInteger(stepIdx)) return null;
-  const entries = readTranscriptTailEntries(transcriptPath, options);
-  // Prefer exact step_index match, then immediate neighbor (+1) if wrapper shifted index.
-  for (const targetStep of [stepIdx, stepIdx + 1]) {
+const TOOL_OUTPUT_TRUNCATION_BANNER_PATTERN = /^The tool's output was truncated due to being too long\./u;
+const INLINE_TRUNCATION_MARKER_PATTERN = /<truncated\s+\d+(?:\s+of\s+\d+)?\s+bytes(?:\s+[^>]*)?>/iu;
+const TRUNCATED_OUTPUT_FILE_URL_PATTERN = /You can find the full output in (?:a )?file at (file:\/\/[^\s"'<>]+)/u;
+
+function entryToolUseId(entry: TranscriptEntry): string | null {
+  if (typeof entry.tool_use_id === 'string' && entry.tool_use_id.trim()) {
+    return entry.tool_use_id.trim();
+  }
+  if (typeof entry.tool_call_id === 'string' && entry.tool_call_id.trim()) {
+    return entry.tool_call_id.trim();
+  }
+  return null;
+}
+
+function hasTruncatedContentField(entry: TranscriptEntry): boolean {
+  return Array.isArray(entry.truncated_fields) && entry.truncated_fields.includes('content');
+}
+
+function isValidJsonText(text: string): boolean {
+  try {
+    JSON.parse(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isTruncatedToolResult(entry: TranscriptEntry, strippedContent: string): boolean {
+  if (hasTruncatedContentField(entry)) return true;
+  if (TOOL_OUTPUT_TRUNCATION_BANNER_PATTERN.test(strippedContent)) return true;
+  if (INLINE_TRUNCATION_MARKER_PATTERN.test(strippedContent) && !isValidJsonText(strippedContent)) {
+    return true;
+  }
+  return false;
+}
+
+function extractTruncatedOutputFileUrl(text: string): string | null {
+  const match = TRUNCATED_OUTPUT_FILE_URL_PATTERN.exec(text);
+  if (!match) return null;
+  const cleaned = match[1].replace(/[.,;)\]]+$/u, '');
+  return cleaned || null;
+}
+
+function parseLocalFileUrlPath(rawUrl: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'file:' || url.hostname || url.search || url.hash) {
+    return null;
+  }
+  try {
+    const filePath = fileURLToPath(url);
+    if (!filePath || !isAbsolute(filePath) || filePath.includes('\0')) {
+      return null;
+    }
+    return filePath;
+  } catch {
+    return null;
+  }
+}
+
+function systemGeneratedPrefixSegments(
+  target: AuthorizedTranscriptTarget,
+  conversationId: string,
+): string[] | null {
+  const segs = target.segments;
+  if (segs.length === 4
+    && segs[0] === conversationId
+    && segs[1] === '.system_generated'
+    && segs[2] === 'logs') {
+    return [conversationId, '.system_generated'];
+  }
+  if (segs.length === 5
+    && segs[0] === 'brain'
+    && segs[1] === conversationId
+    && segs[2] === '.system_generated'
+    && segs[3] === 'logs') {
+    return ['brain', conversationId, '.system_generated'];
+  }
+  return null;
+}
+
+function resolveSiblingFullTranscriptTarget(
+  baseTarget: AuthorizedTranscriptTarget,
+  options: TranscriptReadOptions,
+): AuthorizedTranscriptTarget | null {
+  if (baseTarget.segments[baseTarget.segments.length - 1] !== 'transcript.jsonl') {
+    return null;
+  }
+  const baseDir = dirname(baseTarget.canonicalPath);
+  const candidatePath = join(baseDir, 'transcript_full.jsonl');
+  const fullTarget = resolveAuthorizedTranscriptTarget(candidatePath, options);
+  if (!fullTarget) return null;
+  if (fullTarget.canonicalRoot !== baseTarget.canonicalRoot) return null;
+  if (dirname(fullTarget.canonicalPath) !== baseDir) return null;
+  return fullTarget;
+}
+
+function resolveAuthorizedStepOutputTarget(
+  baseTarget: AuthorizedTranscriptTarget,
+  conversationId: string,
+  candidatePath: string,
+): AuthorizedTranscriptTarget | null {
+  if (!candidatePath || !isAbsolute(candidatePath) || candidatePath.includes('\0')) {
+    return null;
+  }
+  const sysGenSegments = systemGeneratedPrefixSegments(baseTarget, conversationId);
+  if (!sysGenSegments) return null;
+  const stepsDirRaw = join(baseTarget.canonicalRoot, ...sysGenSegments, 'steps');
+  try {
+    const stepsDirStat = lstatSync(stepsDirRaw);
+    if (stepsDirStat.isSymbolicLink() || !stepsDirStat.isDirectory()) return null;
+    const stepsDir = realpathSync(stepsDirRaw);
+    if (stepsDir !== stepsDirRaw || !isStrictDescendantPath(baseTarget.canonicalRoot, stepsDir)) {
+      return null;
+    }
+    const candidateParentStat = lstatSync(dirname(candidatePath));
+    if (candidateParentStat.isSymbolicLink() || !candidateParentStat.isDirectory()) return null;
+    const candidateStat = lstatSync(candidatePath);
+    if (candidateStat.isSymbolicLink() || !candidateStat.isFile()) return null;
+    const canonicalFile = realpathSync(candidatePath);
+    if (!isStrictDescendantPath(stepsDir, canonicalFile)) return null;
+    const relFromSteps = relative(stepsDir, canonicalFile).split(sep);
+    if (relFromSteps.length !== 2 || !/^\d+$/u.test(relFromSteps[0]) || relFromSteps[1] !== 'output.txt') {
+      return null;
+    }
+    if (!verifyNoSymlinkPathUnderRoot(baseTarget.canonicalRoot, canonicalFile).ok) {
+      return null;
+    }
+    return {
+      canonicalRoot: baseTarget.canonicalRoot,
+      canonicalPath: canonicalFile,
+      segments: [...sysGenSegments, 'steps', relFromSteps[0], 'output.txt'],
+    };
+  } catch {
+    return null;
+  }
+}
+
+function findToolEntryInTranscript(
+  entries: readonly TranscriptEntry[],
+  stepCandidates: readonly number[],
+  toolUseId?: string,
+): TranscriptEntry | null {
+  const normalizedToolUseId = typeof toolUseId === 'string' && toolUseId.trim() ? toolUseId.trim() : null;
+  for (const targetStep of stepCandidates) {
+    if (normalizedToolUseId !== null) {
+      for (let index = entries.length - 1; index >= 0; index -= 1) {
+        const entry = entries[index];
+        if (entry.step_index !== targetStep) continue;
+        if (entry.type === 'USER_INPUT' || entry.type === 'PLANNER_RESPONSE') continue;
+        if (typeof entry.content !== 'string' || !entry.content.trim()) continue;
+        if (entryToolUseId(entry) === normalizedToolUseId) return entry;
+      }
+    }
     for (let index = entries.length - 1; index >= 0; index -= 1) {
       const entry = entries[index];
       if (entry.step_index !== targetStep) continue;
       if (entry.type === 'USER_INPUT' || entry.type === 'PLANNER_RESPONSE') continue;
       if (typeof entry.content !== 'string' || !entry.content.trim()) continue;
-      return stripToolTimestampHeader(entry.content);
+      return entry;
+    }
+  }
+  if (normalizedToolUseId !== null) {
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const entry = entries[index];
+      if (entry.type === 'USER_INPUT' || entry.type === 'PLANNER_RESPONSE') continue;
+      if (typeof entry.content !== 'string' || !entry.content.trim()) continue;
+      if (entryToolUseId(entry) === normalizedToolUseId) return entry;
     }
   }
   return null;
+}
+
+function readStepOutputFallback(
+  baseTarget: AuthorizedTranscriptTarget,
+  conversationId: string,
+  referenceTexts: readonly string[],
+  candidateSteps: readonly number[],
+  options: TranscriptReadOptions,
+): string | null {
+  let explicitUrl: string | null = null;
+  for (const text of referenceTexts) {
+    const found = extractTruncatedOutputFileUrl(text);
+    if (found) {
+      explicitUrl = found;
+      break;
+    }
+  }
+
+  const readTarget = (stepTarget: AuthorizedTranscriptTarget): string | null => {
+    const raw = readTailViaKernelOpenat(
+      stepTarget.canonicalRoot,
+      stepTarget.segments,
+      TRANSCRIPT_TOOL_RESULT_MAX_BYTES,
+      {
+        openatHelperBinary: options.openatHelperBinary,
+        platform: options.platform,
+        mode: 'full',
+      },
+    );
+    if (raw === null || raw.length === 0) return null;
+    const decoded = raw.toString('utf8');
+    const stripped = stripToolTimestampHeader(decoded);
+    if (!stripped) return null;
+    if (Buffer.byteLength(stripped, 'utf8') > TRANSCRIPT_TOOL_RESULT_MAX_BYTES) return null;
+    if (isTruncatedToolResult({ content: decoded }, stripped)) return null;
+    return stripped;
+  };
+
+  if (explicitUrl !== null) {
+    const filePath = parseLocalFileUrlPath(explicitUrl);
+    if (!filePath) return null;
+    const stepTarget = resolveAuthorizedStepOutputTarget(baseTarget, conversationId, filePath);
+    if (!stepTarget) return null;
+    return readTarget(stepTarget);
+  }
+
+  const sysGenSegments = systemGeneratedPrefixSegments(baseTarget, conversationId);
+  if (!sysGenSegments) return null;
+  const stepsDir = join(baseTarget.canonicalRoot, ...sysGenSegments, 'steps');
+  const seenSteps = new Set<number>();
+  for (const stepNum of candidateSteps) {
+    if (!Number.isSafeInteger(stepNum) || stepNum < 0 || seenSteps.has(stepNum)) continue;
+    seenSteps.add(stepNum);
+    const candidatePath = join(stepsDir, String(stepNum), 'output.txt');
+    const stepTarget = resolveAuthorizedStepOutputTarget(baseTarget, conversationId, candidatePath);
+    if (!stepTarget) continue;
+    const recovered = readTarget(stepTarget);
+    if (recovered !== null) return recovered;
+  }
+  return null;
+}
+
+export function extractToolResultFromTranscript(
+  transcriptPath: unknown,
+  stepIdx: unknown,
+  options?: TranscriptReadOptions,
+): string | null {
+  const hasStepIdx = typeof stepIdx === 'number' && Number.isSafeInteger(stepIdx);
+  const hintToolUseId = typeof options?.toolUseId === 'string' && options.toolUseId.trim()
+    ? options.toolUseId.trim()
+    : undefined;
+  if (!hasStepIdx && !hintToolUseId) return null;
+
+  const baseTarget = resolveAuthorizedTranscriptTarget(transcriptPath, options);
+  if (!baseTarget || !options) return null;
+
+  const conversationId = options.conversationId.trim();
+  const baseEntries = readTranscriptEntriesFromTarget(baseTarget, options, TRANSCRIPT_TAIL_MAX_BYTES);
+  // Prefer exact step_index match, then immediate neighbor (+1) if wrapper shifted index.
+  const stepCandidates = hasStepIdx ? [stepIdx, stepIdx + 1] : [];
+  const matchedEntry = findToolEntryInTranscript(baseEntries, stepCandidates, hintToolUseId);
+  if (!matchedEntry || typeof matchedEntry.content !== 'string') return null;
+
+  const baseStripped = stripToolTimestampHeader(matchedEntry.content);
+  if (!baseStripped) return null;
+  if (!isTruncatedToolResult(matchedEntry, baseStripped)) {
+    return Buffer.byteLength(baseStripped, 'utf8') <= TRANSCRIPT_TOOL_RESULT_MAX_BYTES
+      ? baseStripped
+      : null;
+  }
+
+  const matchedStep = typeof matchedEntry.step_index === 'number' && Number.isSafeInteger(matchedEntry.step_index)
+    ? matchedEntry.step_index
+    : null;
+  const effectiveStepCandidates = [
+    ...(matchedStep !== null ? [matchedStep] : []),
+    ...stepCandidates.filter((step) => step !== matchedStep),
+  ];
+  const effectiveToolUseId = entryToolUseId(matchedEntry) ?? hintToolUseId;
+
+  // 1. Prefer sibling `transcript_full.jsonl` in the exact same authorized logs directory.
+  let fullStripped: string | null = null;
+  const fullTarget = resolveSiblingFullTranscriptTarget(baseTarget, options);
+  if (fullTarget) {
+    const fullEntries = readTranscriptEntriesFromTarget(fullTarget, options, TRANSCRIPT_FULL_TAIL_MAX_BYTES);
+    const fullEntry = findToolEntryInTranscript(fullEntries, effectiveStepCandidates, effectiveToolUseId);
+    if (fullEntry && typeof fullEntry.content === 'string') {
+      const candidateStripped = stripToolTimestampHeader(fullEntry.content);
+      if (candidateStripped) {
+        if (!isTruncatedToolResult(fullEntry, candidateStripped)) {
+          return Buffer.byteLength(candidateStripped, 'utf8') <= TRANSCRIPT_TOOL_RESULT_MAX_BYTES
+            ? candidateStripped
+            : null;
+        }
+        fullStripped = candidateStripped;
+      }
+    }
+  }
+
+  // 2. Fallback to authorized `<conversation>/.system_generated/steps/<n>/output.txt`
+  //    (strictly confined by realpath + no-symlink + Linux openat2 RESOLVE_BENEATH).
+  const referenceTexts = fullStripped !== null ? [fullStripped, baseStripped] : [baseStripped];
+  return readStepOutputFallback(
+    baseTarget,
+    conversationId,
+    referenceTexts,
+    effectiveStepCandidates,
+    options,
+  );
 }
 
 // ---- Turn state persistence & exclusive lock ----
@@ -1659,16 +1987,23 @@ function buildSystemMessageStep(
   additionalContext?: string,
   userMarkdown?: string,
 ): Record<string, unknown> | null {
-  if (!additionalContext && !userMarkdown) return null;
+  const normalizedContext = typeof additionalContext === 'string' && additionalContext.trim()
+    ? additionalContext.trim()
+    : undefined;
+  const normalizedMarkdown = typeof userMarkdown === 'string' && userMarkdown.trim()
+    ? userMarkdown.trim()
+    : undefined;
+  if (!normalizedContext && !normalizedMarkdown) return null;
   const guardHeader = [
     `[Brainbase Judgment Turn: ${turnId}]`,
     `※この判断契約・先頭監査行は当ターン（${turnId}）のみ有効です。過去のターンに注入された旧ターンの判断契約・先頭監査行は上書きされ無効です。`,
   ].join('\n');
-  const modelText = additionalContext ? `${guardHeader}\n\n${additionalContext}` : '';
+  const modelBody = normalizedContext ?? normalizedMarkdown;
+  const modelText = modelBody ? `${guardHeader}\n\n${modelBody}` : '';
   return {
     systemMessage: {
       systemMessage: modelText,
-      ...(userMarkdown ? { metadata: { user_markdown: userMarkdown } } : {}),
+      ...(normalizedMarkdown ? { metadata: { user_markdown: normalizedMarkdown } } : {}),
     },
   };
 }
@@ -2108,7 +2443,12 @@ async function handlePostToolUse(
 
   if (isBrainbase) {
     toolInput = normalizedToolInput(rawName, normalizedName, toolCall?.args);
-    const transcriptText = extractToolResultFromTranscript(payload.transcriptPath, payload.stepIdx, transcriptOpts);
+    const toolCallId = typeof toolCall?.id === 'string' && toolCall.id.trim() ? toolCall.id.trim() : undefined;
+    const transcriptText = extractToolResultFromTranscript(
+      payload.transcriptPath,
+      payload.stepIdx,
+      toolCallId ? { ...transcriptOpts, toolUseId: toolCallId } : transcriptOpts,
+    );
     if (transcriptText !== null) {
       toolResponse = {
         content: [{ type: 'text', text: transcriptText }],
