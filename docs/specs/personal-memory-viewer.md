@@ -1,4 +1,4 @@
-# あなたの記憶
+# マイメモリ
 
 Story: `story-personal-memory-viewer-v1`
 

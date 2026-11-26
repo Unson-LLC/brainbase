@@ -1,5 +1,5 @@
 /*
- * 「あなたの記憶」 (story-personal-memory-viewer-v1, docs/specs/personal-memory-viewer.md).
+ * 「マイメモリ」 (story-personal-memory-viewer-v1, docs/specs/personal-memory-viewer.md).
  *
  * The owner's own memories as a list with the selected one's detail on the
  * right.  The part never reads memories by itself: the host passes a port
@@ -217,7 +217,7 @@ export function createPersonalMemoryUI({
   }
   const doc = explicitDocument ?? (typeof document === 'undefined' ? null : document);
   if (!doc || typeof doc.createElement !== 'function') throw new Error('document_unavailable');
-  const crumbs = Array.isArray(page?.crumbs) ? page.crumbs : ['あなたのBrainbase', 'あなたの記憶'];
+  const crumbs = Array.isArray(page?.crumbs) ? page.crumbs : ['あなたのBrainbase', 'マイメモリ'];
   const readNow = () => (typeof now === 'function' ? now() : now);
 
   const state = {
@@ -467,7 +467,7 @@ export function createPersonalMemoryUI({
     const current = readNow();
     return workspaceLedger(doc, {
       className: 'bb-pm-ledger',
-      ariaLabel: 'あなたの記憶',
+      ariaLabel: 'マイメモリ',
       columns: ['種類', '記憶', '出どころ', '使われた判断', '更新'],
       empty: '絞り込みに合う記憶はありません。',
       rows: items.map((item) => {
@@ -620,7 +620,7 @@ export function createPersonalMemoryUI({
   function render() {
     if (state.destroyed) return;
     const view = el(doc, 'div', { className: 'bb-pm', attrs: { 'data-contract-version': PERSONAL_MEMORY_UI_CONTRACT_VERSION } });
-    view.append(workspacePageHeader(doc, { crumbs, title: 'あなたの記憶', source: page?.source ?? undefined }));
+    view.append(workspacePageHeader(doc, { crumbs, title: 'マイメモリ', source: page?.source ?? undefined }));
     if (!isOwner()) {
       view.append(workspaceNotice(doc, { label: '本人だけ', text: 'この画面は本人だけが見られます。記憶は読み込んでいません。', tone: 'warning' }));
       root.replaceChildren(view);
