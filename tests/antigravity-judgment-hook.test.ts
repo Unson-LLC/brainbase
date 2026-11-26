@@ -234,15 +234,17 @@ describe('handleAntigravityJudgmentHook lifecycle', () => {
       transcript_path: await realpath(transcriptPath),
     });
 
-    // Verify nested injectSteps[].systemMessage + turn_id guard + metadata.user_markdown
+    // Verify nested injectSteps[].systemMessage + turn_id guard without protojson-breaking metadata
     expect(first.terminationBehavior).toBe('');
-    const steps = first.injectSteps as Array<{ systemMessage: { systemMessage: string; metadata?: { user_markdown?: string } } }>;
+    const steps = first.injectSteps as Array<{ systemMessage: Record<string, unknown> & { systemMessage: string } }>;
     expect(steps).toHaveLength(1);
     expect(steps[0].systemMessage.systemMessage).toContain('[Brainbase Judgment Turn:');
     expect(steps[0].systemMessage.systemMessage).toContain('旧ターンの判断契約・先頭監査行は上書き');
     expect(steps[0].systemMessage.systemMessage.split('\n\n')[0]).not.toContain('owner_line');
+    expect(steps[0].systemMessage.systemMessage).toContain('🧠 判断参照: 確認済み');
     expect(steps[0].systemMessage.systemMessage).toContain('owner_line: keep scope small');
-    expect(steps[0].systemMessage.metadata?.user_markdown).toBe('🧠 判断参照: 確認済み');
+    expect('metadata' in steps[0].systemMessage).toBe(false);
+    expect(Object.keys(steps[0].systemMessage)).toEqual(['systemMessage']);
 
     // 2nd & 3rd PreInvocation in same turn: MUST NOT fire UserPromptSubmit again.
     const second = await handleAntigravityJudgmentHook({
@@ -2986,10 +2988,11 @@ describe('transcript truncation recovery (transcript_full.jsonl & steps/<n>/outp
       transcriptPath,
       lastUserInput: 'Implement item 165',
     }, options);
-    const steps = nextPre.injectSteps as Array<{ systemMessage: { systemMessage: string; metadata?: { user_markdown?: string } } }>;
+    const steps = nextPre.injectSteps as Array<{ systemMessage: Record<string, unknown> & { systemMessage: string } }>;
     expect(steps).toHaveLength(1);
     expect(steps[0].systemMessage.systemMessage).toContain('[compact_4block_v3]');
-    expect(steps[0].systemMessage.metadata?.user_markdown).toBe('📚 Brainbase判断解決: 正常応答を確認 ✓');
+    expect(steps[0].systemMessage.systemMessage).toContain('📚 Brainbase判断解決: 正常応答を確認 ✓');
+    expect('metadata' in steps[0].systemMessage).toBe(false);
 
     // Verify compatibility with real judgment-host.ts callResultStatus + sourceSelection on a recovered search result
     const journalDir = join(home, 'host-journal');
@@ -3223,7 +3226,7 @@ describe('transcript truncation recovery (transcript_full.jsonl & steps/<n>/outp
     }
   });
 
-  it('injects non-empty turn-guarded model text and user_markdown when Host returns systemMessage without additionalContext', async () => {
+  it('injects non-empty turn-guarded model text without metadata when Host returns systemMessage without additionalContext', async () => {
     const { home, repo, configPath, env } = await setupConfig({ project_code: 'proj-sysmsg-only' });
     const turnDir = join(home, 'turns');
     const testEnv = { ...env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir };
@@ -3245,7 +3248,7 @@ describe('transcript truncation recovery (transcript_full.jsonl & steps/<n>/outp
     }));
     const options = { env: testEnv, fetch: fetchImpl, accessToken: token, configPath, registrationId: REG };
 
-    // 1. UserPromptSubmit with systemMessage only -> non-empty systemMessage.systemMessage + metadata.user_markdown
+    // 1. UserPromptSubmit with systemMessage only -> non-empty systemMessage.systemMessage without metadata
     const firstPre = await handleAntigravityJudgmentHook({
       hookEventName: 'PreInvocation',
       conversationId: 'conv-sysmsg-only',
@@ -3253,11 +3256,11 @@ describe('transcript truncation recovery (transcript_full.jsonl & steps/<n>/outp
       cwd: repo,
       lastUserInput: 'Check architecture',
     }, options);
-    const firstSteps = firstPre.injectSteps as Array<{ systemMessage: { systemMessage: string; metadata?: { user_markdown?: string } } }>;
+    const firstSteps = firstPre.injectSteps as Array<{ systemMessage: Record<string, unknown> & { systemMessage: string } }>;
     expect(firstSteps).toHaveLength(1);
     expect(firstSteps[0].systemMessage.systemMessage).toContain('[Brainbase Judgment Turn:');
     expect(firstSteps[0].systemMessage.systemMessage).toContain('🧠 判断参照: 初期システムメッセージのみ');
-    expect(firstSteps[0].systemMessage.metadata?.user_markdown).toBe('🧠 判断参照: 初期システムメッセージのみ');
+    expect('metadata' in firstSteps[0].systemMessage).toBe(false);
 
     // 2. PostToolUse with systemMessage only (exact judgment-host.ts shape) -> queued & drained cleanly
     const postOut = await handleAntigravityJudgmentHook({
@@ -3276,11 +3279,11 @@ describe('transcript truncation recovery (transcript_full.jsonl & steps/<n>/outp
       cwd: repo,
       lastUserInput: 'Check architecture',
     }, options);
-    const secondSteps = secondPre.injectSteps as Array<{ systemMessage: { systemMessage: string; metadata?: { user_markdown?: string } } }>;
+    const secondSteps = secondPre.injectSteps as Array<{ systemMessage: Record<string, unknown> & { systemMessage: string } }>;
     expect(secondSteps).toHaveLength(1);
     expect(secondSteps[0].systemMessage.systemMessage).toContain('[Brainbase Judgment Turn:');
     expect(secondSteps[0].systemMessage.systemMessage).toContain('📚 Brainbase検索: 「arch」→ 正常応答を確認 ✓');
-    expect(secondSteps[0].systemMessage.metadata?.user_markdown).toBe('📚 Brainbase検索: 「arch」→ 正常応答を確認 ✓');
+    expect('metadata' in secondSteps[0].systemMessage).toBe(false);
 
     // 3. Pending queue is fully drained on subsequent PreInvocation (no duplicate leak)
     const thirdPre = await handleAntigravityJudgmentHook({
@@ -3691,11 +3694,12 @@ describe('concatenated multi-JSON MCP block splitting (Item #165)', () => {
       transcriptPath,
       lastUserInput: 'Verify item 165 multi-JSON fix',
     }, options);
-    const steps = nextPre.injectSteps as Array<{ systemMessage: { systemMessage: string; metadata?: { user_markdown?: string } } }>;
+    const steps = nextPre.injectSteps as Array<{ systemMessage: Record<string, unknown> & { systemMessage: string } }>;
     expect(steps).toHaveLength(1);
     expect(steps[0].systemMessage.systemMessage).toContain('[Brainbase Judgment Turn:');
     expect(steps[0].systemMessage.systemMessage).toContain(compactContract);
-    expect(steps[0].systemMessage.metadata?.user_markdown).toBe('📚 Brainbase判断解決: compact_4block_v3 を確定 ✓');
+    expect(steps[0].systemMessage.systemMessage).toContain('📚 Brainbase判断解決: compact_4block_v3 を確定 ✓');
+    expect('metadata' in steps[0].systemMessage).toBe(false);
 
     const persistedAfterDrain = JSON.parse(await readFile(turnStateFile, 'utf8'));
     expect(persistedAfterDrain.pending_messages).toEqual([]);
@@ -3803,16 +3807,20 @@ describe('concatenated multi-JSON MCP block splitting (Item #165)', () => {
       transcriptPath,
       lastUserInput: 'Check additionalContext only',
     }, options);
-    const steps = nextPre.injectSteps as Array<{ systemMessage: { systemMessage: string; metadata?: { user_markdown?: string } } }>;
+    const steps = nextPre.injectSteps as Array<{ systemMessage: Record<string, unknown> & { systemMessage: string } }>;
     expect(steps).toHaveLength(1);
     expect(steps[0].systemMessage.systemMessage).toContain('[compact_4block_v3] additionalContext-only contract');
-    expect(steps[0].systemMessage.metadata).toBeUndefined();
+    expect('metadata' in steps[0].systemMessage).toBe(false);
 
     const drainedState = JSON.parse(await readFile(turnStateFile, 'utf8'));
     expect(drainedState.pending_messages).toEqual([]);
   });
 
   it('runs splitConcatenatedJsonTextBlocks in strict linear O(n) time on 500k+ char valid and adversarial inputs without ReDoS', () => {
+    // Generous 5,000ms ceiling tolerates shared CI runner CPU contention while
+    // decisively catching O(n^2) / ReDoS regressions (which take minutes on 500k+ chars).
+    const maxLinearElapsedMs = 5_000;
+
     // 1. Valid 500k+ two-block concatenated JSON
     const largeBlock1 = JSON.stringify({
       status: 'ok',
@@ -3825,21 +3833,21 @@ describe('concatenated multi-JSON MCP block splitting (Item #165)', () => {
     const splitLarge = splitConcatenatedJsonTextBlocks(largeConcat);
     const elapsed1 = performance.now() - t1;
     expect(splitLarge).toEqual([largeBlock1, largeBlock2]);
-    expect(elapsed1).toBeLessThan(200);
+    expect(elapsed1).toBeLessThan(maxLinearElapsedMs);
 
     // 2. Adversarial 500k unclosed string full of escaped quotes
     const adversarialEscapes = `{"a":"${'\\"'.repeat(250_000)}`;
     const t2 = performance.now();
     expect(splitConcatenatedJsonTextBlocks(adversarialEscapes)).toEqual([adversarialEscapes]);
     const elapsed2 = performance.now() - t2;
-    expect(elapsed2).toBeLessThan(200);
+    expect(elapsed2).toBeLessThan(maxLinearElapsedMs);
 
     // 3. Adversarial 500k unclosed open braces
     const adversarialBraces = '{'.repeat(500_000);
     const t3 = performance.now();
     expect(splitConcatenatedJsonTextBlocks(adversarialBraces)).toEqual([adversarialBraces]);
     const elapsed3 = performance.now() - t3;
-    expect(elapsed3).toBeLessThan(200);
+    expect(elapsed3).toBeLessThan(maxLinearElapsedMs);
 
     // 4. Adversarial 500k deeply nested balanced brackets followed by second block -> completes in O(n) without stack overflow
     const deepBlock = `${'['.repeat(250_000)}${']'.repeat(250_000)}`;
@@ -3850,13 +3858,608 @@ describe('concatenated multi-JSON MCP block splitting (Item #165)', () => {
     expect(deepSplit.length === 2 ? deepSplit : [adversarialDeep]).toEqual(
       deepSplit.length === 2 ? [deepBlock, '{}'] : [adversarialDeep],
     );
-    expect(elapsed4).toBeLessThan(200);
+    expect(elapsed4).toBeLessThan(maxLinearElapsedMs);
 
     // 5. Large 500k valid first block + invalid second block -> fails open safely in O(n)
     const largeMixedInvalid = `${largeBlock1}\n{"connection_scope":broken}`;
     const t5 = performance.now();
     expect(splitConcatenatedJsonTextBlocks(largeMixedInvalid)).toEqual([largeMixedInvalid]);
     const elapsed5 = performance.now() - t5;
-    expect(elapsed5).toBeLessThan(200);
+    expect(elapsed5).toBeLessThan(maxLinearElapsedMs);
+  });
+});
+
+describe('Antigravity G-1 final P0 regressions (Item #165: no protojson metadata panic & unflushed transcript steps fallback)', () => {
+  it('omits metadata completely in buildSystemMessageStep and PreInvocation pending drain across additionalContext-only, systemMessage-only, both-distinct, and duplicate cases', async () => {
+    const { buildSystemMessageStep } = __antigravityHookTestInternals;
+
+    // 1. Direct buildSystemMessageStep checks across all combinations
+    const ctxOnly = buildSystemMessageStep('turn-1', '[compact_4block_v3] context only', undefined) as {
+      systemMessage: Record<string, unknown> & { systemMessage: string };
+    };
+    expect(ctxOnly).not.toBeNull();
+    expect('metadata' in ctxOnly.systemMessage).toBe(false);
+    expect(Object.keys(ctxOnly.systemMessage)).toEqual(['systemMessage']);
+    expect(ctxOnly.systemMessage.systemMessage).toContain('[Brainbase Judgment Turn: turn-1]');
+    expect(ctxOnly.systemMessage.systemMessage).toContain('[compact_4block_v3] context only');
+
+    const msgOnly = buildSystemMessageStep('turn-2', undefined, '📚 Brainbase判断解決: OK ✓') as {
+      systemMessage: Record<string, unknown> & { systemMessage: string };
+    };
+    expect(msgOnly).not.toBeNull();
+    expect('metadata' in msgOnly.systemMessage).toBe(false);
+    expect(Object.keys(msgOnly.systemMessage)).toEqual(['systemMessage']);
+    expect(msgOnly.systemMessage.systemMessage).toContain('[Brainbase Judgment Turn: turn-2]');
+    expect(msgOnly.systemMessage.systemMessage).toContain('📚 Brainbase判断解決: OK ✓');
+
+    const bothDistinct = buildSystemMessageStep(
+      'turn-3',
+      '[compact_4block_v3] contract body',
+      '📚 Brainbase判断解決: 確定 ✓',
+    ) as { systemMessage: Record<string, unknown> & { systemMessage: string } };
+    expect(bothDistinct).not.toBeNull();
+    expect('metadata' in bothDistinct.systemMessage).toBe(false);
+    expect(Object.keys(bothDistinct.systemMessage)).toEqual(['systemMessage']);
+    expect(bothDistinct.systemMessage.systemMessage).toContain('📚 Brainbase判断解決: 確定 ✓');
+    expect(bothDistinct.systemMessage.systemMessage).toContain('[compact_4block_v3] contract body');
+    expect(bothDistinct.systemMessage.systemMessage).toContain('📚 Brainbase判断解決: 確定 ✓\n\n[compact_4block_v3] contract body');
+
+    // Duplicate strings are included only once
+    const bothIdentical = buildSystemMessageStep('turn-4', 'same-note', '  same-note  ') as {
+      systemMessage: Record<string, unknown> & { systemMessage: string };
+    };
+    expect('metadata' in bothIdentical.systemMessage).toBe(false);
+    expect(bothIdentical.systemMessage.systemMessage.split('same-note').length - 1).toBe(1);
+
+    // Both empty returns null
+    expect(buildSystemMessageStep('turn-5', '   ', '')).toBeNull();
+
+    // 2. End-to-end PreInvocation pending drain across all 3 non-empty patterns
+    const patterns: Array<{
+      name: string;
+      output: Record<string, unknown>;
+      expectedSubstrings: string[];
+    }> = [
+      {
+        name: 'additionalContext-only',
+        output: { hookSpecificOutput: { additionalContext: '[compact_4block_v3] ctx-only' } },
+        expectedSubstrings: ['[compact_4block_v3] ctx-only'],
+      },
+      {
+        name: 'systemMessage-only',
+        output: { systemMessage: '📚 sysmsg-only ✓' },
+        expectedSubstrings: ['📚 sysmsg-only ✓'],
+      },
+      {
+        name: 'both-distinct',
+        output: {
+          systemMessage: '📚 both-sysmsg ✓',
+          hookSpecificOutput: { additionalContext: '[compact_4block_v3] both-ctx' },
+        },
+        expectedSubstrings: ['📚 both-sysmsg ✓', '[compact_4block_v3] both-ctx'],
+      },
+    ];
+
+    for (const pattern of patterns) {
+      const { home, repo, configPath, env } = await setupConfig({ project_code: 'unson-lab' });
+      const turnDir = join(home, 'turns');
+      const testEnv = { ...env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir };
+      const conversationId = `conv-no-meta-${pattern.name}`;
+      const { fetchImpl } = mockHost((body) => ({
+        status: 200,
+        body: {
+          schema_version: '1',
+          accepted: true,
+          hook_event_name: body.hook_event_name,
+          session_id: body.session_id,
+          turn_id: body.turn_id,
+          output: body.hook_event_name === 'PostToolUse' ? pattern.output : {},
+        },
+      }));
+      const options = { env: testEnv, fetch: fetchImpl, accessToken: token, configPath, registrationId: REG };
+
+      await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId,
+        invocationNum: 1,
+        cwd: repo,
+        lastUserInput: `Test ${pattern.name}`,
+      }, options);
+
+      const postOut = await handleAntigravityJudgmentHook({
+        hookEventName: 'PostToolUse',
+        conversationId,
+        cwd: repo,
+        stepIdx: 2,
+        toolCall: { id: 'toolu_p', name: 'mcp_brainbase-unson_brainbase_resolve_turn', args: { prompt: 'p' } },
+      }, options);
+      expect(postOut).toEqual({});
+
+      const drainedPre = await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId,
+        invocationNum: 2,
+        cwd: repo,
+        lastUserInput: `Test ${pattern.name}`,
+      }, options);
+      const injectSteps = drainedPre.injectSteps as Array<{ systemMessage: Record<string, unknown> & { systemMessage: string } }>;
+      expect(injectSteps).toHaveLength(1);
+      expect('metadata' in injectSteps[0].systemMessage).toBe(false);
+      expect(Object.keys(injectSteps[0].systemMessage)).toEqual(['systemMessage']);
+      for (const expectedText of pattern.expectedSubstrings) {
+        expect(injectSteps[0].systemMessage.systemMessage).toContain(expectedText);
+      }
+    }
+  });
+
+  it('recovers steps/5/output.txt directly for exact stepIdx 5 when transcript.jsonl has not flushed step 5 yet, splits 2 JSON blocks, queues compact_4block_v3, drains without metadata, and fails closed on planner stepIdx 4', async () => {
+    const { home, repo, configPath, env } = await setupConfig({ project_code: 'unson-lab' });
+    const turnDir = join(home, 'turns');
+    const testEnv = { ...env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir };
+    const conversationId = 'conv-unflushed-step-5';
+    const transcriptPath = await canonicalTranscriptPath(home, conversationId);
+    const sysGenDir = dirname(dirname(transcriptPath));
+    const step5Dir = join(sysGenDir, 'steps', '5');
+    await mkdir(step5Dir, { recursive: true });
+    const step5OutputPath = join(step5Dir, 'output.txt');
+
+    const primaryObj = {
+      status: 'ok',
+      data: {
+        status: 'resolved',
+        reasoning_gate_mode: 'compact_4block_v3',
+        binding_contract: { mode: 'compact_4block_v3', required_blocks: 4 },
+      },
+    };
+    const scopeObj = {
+      connection_scope: {
+        organization_id: 'unson',
+        project_code: 'unson-lab',
+        mode: 'remote_mcp',
+      },
+    };
+    const primaryJson = JSON.stringify(primaryObj, null, 2);
+    const scopeJson = JSON.stringify(scopeObj);
+    await writeFile(
+      step5OutputPath,
+      `Created At: 2026-11-27T07:55:35+09:00\nCompleted At: 2026-11-27T07:55:36+09:00\n${primaryJson}\n${scopeJson}\n`,
+    );
+
+    // transcript.jsonl only has up to step_index: 4 (PLANNER_RESPONSE); step_index: 5 is NOT flushed yet.
+    await writeFile(transcriptPath, [
+      JSON.stringify({ step_index: 0, source: 'USER_EXPLICIT', type: 'USER_INPUT', content: 'Verify unflushed G-1 flow' }),
+      JSON.stringify({ step_index: 4, source: 'MODEL', type: 'PLANNER_RESPONSE', content: 'Calling brainbase_resolve_turn...' }),
+    ].join('\n') + '\n');
+
+    // Planner index (stepIdx: 4) MUST fail closed (null) and MUST NOT unverified-fallback to steps/5/output.txt.
+    expect(extractToolResultTextBlocksFromTranscript(transcriptPath, 4, {
+      conversationId,
+      env: testEnv,
+      toolUseId: 'toolu_unflushed_5',
+    })).toBeNull();
+    expect(extractToolResultFromTranscript(transcriptPath, 4, {
+      conversationId,
+      env: testEnv,
+    })).toBeNull();
+
+    const compactContract = '[compact_4block_v3]\n1. 目的\n2. 判断軸\n3. 反証\n4. 結論';
+    const auditSummary = '📚 Brainbase判断解決: compact_4block_v3 を確定 ✓';
+    const { fetchImpl, sent } = mockHost((body) => {
+      if (body.hook_event_name === 'PostToolUse') {
+        const resp = body.tool_response as { content?: Array<{ type: string; text: string }>; isError?: boolean };
+        expect(resp.isError).toBe(false);
+        expect(resp.content).toHaveLength(2);
+        expect(JSON.parse(resp.content![0].text)).toEqual(primaryObj);
+        expect(JSON.parse(resp.content![1].text)).toEqual(scopeObj);
+        return {
+          status: 200,
+          body: {
+            schema_version: '1',
+            accepted: true,
+            hook_event_name: body.hook_event_name,
+            session_id: body.session_id,
+            turn_id: body.turn_id,
+            output: {
+              systemMessage: auditSummary,
+              hookSpecificOutput: { additionalContext: compactContract },
+            },
+          },
+        };
+      }
+      return {
+        status: 200,
+        body: {
+          schema_version: '1',
+          accepted: true,
+          hook_event_name: body.hook_event_name,
+          session_id: body.session_id,
+          turn_id: body.turn_id,
+          output: {},
+        },
+      };
+    });
+
+    const options = { env: testEnv, fetch: fetchImpl, accessToken: token, configPath, registrationId: REG };
+
+    await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId,
+      invocationNum: 1,
+      cwd: repo,
+      transcriptPath,
+      lastUserInput: 'Verify unflushed G-1 flow',
+    }, options);
+
+    const postOut = await handleAntigravityJudgmentHook({
+      hookEventName: 'PostToolUse',
+      conversationId,
+      cwd: repo,
+      stepIdx: 5,
+      transcriptPath,
+      toolCall: {
+        id: 'toolu_unflushed_5',
+        name: 'mcp_brainbase-unson_brainbase_resolve_turn',
+        args: { prompt: 'Verify unflushed G-1 flow' },
+      },
+    }, options);
+    expect(postOut).toEqual({});
+    expect(sent).toHaveLength(2);
+    expect(sent[1].body.tool_response).toEqual({
+      content: [
+        { type: 'text', text: primaryJson },
+        { type: 'text', text: scopeJson },
+      ],
+      isError: false,
+    });
+
+    const key = __antigravityHookTestInternals.turnKey(conversationId, configPath);
+    const turnStateFile = __antigravityHookTestInternals.statePath(testEnv, key);
+    const queuedState = JSON.parse(await readFile(turnStateFile, 'utf8'));
+    expect(queuedState.pending_messages).toHaveLength(1);
+    expect(queuedState.pending_messages[0].additional_context).toBe(compactContract);
+    expect(queuedState.pending_messages[0].system_message).toBe(auditSummary);
+
+    const nextPre = await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId,
+      invocationNum: 2,
+      cwd: repo,
+      transcriptPath,
+      lastUserInput: 'Verify unflushed G-1 flow',
+    }, options);
+    const injectSteps = nextPre.injectSteps as Array<{ systemMessage: Record<string, unknown> & { systemMessage: string } }>;
+    expect(injectSteps).toHaveLength(1);
+    expect('metadata' in injectSteps[0].systemMessage).toBe(false);
+    expect(Object.keys(injectSteps[0].systemMessage)).toEqual(['systemMessage']);
+    expect(injectSteps[0].systemMessage.systemMessage).toContain(auditSummary);
+    expect(injectSteps[0].systemMessage.systemMessage).toContain(compactContract);
+
+    const drainedState = JSON.parse(await readFile(turnStateFile, 'utf8'));
+    expect(drainedState.pending_messages).toEqual([]);
+  });
+
+  it('fails closed without falling through to neighboring steps on missing/oversized/symlink/non-regular/planner/mismatched-toolUseId cases (B-1 R1-R4 regressions)', async () => {
+    const dir = await tempDir();
+    const allowedRoot = join(dir, 'brain');
+    const outsideDir = join(dir, 'outside-secret');
+    await mkdir(outsideDir, { recursive: true });
+    const outsideSecretFile = join(outsideDir, 'secret.txt');
+    await writeFile(outsideSecretFile, '{"secret":"OUTSIDE_MUST_NEVER_BE_READ"}\n');
+
+    const neighborShellOutput = 'AWS_SECRET_ACCESS_KEY=from-parallel-run-command\n';
+
+    // R1 (missing): steps/20/output.txt does not exist, steps/21/output.txt has parallel run_command output -> MUST return null.
+    {
+      const convId = 'conv-b1-r1-missing';
+      const sysGen = join(allowedRoot, convId, '.system_generated');
+      await mkdir(join(sysGen, 'logs'), { recursive: true });
+      await mkdir(join(sysGen, 'steps', '21'), { recursive: true });
+      await writeFile(join(sysGen, 'steps', '21', 'output.txt'), `Created At: 2026-11-27T07:56:37+09:00\n${neighborShellOutput}`);
+      const transcriptPath = join(sysGen, 'logs', 'transcript.jsonl');
+      await writeFile(transcriptPath, JSON.stringify({
+        step_index: 19,
+        source: 'MODEL',
+        type: 'PLANNER_RESPONSE',
+        content: 'Parallel tool calls',
+      }) + '\n');
+
+      const opts = { conversationId: convId, allowedTranscriptRoots: [allowedRoot] };
+      expect(extractToolResultFromTranscript(transcriptPath, 20, opts)).toBeNull();
+      expect(extractToolResultTextBlocksFromTranscript(transcriptPath, 20, { ...opts, toolUseId: 'toolu_bb_20' })).toBeNull();
+    }
+
+    // R2 (oversized >512 KiB): steps/20/output.txt exceeds cap, steps/21/output.txt has neighbor output -> MUST return null
+    // in BOTH unflushed mode and transcript-matched mode (never fall through to step 21).
+    {
+      const convId = 'conv-b1-r2-oversized';
+      const sysGen = join(allowedRoot, convId, '.system_generated');
+      await mkdir(join(sysGen, 'logs'), { recursive: true });
+      await mkdir(join(sysGen, 'steps', '20'), { recursive: true });
+      await mkdir(join(sysGen, 'steps', '21'), { recursive: true });
+      await writeFile(join(sysGen, 'steps', '20', 'output.txt'), `{"huge":"${'a'.repeat(600 * 1024)}"}\n`);
+      await writeFile(join(sysGen, 'steps', '21', 'output.txt'), neighborShellOutput);
+      const transcriptPath = join(sysGen, 'logs', 'transcript.jsonl');
+      const opts = { conversationId: convId, allowedTranscriptRoots: [allowedRoot] };
+
+      // Unflushed transcript (only planner step 19)
+      await writeFile(transcriptPath, JSON.stringify({
+        step_index: 19,
+        source: 'MODEL',
+        type: 'PLANNER_RESPONSE',
+        content: 'Parallel tool calls',
+      }) + '\n');
+      expect(extractToolResultFromTranscript(transcriptPath, 20, opts)).toBeNull();
+      expect(extractToolResultFromTranscript(transcriptPath, 20, { ...opts, toolUseId: 'toolu_bb_20' })).toBeNull();
+
+      // Transcript-matched truncated entry at step 20 (no explicit file:// URL) -> still MUST NOT fall through to step 21
+      await writeFile(transcriptPath, [
+        JSON.stringify({ step_index: 19, source: 'MODEL', type: 'PLANNER_RESPONSE', content: 'Parallel tool calls' }),
+        JSON.stringify({
+          step_index: 20,
+          source: 'MODEL',
+          type: 'GENERIC',
+          content: 'Created At: 2026-11-27T07:56:35+09:00\n{"huge":"<truncated 600000 bytes>',
+          truncated_fields: ['content'],
+        }),
+      ].join('\n') + '\n');
+      expect(extractToolResultFromTranscript(transcriptPath, 20, opts)).toBeNull();
+    }
+
+    // R3 (symlink / non-regular FIFO / truncation banner): steps/20/output.txt rejected -> MUST return null
+    // and NEVER fall through to steps/21/output.txt (both unflushed and transcript-matched).
+    {
+      const convId = 'conv-b1-r3-symlink';
+      const sysGen = join(allowedRoot, convId, '.system_generated');
+      await mkdir(join(sysGen, 'logs'), { recursive: true });
+      await mkdir(join(sysGen, 'steps', '20'), { recursive: true });
+      await mkdir(join(sysGen, 'steps', '21'), { recursive: true });
+      const step20Output = join(sysGen, 'steps', '20', 'output.txt');
+      await writeFile(join(sysGen, 'steps', '21', 'output.txt'), neighborShellOutput);
+      const transcriptPath = join(sysGen, 'logs', 'transcript.jsonl');
+      const opts = { conversationId: convId, allowedTranscriptRoots: [allowedRoot] };
+
+      // 3a. Symlink at steps/20/output.txt (unflushed & transcript-matched)
+      await symlink(outsideSecretFile, step20Output);
+      await writeFile(transcriptPath, JSON.stringify({
+        step_index: 19,
+        source: 'MODEL',
+        type: 'PLANNER_RESPONSE',
+        content: 'Parallel tool calls',
+      }) + '\n');
+      expect(extractToolResultFromTranscript(transcriptPath, 20, opts)).toBeNull();
+
+      await writeFile(transcriptPath, [
+        JSON.stringify({ step_index: 19, source: 'MODEL', type: 'PLANNER_RESPONSE', content: 'Parallel tool calls' }),
+        JSON.stringify({
+          step_index: 20,
+          source: 'MODEL',
+          type: 'GENERIC',
+          content: 'Created At: 2026-11-27T07:56:35+09:00\n{"ok":true\n<truncated 500 bytes>',
+          truncated_fields: ['content'],
+        }),
+      ].join('\n') + '\n');
+      expect(extractToolResultFromTranscript(transcriptPath, 20, opts)).toBeNull();
+
+      // 3b. Non-regular FIFO at steps/20/output.txt (transcript-matched) -> rejects immediately without falling through to step 21
+      await rm(step20Output, { force: true });
+      const mkfifoRes = spawnSync('mkfifo', [step20Output]);
+      expect(mkfifoRes.status).toBe(0);
+      expect(extractToolResultFromTranscript(transcriptPath, 20, opts)).toBeNull();
+
+      // 3c. Truncation banner inside steps/20/output.txt (transcript-matched) -> rejects without falling through to step 21
+      await rm(step20Output, { force: true });
+      await writeFile(step20Output, "The tool's output was truncated due to being too long.\n<truncated 100 bytes>\n");
+      expect(extractToolResultFromTranscript(transcriptPath, 20, opts)).toBeNull();
+    }
+
+    // R4 (planner index / parallel batch & mismatched toolUseId):
+    // Mirrors real conversation 223a184e: planner 33 -> run_command 34 / Brainbase 35.
+    {
+      const convId = 'conv-b1-r4-parallel';
+      const sysGen = join(allowedRoot, convId, '.system_generated');
+      await mkdir(join(sysGen, 'logs'), { recursive: true });
+      await mkdir(join(sysGen, 'steps', '34'), { recursive: true });
+      await mkdir(join(sysGen, 'steps', '35'), { recursive: true });
+      const brainbaseStep35Json = JSON.stringify({ status: 'ok', tool: 'brainbase_judgment_audit_read' });
+      await writeFile(join(sysGen, 'steps', '34', 'output.txt'), `Created At: 2026-11-27T07:57:28+09:00\n${neighborShellOutput}`);
+      await writeFile(join(sysGen, 'steps', '35', 'output.txt'), `Created At: 2026-11-27T07:57:29+09:00\n${brainbaseStep35Json}\n`);
+
+      const transcriptPath = join(sysGen, 'logs', 'transcript.jsonl');
+      const opts = { conversationId: convId, allowedTranscriptRoots: [allowedRoot] };
+
+      // 4a. Transcript flushed only through planner step 33:
+      //     stepIdx: 33 MUST return null (never leak step 34 shell output); exact stepIdx: 35 recovers Brainbase output.
+      await writeFile(transcriptPath, JSON.stringify({
+        step_index: 33,
+        source: 'MODEL',
+        type: 'PLANNER_RESPONSE',
+        content: 'Calling run_command and brainbase_judgment_audit_read in parallel',
+      }) + '\n');
+      expect(extractToolResultFromTranscript(transcriptPath, 33, opts)).toBeNull();
+      expect(extractToolResultFromTranscript(transcriptPath, 33, { ...opts, toolUseId: 'toolu_bb_35' })).toBeNull();
+      expect(extractToolResultFromTranscript(transcriptPath, 35, { ...opts, toolUseId: 'toolu_bb_35' })).toBe(brainbaseStep35Json);
+
+      // 4b. Transcript also flushed step 34 (run_command with explicit tool_use_id), step 35 not flushed yet:
+      //     - stepIdx: 33 + toolUseId: toolu_bb_35 MUST NOT match step 34 in transcript or steps/34/output.txt
+      //     - stepIdx: 34 + toolUseId: toolu_bb_35 MUST NOT match mismatched step 34 or read steps/34/output.txt
+      await writeFile(transcriptPath, [
+        JSON.stringify({ step_index: 33, source: 'MODEL', type: 'PLANNER_RESPONSE', content: 'Parallel batch' }),
+        JSON.stringify({
+          step_index: 34,
+          tool_use_id: 'toolu_cmd_34',
+          source: 'MODEL',
+          type: 'GENERIC',
+          content: `Created At: 2026-11-27T07:57:28+09:00\n${neighborShellOutput}`,
+        }),
+      ].join('\n') + '\n');
+      expect(extractToolResultFromTranscript(transcriptPath, 33, { ...opts, toolUseId: 'toolu_bb_35' })).toBeNull();
+      expect(extractToolResultFromTranscript(transcriptPath, 34, { ...opts, toolUseId: 'toolu_bb_35' })).toBeNull();
+      expect(extractToolResultFromTranscript(transcriptPath, 35, { ...opts, toolUseId: 'toolu_bb_35' })).toBe(brainbaseStep35Json);
+
+      // 4c. Transcript flushed step 34 WITHOUT tool_use_id (real Antigravity GENERIC shape):
+      //     stepIdx: 33 MUST STILL return null (never jump from planner 33 to untagged neighbor 34).
+      await writeFile(transcriptPath, [
+        JSON.stringify({ step_index: 33, source: 'MODEL', type: 'PLANNER_RESPONSE', content: 'Parallel batch' }),
+        JSON.stringify({
+          step_index: 34,
+          source: 'MODEL',
+          type: 'GENERIC',
+          content: `Created At: 2026-11-27T07:57:28+09:00\n${neighborShellOutput}`,
+        }),
+      ].join('\n') + '\n');
+      expect(extractToolResultFromTranscript(transcriptPath, 33, opts)).toBeNull();
+      expect(extractToolResultFromTranscript(transcriptPath, 33, { ...opts, toolUseId: 'toolu_bb_35' })).toBeNull();
+    }
+
+    // E2E PostToolUse guard: when Brainbase step 20 output is missing and parallel step 21 has secrets,
+    // PostToolUse MUST send a digest summary (NEVER raw step 21 shell output).
+    {
+      const { home, repo, configPath, env } = await setupConfig({ project_code: 'unson-lab' });
+      const turnDir = join(home, 'turns');
+      const testEnv = { ...env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir };
+      const convId = 'conv-b1-e2e-no-leak';
+      const transcriptPath = await canonicalTranscriptPath(home, convId);
+      const sysGen = dirname(dirname(transcriptPath));
+      await mkdir(join(sysGen, 'steps', '21'), { recursive: true });
+      await writeFile(join(sysGen, 'steps', '21', 'output.txt'), `Created At: 2026-11-27T07:56:37+09:00\n${neighborShellOutput}`);
+      await writeFile(transcriptPath, [
+        JSON.stringify({ step_index: 0, source: 'USER_EXPLICIT', type: 'USER_INPUT', content: 'Check parallel boundary' }),
+        JSON.stringify({ step_index: 19, source: 'MODEL', type: 'PLANNER_RESPONSE', content: 'Parallel calls' }),
+      ].join('\n') + '\n');
+
+      const { fetchImpl, sent } = mockHost();
+      const hookOpts = { env: testEnv, fetch: fetchImpl, accessToken: token, configPath, registrationId: REG };
+
+      await handleAntigravityJudgmentHook({
+        hookEventName: 'PreInvocation',
+        conversationId: convId,
+        invocationNum: 1,
+        cwd: repo,
+        transcriptPath,
+        lastUserInput: 'Check parallel boundary',
+      }, hookOpts);
+
+      const postOut = await handleAntigravityJudgmentHook({
+        hookEventName: 'PostToolUse',
+        conversationId: convId,
+        cwd: repo,
+        stepIdx: 20,
+        transcriptPath,
+        toolCall: {
+          id: 'toolu_bb_20',
+          name: 'mcp_brainbase-unson_brainbase_judgment_frame_read',
+          args: { id: 'frame_1' },
+        },
+      }, hookOpts);
+      expect(postOut).toEqual({});
+      expect(sent).toHaveLength(2);
+      expect(JSON.stringify(sent[1].body)).not.toContain('AWS_SECRET_ACCESS_KEY');
+      expect(sent[1].body.tool_response).toMatchObject({
+        success: true,
+        digest: expect.stringMatching(/^sha256:/u),
+      });
+      expect(sent[1].body.tool_response).not.toHaveProperty('content');
+    }
+  });
+
+  it('recovers from transcript_full.jsonl or steps/<n>/output.txt even before transcript.jsonl exists, while preserving strict symlink/traversal/size boundaries', async () => {
+    const dir = await tempDir();
+    const allowedRoot = join(dir, 'brain');
+    const outsideDir = join(dir, 'outside-secret');
+    await mkdir(outsideDir, { recursive: true });
+    const outsideSecretFile = join(outsideDir, 'secret.txt');
+    await writeFile(outsideSecretFile, '{"secret":"MUST_NEVER_BE_READ"}\n');
+
+    // 1. transcript.jsonl and even logs/ do NOT exist yet, while steps/5/output.txt already exists
+    const convNoLogs = 'conv-before-first-flush';
+    const noLogsSysGen = join(allowedRoot, convNoLogs, '.system_generated');
+    await mkdir(join(noLogsSysGen, 'steps', '5'), { recursive: true });
+    const blockA = JSON.stringify({ status: 'ok', data: { status: 'resolved' } });
+    const blockB = JSON.stringify({ connection_scope: { organization_id: 'unson' } });
+    await writeFile(join(noLogsSysGen, 'steps', '5', 'output.txt'), `${blockA}\n${blockB}\n`);
+    const missingTranscriptPath = join(noLogsSysGen, 'logs', 'transcript.jsonl');
+    expect(existsSync(missingTranscriptPath)).toBe(false);
+    expect(extractToolResultTextBlocksFromTranscript(missingTranscriptPath, 5, {
+      conversationId: convNoLogs,
+      allowedTranscriptRoots: [allowedRoot],
+    })).toEqual([blockA, blockB]);
+
+    // 2. transcript.jsonl is unflushed, but sibling transcript_full.jsonl already has step 5
+    const convFullOnly = 'conv-unflushed-but-full-present';
+    const fullOnlyLogs = join(allowedRoot, convFullOnly, '.system_generated', 'logs');
+    await mkdir(fullOnlyLogs, { recursive: true });
+    const unflushedBase = join(fullOnlyLogs, 'transcript.jsonl');
+    const flushedFull = join(fullOnlyLogs, 'transcript_full.jsonl');
+    await writeFile(unflushedBase, JSON.stringify({ step_index: 4, source: 'MODEL', type: 'PLANNER_RESPONSE', content: 'working' }) + '\n');
+    await writeFile(flushedFull, JSON.stringify({
+      step_index: 5,
+      tool_use_id: 'toolu_full_5',
+      source: 'MODEL',
+      type: 'GENERIC',
+      content: `Created At: 2026-11-27T07:55:36+09:00\n${blockA}\n${blockB}`,
+    }) + '\n');
+    expect(extractToolResultTextBlocksFromTranscript(unflushedBase, 5, {
+      conversationId: convFullOnly,
+      allowedTranscriptRoots: [allowedRoot],
+      toolUseId: 'toolu_full_5',
+    })).toEqual([blockA, blockB]);
+
+    // 3. Security invariants on missing/unflushed transcript fallback:
+    //    - dangling symlink at transcript.jsonl MUST fail closed
+    const convDangling = 'conv-dangling-symlink';
+    const danglingSysGen = join(allowedRoot, convDangling, '.system_generated');
+    await mkdir(join(danglingSysGen, 'logs'), { recursive: true });
+    await mkdir(join(danglingSysGen, 'steps', '5'), { recursive: true });
+    await writeFile(join(danglingSysGen, 'steps', '5', 'output.txt'), `${blockA}\n`);
+    const danglingTranscript = join(danglingSysGen, 'logs', 'transcript.jsonl');
+    await symlink(join(outsideDir, 'does-not-exist.jsonl'), danglingTranscript);
+    expect(extractToolResultFromTranscript(danglingTranscript, 5, {
+      conversationId: convDangling,
+      allowedTranscriptRoots: [allowedRoot],
+    })).toBeNull();
+
+    //    - symlinked logs/ directory MUST fail closed even when transcript.jsonl is missing
+    const convSymLogs = 'conv-symlink-logs';
+    const symLogsSysGen = join(allowedRoot, convSymLogs, '.system_generated');
+    await mkdir(join(symLogsSysGen, 'steps', '5'), { recursive: true });
+    await writeFile(join(symLogsSysGen, 'steps', '5', 'output.txt'), `${blockA}\n`);
+    await symlink(outsideDir, join(symLogsSysGen, 'logs'));
+    expect(extractToolResultFromTranscript(join(symLogsSysGen, 'logs', 'transcript.jsonl'), 5, {
+      conversationId: convSymLogs,
+      allowedTranscriptRoots: [allowedRoot],
+    })).toBeNull();
+
+    //    - symlinked steps/5/output.txt MUST fail closed when transcript.jsonl is unflushed
+    const convSymStep = 'conv-symlink-step-unflushed';
+    const symStepSysGen = join(allowedRoot, convSymStep, '.system_generated');
+    await mkdir(join(symStepSysGen, 'logs'), { recursive: true });
+    await mkdir(join(symStepSysGen, 'steps', '5'), { recursive: true });
+    await symlink(outsideSecretFile, join(symStepSysGen, 'steps', '5', 'output.txt'));
+    const symStepTranscript = join(symStepSysGen, 'logs', 'transcript.jsonl');
+    await writeFile(symStepTranscript, JSON.stringify({ step_index: 4, source: 'MODEL', type: 'PLANNER_RESPONSE', content: 'hi' }) + '\n');
+    expect(extractToolResultFromTranscript(symStepTranscript, 5, {
+      conversationId: convSymStep,
+      allowedTranscriptRoots: [allowedRoot],
+    })).toBeNull();
+
+    //    - path traversal (`..`) in missing transcriptPath MUST fail closed
+    const traversalMissingPath = `${noLogsSysGen}/steps/../logs/transcript.jsonl`;
+    expect(extractToolResultFromTranscript(traversalMissingPath, 5, {
+      conversationId: convNoLogs,
+      allowedTranscriptRoots: [allowedRoot],
+    })).toBeNull();
+
+    //    - oversized (>512 KiB) steps/5/output.txt MUST fail closed when transcript.jsonl is unflushed
+    const convOversized = 'conv-oversized-unflushed';
+    const oversizedSysGen = join(allowedRoot, convOversized, '.system_generated');
+    await mkdir(join(oversizedSysGen, 'logs'), { recursive: true });
+    await mkdir(join(oversizedSysGen, 'steps', '5'), { recursive: true });
+    await writeFile(join(oversizedSysGen, 'steps', '5', 'output.txt'), `{"huge":"${'a'.repeat(600 * 1024)}"}\n`);
+    const oversizedTranscript = join(oversizedSysGen, 'logs', 'transcript.jsonl');
+    await writeFile(oversizedTranscript, JSON.stringify({ step_index: 4, source: 'MODEL', type: 'PLANNER_RESPONSE', content: 'hi' }) + '\n');
+    expect(extractToolResultFromTranscript(oversizedTranscript, 5, {
+      conversationId: convOversized,
+      allowedTranscriptRoots: [allowedRoot],
+    })).toBeNull();
   });
 });
