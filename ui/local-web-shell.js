@@ -55,7 +55,7 @@ const NAV_ICON_PATHS = Object.freeze({
   minutes: ['M6 3.5h9l3 3V20.5H6z', 'M15 3.5v4h3', 'M9 12h6m-6 3h6'],
   // Two people (the organization edition's 人と会社 uses the same shape).
   people: ['M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z', 'M2.5 20a6.5 6.5 0 0 1 13 0', 'M16 4.5a3.5 3.5 0 0 1 0 6.5', 'M18 14a6.5 6.5 0 0 1 3.5 6'],
-  // あなたの記憶 (ledger D15): one person and a lock, seen only by the owner.
+  // マイメモリ (ledger D15): one person and a lock, seen only by the owner.
   memory: ['M10 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z', 'M3.5 20a6.5 6.5 0 0 1 10-5.5', 'M15 15h6v5h-6z', 'M16.5 15v-1.5a1.5 1.5 0 0 1 3 0V15'],
   // Kinds of information and how they connect (settings, ledger D14): three linked boxes.
   ontology: ['M4 4h6v6H4z', 'M14 14h6v6h-6z', 'M14 4h6v6h-6z', 'M10 7h4', 'M17 10v4'],
@@ -168,7 +168,7 @@ export function parseLocalWebTarget(target) {
   // プロジェクトと関係者 one project (`project` = Graph project id); other screens ignore them.
   const decisionId = screenId === 'value-proofs' ? params.get('decision')?.trim() || null : null;
   const projectId = screenId === 'projects' ? params.get('project')?.trim() || null : null;
-  // あなたの記憶 keeps its filters and the opened memory (never the search words).
+  // マイメモリ keeps its filters and the opened memory (never the search words).
   const memoryRoute = screenId === 'memory' ? parsePersonalMemoryRoute(params) : null;
   return {
     screenId,
@@ -387,7 +387,7 @@ export const LOCAL_WEB_SCREENS = Object.freeze([
   })) }),
   Object.freeze({ id: 'people', label: '人と会社', section: 'explore', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('people', createPeopleAndCompaniesView, { canCorrect: true }) }),
   // Only the owner sees it (ledger D15); the local host has one owner, so it is always listed here.
-  Object.freeze({ id: 'memory', label: 'あなたの記憶', section: 'explore', usesGraph: false, rail: true, ownerOnly: true, source: '手元の個人KG', mount: mountPersonalMemory }),
+  Object.freeze({ id: 'memory', label: 'マイメモリ', section: 'explore', usesGraph: false, rail: true, ownerOnly: true, source: '手元の個人KG', mount: mountPersonalMemory }),
   // The definitions behind 情報と関係: infrequent management work, so under settings (ledger D14).
   Object.freeze({ id: 'ontology', label: '情報の種類とつながり方', section: 'settings', usesGraph: true, rail: false, source: '手元のGraph', mount: mountGraphScreen('ontology', createGraphOntologyView, { canCorrect: true }) }),
 ]);
@@ -476,7 +476,7 @@ export function createLocalWebShell({
   areaMemory = createAreaMemory(browserAreaStorage()),
   onNavigate,
   // A host that serves more than one person passes false for anyone but the owner:
-  // owner-only screens (あなたの記憶) are then neither listed nor mounted.
+  // owner-only screens (マイメモリ) are then neither listed nor mounted.
   isOwner = true,
 } = {}) {
   if (!root) throw new TypeError('root is required');
@@ -605,7 +605,7 @@ export function createLocalWebShell({
       pendingEntityIds.set(screen.id, screen.id === 'graph' ? parsed.entityId
         : screen.id === 'value-proofs' ? parsed.decisionId ?? null
           : screen.id === 'projects' ? parsed.projectId ?? null
-            // あなたの記憶 receives its whole route (filters and the opened memory).
+            // マイメモリ receives its whole route (filters and the opened memory).
             : screen.id === 'memory' ? parsed.memoryRoute ?? null : null);
       active = screen.id;
       for (const [screenId, slot] of slots) slot.hidden = screenId !== screen.id;

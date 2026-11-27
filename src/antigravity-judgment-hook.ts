@@ -18,7 +18,7 @@
 // 5. Base URLs with path prefixes (e.g. `https://bb.unson.jp/runtime-mcp`) preserve their
 //    path when resolving `host/judgment/hook`.
 // 6. Strict fail-open outputs with short HTTP timeouts:
-//    - PreInvocation: `{}` (or `{ injectSteps: [{ systemMessage: { systemMessage, metadata? } }], terminationBehavior: '' }`)
+//    - PreInvocation: `{}` (or `{ injectSteps: [{ systemMessage: { systemMessage } }], terminationBehavior: '' }`)
 //    - PreToolUse: `{ decision: 'allow' }` (or `{ decision: 'deny', reason }`)
 //    - PostToolUse: ALWAYS `{}` (any follow-up context is queued with `turn_id` for next PreInvocation)
 //    - Stop: ALWAYS `{ decision: '' }` (never `"continue"`)
@@ -41,7 +41,8 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
-import { delimiter, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { BrainbaseLoginError, getAccessTokenOfLogin, type AccessTokenOptions } from './brainbase-login.js';
 import {
   PRE_TOOL_USE_TOOLS,
@@ -134,6 +135,8 @@ export interface TranscriptReadOptions {
   conversationId: string;
   allowedTranscriptRoots?: readonly string[];
   env?: NodeJS.ProcessEnv;
+  /** Optional tool_use_id / tool_call_id hint when resolving truncated or shifted tool results. */
+  toolUseId?: string;
   /** Override for the Linux `openat2` helper executable path (strictly for tests). */
   openatHelperBinary?: string;
   /** Override runtime platform check (strictly for tests). */
@@ -143,6 +146,8 @@ export interface TranscriptReadOptions {
 const TURN_SCHEMA = 'brainbase-antigravity-judgment-turn-v1';
 const PROJECT_CODE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/u;
 const TRANSCRIPT_TAIL_MAX_BYTES = 256 * 1024;
+const TRANSCRIPT_FULL_TAIL_MAX_BYTES = 1024 * 1024;
+const TRANSCRIPT_TOOL_RESULT_MAX_BYTES = 512 * 1024;
 const TRANSCRIPT_OPENAT_TIMEOUT_MS = 1_500;
 const MAX_PENDING_MESSAGES = 8;
 const DEFAULT_STALE_TURN_MS = 30 * 60 * 1000;
@@ -709,9 +714,12 @@ async function resolveCurrentLoginId(
 
 interface TranscriptEntry {
   step_index?: unknown;
+  tool_use_id?: unknown;
+  tool_call_id?: unknown;
   source?: unknown;
   type?: unknown;
   content?: unknown;
+  truncated_fields?: unknown;
 }
 
 const ALLOWED_TRANSCRIPT_FILENAMES = new Set(['transcript.jsonl', 'transcript_full.jsonl']);
@@ -906,7 +914,121 @@ function resolveAuthorizedTranscriptPath(
   return resolveAuthorizedTranscriptTarget(transcriptPath, options)?.canonicalPath ?? null;
 }
 
-function buildPythonOpenatTailReader(faults?: TranscriptOpenatTestFaults): string {
+function isEnoentError(error: unknown): boolean {
+  return !!error && typeof error === 'object' && (error as NodeJS.ErrnoException).code === 'ENOENT';
+}
+
+/**
+ * Resolves an authorized transcript location ONLY when the transcript file itself
+ * does not exist yet (`ENOENT`), e.g. on the first tool call before Antigravity
+ * flushes `logs/transcript.jsonl` while `steps/<n>/output.txt` already exists.
+ *
+ * Strictly enforces the same canonical root, conversation structure, and
+ * no-symlink ancestor invariants; fails closed if the file exists (and was
+ * already rejected by `resolveAuthorizedTranscriptTarget`), contains `.`/`..`,
+ * or traverses any symlink inside the authorized root.
+ */
+function resolveAuthorizedMissingTranscriptTarget(
+  transcriptPath: unknown,
+  options?: TranscriptReadOptions,
+): AuthorizedTranscriptTarget | null {
+  if (typeof transcriptPath !== 'string' || !transcriptPath.trim() || transcriptPath.includes('\0')) {
+    return null;
+  }
+  const conversationId = options?.conversationId?.trim() ?? '';
+  if (!isSafeConversationIdSegment(conversationId)) return null;
+
+  const rawPath = transcriptPath.trim();
+  if (!isAbsolute(rawPath)) return null;
+  const rawSegments = rawPath.split(/[/\\]/u);
+  if (rawSegments.includes('..') || rawSegments.includes('.')) {
+    return null;
+  }
+
+  try {
+    lstatSync(rawPath);
+    return null;
+  } catch (error) {
+    if (!isEnoentError(error)) return null;
+  }
+
+  const fileName = basename(rawPath);
+  if (!ALLOWED_TRANSCRIPT_FILENAMES.has(fileName) || !isSafePathSegment(fileName)) {
+    return null;
+  }
+
+  let candidateCanonical: string | null = null;
+  const parentDir = dirname(rawPath);
+  try {
+    const parentStat = lstatSync(parentDir);
+    if (parentStat.isSymbolicLink() || !parentStat.isDirectory()) return null;
+    candidateCanonical = join(realpathSync(parentDir), fileName);
+  } catch (error) {
+    if (!isEnoentError(error)) return null;
+    const parentName = basename(parentDir);
+    if (parentName !== 'logs' || !isSafePathSegment(parentName)) return null;
+    const grandParentDir = dirname(parentDir);
+    try {
+      const grandStat = lstatSync(grandParentDir);
+      if (grandStat.isSymbolicLink() || !grandStat.isDirectory()) return null;
+      candidateCanonical = join(realpathSync(grandParentDir), parentName, fileName);
+    } catch {
+      return null;
+    }
+  }
+
+  if (!candidateCanonical) return null;
+
+  const roots = canonicalTranscriptRoots(options!);
+  if (roots.length === 0) return null;
+  const matchedRoot = roots.find((root) => (
+    root !== sep
+    && root !== '/'
+    && matchesConversationTranscriptStructure(root, candidateCanonical, conversationId)
+  ));
+  if (!matchedRoot) return null;
+
+  try {
+    const rootStat = lstatSync(matchedRoot);
+    if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) return null;
+    if (realpathSync(matchedRoot) !== matchedRoot) return null;
+  } catch {
+    return null;
+  }
+
+  const segments = relative(matchedRoot, candidateCanonical).split(sep);
+  if (segments.length === 0 || !segments.every(isSafePathSegment)) return null;
+
+  let current = matchedRoot;
+  let sawMissingDir = false;
+  for (let i = 0; i < segments.length - 1; i += 1) {
+    current = join(current, segments[i]);
+    if (sawMissingDir) return null;
+    try {
+      const dirStat = lstatSync(current);
+      if (dirStat.isSymbolicLink() || !dirStat.isDirectory()) return null;
+    } catch (error) {
+      if (!isEnoentError(error) || i !== segments.length - 2 || segments[i] !== 'logs') {
+        return null;
+      }
+      sawMissingDir = true;
+    }
+  }
+
+  try {
+    lstatSync(candidateCanonical);
+    return null;
+  } catch (error) {
+    if (!isEnoentError(error)) return null;
+  }
+
+  return { canonicalRoot: matchedRoot, canonicalPath: candidateCanonical, segments };
+}
+
+function buildPythonOpenatReader(
+  faults?: TranscriptOpenatTestFaults,
+  mode: 'tail' | 'full' = 'tail',
+): string {
   const forceOpenat2Errno = faults?.forceOpenat2Errno;
   const renameAfterRead = faults?.renameAfterTailRead;
 
@@ -990,8 +1112,16 @@ function buildPythonOpenatTailReader(faults?: TranscriptOpenatTestFaults): strin
     '    verify_fd_exact_path(file_fd, expected_exact_path)',
     '    size = st.st_size',
     '    if size <= 0: sys.exit(0)',
-    '    read_size = min(size, max_bytes)',
-    '    offset = size - read_size',
+    ...(mode === 'full'
+      ? [
+        '    if size > max_bytes: fail()',
+        '    read_size = size',
+        '    offset = 0',
+      ]
+      : [
+        '    read_size = min(size, max_bytes)',
+        '    offset = size - read_size',
+      ]),
     '    chunks = []',
     '    remaining = read_size',
     '    pos = offset',
@@ -1008,12 +1138,22 @@ function buildPythonOpenatTailReader(faults?: TranscriptOpenatTestFaults): strin
       ? [`    os.rename(${JSON.stringify(renameAfterRead.from)}, ${JSON.stringify(renameAfterRead.to)})`]
       : []),
     '    verify_fd_exact_path(file_fd, expected_exact_path)',
-    '    if not stat.S_ISREG(os.fstat(file_fd).st_mode): fail()',
+    '    post_st = os.fstat(file_fd)',
+    '    if not stat.S_ISREG(post_st.st_mode): fail()',
+    ...(mode === 'full'
+      ? ['    if post_st.st_size > max_bytes: fail()']
+      : []),
     '    data = b"".join(chunks)',
-    '    if offset > 0:',
-    '        nl = data.find(b"\\n")',
-    '        if nl < 0: sys.exit(0)',
-    '        data = data[nl + 1:]',
+    ...(mode === 'tail'
+      ? [
+        '    if offset > 0:',
+        '        nl = data.find(b"\\n")',
+        '        if nl < 0: sys.exit(0)',
+        '        data = data[nl + 1:]',
+      ]
+      : [
+        '    if len(data) > max_bytes: fail()',
+      ]),
     '    if data:',
     '        sys.stdout.buffer.write(data)',
     '        sys.stdout.buffer.flush()',
@@ -1030,7 +1170,8 @@ function buildPythonOpenatTailReader(faults?: TranscriptOpenatTestFaults): strin
   return lines.join('\n');
 }
 
-const PYTHON_OPENAT_TAIL_READER = buildPythonOpenatTailReader();
+const PYTHON_OPENAT_TAIL_READER = buildPythonOpenatReader(undefined, 'tail');
+const PYTHON_OPENAT_FULL_READER = buildPythonOpenatReader(undefined, 'full');
 
 const DEFAULT_OPENAT_HELPER_CANDIDATES: readonly string[] = [
   '/usr/bin/python3',
@@ -1093,6 +1234,7 @@ function readTailViaKernelOpenat(
     helperTimeoutMs?: number;
     platform?: NodeJS.Platform;
     openatTestFaults?: TranscriptOpenatTestFaults;
+    mode?: 'tail' | 'full';
   },
 ): Buffer | null {
   const effectivePlatform = options?.platform ?? process.platform;
@@ -1114,9 +1256,10 @@ function readTailViaKernelOpenat(
     return null;
   }
   const timeoutMs = options?.helperTimeoutMs ?? TRANSCRIPT_OPENAT_TIMEOUT_MS;
+  const mode = options?.mode ?? 'tail';
   const helperScript = options?.openatTestFaults
-    ? buildPythonOpenatTailReader(options.openatTestFaults)
-    : PYTHON_OPENAT_TAIL_READER;
+    ? buildPythonOpenatReader(options.openatTestFaults, mode)
+    : (mode === 'full' ? PYTHON_OPENAT_FULL_READER : PYTHON_OPENAT_TAIL_READER);
   try {
     const result = spawnSync(
       helperBin,
@@ -1141,25 +1284,25 @@ function readTailViaKernelOpenat(
   }
 }
 
-function readTranscriptTailEntries(
-  transcriptPath: unknown,
-  options?: TranscriptReadOptions,
+function readTranscriptEntriesFromTarget(
+  target: AuthorizedTranscriptTarget,
+  options: TranscriptReadOptions,
+  maxBytes: number,
   testHooks?: TranscriptOpenTestHooks,
 ): TranscriptEntry[] {
-  const target = resolveAuthorizedTranscriptTarget(transcriptPath, options);
-  if (!target || !options) return [];
   try {
     testHooks?.onBeforeOpen?.(target.canonicalPath);
     const rawTail = readTailViaKernelOpenat(
       target.canonicalRoot,
       target.segments,
-      TRANSCRIPT_TAIL_MAX_BYTES,
+      maxBytes,
       {
         openatHelperBinary: testHooks?.openatHelperBinary ?? options.openatHelperBinary,
         openatHelperCandidates: testHooks?.openatHelperCandidates,
         helperTimeoutMs: testHooks?.helperTimeoutMs,
         platform: testHooks?.platform ?? options.platform,
         openatTestFaults: testHooks?.openatTestFaults,
+        mode: 'tail',
       },
     );
     if (rawTail === null || rawTail.length === 0) return [];
@@ -1181,6 +1324,16 @@ function readTranscriptTailEntries(
   } catch {
     return [];
   }
+}
+
+function readTranscriptTailEntries(
+  transcriptPath: unknown,
+  options?: TranscriptReadOptions,
+  testHooks?: TranscriptOpenTestHooks,
+): TranscriptEntry[] {
+  const target = resolveAuthorizedTranscriptTarget(transcriptPath, options);
+  if (!target || !options) return [];
+  return readTranscriptEntriesFromTarget(target, options, TRANSCRIPT_TAIL_MAX_BYTES, testHooks);
 }
 
 function stripUserRequestWrapper(text: string): string {
@@ -1249,24 +1402,546 @@ function stripToolTimestampHeader(text: string): string {
   return body || text.trim();
 }
 
+const TOOL_OUTPUT_TRUNCATION_BANNER_PATTERN = /^The tool's output was truncated due to being too long\./u;
+const INLINE_TRUNCATION_MARKER_PATTERN = /<truncated\s+\d+(?:\s+of\s+\d+)?\s+bytes(?:\s[^><\r\n]{0,256})?>/iu;
+const TRUNCATED_OUTPUT_FILE_URL_PATTERN = /^The tool's output was truncated due to being too long\.\s+You can find the full output in (?:a )?file at (file:\/\/[^\s"'<>]+)/u;
+
+function entryToolUseId(entry: TranscriptEntry): string | null {
+  if (typeof entry.tool_use_id === 'string' && entry.tool_use_id.trim()) {
+    return entry.tool_use_id.trim();
+  }
+  if (typeof entry.tool_call_id === 'string' && entry.tool_call_id.trim()) {
+    return entry.tool_call_id.trim();
+  }
+  return null;
+}
+
+function hasTruncatedContentField(entry: TranscriptEntry): boolean {
+  return Array.isArray(entry.truncated_fields) && entry.truncated_fields.includes('content');
+}
+
+function isJsonWhitespaceCode(code: number): boolean {
+  return code === 0x20 || code === 0x09 || code === 0x0a || code === 0x0d;
+}
+
+function isValidJsonText(text: string): boolean {
+  try {
+    JSON.parse(text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Splits whitespace/newline-concatenated top-level JSON objects/arrays (`{...}` / `[...]`)
+ * in a single strict O(n) character scan without regex backtracking.
+ *
+ * Antigravity CLI concatenates multiple MCP text content blocks with `\n` when writing
+ * `steps/<n>/output.txt` and `transcript*.jsonl` (for example, a primary tool result JSON
+ * followed by a trailing `{"connection_scope":{...}}` block). When 2+ top-level JSON
+ * containers are found and every block validates via `JSON.parse`, returns the individual
+ * blocks so `tool_response.content` restores the original multi-block MCP structure.
+ * For a single JSON value, non-JSON text, or any malformed/partial block, fails open and
+ * returns `[text]`.
+ */
+export function splitConcatenatedJsonTextBlocks(text: string): string[] {
+  const length = text.length;
+  if (length === 0) return [text];
+
+  let i = 0;
+  while (i < length && isJsonWhitespaceCode(text.charCodeAt(i))) {
+    i += 1;
+  }
+  if (i >= length) return [text];
+
+  const firstCode = text.charCodeAt(i);
+  if (firstCode !== 0x7b && firstCode !== 0x5b) {
+    return [text];
+  }
+
+  const candidates: string[] = [];
+  const closeStack: number[] = [];
+
+  while (i < length) {
+    const start = i;
+    const openCode = text.charCodeAt(i);
+    if (openCode === 0x7b) {
+      closeStack.push(0x7d);
+    } else if (openCode === 0x5b) {
+      closeStack.push(0x5d);
+    } else {
+      return [text];
+    }
+
+    i += 1;
+    let inString = false;
+    let escaped = false;
+
+    while (i < length && closeStack.length > 0) {
+      const code = text.charCodeAt(i);
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (code === 0x5c) {
+          escaped = true;
+        } else if (code === 0x22) {
+          inString = false;
+        }
+      } else if (code === 0x22) {
+        inString = true;
+      } else if (code === 0x7b) {
+        closeStack.push(0x7d);
+      } else if (code === 0x5b) {
+        closeStack.push(0x5d);
+      } else if (code === 0x7d || code === 0x5d) {
+        if (closeStack[closeStack.length - 1] !== code) {
+          return [text];
+        }
+        closeStack.pop();
+      }
+      i += 1;
+    }
+
+    if (closeStack.length !== 0 || inString) {
+      return [text];
+    }
+
+    candidates.push(text.slice(start, i));
+
+    const wsStart = i;
+    while (i < length && isJsonWhitespaceCode(text.charCodeAt(i))) {
+      i += 1;
+    }
+    if (i < length && i === wsStart) {
+      return [text];
+    }
+  }
+
+  if (candidates.length < 2) {
+    return [text];
+  }
+
+  for (const block of candidates) {
+    if (!isValidJsonText(block)) {
+      return [text];
+    }
+  }
+
+  return candidates;
+}
+
+function isValidJsonOrConcatenatedJsonText(text: string): boolean {
+  if (isValidJsonText(text)) return true;
+  return splitConcatenatedJsonTextBlocks(text).length > 1;
+}
+
+function isTruncatedToolResult(entry: TranscriptEntry, strippedContent: string): boolean {
+  if (hasTruncatedContentField(entry)) return true;
+  if (TOOL_OUTPUT_TRUNCATION_BANNER_PATTERN.test(strippedContent)) return true;
+  if (INLINE_TRUNCATION_MARKER_PATTERN.test(strippedContent) && !isValidJsonOrConcatenatedJsonText(strippedContent)) {
+    return true;
+  }
+  return false;
+}
+
+function trimTrailingUrlPunctuation(rawUrl: string): string {
+  let end = rawUrl.length;
+  while (end > 0) {
+    const ch = rawUrl[end - 1];
+    if (ch === '.' || ch === ',' || ch === ';' || ch === ')' || ch === ']') {
+      end -= 1;
+    } else {
+      break;
+    }
+  }
+  return rawUrl.slice(0, end);
+}
+
+function extractTruncatedOutputFileUrl(text: string): string | null {
+  const match = TRUNCATED_OUTPUT_FILE_URL_PATTERN.exec(text);
+  if (!match) return null;
+  const cleaned = trimTrailingUrlPunctuation(match[1]);
+  return cleaned || null;
+}
+
+function parseLocalFileUrlPath(rawUrl: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'file:' || url.hostname || url.search || url.hash) {
+    return null;
+  }
+  try {
+    const filePath = fileURLToPath(url);
+    if (!filePath || !isAbsolute(filePath) || filePath.includes('\0')) {
+      return null;
+    }
+    return filePath;
+  } catch {
+    return null;
+  }
+}
+
+function systemGeneratedPrefixSegments(
+  target: AuthorizedTranscriptTarget,
+  conversationId: string,
+): string[] | null {
+  const segs = target.segments;
+  if (segs.length === 4
+    && segs[0] === conversationId
+    && segs[1] === '.system_generated'
+    && segs[2] === 'logs') {
+    return [conversationId, '.system_generated'];
+  }
+  if (segs.length === 5
+    && segs[0] === 'brain'
+    && segs[1] === conversationId
+    && segs[2] === '.system_generated'
+    && segs[3] === 'logs') {
+    return ['brain', conversationId, '.system_generated'];
+  }
+  return null;
+}
+
+function resolveSiblingFullTranscriptTarget(
+  baseTarget: AuthorizedTranscriptTarget,
+  options: TranscriptReadOptions,
+): AuthorizedTranscriptTarget | null {
+  if (baseTarget.segments[baseTarget.segments.length - 1] !== 'transcript.jsonl') {
+    return null;
+  }
+  const baseDir = dirname(baseTarget.canonicalPath);
+  const candidatePath = join(baseDir, 'transcript_full.jsonl');
+  const fullTarget = resolveAuthorizedTranscriptTarget(candidatePath, options);
+  if (!fullTarget) return null;
+  if (fullTarget.canonicalRoot !== baseTarget.canonicalRoot) return null;
+  if (dirname(fullTarget.canonicalPath) !== baseDir) return null;
+  return fullTarget;
+}
+
+type AuthorizedStepOutputResolution =
+  | { kind: 'ok'; target: AuthorizedTranscriptTarget }
+  | { kind: 'missing' }
+  | { kind: 'rejected' };
+
+function resolveAuthorizedStepOutputTarget(
+  baseTarget: AuthorizedTranscriptTarget,
+  conversationId: string,
+  candidatePath: string,
+): AuthorizedStepOutputResolution {
+  if (!candidatePath || !isAbsolute(candidatePath) || candidatePath.includes('\0')) {
+    return { kind: 'rejected' };
+  }
+  const sysGenSegments = systemGeneratedPrefixSegments(baseTarget, conversationId);
+  if (!sysGenSegments) return { kind: 'rejected' };
+  const stepsDirRaw = join(baseTarget.canonicalRoot, ...sysGenSegments, 'steps');
+  try {
+    let stepsDirStat: ReturnType<typeof lstatSync>;
+    try {
+      stepsDirStat = lstatSync(stepsDirRaw);
+    } catch (error) {
+      return isEnoentError(error) ? { kind: 'missing' } : { kind: 'rejected' };
+    }
+    if (stepsDirStat.isSymbolicLink() || !stepsDirStat.isDirectory()) return { kind: 'rejected' };
+    const stepsDir = realpathSync(stepsDirRaw);
+    if (stepsDir !== stepsDirRaw || !isStrictDescendantPath(baseTarget.canonicalRoot, stepsDir)) {
+      return { kind: 'rejected' };
+    }
+
+    let candidateParentStat: ReturnType<typeof lstatSync>;
+    try {
+      candidateParentStat = lstatSync(dirname(candidatePath));
+    } catch (error) {
+      return isEnoentError(error) ? { kind: 'missing' } : { kind: 'rejected' };
+    }
+    if (candidateParentStat.isSymbolicLink() || !candidateParentStat.isDirectory()) return { kind: 'rejected' };
+
+    let candidateStat: ReturnType<typeof lstatSync>;
+    try {
+      candidateStat = lstatSync(candidatePath);
+    } catch (error) {
+      return isEnoentError(error) ? { kind: 'missing' } : { kind: 'rejected' };
+    }
+    if (candidateStat.isSymbolicLink() || !candidateStat.isFile()) return { kind: 'rejected' };
+
+    const canonicalFile = realpathSync(candidatePath);
+    if (!isStrictDescendantPath(stepsDir, canonicalFile)) return { kind: 'rejected' };
+    const relFromSteps = relative(stepsDir, canonicalFile).split(sep);
+    if (relFromSteps.length !== 2 || !/^\d+$/u.test(relFromSteps[0]) || relFromSteps[1] !== 'output.txt') {
+      return { kind: 'rejected' };
+    }
+    if (!verifyNoSymlinkPathUnderRoot(baseTarget.canonicalRoot, canonicalFile).ok) {
+      return { kind: 'rejected' };
+    }
+    return {
+      kind: 'ok',
+      target: {
+        canonicalRoot: baseTarget.canonicalRoot,
+        canonicalPath: canonicalFile,
+        segments: [...sysGenSegments, 'steps', relFromSteps[0], 'output.txt'],
+      },
+    };
+  } catch {
+    return { kind: 'rejected' };
+  }
+}
+
+function isToolResultEntry(entry: TranscriptEntry): boolean {
+  if (entry.type === 'USER_INPUT' || entry.type === 'PLANNER_RESPONSE') return false;
+  return typeof entry.content === 'string' && entry.content.trim().length > 0;
+}
+
+function hasStepIndexInTranscript(entries: readonly TranscriptEntry[], stepIdx: number): boolean {
+  return entries.some((entry) => entry.step_index === stepIdx);
+}
+
+function hasConflictingToolUseIdAtStep(
+  entries: readonly TranscriptEntry[],
+  stepIdx: number,
+  toolUseId: string,
+): boolean {
+  return entries.some((entry) => {
+    if (entry.step_index !== stepIdx) return false;
+    const entryId = entryToolUseId(entry);
+    return entryId !== null && entryId !== toolUseId;
+  });
+}
+
+function findToolEntryInTranscript(
+  entries: readonly TranscriptEntry[],
+  stepCandidates: readonly number[],
+  toolUseId?: string,
+): TranscriptEntry | null {
+  const normalizedToolUseId = typeof toolUseId === 'string' && toolUseId.trim() ? toolUseId.trim() : null;
+
+  // 1. Prefer exact tool_use_id / tool_call_id match on step candidates first.
+  if (normalizedToolUseId !== null) {
+    for (const targetStep of stepCandidates) {
+      for (let index = entries.length - 1; index >= 0; index -= 1) {
+        const entry = entries[index];
+        if (entry.step_index !== targetStep || !isToolResultEntry(entry)) continue;
+        if (entryToolUseId(entry) === normalizedToolUseId) return entry;
+      }
+    }
+    // 2. Fall back to exact tool_use_id / tool_call_id match anywhere in the transcript tail
+    //    (handles step_index shifts between transcript.jsonl and transcript_full.jsonl).
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const entry = entries[index];
+      if (!isToolResultEntry(entry)) continue;
+      if (entryToolUseId(entry) === normalizedToolUseId) return entry;
+    }
+  }
+
+  // 3. Untagged step_index match is strictly restricted to the exact primary step (`stepCandidates[0]`).
+  //    Never match a neighboring step (`stepIdx + 1`) without an explicit tool_use_id match, and
+  //    never match an entry whose explicit tool_use_id disagrees with the caller's toolUseId.
+  const primaryStep = stepCandidates[0];
+  if (primaryStep !== undefined) {
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const entry = entries[index];
+      if (entry.step_index !== primaryStep || !isToolResultEntry(entry)) continue;
+      const entryId = entryToolUseId(entry);
+      if (normalizedToolUseId !== null && entryId !== null && entryId !== normalizedToolUseId) {
+        continue;
+      }
+      return entry;
+    }
+  }
+  return null;
+}
+
+function readStepOutputFallback(
+  baseTarget: AuthorizedTranscriptTarget,
+  conversationId: string,
+  referenceTexts: readonly string[],
+  candidateSteps: readonly number[],
+  options: TranscriptReadOptions,
+): string | null {
+  let explicitUrl: string | null = null;
+  for (const text of referenceTexts) {
+    const found = extractTruncatedOutputFileUrl(text);
+    if (found) {
+      explicitUrl = found;
+      break;
+    }
+  }
+
+  const readTarget = (stepTarget: AuthorizedTranscriptTarget): string | null => {
+    const raw = readTailViaKernelOpenat(
+      stepTarget.canonicalRoot,
+      stepTarget.segments,
+      TRANSCRIPT_TOOL_RESULT_MAX_BYTES,
+      {
+        openatHelperBinary: options.openatHelperBinary,
+        platform: options.platform,
+        mode: 'full',
+      },
+    );
+    if (raw === null || raw.length === 0) return null;
+    const decoded = raw.toString('utf8');
+    const stripped = stripToolTimestampHeader(decoded);
+    if (!stripped) return null;
+    if (Buffer.byteLength(stripped, 'utf8') > TRANSCRIPT_TOOL_RESULT_MAX_BYTES) return null;
+    if (isTruncatedToolResult({ content: decoded }, stripped)) return null;
+    return stripped;
+  };
+
+  if (explicitUrl !== null) {
+    const filePath = parseLocalFileUrlPath(explicitUrl);
+    if (!filePath) return null;
+    const resolution = resolveAuthorizedStepOutputTarget(baseTarget, conversationId, filePath);
+    if (resolution.kind !== 'ok') return null;
+    return readTarget(resolution.target);
+  }
+
+  const sysGenSegments = systemGeneratedPrefixSegments(baseTarget, conversationId);
+  if (!sysGenSegments) return null;
+  const stepsDir = join(baseTarget.canonicalRoot, ...sysGenSegments, 'steps');
+  const seenSteps = new Set<number>();
+  for (const stepNum of candidateSteps) {
+    if (!Number.isSafeInteger(stepNum) || stepNum < 0 || seenSteps.has(stepNum)) continue;
+    seenSteps.add(stepNum);
+    const candidatePath = join(stepsDir, String(stepNum), 'output.txt');
+    const resolution = resolveAuthorizedStepOutputTarget(baseTarget, conversationId, candidatePath);
+    if (resolution.kind === 'missing') continue;
+    if (resolution.kind === 'rejected') return null;
+    // Candidate file exists and passed path checks; fail closed immediately if reading fails
+    // (oversized >512 KiB, empty, truncation banner, non-Linux, or openat2 rejection) rather
+    // than falling through to another step's output.
+    return readTarget(resolution.target);
+  }
+  return null;
+}
+
 export function extractToolResultFromTranscript(
   transcriptPath: unknown,
   stepIdx: unknown,
   options?: TranscriptReadOptions,
 ): string | null {
-  if (typeof stepIdx !== 'number' || !Number.isSafeInteger(stepIdx)) return null;
-  const entries = readTranscriptTailEntries(transcriptPath, options);
-  // Prefer exact step_index match, then immediate neighbor (+1) if wrapper shifted index.
-  for (const targetStep of [stepIdx, stepIdx + 1]) {
-    for (let index = entries.length - 1; index >= 0; index -= 1) {
-      const entry = entries[index];
-      if (entry.step_index !== targetStep) continue;
-      if (entry.type === 'USER_INPUT' || entry.type === 'PLANNER_RESPONSE') continue;
-      if (typeof entry.content !== 'string' || !entry.content.trim()) continue;
-      return stripToolTimestampHeader(entry.content);
+  const hasStepIdx = typeof stepIdx === 'number' && Number.isSafeInteger(stepIdx) && stepIdx >= 0;
+  const hintToolUseId = typeof options?.toolUseId === 'string' && options.toolUseId.trim()
+    ? options.toolUseId.trim()
+    : undefined;
+  if (!hasStepIdx && !hintToolUseId) return null;
+  if (!options) return null;
+
+  const existingBaseTarget = resolveAuthorizedTranscriptTarget(transcriptPath, options);
+  const baseTarget = existingBaseTarget ?? resolveAuthorizedMissingTranscriptTarget(transcriptPath, options);
+  if (!baseTarget) return null;
+
+  const conversationId = options.conversationId.trim();
+  const stepCandidates = hasStepIdx ? [stepIdx, stepIdx + 1] : [];
+
+  let baseEntries: TranscriptEntry[] = [];
+  let matchedEntry: TranscriptEntry | null = null;
+  let baseStripped: string | null = null;
+  if (existingBaseTarget !== null) {
+    baseEntries = readTranscriptEntriesFromTarget(existingBaseTarget, options, TRANSCRIPT_TAIL_MAX_BYTES);
+    matchedEntry = findToolEntryInTranscript(baseEntries, stepCandidates, hintToolUseId);
+    if (matchedEntry && typeof matchedEntry.content === 'string') {
+      const stripped = stripToolTimestampHeader(matchedEntry.content);
+      if (stripped) {
+        if (!isTruncatedToolResult(matchedEntry, stripped)) {
+          return Buffer.byteLength(stripped, 'utf8') <= TRANSCRIPT_TOOL_RESULT_MAX_BYTES
+            ? stripped
+            : null;
+        }
+        baseStripped = stripped;
+      }
     }
   }
-  return null;
+
+  const matchedStep = matchedEntry && typeof matchedEntry.step_index === 'number' && Number.isSafeInteger(matchedEntry.step_index)
+    ? matchedEntry.step_index
+    : null;
+  const effectiveStepCandidates = [
+    ...(matchedStep !== null ? [matchedStep] : []),
+    ...stepCandidates.filter((step) => step !== matchedStep),
+  ];
+  const effectiveToolUseId = (matchedEntry ? entryToolUseId(matchedEntry) : null) ?? hintToolUseId;
+
+  // 1. Prefer sibling `transcript_full.jsonl` in the exact same authorized logs directory
+  //    (handles both truncated `transcript.jsonl` entries and steps not yet flushed to `transcript.jsonl`).
+  let fullEntries: TranscriptEntry[] = [];
+  let fullEntry: TranscriptEntry | null = null;
+  let fullStripped: string | null = null;
+  let fullMatchedStep: number | null = null;
+  const fullTarget = resolveSiblingFullTranscriptTarget(baseTarget, options);
+  if (fullTarget) {
+    fullEntries = readTranscriptEntriesFromTarget(fullTarget, options, TRANSCRIPT_FULL_TAIL_MAX_BYTES);
+    fullEntry = findToolEntryInTranscript(fullEntries, effectiveStepCandidates, effectiveToolUseId);
+    if (fullEntry && typeof fullEntry.content === 'string') {
+      if (typeof fullEntry.step_index === 'number' && Number.isSafeInteger(fullEntry.step_index)) {
+        fullMatchedStep = fullEntry.step_index;
+      }
+      const candidateStripped = stripToolTimestampHeader(fullEntry.content);
+      if (candidateStripped) {
+        if (!isTruncatedToolResult(fullEntry, candidateStripped)) {
+          return Buffer.byteLength(candidateStripped, 'utf8') <= TRANSCRIPT_TOOL_RESULT_MAX_BYTES
+            ? candidateStripped
+            : null;
+        }
+        fullStripped = candidateStripped;
+      }
+    }
+  }
+
+  // 2. Fallback to authorized `<conversation>/.system_generated/steps/<n>/output.txt`
+  //    (strictly confined by realpath + no-symlink + Linux openat2 RESOLVE_BENEATH).
+  const hasMatchedTranscriptEntry = matchedEntry !== null || fullEntry !== null;
+  let stepFallbackCandidates: number[];
+  if (hasMatchedTranscriptEntry) {
+    if (fullEntry === null && matchedStep !== null && effectiveToolUseId
+      && hasConflictingToolUseIdAtStep(fullEntries, matchedStep, effectiveToolUseId)) {
+      return null;
+    }
+    stepFallbackCandidates = [
+      ...(fullMatchedStep !== null ? [fullMatchedStep] : []),
+      ...effectiveStepCandidates.filter((step) => step !== fullMatchedStep),
+    ];
+  } else {
+    // Unflushed direct recovery: Antigravity writes `steps/<stepIdx>/output.txt` before flushing
+    // `transcript.jsonl`. Strictly limit candidates to the exact `[stepIdx]` (never `stepIdx + 1`)
+    // and fail closed if either transcript already has an entry at `stepIdx` (e.g. PLANNER_RESPONSE,
+    // USER_INPUT, non-tool entry, or conflicting tool_use_id).
+    if (!hasStepIdx) return null;
+    if (hasStepIndexInTranscript(baseEntries, stepIdx) || hasStepIndexInTranscript(fullEntries, stepIdx)) {
+      return null;
+    }
+    stepFallbackCandidates = [stepIdx];
+  }
+
+  const referenceTexts: string[] = [];
+  if (fullStripped !== null) referenceTexts.push(fullStripped);
+  if (baseStripped !== null) referenceTexts.push(baseStripped);
+  if (referenceTexts.length === 0 && stepFallbackCandidates.length === 0) {
+    return null;
+  }
+  return readStepOutputFallback(
+    baseTarget,
+    conversationId,
+    referenceTexts,
+    stepFallbackCandidates,
+    options,
+  );
+}
+
+/**
+ * Extracts a tool result from the authorized transcript / step output and restores
+ * whitespace/newline-concatenated MCP JSON text blocks into individual text block strings.
+ */
+export function extractToolResultTextBlocksFromTranscript(
+  transcriptPath: unknown,
+  stepIdx: unknown,
+  options?: TranscriptReadOptions,
+): string[] | null {
+  const extracted = extractToolResultFromTranscript(transcriptPath, stepIdx, options);
+  if (extracted === null) return null;
+  return splitConcatenatedJsonTextBlocks(extracted);
 }
 
 // ---- Turn state persistence & exclusive lock ----
@@ -1659,16 +2334,29 @@ function buildSystemMessageStep(
   additionalContext?: string,
   userMarkdown?: string,
 ): Record<string, unknown> | null {
-  if (!additionalContext && !userMarkdown) return null;
+  const normalizedContext = typeof additionalContext === 'string' && additionalContext.trim()
+    ? additionalContext.trim()
+    : undefined;
+  const normalizedMarkdown = typeof userMarkdown === 'string' && userMarkdown.trim()
+    ? userMarkdown.trim()
+    : undefined;
+  if (!normalizedContext && !normalizedMarkdown) return null;
   const guardHeader = [
     `[Brainbase Judgment Turn: ${turnId}]`,
     `※この判断契約・先頭監査行は当ターン（${turnId}）のみ有効です。過去のターンに注入された旧ターンの判断契約・先頭監査行は上書きされ無効です。`,
   ].join('\n');
-  const modelText = additionalContext ? `${guardHeader}\n\n${additionalContext}` : '';
+  const bodyParts: string[] = [];
+  if (normalizedMarkdown) {
+    bodyParts.push(normalizedMarkdown);
+  }
+  if (normalizedContext && normalizedContext !== normalizedMarkdown) {
+    bodyParts.push(normalizedContext);
+  }
+  const modelBody = bodyParts.join('\n\n');
+  const modelText = `${guardHeader}\n\n${modelBody}`;
   return {
     systemMessage: {
       systemMessage: modelText,
-      ...(userMarkdown ? { metadata: { user_markdown: userMarkdown } } : {}),
     },
   };
 }
@@ -2108,10 +2796,15 @@ async function handlePostToolUse(
 
   if (isBrainbase) {
     toolInput = normalizedToolInput(rawName, normalizedName, toolCall?.args);
-    const transcriptText = extractToolResultFromTranscript(payload.transcriptPath, payload.stepIdx, transcriptOpts);
-    if (transcriptText !== null) {
+    const toolCallId = typeof toolCall?.id === 'string' && toolCall.id.trim() ? toolCall.id.trim() : undefined;
+    const transcriptBlocks = extractToolResultTextBlocksFromTranscript(
+      payload.transcriptPath,
+      payload.stepIdx,
+      toolCallId ? { ...transcriptOpts, toolUseId: toolCallId } : transcriptOpts,
+    );
+    if (transcriptBlocks !== null) {
       toolResponse = {
-        content: [{ type: 'text', text: transcriptText }],
+        content: transcriptBlocks.map((text) => ({ type: 'text', text })),
         isError: hasError,
       };
     } else {
@@ -2440,6 +3133,7 @@ export function registerAntigravityJudgmentHooks(
 
 /** @internal Exposed strictly for deterministic concurrency and TOCTOU regression tests. */
 export const __antigravityHookTestInternals = {
+  buildSystemMessageStep,
   withTurnStateLock,
   readTranscriptTailEntries,
   resolveOpenatHelperBinary,

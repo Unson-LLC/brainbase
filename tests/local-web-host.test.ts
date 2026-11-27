@@ -897,7 +897,7 @@ describe('Graph format and data directory state', () => {
   });
 });
 
-describe('あなたの記憶 (personal memory) routes', () => {
+describe('マイメモリ (personal memory) routes', () => {
   async function seed(lines: string): Promise<void> {
     await v2DataDir();
     await writeFile(join(dataDir, 'personal-kg.jsonl'), lines);

@@ -1154,7 +1154,7 @@ function personalMemoryExcerpt(value) {
 
 /**
  * The used memories the host resolved for this viewer: an opening and a link
- * to あなたの記憶.  Only the owner's host resolves them; without that, or when
+ * to マイメモリ.  Only the owner's host resolves them; without that, or when
  * the lookup failed, this stays the count only.
  */
 function ownerMemoryLinks(doc, references, memories) {
@@ -1946,7 +1946,7 @@ export function createJudgmentHistoryUI({
   resolveReferenceLabels = null,
   // Optional owner-only port: (refs: string[]) => Promise<Map|object of ref -> { excerpt, href }>.
   // A host passes it only to the owner; the 本人の考え block then shows the
-  // opening of each used memory with a link to あなたの記憶.
+  // opening of each used memory with a link to マイメモリ.
   resolvePersonalMemory = null,
 } = {}) {
   if (!root) throw new TypeError('root is required');

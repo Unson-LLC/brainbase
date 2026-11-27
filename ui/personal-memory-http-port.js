@@ -1,5 +1,5 @@
 /*
- * The local Web host's port for 「あなたの記憶」 (ui/personal-memory.js).
+ * The local Web host's port for 「マイメモリ」 (ui/personal-memory.js).
  *
  * Every read carries the launch token: the memory bodies are private, so the
  * host guards these reads as it guards writes.  The list is read whole and

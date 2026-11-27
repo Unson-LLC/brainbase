@@ -1643,7 +1643,7 @@ describe('judgment basis (story-judgment-history-frame-basis-v1)', () => {
     view.dispose();
   });
 
-  it('shows the owner the opening of each used memory with a link to あなたの記憶 (AC-08)', async () => {
+  it('shows the owner the opening of each used memory with a link to マイメモリ (AC-08)', async () => {
     const resolvePersonalMemory = vi.fn(async (refs) => new Map(refs.map((ref) => [ref, { excerpt: '可逆な決定は早く決め、不可逆な決定だけ時間をかける。決める前に、戻せるかどうかと戻すときの費用を確かめる。迷ったら小さく試し、結果を見てから広げる。', href: `#memory?id=${ref}` }])));
     const { view, rail } = await openRecord([...frameReferences, personalReference], { resolvePersonalMemory });
     expect(resolvePersonalMemory).toHaveBeenCalledWith([personalReference.ref]);
