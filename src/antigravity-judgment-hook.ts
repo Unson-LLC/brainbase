@@ -429,14 +429,33 @@ export function normalizeAntigravityToolName(name: string, args?: unknown): stri
   return trimmed;
 }
 
+function isPlainToolRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * Strips Antigravity's synthetic UI metadata key (`toolSummary`) from
+ * Brainbase MCP tool inputs while leaving all other keys intact so
+ * Host-side strict validation continues to enforce exact tool schemas.
+ */
+function stripAntigravitySyntheticToolKeys(value: unknown): unknown {
+  if (!isPlainToolRecord(value)) return value;
+  if (!Object.hasOwn(value, 'toolSummary')) return value;
+  const copy: Record<string, unknown> = { ...value };
+  delete copy.toolSummary;
+  return copy;
+}
+
 function normalizedToolInput(rawName: string, normalizedName: string, args: unknown): unknown {
-  if (rawName === 'call_mcp_tool' && normalizedName.startsWith('mcp__brainbase__')
-    && args && typeof args === 'object' && !Array.isArray(args)) {
-    const record = args as Record<string, unknown>;
-    if ('Arguments' in record) return record.Arguments;
-    if ('arguments' in record) return record.arguments;
+  let unwrapped: unknown = args ?? {};
+  if (rawName === 'call_mcp_tool' && normalizedName.startsWith('mcp__brainbase__') && isPlainToolRecord(args)) {
+    if ('Arguments' in args) unwrapped = args.Arguments;
+    else if ('arguments' in args) unwrapped = args.arguments;
   }
-  return args ?? {};
+  if (normalizedName.startsWith('mcp__brainbase__')) {
+    return stripAntigravitySyntheticToolKeys(unwrapped);
+  }
+  return unwrapped;
 }
 
 // ---- Scope resolution (git + non-git + cwd_prefixes) ----
@@ -3134,6 +3153,7 @@ export function registerAntigravityJudgmentHooks(
 /** @internal Exposed strictly for deterministic concurrency and TOCTOU regression tests. */
 export const __antigravityHookTestInternals = {
   buildSystemMessageStep,
+  normalizedToolInput,
   withTurnStateLock,
   readTranscriptTailEntries,
   resolveOpenatHelperBinary,
