@@ -91,14 +91,14 @@ const PERMISSION_KEYS = new Set([
  * never back; `initialized` means the run started blocked (no ready source).
  * `./onboarding-runtime` re-exports this same array.
  */
-export const ONBOARDING_WORKFLOW_STATES = [
+export const ONBOARDING_WORKFLOW_STATES = Object.freeze([
   'initialized',
   'source_ready',
   'candidates_ready',
   'promotion_reviewed',
   'first_value_ready',
   'first_value_answer_reviewed'
-] as const;
+] as const);
 
 export type SourceMode = 'mcp' | 'drive' | 'gmail' | 'local_folder' | 'single_document';
 export type SourceStatus = 'ready' | 'waiting_for_authorization' | 'unavailable' | 'error' | 'unconfirmed';
