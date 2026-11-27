@@ -4805,6 +4805,49 @@ describe('Phase 2 pre-rollout Antigravity hook fixes (PR-A: Fix 1 & Fix 2)', () 
     const ordinaryPrompt = '通常の発話です。[Orca: ...] ブロックが途中にあっても削らないでください。';
     expect(stripOrcaInjectedPreambles(ordinaryPrompt)).toBe(ordinaryPrompt);
 
+    // User-authored leading `[Orca: ...]` headings (non-system prefix & no `<<<\n...\n>>>` fence) stay byte-for-byte intact.
+    const userMigrationNotes = '[Orca: migration notes] Please summarize this heading and sentence.';
+    expect(stripOrcaInjectedPreambles(userMigrationNotes)).toBe(userMigrationNotes);
+
+    const userNote = '[Orca: note] I wrote this myself';
+    expect(stripOrcaInjectedPreambles(userNote)).toBe(userNote);
+
+    const userJapaneseHeading = '[Orca: 質問]\nフックの仕様を教えて';
+    expect(stripOrcaInjectedPreambles(userJapaneseHeading)).toBe(userJapaneseHeading);
+
+    // Known Orca system preambles without fence (`[Orca: it is ...]`) and fence-backed `[Orca: ...]` blocks are stripped.
+    expect(stripOrcaInjectedPreambles('[Orca: it is Friday, Nov 27, 2026.]\n\n通常プロンプト')).toBe('通常プロンプト');
+    expect(stripOrcaInjectedPreambles('[Orca: your MEMORY.md, loaded for reference:]\n<<<\n- memo\n>>>\n\n通常プロンプト'))
+      .toBe('通常プロンプト');
+    expect(stripOrcaInjectedPreambles('[Orca: custom reference block:]\n<<<\n- item\n>>>\n\n通常プロンプト'))
+      .toBe('通常プロンプト');
+
+    // `findNextKnownOrcaPreambleStart` ignores user-authored `[Orca: ...]` lines inside SOUL.md body and preserves user `[Orca: ...]` after real preambles.
+    const soulWithUserOrcaLines = [
+      "[Your SOUL.md was updated; this replaces your earlier standing instructions. They rank below the user's current request.]",
+      '',
+      '# SOUL.md',
+      '[Orca: note] Standing note that starts with [Orca: ...] at line start',
+      '',
+      '[Orca: your live work now, for reference:]',
+      '<<<',
+      '- Item #172 verification',
+      '>>>',
+      '',
+      userMigrationNotes,
+    ].join('\n');
+    expect(stripOrcaInjectedPreambles(soulWithUserOrcaLines)).toBe(userMigrationNotes);
+
+    const soulFollowedOnlyByUserOrcaHeading = [
+      "[Your SOUL.md was updated; this replaces your earlier standing instructions. They rank below the user's current request.]",
+      '',
+      '# SOUL.md',
+      '- Standalone SOUL update',
+      '',
+      userNote,
+    ].join('\n');
+    expect(stripOrcaInjectedPreambles(soulFollowedOnlyByUserOrcaHeading)).toBe(soulFollowedOnlyByUserOrcaHeading);
+
     // Fail-safe: preamble-only inputs MUST NEVER become empty strings.
     const orcaOnlyPrompt = '[Orca: your live work now, for reference:]\n<<<\n- Item #172\n>>>';
     expect(stripOrcaInjectedPreambles(orcaOnlyPrompt)).toBe(orcaOnlyPrompt);
