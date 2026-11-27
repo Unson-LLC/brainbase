@@ -2,6 +2,13 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
+## 0.51.3 candidate — npm公開前
+
+- 0.51.2（`main` / `4a7abf68a`）に `#1092`（`c8374b248`、Item #165）のみを単独 cherry-pick したpatch更新候補（他の `develop` コミットは含まない）。
+- Antigravity CLI判断フックで、`buildSystemMessageStep()` の `metadata.user_markdown` を削除して `hookcaller.go:56` の protojson panic を解消し、`systemMessage` と `additionalContext` をモデル文脈（`systemMessage.systemMessage`）へ統合した（従来のユーザー表示専用チャネルからモデル文脈統合への仕様変更を含む）。
+- `PostToolUse` 発火時の `transcript.jsonl` 未 flush 時に `transcript_full.jsonl` および `steps/<stepIdx>/output.txt` から fail-closed でツール結果を回収できるようにし、候補の `[stepIdx]` 厳密限定・非 `ENOENT` 拒否時の即 `null`・`findToolEntryInTranscript()` の `toolUseId` 整合厳格化により並列ツール実行時の隣接ステップ誤回収を防止した。
+- 破壊的変更はない（詳細は `docs/releases/0.51.3.md` を参照）。npm公開と利用ホストへの配備は別途確認する。
+
 ## 0.51.2 candidate — npm公開前
 
 - 0.51.1（`main` / `1a653d52`）に `#1090`（`543991814`、Item #165）およびテスト専用の実行時間閾値安定化（`6580029ef`）のみを cherry-pick したpatch更新候補（他の `develop` コミットは含まない）。
