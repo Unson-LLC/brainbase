@@ -127,6 +127,40 @@ describe('portable judgment harness common contracts', () => {
     expect(control).toMatchObject({ ready: false, status: 'invalid', next_node: 'problem-frame' });
   });
 
+  it('normalizes empty and whitespace previous_result_tool_use_id to null while rejecting invalid types', () => {
+    expect(normalizeJudgmentNodeResult(baseNodeResult({ previous_result_tool_use_id: null }))?.previous_result_tool_use_id)
+      .toBeNull();
+    expect(normalizeJudgmentNodeResult(baseNodeResult({ previous_result_tool_use_id: '' }))?.previous_result_tool_use_id)
+      .toBeNull();
+    expect(normalizeJudgmentNodeResult(baseNodeResult({ previous_result_tool_use_id: '   \t\n  ' }))?.previous_result_tool_use_id)
+      .toBeNull();
+    expect(normalizeJudgmentNodeResult(baseNodeResult({ previous_result_tool_use_id: '  node-problem  ' }))?.previous_result_tool_use_id)
+      .toBe('node-problem');
+
+    for (const invalid of [undefined, 123, false, {}, []]) {
+      expect(normalizeJudgmentNodeResult({
+        ...baseNodeResult(),
+        previous_result_tool_use_id: invalid
+      })).toBeNull();
+    }
+
+    const { previous_result_tool_use_id: _omitted, ...missingPrevId } = baseNodeResult();
+    expect(normalizeJudgmentNodeResult(missingPrevId)).toBeNull();
+
+    // First node with empty previous_result_tool_use_id evaluates as ready (null chain head)
+    const firstNodeWithEmptyPrev = evaluateJudgmentNodeEvidence([
+      event('work-1', 1),
+      nodeEvent('node-problem', 2, baseNodeResult({ previous_result_tool_use_id: '' }))
+    ], receipt('problem-frame'));
+    expect(firstNodeWithEmptyPrev).toMatchObject({
+      required: true,
+      ready: true,
+      status: 'ready',
+      next_node: null
+    });
+    expect(firstNodeWithEmptyPrev.results[0]?.previous_result_tool_use_id).toBeNull();
+  });
+
   it('requires fresh business evidence after an insufficient node result', () => {
     const insufficient = baseNodeResult({
       status: 'insufficient',
