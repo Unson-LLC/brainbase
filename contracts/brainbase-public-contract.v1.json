@@ -291,7 +291,8 @@
       "ontology:audit",
       "ontology:migrate",
       "ontology:show",
-      "web:serve"
+      "web:serve",
+      "world-model:revalidation-queue"
     ],
     "aliases": {
       "review:serve": "web:serve"
