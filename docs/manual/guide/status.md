@@ -4,6 +4,10 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
+## Candidate — v0.51.6（npm公開前）
+
+0.51.5（`main` / `efabe4cce`）に `#1107`（`e4fd852b0`、Item #266 / #267）のみを単独 cherry-pick したpatch更新候補です（他の未リリース `develop` コミットは含みません）。`src/judgment-task-progress.ts` から `zod` 依存を除去してゼロ外部依存の厳格バリデータへ置き換え、`dist/judgment-host.js` の外部依存ゼロ不変条件と `node_modules` 非存在の隔離 tarball 環境でのロード互換を回復しました。あわせて `tests/judgment-task-progress.test.ts` と `tests/judgment-host-zero-external-deps.test.ts` に Zod 4 `strict()` 互換および隔離ロード回帰テストを追加します。破壊的変更はありません（詳細は `docs/releases/0.51.6.md` を参照）。npm公開と利用ホストへの配備は別途確認します。
+
 ## Candidate — v0.51.5（npm公開前）
 
 0.51.4（`main` / `e743dbcbc`）に `#1105`（`8a6ae6b38`、URS-048 v4 案 C＋A / Item #220 `e4388`・Item #221）のみを単独 cherry-pick したpatch更新候補です（他の未リリース `develop` コミットは含みません）。`@unson/brainbase-mcp/knowledge-promotion` の `buildOrganizationKnowledgeEvent` で `personal_share` かつ `kind: 'decision'` の組織グラフ登録時の `decision_authority.decider_id` を申請者 `owner_person_id` から組織審査承認者 `approverPersonId` へ統一し、下流の `buildNormalizedGraphMutation` および `reconcileGraphProjection`（`decision_owner_person_id`）まで承認者へ整合させます。申請者・所有者の来歴（`owner_person_id`・`owner_consent_receipt_id`・`lineage`）および `withdrawPersonalShares` による本人撤回権限はそのまま維持します。破壊的変更はありません（詳細は `docs/releases/0.51.5.md` を参照）。npm公開と利用ホストへの配備は別途確認します。
