@@ -4,6 +4,10 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
+## Candidate — v0.51.4（npm公開前）
+
+0.51.3（`main` / `862b25ea7`）に `#1094`（`5e902a369`、Item #184）・`#1095`（`ffa57f8c5`、Item #236）・`#1103`（`e67b2d2dc`、Item #172 / PR-A1）の 3 件のみを順番に cherry-pick したpatch更新候補です（他の未リリース `develop` コミットは含みません）。Antigravity CLI判断フックで `mcp__brainbase__*` ツール入力から Antigravity 合成 UI キー `toolSummary` をストリップし、MCP ツールスキーマの Gemini プロファイル（`BRAINBASE_MCP_SCHEMA_PROFILE=gemini`）で `nullable: true` なプロパティを `required` から除外して省略可能注記を付与します（`standard` プロファイルは無変更）。あわせて `judgment-node-evidence` で `previous_result_tool_use_id` の空文字・省略・`undefined` を `null` へ正規化し、世界モデル再検証キューの公開 subpath `world-model-revalidation-queue` と読み取り専用 CLI `brainbase world-model:revalidation-queue` を追加します。破壊的変更はありません（詳細は `docs/releases/0.51.4.md` を参照）。npm公開と利用ホストへの配備は別途確認します。
+
 ## Candidate — v0.51.3（npm公開前）
 
 0.51.2（`main` / `4a7abf68a`）に `#1092`（`c8374b248`、Item #165）のみを単独 cherry-pick したpatch更新候補です（他の `develop` コミットは含みません）。Antigravity CLI判断フックで `buildSystemMessageStep()` から `metadata.user_markdown` を削除して `hookcaller.go:56` の protojson panic を解消し、`systemMessage`（監査サマリ行）と `additionalContext` をモデル文脈へ統合します。あわせて `PostToolUse` 発火時に `transcript.jsonl` が未 flush でも `transcript_full.jsonl` および `steps/<stepIdx>/output.txt` から既存の安全境界（`openat2`・no-symlink・512 KiB 上限・`[stepIdx]` 厳密限定・非 `ENOENT` 即 `null`・`toolUseId` 整合）を通して fail-closed にツール結果を回収し、並列ツール実行時の隣接ステップ誤回収を防止します。破壊的変更はありません（詳細は `docs/releases/0.51.3.md` を参照）。npm公開と利用ホストへの配備は別途確認します。

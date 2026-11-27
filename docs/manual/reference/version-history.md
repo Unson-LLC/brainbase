@@ -2,6 +2,14 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
+## 0.51.4 candidate — npm公開前
+
+- 0.51.3（`main` / `862b25ea7`）に `#1094`（`5e902a369`、Item #184）・`#1095`（`ffa57f8c5`、Item #236）・`#1103`（`e67b2d2dc`、Item #172 / PR-A1）の 3 件のみを順番に cherry-pick したpatch更新候補（他の未リリース `develop` コミットは含まない）。
+- Antigravity CLI判断フックで `mcp__brainbase__*` ツール入力から Antigravity 合成 UI キー `toolSummary` をストリップし、`mcp-tool-schema-portability` の Gemini プロファイルで `nullable: true` プロパティを `required` から除外して `Omit or pass null when unset.` 注記を付与した（`standard` プロファイルは無損失・無変更を維持）。
+- `judgment-node-evidence` で `previous_result_tool_use_id` の空文字・省略・`undefined` を `null` へ正規化し、未知キー・不正型・シークレット混入文字列の fail-closed 拒否を維持した。
+- 世界モデル再検証キューを公開 subpath `world-model-revalidation-queue` と読み取り専用 CLI `brainbase world-model:revalidation-queue` として追加し、公開契約 fixture へ登録した。
+- 破壊的変更はない（詳細は `docs/releases/0.51.4.md` を参照）。npm公開と利用ホストへの配備は別途確認する。
+
 ## 0.51.3 candidate — npm公開前
 
 - 0.51.2（`main` / `4a7abf68a`）に `#1092`（`c8374b248`、Item #165）のみを単独 cherry-pick したpatch更新候補（他の `develop` コミットは含まない）。

@@ -10,6 +10,12 @@ import { foundationPublicToolDefinitions, type FoundationPublicConnection } from
 import { foundationAdoptionTools, foundationPublicTools } from '../src/foundation-authenticated-tools.js';
 import { judgmentFrameTools, judgmentModelOutcomeTools } from '../src/judgment-frame.js';
 import { judgmentFrameReadTools } from '../src/judgment-frame-read.js';
+import {
+  JUDGMENT_NODE_EVIDENCE_CONTRACT,
+  JUDGMENT_NODE_EVIDENCE_SCHEMA_VERSION,
+  evaluateJudgmentNodeEvidence,
+  normalizeJudgmentNodeResult,
+} from '../src/judgment-node-evidence.js';
 import { knowledgeLookupTools } from '../src/knowledge-lookup.js';
 import { queueTaskToolDefinitions } from '../src/queue-task-tools.js';
 import {
@@ -332,14 +338,15 @@ describe('MCP tool inputSchema cross-client portability contract (Gemini / OpenA
     expect(standardSchema).toEqual(richTool.inputSchema);
     expect(standardSchema).not.toBe(richTool.inputSchema);
 
-    // Gemini profile produces zero violations and documents lost shapes in descriptions.
+    // Gemini profile produces zero violations, relaxes required on nullable properties, and documents lost shapes in descriptions.
     const geminiTool = applyMcpToolSchemaProfile(richTool, 'gemini');
     expect(validateMcpToolSchemaPortability(geminiTool)).toEqual([]);
+    expect(geminiTool.inputSchema.required).toEqual(['evidence_refs']);
     const geminiProps = geminiTool.inputSchema.properties as Record<string, Record<string, unknown>>;
     expect(geminiProps.answer).toEqual({
       type: 'string',
       nullable: true,
-      description: 'Nullable answer. null is also accepted.',
+      description: 'Nullable answer. Omit or pass null when unset.',
     });
     expect(geminiProps.evidence_refs.items).toEqual({
       type: 'string',
@@ -603,9 +610,9 @@ describe('MCP tool inputSchema cross-client portability contract (Gemini / OpenA
     expect(Object.getOwnPropertyDescriptor(rootProps, '__proto__')?.value).toEqual({
       type: 'string',
       nullable: true,
-      description: 'Literal __proto__ key. null is also accepted.',
+      description: 'Literal __proto__ key. Omit or pass null when unset.',
     });
-    expect(normalized.required).toContain('__proto__');
+    expect(normalized.required).toEqual(['nested', 'merged_union', 'outer_with_combinator']);
 
     const nested = rootProps.nested;
     const nestedProps = nested.properties as Record<string, Record<string, unknown>>;
@@ -641,7 +648,7 @@ describe('MCP tool inputSchema cross-client portability contract (Gemini / OpenA
     const secondPass = normalizeMcpToolInputSchemaForPortability(normalized);
     expect(validateMcpToolInputSchemaPortability(secondPass, 'proto_tool')).toEqual([]);
     expect(Object.hasOwn(secondPass.properties as object, '__proto__')).toBe(true);
-    expect(secondPass.required).toContain('__proto__');
+    expect(secondPass.required).toEqual(['nested', 'merged_union', 'outer_with_combinator']);
     expect(JSON.stringify(secondPass)).toBe(JSON.stringify(normalized));
   });
 
@@ -1524,6 +1531,265 @@ describe('MCP tool inputSchema cross-client portability contract (Gemini / OpenA
     for (const fnSymbol of runtimeSymbols) {
       expect(dts).toContain(`export declare function ${fnSymbol}`);
     }
+  });
+
+  it('excludes nullable properties from required and annotates omission only in the gemini profile (brainbase_judgment_state_record & brainbase_judgment_node_record)', () => {
+    const stateRecordTool: Tool = {
+      name: 'brainbase_judgment_state_record',
+      description: 'Record stop state for the active judgment turn.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['status', 'pending_safe_work', 'runtime_reason_code'],
+        properties: {
+          status: { type: 'string', enum: ['completed', 'blocked', 'needs_human'] },
+          pending_safe_work: { type: 'boolean' },
+          runtime_reason_code: {
+            type: ['string', 'null'],
+            description: 'Reason code when not completed.',
+          },
+          continuation_assessment: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['kg'],
+            properties: {
+              kg: {
+                type: 'object',
+                additionalProperties: false,
+                required: ['status', 'search_tool_use_id', 'answer_tool_use_id', 'question_digest'],
+                properties: {
+                  status: { type: 'string', enum: ['not_needed', 'recorded', 'pending'] },
+                  search_tool_use_id: { type: ['string', 'null'], description: 'Personal KG search tool use ID.' },
+                  answer_tool_use_id: { type: ['string', 'null'], description: 'Personal KG answer tool use ID.' },
+                  question_digest: { type: ['string', 'null'], description: 'Digest of the KG question.' },
+                },
+              },
+            },
+          },
+        },
+      } as unknown as Tool['inputSchema'],
+    };
+
+    const nodeRecordTool: Tool = {
+      name: 'brainbase_judgment_node_record',
+      description: 'Record evidence for a judgment node.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['node_id', 'status', 'previous_result_tool_use_id'],
+        properties: {
+          node_id: { type: 'string' },
+          status: { type: 'string', enum: ['completed', 'skipped'] },
+          previous_result_tool_use_id: {
+            type: ['string', 'null'],
+            description: 'Prior tool use ID when referencing an earlier result.',
+          },
+        },
+      } as unknown as Tool['inputSchema'],
+    };
+
+    // Standard profile (Claude / OpenAI / Codex) MUST remain byte-for-byte identical.
+    const standardState = normalizeMcpToolInputSchemaForProfile(stateRecordTool.inputSchema, 'standard');
+    const standardNode = normalizeMcpToolInputSchemaForProfile(nodeRecordTool.inputSchema, 'standard');
+    expect(JSON.stringify(standardState)).toBe(JSON.stringify(stateRecordTool.inputSchema));
+    expect(JSON.stringify(standardNode)).toBe(JSON.stringify(nodeRecordTool.inputSchema));
+    expect(applyMcpToolSchemaProfile(stateRecordTool, 'standard')).toBe(stateRecordTool);
+    expect(applyMcpToolSchemaProfile(nodeRecordTool, 'standard')).toBe(nodeRecordTool);
+    expect(standardState.required).toEqual(['status', 'pending_safe_work', 'runtime_reason_code']);
+    expect(
+      ((standardState.properties as Record<string, any>).continuation_assessment.properties.kg.required),
+    ).toEqual(['status', 'search_tool_use_id', 'answer_tool_use_id', 'question_digest']);
+    expect(standardNode.required).toEqual(['node_id', 'status', 'previous_result_tool_use_id']);
+
+    // Gemini profile excludes nullable: true properties from `required`, keeps non-nullable required keys,
+    // documents omission in `description`, validates with 0 issues, and stays strictly idempotent.
+    const geminiStateTool = applyMcpToolSchemaProfile(stateRecordTool, 'gemini');
+    const geminiNodeTool = applyMcpToolSchemaProfile(nodeRecordTool, 'gemini');
+    expect(validateMcpToolSchemaPortability(geminiStateTool)).toEqual([]);
+    expect(validateMcpToolSchemaPortability(geminiNodeTool)).toEqual([]);
+    expect(normalizeMcpToolInputSchemaForPortability(geminiStateTool.inputSchema)).toEqual(geminiStateTool.inputSchema);
+    expect(normalizeMcpToolInputSchemaForPortability(geminiNodeTool.inputSchema)).toEqual(geminiNodeTool.inputSchema);
+
+    expect(geminiStateTool.inputSchema.required).toEqual(['status', 'pending_safe_work']);
+    const geminiStateProps = geminiStateTool.inputSchema.properties as Record<string, any>;
+    expect(geminiStateProps.runtime_reason_code).toEqual({
+      type: 'string',
+      nullable: true,
+      description: 'Reason code when not completed. Omit or pass null when unset.',
+    });
+
+    const geminiKg = geminiStateProps.continuation_assessment.properties.kg;
+    expect(geminiKg.required).toEqual(['status']);
+    for (const key of ['search_tool_use_id', 'answer_tool_use_id', 'question_digest']) {
+      expect(geminiKg.properties[key].nullable).toBe(true);
+      expect(geminiKg.properties[key].description).toContain('Omit or pass null when unset.');
+      expect(geminiKg.properties[key].description).not.toContain('null is also accepted.');
+    }
+
+    expect(geminiNodeTool.inputSchema.required).toEqual(['node_id', 'status']);
+    const geminiNodeProps = geminiNodeTool.inputSchema.properties as Record<string, any>;
+    expect(geminiNodeProps.previous_result_tool_use_id).toEqual({
+      type: 'string',
+      nullable: true,
+      description: 'Prior tool use ID when referencing an earlier result. Omit or pass null when unset.',
+    });
+  });
+
+  it('satisfies the live judgment-node-evidence contract when Gemini omits previous_result_tool_use_id per its normalized required list', () => {
+    const liveNodeRecordTool: Tool = {
+      name: 'brainbase_judgment_node_record',
+      description: 'Record compact evidence for a judgment node.',
+      inputSchema: {
+        type: 'object',
+        additionalProperties: false,
+        required: [
+          'node_id',
+          'status',
+          'finding',
+          'evidence_fit',
+          'unknowns',
+          'evidence_tool_use_ids',
+          'previous_result_tool_use_id',
+          'next_action',
+        ],
+        properties: {
+          node_id: { type: 'string' },
+          status: { type: 'string', enum: ['supported', 'insufficient'] },
+          finding: { type: 'string' },
+          evidence_fit: { type: 'string' },
+          unknowns: { type: 'array', items: { type: 'string' } },
+          evidence_tool_use_ids: { type: 'array', items: { type: 'string' } },
+          previous_result_tool_use_id: {
+            type: ['string', 'null'],
+            description: 'Prior tool use ID when referencing an earlier node result.',
+          },
+          next_action: { type: 'string' },
+        },
+      } as unknown as Tool['inputSchema'],
+    };
+
+    // Standard profile stays byte-for-byte identical.
+    expect(applyMcpToolSchemaProfile(liveNodeRecordTool, 'standard')).toBe(liveNodeRecordTool);
+    expect(JSON.stringify(normalizeMcpToolInputSchemaForProfile(liveNodeRecordTool.inputSchema, 'standard')))
+      .toBe(JSON.stringify(liveNodeRecordTool.inputSchema));
+
+    // Gemini profile drops nullable previous_result_tool_use_id from required without duplicating null notes.
+    const geminiTool = applyMcpToolSchemaProfile(liveNodeRecordTool, 'gemini');
+    expect(validateMcpToolSchemaPortability(geminiTool)).toEqual([]);
+    expect(normalizeMcpToolInputSchemaForPortability(geminiTool.inputSchema)).toEqual(geminiTool.inputSchema);
+    expect(geminiTool.inputSchema.required).toEqual([
+      'node_id',
+      'status',
+      'finding',
+      'evidence_fit',
+      'unknowns',
+      'evidence_tool_use_ids',
+      'next_action',
+    ]);
+    const prevSchema = (geminiTool.inputSchema.properties as Record<string, Record<string, unknown>>).previous_result_tool_use_id;
+    expect(prevSchema).toEqual({
+      type: 'string',
+      nullable: true,
+      description: 'Prior tool use ID when referencing an earlier node result. Omit or pass null when unset.',
+    });
+
+    // Build a payload containing ONLY the Gemini-required keys (omitting previous_result_tool_use_id).
+    const fullArgs: Record<string, unknown> = {
+      node_id: 'problem-frame',
+      status: 'supported',
+      finding: 'The question scope is confirmed.',
+      evidence_fit: 'Earlier inspection directly supports this node.',
+      unknowns: [],
+      evidence_tool_use_ids: ['work-1'],
+      next_action: 'Continue to observe.',
+    };
+    const geminiPayload: Record<string, unknown> = {};
+    for (const key of geminiTool.inputSchema.required ?? []) {
+      geminiPayload[key] = fullArgs[key];
+    }
+    expect(Object.hasOwn(geminiPayload, 'previous_result_tool_use_id')).toBe(false);
+
+    // Real judgment-node-evidence validator accepts the omitted payload and normalizes previous_result_tool_use_id to null.
+    const omittedResult = {
+      schema_version: JUDGMENT_NODE_EVIDENCE_SCHEMA_VERSION,
+      ...geminiPayload,
+    };
+    const normalized = normalizeJudgmentNodeResult(omittedResult);
+    expect(normalized).toEqual({
+      schema_version: JUDGMENT_NODE_EVIDENCE_SCHEMA_VERSION,
+      node_id: 'problem-frame',
+      status: 'supported',
+      finding: 'The question scope is confirmed.',
+      evidence_fit: 'Earlier inspection directly supports this node.',
+      unknowns: [],
+      evidence_tool_use_ids: ['work-1'],
+      previous_result_tool_use_id: null,
+      next_action: 'Continue to observe.',
+    });
+    expect(Object.hasOwn(omittedResult, 'previous_result_tool_use_id')).toBe(false);
+
+    // End-to-end evaluation with evaluateJudgmentNodeEvidence accepts omitted first-node previous_result_tool_use_id and chains to the next node.
+    const receipt = {
+      active_node_definitions: [
+        { id: 'problem-frame', execution_contract: JUDGMENT_NODE_EVIDENCE_CONTRACT },
+        { id: 'observe', execution_contract: JUDGMENT_NODE_EVIDENCE_CONTRACT },
+      ],
+    };
+    const evaluation = evaluateJudgmentNodeEvidence([
+      {
+        event_kind: 'execution',
+        success: true,
+        tool_name: 'mcp__example__inspect',
+        tool_use_id: 'work-1',
+        event_sequence: 1,
+        safe_metadata: {},
+      },
+      {
+        event_kind: 'node_evidence',
+        success: true,
+        tool_name: 'mcp__brainbase__brainbase_judgment_node_record',
+        tool_use_id: 'node-problem',
+        event_sequence: 2,
+        safe_metadata: { node_result: omittedResult },
+      },
+      {
+        event_kind: 'execution',
+        success: true,
+        tool_name: 'mcp__example__inspect',
+        tool_use_id: 'work-2',
+        event_sequence: 3,
+        safe_metadata: {},
+      },
+      {
+        event_kind: 'node_evidence',
+        success: true,
+        tool_name: 'mcp__brainbase__brainbase_judgment_node_record',
+        tool_use_id: 'node-observe',
+        event_sequence: 4,
+        safe_metadata: {
+          node_result: {
+            ...omittedResult,
+            node_id: 'observe',
+            evidence_tool_use_ids: ['work-2'],
+            previous_result_tool_use_id: 'node-problem',
+            next_action: 'Finish answer.',
+          },
+        },
+      },
+    ], receipt);
+    expect(evaluation).toMatchObject({
+      required: true,
+      ready: true,
+      status: 'ready',
+      next_node: null,
+    });
+    expect(evaluation.results[0]?.previous_result_tool_use_id).toBeNull();
+    expect(evaluation.results[1]?.previous_result_tool_use_id).toBe('node-problem');
+
+    // Fail-closed checks: unknown keys and invalid types/strings remain rejected.
+    expect(normalizeJudgmentNodeResult({ ...omittedResult, extra: true })).toBeNull();
+    expect(normalizeJudgmentNodeResult({ ...omittedResult, previous_result_tool_use_id: 123 })).toBeNull();
+    expect(normalizeJudgmentNodeResult({ ...omittedResult, previous_result_tool_use_id: 'token=do-not-store' })).toBeNull();
   });
 
   it('publishes ./mcp-tool-schema-portability and re-exports profile helpers via ./mcp-runtime', async () => {
