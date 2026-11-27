@@ -85,7 +85,7 @@ function exactKeys(value: unknown, keys: readonly string[]): value is UnknownRec
 }
 
 function cleanText(value: unknown, limit: number, { nullable = false }: { nullable?: boolean } = {}): string | null | undefined {
-  if (value === null && nullable) return null;
+  if (nullable && (value === null || (typeof value === 'string' && value.trim() === ''))) return null;
   if (typeof value !== 'string') return undefined;
   const text = value.replace(/[\u0000-\u001f\u007f]+/gu, ' ').replace(/\s+/gu, ' ').trim();
   if (!text || [...text].length > limit || SECRET_PATTERN.test(text)) return undefined;
