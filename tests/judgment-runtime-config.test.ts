@@ -135,6 +135,14 @@ describe('JudgmentRuntimeConfig single source of truth', () => {
       expect(defaultJudgmentJournalRoot()).toBe(resolve(envJournal));
       expect(resolveJudgmentRuntimeConfig().journalRoot).toBe(resolve(envJournal));
 
+      // 4b. Backward compatibility: explicit dataDir argument to defaultJudgmentJournalRoot
+      //     must always resolve `<dataDir>/judgment-journal` even when BRAINBASE_JUDGMENT_JOURNAL_DIR is set.
+      const explicitDataDir = join(root, 'explicit-data');
+      expect(defaultJudgmentJournalRoot(explicitDataDir))
+        .toBe(join(resolve(explicitDataDir), 'judgment-journal'));
+      expect(defaultJudgmentJournalRoot(explicitDataDir, envWithJournal))
+        .toBe(join(resolve(explicitDataDir), 'judgment-journal'));
+
       // 5. readJudgmentValueProofJournal uses runtimeConfig.journalRoot over process.env
       const isolatedJournal = join(root, 'isolated-journal');
       const runtimeConfig = resolveJudgmentRuntimeConfig({ journalRoot: isolatedJournal }, {});

@@ -235,7 +235,10 @@ export function defaultJudgmentJournalRoot(
   dataDir?: string,
   env: JudgmentRuntimeEnvironment = process.env
 ): string {
-  return resolveJudgmentJournalRoot(env, dataDir !== undefined ? { dataDir } : {});
+  if (dataDir !== undefined) {
+    return join(resolve(dataDir), 'judgment-journal');
+  }
+  return resolveJudgmentJournalRoot(env);
 }
 
 function errorMessage(error: unknown): string {
