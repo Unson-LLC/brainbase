@@ -73,6 +73,12 @@ import {
 import { applyCanonicalWrites, buildCanonicalEdge } from './canonical-edge-builder.js';
 import { defaultJudgmentJournalRoot } from './judgment-value-proof-review.js';
 import { createWorldExtension, readWorldVocabulary } from './world-extension.js';
+import {
+  buildRevalidationQueue,
+  DEFAULT_REVALIDATION_QUEUE_TOP_K,
+  parseCatalogModelsPayload,
+  renderRevalidationQueueText,
+} from './world-model-revalidation-queue.js';
 import { createLocalWebHost, LOCAL_WEB_DEFAULT_PORT } from './local-web-host.js';
 import { assertCredentialsFilePath, BrainbaseLoginError, CREDENTIALS_SCHEMA_VERSION, defaultCredentialsPath, loginWithDeviceCode, normalizeServerUrl, readCredentials, removeCredentials, withCredentialsLock } from './brainbase-login.js';
 import {
@@ -202,6 +208,8 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
         return await ontologyAudit(parsed, io);
       case 'ontology:migrate':
         return await ontologyMigrate(parsed, io);
+      case 'world-model:revalidation-queue':
+        return await worldModelRevalidationQueue(parsed, io);
       case 'judgment:hook':
         return await judgmentHook(parsed, io);
       case 'judgment:install':
@@ -2294,6 +2302,55 @@ async function ontologyMigrate(parsed: ParsedArgs, io: CliIo): Promise<number> {
   return result.status === 'blocked' ? 1 : 0;
 }
 
+async function worldModelRevalidationQueue(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  if (parsed.flags.has('catalog')) {
+    throw new Error('world-model:revalidation-queue requires --catalog <json>');
+  }
+  const catalogPath = first(parsed, 'catalog')?.trim();
+  if (!catalogPath) {
+    throw new Error('world-model:revalidation-queue requires --catalog <json>');
+  }
+  if (parsed.flags.has('top')) {
+    throw new Error('world-model:revalidation-queue --top requires a positive integer');
+  }
+  if (parsed.values.has('json')) {
+    throw new Error('world-model:revalidation-queue --json does not take a value');
+  }
+  const rawTop = first(parsed, 'top');
+  let topK: number = DEFAULT_REVALIDATION_QUEUE_TOP_K;
+  if (rawTop !== undefined) {
+    if (!/^[1-9]\d*$/u.test(rawTop)) {
+      throw new Error('world-model:revalidation-queue --top must be a positive integer');
+    }
+    topK = Number(rawTop);
+    if (!Number.isSafeInteger(topK)) {
+      throw new Error('world-model:revalidation-queue --top must be a safe positive integer');
+    }
+  }
+
+  let rawText: string;
+  try {
+    rawText = await readFile(catalogPath, 'utf8');
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to read catalog file "${catalogPath}": ${reason}`);
+  }
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(rawText);
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`Invalid JSON in catalog file "${catalogPath}": ${reason}`);
+  }
+
+  const models = parseCatalogModelsPayload(payload);
+  const queue = buildRevalidationQueue(models, { topK });
+  const asJson = parsed.flags.has('json');
+  write(io, asJson ? `${JSON.stringify(queue, null, 2)}\n` : renderRevalidationQueueText(queue));
+  return 0;
+}
+
 function proposedPersonalOs(
   os: PersonalOs,
   proposed: Pick<PersonalOs, 'graph' | 'relationships' | 'personalKg' | 'decisions'>
@@ -2335,6 +2392,7 @@ function usage(): string {
   brainbase memory:list [--dir path] [--format text|json]
   brainbase memory:register --id id [--id id...] [--dir path] [--write] [--format text|json]
   brainbase ontology:migrate [--dir path] [--write --expected-input-digest digest]
+  brainbase world-model:revalidation-queue --catalog path [--top n] [--json]
   brainbase judgment:install --target codex [--autonomy-mode off|canary|on] [--autonomy-project code] [--reasoning-gate-mode off|compact_4block_v3|compact_4block_with_wm] [--reasoning-gate-projects code,code] [--dry-run] [--output path]
   brainbase judgment:install --target claude-code --origin url [--server url] [--project code] [--repositories name,name] [--settings path] [--config path] [--dry-run] [--remove]
   brainbase judgment:install --target antigravity --origin baseUrl [--server url] [--project code] [--allow-non-git] [--cwd-prefix path] [--repositories name,name] [--settings hooks.json] [--config path] [--dry-run] [--remove]
