@@ -1,6 +1,17 @@
 import type { JudgmentToolEvent } from './judgment-host.js';
 
+export type TaskProgressValidationIssueCode =
+  | 'invalid_type'
+  | 'too_small'
+  | 'too_big'
+  | 'unrecognized_keys'
+  | 'invalid_union'
+  | 'invalid_value'
+  | 'custom';
+
 export interface TaskProgressValidationIssue {
+  code?: TaskProgressValidationIssueCode;
+  keys?: string[];
   path: (string | number)[];
   message: string;
 }
@@ -53,21 +64,7 @@ const VERIFIED_OUTCOME_KEYS = new Set(['kind', 'outcome', 'evidence_tool_use_ids
 const VERIFIED_OUTCOMES = new Set<TaskProgressVerifiedOutcome>(['criterion_advanced', 'new_negative_result']);
 
 function isObjectRecord(value: unknown): value is Record<string, unknown> {
-  return (
-    typeof value === 'object'
-    && value !== null
-    && !Array.isArray(value)
-    && !(value instanceof Date)
-    && !(value instanceof RegExp)
-    && !(value instanceof Map)
-    && !(value instanceof Set)
-    && !(value instanceof WeakMap)
-    && !(value instanceof WeakSet)
-    && !(value instanceof Promise)
-    && !(value instanceof Error)
-    && !(value instanceof ArrayBuffer)
-    && !ArrayBuffer.isView(value)
-  );
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function collectUnknownKeyIssues(
@@ -75,9 +72,21 @@ function collectUnknownKeyIssues(
   allowedKeys: ReadonlySet<string>,
   issues: TaskProgressValidationIssue[]
 ): void {
-  const unknownKeys = Object.keys(record).filter((key) => !allowedKeys.has(key));
+  const seen = new Set<string>();
+  const unknownKeys: string[] = [];
+  for (const key in record) {
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    if (!allowedKeys.has(key)) {
+      unknownKeys.push(key);
+    }
+  }
   if (unknownKeys.length > 0) {
     issues.push({
+      code: 'unrecognized_keys',
+      keys: unknownKeys,
       path: [],
       message: `Unrecognized key(s) in object: ${unknownKeys.map((key) => `'${key}'`).join(', ')}`
     });
@@ -90,16 +99,16 @@ function parseReference(
   issues: TaskProgressValidationIssue[]
 ): string | undefined {
   if (typeof value !== 'string') {
-    issues.push({ path, message: 'Expected string' });
+    issues.push({ code: 'invalid_type', path, message: 'Expected string' });
     return undefined;
   }
   const trimmed = value.trim();
   if (trimmed.length < 1) {
-    issues.push({ path, message: 'String must contain at least 1 character(s)' });
+    issues.push({ code: 'too_small', path, message: 'String must contain at least 1 character(s)' });
     return undefined;
   }
   if (trimmed.length > MAX_REFERENCE_LENGTH) {
-    issues.push({ path, message: `String must contain at most ${MAX_REFERENCE_LENGTH} character(s)` });
+    issues.push({ code: 'too_big', path, message: `String must contain at most ${MAX_REFERENCE_LENGTH} character(s)` });
     return undefined;
   }
   return trimmed;
@@ -111,11 +120,11 @@ function parseEvidenceIds(
   issues: TaskProgressValidationIssue[]
 ): string[] | undefined {
   if (!Array.isArray(value)) {
-    issues.push({ path, message: 'Expected array' });
+    issues.push({ code: 'invalid_type', path, message: 'Expected array' });
     return undefined;
   }
   if (value.length < 1) {
-    issues.push({ path, message: 'Array must contain at least 1 element(s)' });
+    issues.push({ code: 'too_small', path, message: 'Array must contain at least 1 element(s)' });
     return undefined;
   }
   const parsed: string[] = [];
@@ -130,7 +139,7 @@ function parseEvidenceIds(
     return undefined;
   }
   if (new Set(parsed).size !== parsed.length) {
-    issues.push({ path, message: 'Array elements must be unique' });
+    issues.push({ code: 'custom', path, message: 'Array elements must be unique' });
     return undefined;
   }
   return parsed;
@@ -165,7 +174,7 @@ function createSchema<T>(validate: (input: unknown, issues: TaskProgressValidati
 
 export const taskProgressScopeSchema: TaskProgressSchema<TaskProgressScope> = createSchema((input, issues) => {
   if (!isObjectRecord(input)) {
-    issues.push({ path: [], message: 'Expected object' });
+    issues.push({ code: 'invalid_type', path: [], message: 'Expected object' });
     return undefined;
   }
   collectUnknownKeyIssues(input, SCOPE_KEYS, issues);
@@ -180,7 +189,7 @@ export const taskProgressScopeSchema: TaskProgressSchema<TaskProgressScope> = cr
 
 export const taskProgressObservationSchema: TaskProgressSchema<TaskProgressObservation> = createSchema((input, issues) => {
   if (!isObjectRecord(input)) {
-    issues.push({ path: [], message: 'Expected object' });
+    issues.push({ code: 'invalid_type', path: [], message: 'Expected object' });
     return undefined;
   }
   const kind = input['kind'];
@@ -211,6 +220,7 @@ export const taskProgressObservationSchema: TaskProgressSchema<TaskProgressObser
       outcome = rawOutcome as TaskProgressVerifiedOutcome;
     } else {
       issues.push({
+        code: 'invalid_value',
         path: ['outcome'],
         message: "Expected 'criterion_advanced' | 'new_negative_result'"
       });
@@ -237,6 +247,7 @@ export const taskProgressObservationSchema: TaskProgressSchema<TaskProgressObser
     };
   }
   issues.push({
+    code: 'invalid_union',
     path: ['kind'],
     message: "Invalid discriminator value. Expected 'preparation_only' | 'waiting' | 'verified_outcome'"
   });
