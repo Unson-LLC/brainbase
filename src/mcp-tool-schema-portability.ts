@@ -29,6 +29,7 @@ export interface McpToolSchemaPortabilityIssue {
 const SUPPORTED_TYPES = new Set(['object', 'array', 'string', 'number', 'integer', 'boolean']);
 
 const NULL_NOTE = 'null is also accepted.';
+const NULLABLE_OMIT_NOTE = 'Omit or pass null when unset.';
 const CLOSED_EMPTY_OBJECT_NOTE =
   'Must be an empty object ({}); additionalProperties: false was relaxed to additionalProperties: true for Gemini schema compatibility.';
 const EMPTY_ENUM_INTERSECTION_NOTE =
@@ -106,6 +107,24 @@ function appendDescriptions(existing: unknown, additions: readonly string[]): st
   return result || undefined;
 }
 
+function appendNullNote(existing: unknown): string {
+  const base = typeof existing === 'string' ? existing.trim() : '';
+  if (base.includes(NULLABLE_OMIT_NOTE)) return base;
+  return appendDescription(base, NULL_NOTE);
+}
+
+function replaceNullNoteWithOmitNote(existing: unknown): string {
+  const base = typeof existing === 'string' ? existing.trim() : '';
+  if (!base) return NULLABLE_OMIT_NOTE;
+  if (base.includes(NULLABLE_OMIT_NOTE)) {
+    return base.replaceAll(NULL_NOTE, '').replace(/\s+/gu, ' ').trim();
+  }
+  if (base.includes(NULL_NOTE)) {
+    return base.replace(NULL_NOTE, NULLABLE_OMIT_NOTE).replaceAll(NULL_NOTE, '').replace(/\s+/gu, ' ').trim();
+  }
+  return `${base} ${NULLABLE_OMIT_NOTE}`;
+}
+
 function uniqueStrings(values: readonly string[]): string[] {
   return [...new Set(values)];
 }
@@ -159,11 +178,19 @@ function finalizeNormalizedSchema(node: JsonObject, isRoot: boolean): void {
   if (node.type === 'object') {
     if (Array.isArray(node.required)) {
       const props = isPlainObject(node.properties) ? node.properties : {};
-      const filtered = uniqueStrings(
+      const filtered: string[] = [];
+      for (const key of uniqueStrings(
         node.required.filter(
-          (key): key is string => typeof key === 'string' && Object.hasOwn(props, key),
+          (entry): entry is string => typeof entry === 'string' && Object.hasOwn(props, entry),
         ),
-      );
+      )) {
+        const propSchema = Object.getOwnPropertyDescriptor(props, key)?.value;
+        if (isPlainObject(propSchema) && propSchema.nullable === true) {
+          propSchema.description = replaceNullNoteWithOmitNote(propSchema.description);
+          continue;
+        }
+        filtered.push(key);
+      }
       if (filtered.length > 0) {
         node.required = filtered;
       } else {
@@ -236,7 +263,7 @@ function mergeNormalizedSchemas(
       const mergedObject = mergeObjectSchemas(nonNull, mode, preserveUndeclaredRequired);
       if (anyNullable) {
         mergedObject.nullable = true;
-        mergedObject.description = appendDescription(mergedObject.description, NULL_NOTE);
+        mergedObject.description = appendNullNote(mergedObject.description);
       }
       return { schema: mergedObject, notes: [] };
     }
@@ -305,7 +332,7 @@ function mergeNormalizedSchemas(
       }
       if (anyNullable) {
         result.nullable = true;
-        result.description = appendDescription(result.description, NULL_NOTE);
+        result.description = appendNullNote(result.description);
       }
       return { schema: result, notes };
     }
@@ -334,7 +361,7 @@ function mergeNormalizedSchemas(
       if (typeof description === 'string') result.description = description;
       if (anyNullable) {
         result.nullable = true;
-        result.description = appendDescription(result.description, NULL_NOTE);
+        result.description = appendNullNote(result.description);
       }
       return { schema: result, notes: [] };
     }
@@ -359,7 +386,7 @@ function mergeNormalizedSchemas(
     }
     if (anyNullable) {
       base.nullable = true;
-      base.description = appendDescription(base.description, NULL_NOTE);
+      base.description = appendNullNote(base.description);
     }
     return { schema: base, notes: [] };
   }
@@ -390,7 +417,7 @@ function mergeNormalizedSchemas(
     }
     if (anyNullable) {
       result.nullable = true;
-      result.description = appendDescription(result.description, NULL_NOTE);
+      result.description = appendNullNote(result.description);
     }
     return { schema: result, notes: [] };
   }
@@ -414,7 +441,7 @@ function mergeNormalizedSchemas(
   }
   if (anyNullable) {
     merged.nullable = true;
-    merged.description = appendDescription(merged.description, NULL_NOTE);
+    merged.description = appendNullNote(merged.description);
   }
   return { schema: merged, notes };
 }
@@ -855,11 +882,22 @@ function normalizeSchemaNode(
 
     if (Array.isArray(working.required)) {
       const props = isPlainObject(working.properties) ? working.properties : {};
-      const filtered = uniqueStrings(
+      const filtered: string[] = [];
+      for (const key of uniqueStrings(
         working.required.filter(
-          (key): key is string => typeof key === 'string' && (preserveUndeclaredRequired || Object.hasOwn(props, key)),
+          (entry): entry is string =>
+            typeof entry === 'string' && (preserveUndeclaredRequired || Object.hasOwn(props, entry)),
         ),
-      );
+      )) {
+        if (Object.hasOwn(props, key)) {
+          const propSchema = Object.getOwnPropertyDescriptor(props, key)?.value;
+          if (isPlainObject(propSchema) && propSchema.nullable === true) {
+            propSchema.description = replaceNullNoteWithOmitNote(propSchema.description);
+            continue;
+          }
+        }
+        filtered.push(key);
+      }
       if (filtered.length > 0) {
         working.required = filtered;
       } else {
@@ -873,7 +911,7 @@ function normalizeSchemaNode(
   // Normalize `nullable`: preserve OpenAPI boolean `nullable` (and note `null` in description),
   // strip invalid non-boolean values.
   if (working.nullable === true) {
-    working.description = appendDescription(working.description, NULL_NOTE);
+    working.description = appendNullNote(working.description);
   } else if (working.nullable !== false && Object.hasOwn(working, 'nullable')) {
     delete working.nullable;
   }
