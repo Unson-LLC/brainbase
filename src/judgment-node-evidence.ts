@@ -116,16 +116,20 @@ function normalizeInput(
   { includeSchemaVersion = true }: { includeSchemaVersion?: boolean } = {}
 ): JudgmentNodeResult | JudgmentNodeResultWithoutSchema | null {
   const expectedKeys = includeSchemaVersion ? RESULT_KEYS : INPUT_KEYS;
-  if (!exactKeys(value, expectedKeys)) return null;
-  if (includeSchemaVersion && value.schema_version !== JUDGMENT_NODE_EVIDENCE_SCHEMA_VERSION) return null;
-  const nodeId = cleanId(value.node_id);
-  const status = value.status;
-  const finding = cleanText(value.finding, MAX_TEXT_LENGTH);
-  const evidenceFit = cleanText(value.evidence_fit, MAX_TEXT_LENGTH);
-  const unknowns = cleanStringArray(value.unknowns, MAX_UNKNOWN_LENGTH);
-  const evidenceIds = cleanStringArray(value.evidence_tool_use_ids, MAX_NODE_ID_LENGTH);
-  const previous = cleanId(value.previous_result_tool_use_id, { nullable: true });
-  const nextAction = cleanText(value.next_action, MAX_TEXT_LENGTH);
+  const candidate = isRecord(value)
+    && (!Object.hasOwn(value, 'previous_result_tool_use_id') || value.previous_result_tool_use_id === undefined)
+    ? { ...value, previous_result_tool_use_id: null }
+    : value;
+  if (!exactKeys(candidate, expectedKeys)) return null;
+  if (includeSchemaVersion && candidate.schema_version !== JUDGMENT_NODE_EVIDENCE_SCHEMA_VERSION) return null;
+  const nodeId = cleanId(candidate.node_id);
+  const status = candidate.status;
+  const finding = cleanText(candidate.finding, MAX_TEXT_LENGTH);
+  const evidenceFit = cleanText(candidate.evidence_fit, MAX_TEXT_LENGTH);
+  const unknowns = cleanStringArray(candidate.unknowns, MAX_UNKNOWN_LENGTH);
+  const evidenceIds = cleanStringArray(candidate.evidence_tool_use_ids, MAX_NODE_ID_LENGTH);
+  const previous = cleanId(candidate.previous_result_tool_use_id, { nullable: true });
+  const nextAction = cleanText(candidate.next_action, MAX_TEXT_LENGTH);
   if (
     typeof nodeId !== 'string'
     || !NODE_STATUSES.has(status as JudgmentNodeStatus)
