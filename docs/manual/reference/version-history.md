@@ -2,6 +2,13 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
+## 0.51.5 candidate — npm公開前
+
+- 0.51.4（`main` / `e743dbcbc`）に `#1105`（`8a6ae6b38`、URS-048 v4 案 C＋A / Item #220 `e4388`・Item #221）のみを単独 cherry-pick したpatch更新候補（他の未リリース `develop` コミットは含まない）。
+- `@unson/brainbase-mcp/knowledge-promotion` の `buildOrganizationKnowledgeEvent` で `personal_share` + `decision` の `decision_authority.decider_id` を組織審査承認者 `approverPersonId` へ統一し、Graph mutation および `reconcileGraphProjection` の `decision_owner_person_id` も承認者へ整合させた。
+- 申請者・所有者来歴（`owner_person_id`・`owner_consent_receipt_id`・`lineage`）および `withdrawPersonalShares` / `withdrawPromotedEntity` による本人撤回権限は引き続き `request.owner_person_id` に維持した。
+- 破壊的変更はない（詳細は `docs/releases/0.51.5.md` を参照）。npm公開と利用ホストへの配備は別途確認する。
+
 ## 0.51.4 candidate — npm公開前
 
 - 0.51.3（`main` / `862b25ea7`）に `#1094`（`5e902a369`、Item #184）・`#1095`（`ffa57f8c5`、Item #236）・`#1103`（`e67b2d2dc`、Item #172 / PR-A1）の 3 件のみを順番に cherry-pick したpatch更新候補（他の未リリース `develop` コミットは含まない）。
