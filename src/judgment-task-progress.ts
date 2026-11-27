@@ -52,16 +52,22 @@ const WAITING_KEYS = new Set(['kind']);
 const VERIFIED_OUTCOME_KEYS = new Set(['kind', 'outcome', 'evidence_tool_use_ids', 'verification_ref']);
 const VERIFIED_OUTCOMES = new Set<TaskProgressVerifiedOutcome>(['criterion_advanced', 'new_negative_result']);
 
-function isPlainRecord(value: unknown): value is Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return false;
-  }
-  const proto = Object.getPrototypeOf(value);
-  return proto === Object.prototype || proto === null;
-}
-
-function ownProperty(record: Record<string, unknown>, key: string): unknown {
-  return Object.prototype.hasOwnProperty.call(record, key) ? record[key] : undefined;
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return (
+    typeof value === 'object'
+    && value !== null
+    && !Array.isArray(value)
+    && !(value instanceof Date)
+    && !(value instanceof RegExp)
+    && !(value instanceof Map)
+    && !(value instanceof Set)
+    && !(value instanceof WeakMap)
+    && !(value instanceof WeakSet)
+    && !(value instanceof Promise)
+    && !(value instanceof Error)
+    && !(value instanceof ArrayBuffer)
+    && !ArrayBuffer.isView(value)
+  );
 }
 
 function collectUnknownKeyIssues(
@@ -158,14 +164,14 @@ function createSchema<T>(validate: (input: unknown, issues: TaskProgressValidati
 }
 
 export const taskProgressScopeSchema: TaskProgressSchema<TaskProgressScope> = createSchema((input, issues) => {
-  if (!isPlainRecord(input)) {
+  if (!isObjectRecord(input)) {
     issues.push({ path: [], message: 'Expected object' });
     return undefined;
   }
   collectUnknownKeyIssues(input, SCOPE_KEYS, issues);
-  const task_ref = parseReference(ownProperty(input, 'task_ref'), ['task_ref'], issues);
-  const criterion_ref = parseReference(ownProperty(input, 'criterion_ref'), ['criterion_ref'], issues);
-  const contract_revision = parseReference(ownProperty(input, 'contract_revision'), ['contract_revision'], issues);
+  const task_ref = parseReference(input['task_ref'], ['task_ref'], issues);
+  const criterion_ref = parseReference(input['criterion_ref'], ['criterion_ref'], issues);
+  const contract_revision = parseReference(input['contract_revision'], ['contract_revision'], issues);
   if (issues.length > 0 || task_ref === undefined || criterion_ref === undefined || contract_revision === undefined) {
     return undefined;
   }
@@ -173,15 +179,15 @@ export const taskProgressScopeSchema: TaskProgressSchema<TaskProgressScope> = cr
 });
 
 export const taskProgressObservationSchema: TaskProgressSchema<TaskProgressObservation> = createSchema((input, issues) => {
-  if (!isPlainRecord(input)) {
+  if (!isObjectRecord(input)) {
     issues.push({ path: [], message: 'Expected object' });
     return undefined;
   }
-  const kind = ownProperty(input, 'kind');
+  const kind = input['kind'];
   if (kind === 'preparation_only') {
     collectUnknownKeyIssues(input, PREPARATION_ONLY_KEYS, issues);
     const evidence_tool_use_ids = parseEvidenceIds(
-      ownProperty(input, 'evidence_tool_use_ids'),
+      input['evidence_tool_use_ids'],
       ['evidence_tool_use_ids'],
       issues
     );
@@ -199,7 +205,7 @@ export const taskProgressObservationSchema: TaskProgressSchema<TaskProgressObser
   }
   if (kind === 'verified_outcome') {
     collectUnknownKeyIssues(input, VERIFIED_OUTCOME_KEYS, issues);
-    const rawOutcome = ownProperty(input, 'outcome');
+    const rawOutcome = input['outcome'];
     let outcome: TaskProgressVerifiedOutcome | undefined;
     if (typeof rawOutcome === 'string' && VERIFIED_OUTCOMES.has(rawOutcome as TaskProgressVerifiedOutcome)) {
       outcome = rawOutcome as TaskProgressVerifiedOutcome;
@@ -210,11 +216,11 @@ export const taskProgressObservationSchema: TaskProgressSchema<TaskProgressObser
       });
     }
     const evidence_tool_use_ids = parseEvidenceIds(
-      ownProperty(input, 'evidence_tool_use_ids'),
+      input['evidence_tool_use_ids'],
       ['evidence_tool_use_ids'],
       issues
     );
-    const verification_ref = parseReference(ownProperty(input, 'verification_ref'), ['verification_ref'], issues);
+    const verification_ref = parseReference(input['verification_ref'], ['verification_ref'], issues);
     if (
       issues.length > 0
       || outcome === undefined
