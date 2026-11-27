@@ -741,9 +741,11 @@ export function buildOrganizationKnowledgeEvent(
   const isDecision = normalized.kind === 'decision';
   const personal = request.approval_kind === 'personal_share';
   const decisionAuthority = isDecision
-    // A personal decision is the owner's; a candidate decision is owned by the approver
-    // whose decision authority the organization policy verified.
-    ? { authorized: true as const, decider_id: personal ? request.owner_person_id as string : approverPersonId, domain: normalized.decision_domain as string }
+    // Any decision promoted into the organization Graph is decided by the approver whose
+    // RACI decision authority the organization review policy verified — including
+    // `personal_share` (where `request.owner_person_id` remains the requester/owner
+    // for provenance, lineage, consent, and withdrawal, not the organization decider).
+    ? { authorized: true as const, decider_id: approverPersonId, domain: normalized.decision_domain as string }
     : { authorized: true as const, decider_id: approverPersonId, domain: 'organization_knowledge_review' };
   return {
     schema_version: 'knowledge_event.v1',
