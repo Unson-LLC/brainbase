@@ -1363,14 +1363,16 @@ function stripUserRequestWrapper(text: string): string {
 }
 
 const ORCA_PREAMBLE_PREFIX = '[Orca:';
-const KNOWN_ORCA_SYSTEM_PREAMBLE_PREFIXES = [
+const FENCED_ORCA_SYSTEM_PREAMBLE_PREFIXES = [
   '[Orca: your other chats active in the last ',
   '[Orca: your live work now, ',
   '[Orca: your MEMORY.md, as notes to consult, ',
-  '[Orca: if you asked your owner something in this chat ',
 ] as const;
+const ORCA_UNANSWERED_QUESTION_PREAMBLE =
+  '[Orca: if you asked your owner something in this chat that they\'ve clearly left unanswered and that still matters, put it on an item as Needs you ("${ORCA_CLI_COMMAND:-orca}" bot item set <n> --status needs-you --comment "<context>" --ask "<question>", adding --option "..." per choice when it has choices), or add an item for it. Skip anything already on an item, and items your owner snoozed.]';
 const ORCA_SCHEDULED_TIME_PREFIX = '[Orca: it is ';
 const ORCA_SCHEDULED_TIME_SUFFIX = ', the time you were asked to act at.';
+const ORCA_SCHEDULED_TIME_ONLY_RUN_TAIL = ' This is the only run.';
 const MEMORY_CHANGED_PREAMBLE_PREFIX = '[Your MEMORY.md changed outside this chat ';
 const SOUL_UPDATED_PREAMBLE_PREFIX = '[Your SOUL.md was updated; ';
 
@@ -1416,7 +1418,24 @@ function consumeBracketHeader(text: string, pos: number): number | null {
   return null;
 }
 
-function consumeOrcaFenceBlock(text: string, pos: number): number | null {
+function findLastValidOrcaFenceClose(text: string, minPos: number): number {
+  let searchFrom = text.length;
+  while (searchFrom >= minPos) {
+    const closeIdx = text.lastIndexOf('>>>', searchFrom);
+    if (closeIdx === -1 || closeIdx < minPos) return -1;
+    const atLineStart = closeIdx === 0 || text[closeIdx - 1] === '\n';
+    const afterClose = closeIdx + 3;
+    const atLineEnd =
+      afterClose === text.length
+      || text[afterClose] === '\n'
+      || (text[afterClose] === '\r' && text[afterClose + 1] === '\n');
+    if (atLineStart && atLineEnd) return closeIdx;
+    searchFrom = closeIdx - 1;
+  }
+  return -1;
+}
+
+function consumeOrcaFenceBlock(text: string, pos: number, maxFenceClose?: number): number | null {
   const start = skipAsciiWhitespace(text, pos);
   if (!text.startsWith('<<<', start)) return null;
   let afterOpen = start + 3;
@@ -1425,6 +1444,9 @@ function consumeOrcaFenceBlock(text: string, pos: number): number | null {
   } else if (text[afterOpen] === '\n') {
     afterOpen += 1;
   } else {
+    return null;
+  }
+  if (maxFenceClose !== undefined && (maxFenceClose === -1 || afterOpen > maxFenceClose)) {
     return null;
   }
   let searchFrom = afterOpen;
@@ -1449,7 +1471,7 @@ function consumeOrcaFenceBlock(text: string, pos: number): number | null {
 
 /**
  * Matches only the exact Orca scheduled-time header format:
- * `[Orca: it is YYYY-MM-DDTHH:MM:SS(.fff)?(Z|+HH:MM|-HH:MM), the time you were asked to act at....]`
+ * `[Orca: it is YYYY-MM-DDTHH:MM:SS(.fff)?(Z|+HH:MM|-HH:MM), the time you were asked to act at.( This is the only run.)?]`
  * in strictly linear time without regex backtracking.
  */
 function isOrcaScheduledTimePreamble(text: string, pos: number, afterHeader: number): boolean {
@@ -1506,43 +1528,105 @@ function isOrcaScheduledTimePreamble(text: string, pos: number, afterHeader: num
   }
 
   if (cursor + ORCA_SCHEDULED_TIME_SUFFIX.length > headerClose) return false;
-  return text.startsWith(ORCA_SCHEDULED_TIME_SUFFIX, cursor);
+  if (!text.startsWith(ORCA_SCHEDULED_TIME_SUFFIX, cursor)) return false;
+  cursor += ORCA_SCHEDULED_TIME_SUFFIX.length;
+  return (
+    cursor === headerClose
+    || (
+      headerClose - cursor === ORCA_SCHEDULED_TIME_ONLY_RUN_TAIL.length
+      && text.startsWith(ORCA_SCHEDULED_TIME_ONLY_RUN_TAIL, cursor)
+    )
+  );
 }
 
-function isKnownOrcaSystemPreambleHeader(text: string, pos: number, afterHeader: number): boolean {
+function isFencedOrcaSystemPreambleHeader(text: string, pos: number, afterHeader: number): boolean {
   const headerClose = afterHeader - 1;
-  for (const prefix of KNOWN_ORCA_SYSTEM_PREAMBLE_PREFIXES) {
+  for (const prefix of FENCED_ORCA_SYSTEM_PREAMBLE_PREFIXES) {
     if (pos + prefix.length <= headerClose && text.startsWith(prefix, pos)) {
       return true;
     }
   }
-  return isOrcaScheduledTimePreamble(text, pos, afterHeader);
+  return false;
 }
 
-function consumeKnownOrcaSystemPreamble(text: string, pos: number): number | null {
+function isOrcaUnansweredQuestionPreamble(text: string, pos: number, afterHeader: number): boolean {
+  return (
+    afterHeader - pos === ORCA_UNANSWERED_QUESTION_PREAMBLE.length
+    && text.startsWith(ORCA_UNANSWERED_QUESTION_PREAMBLE, pos)
+  );
+}
+
+function consumeKnownOrcaSystemPreamble(
+  text: string,
+  pos: number,
+  maxFenceClose?: number,
+): number | null {
   if (!text.startsWith(ORCA_PREAMBLE_PREFIX, pos)) return null;
   const afterHeader = consumeBracketHeader(text, pos);
   if (afterHeader === null) return null;
-  if (!isKnownOrcaSystemPreambleHeader(text, pos, afterHeader)) return null;
-  const afterFence = consumeOrcaFenceBlock(text, afterHeader);
-  return afterFence ?? afterHeader;
+  if (isFencedOrcaSystemPreambleHeader(text, pos, afterHeader)) {
+    return consumeOrcaFenceBlock(text, afterHeader, maxFenceClose);
+  }
+  if (
+    isOrcaUnansweredQuestionPreamble(text, pos, afterHeader)
+    || isOrcaScheduledTimePreamble(text, pos, afterHeader)
+  ) {
+    // Standalone system preambles never carry a fence block; keep any user-authored
+    // `<<<\n...\n>>>` block immediately following them intact.
+    return afterHeader;
+  }
+  return null;
 }
 
-function isKnownOrcaSystemPreambleAt(text: string, pos: number): boolean {
-  if (!text.startsWith(ORCA_PREAMBLE_PREFIX, pos)) return false;
+function consumeMemoryChangedPreamble(
+  text: string,
+  pos: number,
+  maxFenceClose?: number,
+): number | null {
+  if (!text.startsWith(MEMORY_CHANGED_PREAMBLE_PREFIX, pos)) return null;
   const afterHeader = consumeBracketHeader(text, pos);
-  if (afterHeader === null) return false;
-  return isKnownOrcaSystemPreambleHeader(text, pos, afterHeader);
+  if (afterHeader === null) return null;
+  let nextPos = afterHeader;
+  let consumedFences = 0;
+  while (nextPos < text.length) {
+    const probe = skipAsciiWhitespace(text, nextPos);
+    if (text.startsWith('Added:', probe)) {
+      const afterFence = consumeOrcaFenceBlock(text, probe + 'Added:'.length, maxFenceClose);
+      if (afterFence === null) break;
+      nextPos = afterFence;
+      consumedFences += 1;
+      continue;
+    }
+    if (text.startsWith('Removed:', probe)) {
+      const afterFence = consumeOrcaFenceBlock(text, probe + 'Removed:'.length, maxFenceClose);
+      if (afterFence === null) break;
+      nextPos = afterFence;
+      consumedFences += 1;
+      continue;
+    }
+    const bareFence = consumeOrcaFenceBlock(text, probe, maxFenceClose);
+    if (bareFence !== null) {
+      nextPos = bareFence;
+      consumedFences += 1;
+      continue;
+    }
+    break;
+  }
+  return consumedFences > 0 ? nextPos : null;
 }
 
 function findNextKnownOrcaPreambleStart(text: string, from: number): number {
+  const lastFenceClose = findLastValidOrcaFenceClose(text, from);
   let earliest = -1;
 
   let searchFrom = from;
   while (searchFrom < text.length) {
     const idx = text.indexOf(MEMORY_CHANGED_PREAMBLE_PREFIX, searchFrom);
     if (idx === -1) break;
-    if ((idx === from || text[idx - 1] === '\n') && consumeBracketHeader(text, idx) !== null) {
+    if (
+      (idx === from || text[idx - 1] === '\n')
+      && consumeMemoryChangedPreamble(text, idx, lastFenceClose) !== null
+    ) {
       earliest = idx;
       break;
     }
@@ -1553,7 +1637,10 @@ function findNextKnownOrcaPreambleStart(text: string, from: number): number {
   while (searchFrom < text.length) {
     const idx = text.indexOf(ORCA_PREAMBLE_PREFIX, searchFrom);
     if (idx === -1 || (earliest !== -1 && idx >= earliest)) break;
-    if ((idx === from || text[idx - 1] === '\n') && isKnownOrcaSystemPreambleAt(text, idx)) {
+    if (
+      (idx === from || text[idx - 1] === '\n')
+      && consumeKnownOrcaSystemPreamble(text, idx, lastFenceClose) !== null
+    ) {
       earliest = idx;
       break;
     }
@@ -1564,19 +1651,25 @@ function findNextKnownOrcaPreambleStart(text: string, from: number): number {
 }
 
 /**
- * Deterministically strips only known Orca-injected leading system preamble
+ * Deterministically strips only exact Orca-injected leading system preamble
  * blocks in linear time without regex backtracking:
- * - `[Your SOUL.md was updated; ...]`
- * - `[Your MEMORY.md changed outside this chat ...]`
- * - Known Orca system `[Orca: ...]` headers (`your other chats active in the last `,
- *   `your live work now, `, `your MEMORY.md, as notes to consult, `,
- *   `if you asked your owner something in this chat `, and exact scheduled-time
- *   `[Orca: it is <ISO-8601>, the time you were asked to act at....]` headers),
- *   plus any immediately following `<<<\n...\n>>>` fence belonging to that known header.
+ * - `[Your SOUL.md was updated; ...]` (with an accompanying `<<<\n...\n>>>` fence
+ *   or bounded by a subsequent valid known Orca / MEMORY.md preamble)
+ * - `[Your MEMORY.md changed outside this chat ...]` ONLY when followed by at least
+ *   one `Added:` / `Removed:` / bare `<<<\n...\n>>>` fence block
+ * - Fenced Orca `[Orca: ...]` preambles (`your other chats active in the last `,
+ *   `your live work now, `, `your MEMORY.md, as notes to consult, `) ONLY when
+ *   immediately followed by a `<<<\n...\n>>>` fence block
+ * - Exact full-string `[Orca: if you asked your owner something in this chat ...]`
+ *   system reminder (standalone; never consumes a following `<<<\n...\n>>>` block)
+ * - Strict ISO-8601 `[Orca: it is <ISO-8601>, the time you were asked to act at.( This is the only run.)?]`
+ *   scheduled-time header (standalone; never consumes a following `<<<\n...\n>>>` block)
  *
- * Unknown `[Orca: ...]` headers — including user-authored headings, ambiguous
- * `[Orca: it is ...]` utterances, and user `[Orca: ...]` headings followed by
- * `<<<\n...\n>>>` fences — are never stripped.
+ * Any utterance that does not match one of these exact system formats — including
+ * fenceless `[Orca: your live work now, ...]` / `[Orca: your other chats active in the last ...]` /
+ * `[Orca: your MEMORY.md, as notes to consult, ...]` / `[Your MEMORY.md changed outside this chat ...]`,
+ * shortened `[Orca: if you asked your owner ...]`, unknown `[Orca: ...]` headers (with or without
+ * fences), and ambiguous `[Orca: it is ...]` headings — is returned completely untouched.
  *
  * Fail-safe: if stripping would yield an empty/whitespace-only string, returns
  * the original trimmed input intact. Never trims ordinary user utterances or
@@ -1599,30 +1692,8 @@ export function stripOrcaInjectedPreambles(text: string): string {
     }
 
     if (original.startsWith(MEMORY_CHANGED_PREAMBLE_PREFIX, cursor)) {
-      const afterHeader = consumeBracketHeader(original, cursor);
-      if (afterHeader === null) break;
-      let nextPos = afterHeader;
-      while (nextPos < original.length) {
-        const probe = skipAsciiWhitespace(original, nextPos);
-        if (original.startsWith('Added:', probe)) {
-          const afterFence = consumeOrcaFenceBlock(original, probe + 'Added:'.length);
-          if (afterFence === null) break;
-          nextPos = afterFence;
-          continue;
-        }
-        if (original.startsWith('Removed:', probe)) {
-          const afterFence = consumeOrcaFenceBlock(original, probe + 'Removed:'.length);
-          if (afterFence === null) break;
-          nextPos = afterFence;
-          continue;
-        }
-        const bareFence = consumeOrcaFenceBlock(original, probe);
-        if (bareFence !== null) {
-          nextPos = bareFence;
-          continue;
-        }
-        break;
-      }
+      const nextPos = consumeMemoryChangedPreamble(original, cursor);
+      if (nextPos === null) break;
       cursor = nextPos;
       continue;
     }

@@ -4786,7 +4786,9 @@ describe('Phase 2 pre-rollout Antigravity hook fixes (PR-A: Fix 1 & Fix 2)', () 
     expect(sent).toHaveLength(2);
     expect(sent[1].body.prompt).toBe('今君は正しくhooks経由でBrainbaseをひけてるの？');
 
-    // Bot-to-bot message after `[Orca: if you asked your owner something ...]` must preserve `──── From: ...` verbatim.
+    // Bot-to-bot message after exact Orca unanswered-question preamble must preserve `──── From: ...` verbatim.
+    const exactOrcaUnansweredQuestionPreamble =
+      '[Orca: if you asked your owner something in this chat that they\'ve clearly left unanswered and that still matters, put it on an item as Needs you ("${ORCA_CLI_COMMAND:-orca}" bot item set <n> --status needs-you --comment "<context>" --ask "<question>", adding --option "..." per choice when it has choices), or add an item for it. Skip anything already on an item, and items your owner snoozed.]';
     const botMessageBody = [
       '──── From: ORCA_SESSION_ID:999621c5-6e6b-4707-b1e1-e8ea0730c681',
       'PR-A の実装を開始してください。',
@@ -4795,7 +4797,7 @@ describe('Phase 2 pre-rollout Antigravity hook fixes (PR-A: Fix 1 & Fix 2)', () 
       '- author-model: gemini を末尾に記載',
     ].join('\n');
     const orcaWithBotMessage = [
-      '[Orca: if you asked your owner something in this chat and got no reply, check whether they answered in another chat.]',
+      exactOrcaUnansweredQuestionPreamble,
       '',
       botMessageBody,
     ].join('\n');
@@ -4805,8 +4807,29 @@ describe('Phase 2 pre-rollout Antigravity hook fixes (PR-A: Fix 1 & Fix 2)', () 
     const ordinaryPrompt = '通常の発話です。[Orca: ...] ブロックが途中にあっても削らないでください。';
     expect(stripOrcaInjectedPreambles(ordinaryPrompt)).toBe(ordinaryPrompt);
 
-    // User-authored leading `[Orca: ...]` headings — including ambiguous `[Orca: it is ...]` and
-    // user `[Orca: ...]` followed by `<<<\n...\n>>>` fences — stay 100% byte-for-byte intact.
+    // Fenceless known-prefix headers, shortened unanswered-question headers, fenceless MEMORY.md headers,
+    // ambiguous `[Orca: it is ...]`, and unknown `[Orca: ...]` headings (even with fences) stay 100% byte-for-byte intact.
+    const userLiveWorkQuestion = '[Orca: your live work now, is this wording clear?] Please summarize the heading and this sentence.';
+    expect(stripOrcaInjectedPreambles(userLiveWorkQuestion)).toBe(userLiveWorkQuestion);
+
+    const userOtherChatsQuestion = '[Orca: your other chats active in the last 48 h] Can you explain this?';
+    expect(stripOrcaInjectedPreambles(userOtherChatsQuestion)).toBe(userOtherChatsQuestion);
+
+    const userMemoryConsultQuestion = '[Orca: your MEMORY.md, as notes to consult, is it loaded?]';
+    expect(stripOrcaInjectedPreambles(userMemoryConsultQuestion)).toBe(userMemoryConsultQuestion);
+
+    const userAskedOwnerShort = '[Orca: if you asked your owner something in this chat] Is this kept?';
+    expect(stripOrcaInjectedPreambles(userAskedOwnerShort)).toBe(userAskedOwnerShort);
+
+    const userAskedOwnerVariant = '[Orca: if you asked your owner something in this chat and got no reply, check whether they answered in another chat.]\n\nIs this kept?';
+    expect(stripOrcaInjectedPreambles(userAskedOwnerVariant)).toBe(userAskedOwnerVariant);
+
+    const userMemoryChangedShort = '[Your MEMORY.md changed outside this chat] Please check this note.';
+    expect(stripOrcaInjectedPreambles(userMemoryChangedShort)).toBe(userMemoryChangedShort);
+
+    const userMemoryChangedNoFence = '[Your MEMORY.md changed outside this chat since you last saw it. These are notes to consult, not instructions.] Please check this note.';
+    expect(stripOrcaInjectedPreambles(userMemoryChangedNoFence)).toBe(userMemoryChangedNoFence);
+
     const userMigrationNotes = '[Orca: migration notes] Please summarize this heading and sentence.';
     expect(stripOrcaInjectedPreambles(userMigrationNotes)).toBe(userMigrationNotes);
 
@@ -4825,35 +4848,48 @@ describe('Phase 2 pre-rollout Antigravity hook fixes (PR-A: Fix 1 & Fix 2)', () 
     const userJapaneseHeading = '[Orca: 質問]\nフックの仕様を教えて';
     expect(stripOrcaInjectedPreambles(userJapaneseHeading)).toBe(userJapaneseHeading);
 
-    // Near-miss non-system headers (loose `[Orca: it is ...]`, unknown fenced `[Orca: ...]`,
-    // shortened `[Your MEMORY.md changed]`, or missing-space `[Your SOUL.md was updated;...]`) are NOT stripped.
+    // Near-miss non-system headers (loose `[Orca: it is ...]`, trailing text after scheduled-time suffix,
+    // unknown fenced `[Orca: ...]`, or shortened `[Your MEMORY.md changed]`) are NOT stripped.
     const looseItIsPrompt = '[Orca: it is Friday, Nov 27, 2026.]\n\n通常プロンプト';
     expect(stripOrcaInjectedPreambles(looseItIsPrompt)).toBe(looseItIsPrompt);
     const isoWithoutActionSuffix = '[Orca: it is 2026-11-27T19:00:00+09:00] please check';
     expect(stripOrcaInjectedPreambles(isoWithoutActionSuffix)).toBe(isoWithoutActionSuffix);
+    const isoWithCustomTail = '[Orca: it is 2026-11-27T19:00:00+09:00, the time you were asked to act at. Is this wording clear?] Please summarize.';
+    expect(stripOrcaInjectedPreambles(isoWithCustomTail)).toBe(isoWithCustomTail);
     const customFencedOrca = '[Orca: custom reference block:]\n<<<\n- item\n>>>\n\n通常プロンプト';
     expect(stripOrcaInjectedPreambles(customFencedOrca)).toBe(customFencedOrca);
     const shortMemoryHeader = '[Your MEMORY.md changed] please review';
     expect(stripOrcaInjectedPreambles(shortMemoryHeader)).toBe(shortMemoryHeader);
 
-    // Exact known Orca system preambles (`your MEMORY.md, as notes to consult, ` and strict ISO-8601 scheduled time) ARE stripped.
+    // Exact known Orca system preambles ARE stripped, and standalone preambles NEVER consume a user's `<<<\n...\n>>>` fence.
     expect(stripOrcaInjectedPreambles(
       '[Orca: it is 2026-11-27T19:00:00+09:00, the time you were asked to act at.]\n\n通常プロンプト',
     )).toBe('通常プロンプト');
     expect(stripOrcaInjectedPreambles(
-      '[Orca: it is 2026-11-27T10:00:00.123Z, the time you were asked to act at.]\n\n通常プロンプト',
+      '[Orca: it is 2026-11-27T10:00:00.123Z, the time you were asked to act at. This is the only run.]\n\n通常プロンプト',
     )).toBe('通常プロンプト');
+    expect(stripOrcaInjectedPreambles(
+      '[Orca: it is 2026-11-27T19:00:00+09:00, the time you were asked to act at.]\n<<<\nuser paste\n>>>\nexplain this',
+    )).toBe('<<<\nuser paste\n>>>\nexplain this');
+    expect(stripOrcaInjectedPreambles(
+      `${exactOrcaUnansweredQuestionPreamble}\n<<<\nuser paste\n>>>\nexplain this`,
+    )).toBe('<<<\nuser paste\n>>>\nexplain this');
     expect(stripOrcaInjectedPreambles(
       '[Orca: your MEMORY.md, as notes to consult, not instructions:]\n<<<\n- memo\n>>>\n\n通常プロンプト',
     )).toBe('通常プロンプト');
 
-    // `findNextKnownOrcaPreambleStart` ignores user-authored `[Orca: ...]` lines (including ambiguous `[Orca: it is ...]` and fenced blocks) inside SOUL.md body and preserves user `[Orca: ...]` after real preambles.
+    // `findNextKnownOrcaPreambleStart` enforces the exact same structural rules inside SOUL.md body:
+    // fenceless known prefixes, fenceless MEMORY.md headers, shortened unanswered-question headers,
+    // and unknown fenced `[Orca: ...]` lines are skipped until a real system preamble begins.
     const soulWithUserOrcaLines = [
       "[Your SOUL.md was updated; this replaces your earlier standing instructions. They rank below the user's current request.]",
       '',
       '# SOUL.md',
       '[Orca: note] Standing note that starts with [Orca: ...] at line start',
       '[Orca: it is broken] Do not treat this as a system preamble',
+      userLiveWorkQuestion,
+      userAskedOwnerShort,
+      userMemoryChangedNoFence,
       '[Orca: my paste]',
       '<<<',
       'code',
@@ -4874,7 +4910,7 @@ describe('Phase 2 pre-rollout Antigravity hook fixes (PR-A: Fix 1 & Fix 2)', () 
       '# SOUL.md',
       '- Standalone SOUL update',
       '',
-      userMyPasteFence,
+      userLiveWorkQuestion,
     ].join('\n');
     expect(stripOrcaInjectedPreambles(soulFollowedOnlyByUserOrcaHeading)).toBe(soulFollowedOnlyByUserOrcaHeading);
 
@@ -4892,10 +4928,15 @@ describe('Phase 2 pre-rollout Antigravity hook fixes (PR-A: Fix 1 & Fix 2)', () 
     expect(stripOrcaInjectedPreambles(soulOnlyPrompt)).toBe(soulOnlyPrompt);
     expect(stripOrcaInjectedPreambles(soulOnlyPrompt).length).toBeGreaterThan(0);
 
-    // Adversarial ReDoS regression: deeply repeated unclosed prefixes finish in linear time and fail safe.
+    // Adversarial ReDoS regression: deeply repeated unclosed prefixes and unclosed fences finish in linear time and fail safe.
     const adversarial = `${'[Orca: '.repeat(5000)}unclosed`;
     const startedAt = Date.now();
     expect(stripOrcaInjectedPreambles(adversarial)).toBe(adversarial);
     expect(Date.now() - startedAt).toBeLessThan(200);
+
+    const adversarialUnclosedFences = `[Your SOUL.md was updated; ref]\n${'[Orca: your live work now, ref]\n<<<\n'.repeat(5000)}tail`;
+    const fenceStartedAt = Date.now();
+    expect(stripOrcaInjectedPreambles(adversarialUnclosedFences)).toBe(adversarialUnclosedFences);
+    expect(Date.now() - fenceStartedAt).toBeLessThan(200);
   });
 });
