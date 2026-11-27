@@ -86,20 +86,25 @@ const PERMISSION_KEYS = new Set([
   'folderId', 'projectCode', 'roleMin', 'sensitivity', 'scope', 'scopes', 'roles',
   'clearance', 'authorizedAt', 'expiresAt'
 ]);
-const WORKFLOW_STATES = [
+/**
+ * Run states in their only order. A run moves forward through this list and
+ * never back; `initialized` means the run started blocked (no ready source).
+ * `./onboarding-runtime` re-exports this same array.
+ */
+export const ONBOARDING_WORKFLOW_STATES = Object.freeze([
   'initialized',
   'source_ready',
   'candidates_ready',
   'promotion_reviewed',
   'first_value_ready',
   'first_value_answer_reviewed'
-] as const;
+] as const);
 
 export type SourceMode = 'mcp' | 'drive' | 'gmail' | 'local_folder' | 'single_document';
 export type SourceStatus = 'ready' | 'waiting_for_authorization' | 'unavailable' | 'error' | 'unconfirmed';
 export type ObservationClass = 'observed' | 'inferred';
 export type ReviewDecision = 'approve' | 'edit' | 'reject' | 'merge';
-export type WorkflowState = typeof WORKFLOW_STATES[number];
+export type WorkflowState = typeof ONBOARDING_WORKFLOW_STATES[number];
 
 export interface SourceInventoryInput {
   id: string;
@@ -416,7 +421,7 @@ export class ConnectedOnboardingRuntime {
           elapsedSeconds,
           withinTargetSeconds: elapsedSeconds <= 600
         };
-        run.state = 'first_value_answer_reviewed';
+        run.state = advanceState(run.state, 'first_value_answer_reviewed');
       }
       run.updatedAt = this.timestamp();
       return clone(run);
@@ -703,7 +708,7 @@ function toApplyCandidate(candidate: Pick<ConnectedCandidate, 'id' | 'kind' | 'p
 }
 
 function advanceState(current: WorkflowState, target: WorkflowState): WorkflowState {
-  return WORKFLOW_STATES.indexOf(current) >= WORKFLOW_STATES.indexOf(target) ? current : target;
+  return ONBOARDING_WORKFLOW_STATES.indexOf(current) >= ONBOARDING_WORKFLOW_STATES.indexOf(target) ? current : target;
 }
 
 function stableId(prefix: string, ...parts: string[]): string {
@@ -814,7 +819,7 @@ function validateLedgerRuns(runs: unknown[]): void {
       || !isBoundedString(run.id, 200) || runIds.has(run.id)
       || !isBoundedString(run.valueTarget, 500)
       || !['warm', 'fallback', 'blocked'].includes(String(run.path))
-      || !WORKFLOW_STATES.includes(run.state as WorkflowState)
+      || !ONBOARDING_WORKFLOW_STATES.includes(run.state as WorkflowState)
       || !isIsoTimestamp(run.startedAt) || !isIsoTimestamp(run.updatedAt)
       || (run.sourceReadyAt !== undefined && !isIsoTimestamp(run.sourceReadyAt))
       || !Array.isArray(run.sources) || run.sources.length === 0 || run.sources.length > MAX_ITEMS

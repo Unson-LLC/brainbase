@@ -40,7 +40,7 @@ source本文、first-value回答本文、credentialまたはsecret様のkey/valu
 
 ## State and retry semantics
 
-状態は`initialized`→`source_ready`→`candidates_ready`→`promotion_reviewed`→`first_value_ready`→`first_value_answer_reviewed`の単調遷移とする。後段完了後のretryは状態を戻さない。
+状態は`initialized`・`source_ready`・`candidates_ready`・`promotion_reviewed`・`first_value_ready`・`first_value_answer_reviewed`の順に前へだけ進む（単調）。`initialized`は「作成直後」ではなく、ready sourceが無いまま始まったblocked runの状態で、そこから進む操作は無い。後段完了後のretryや追加のingest・reviewは状態を戻さない。操作ごとの遷移は[Spec](../specs/story-brainbase-portable-connected-world-onboarding.md#状態と操作)の状態図を正とする。
 
 source IDはrun内でimmutableであり、同じidentity/hash/permissionの再ingestは同じcandidate IDを返す。異なるpointer/hashへの差替えは拒否する。candidate IDはrun、source、evidence、kind、ingest時payload hashのstable hashから決定し、edit/merge後も元のingest identityを保持する。batch全体のvalidation完了後にだけledgerを更新する。
 
