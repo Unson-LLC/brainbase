@@ -419,6 +419,10 @@
       "types": "./dist/world-model-impact-index.d.ts",
       "import": "./dist/world-model-impact-index.js"
     },
+    "./world-model-revalidation-queue": {
+      "types": "./dist/world-model-revalidation-queue.d.ts",
+      "import": "./dist/world-model-revalidation-queue.js"
+    },
     "./streamable-http": {
       "types": "./dist/streamable-http.d.ts",
       "import": "./dist/streamable-http.js"
