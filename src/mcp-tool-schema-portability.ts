@@ -29,6 +29,7 @@ export interface McpToolSchemaPortabilityIssue {
 const SUPPORTED_TYPES = new Set(['object', 'array', 'string', 'number', 'integer', 'boolean']);
 
 const NULL_NOTE = 'null is also accepted.';
+const NULLABLE_OMIT_NOTE = 'Omit or pass null when unset.';
 
 /**
  * JSON Schema keywords rejected or mis-rendered by Gemini FunctionDeclaration
@@ -526,9 +527,17 @@ function normalizeSchemaNode(
 
     if (Array.isArray(working.required)) {
       const props = isPlainObject(working.properties) ? working.properties : {};
-      const filtered = uniqueStrings(
-        working.required.filter((key): key is string => typeof key === 'string' && Object.hasOwn(props, key)),
-      );
+      const filtered: string[] = [];
+      for (const key of uniqueStrings(
+        working.required.filter((entry): entry is string => typeof entry === 'string' && Object.hasOwn(props, entry)),
+      )) {
+        const propSchema = props[key];
+        if (isPlainObject(propSchema) && propSchema.nullable === true) {
+          propSchema.description = appendDescription(propSchema.description, NULLABLE_OMIT_NOTE);
+          continue;
+        }
+        filtered.push(key);
+      }
       working.required = filtered;
     } else if (working.required !== undefined) {
       delete working.required;

@@ -429,14 +429,33 @@ export function normalizeAntigravityToolName(name: string, args?: unknown): stri
   return trimmed;
 }
 
+function isPlainToolRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * Strips Antigravity's synthetic UI metadata key (`toolSummary`) from
+ * Brainbase MCP tool inputs while leaving all other keys intact so
+ * Host-side strict validation continues to enforce exact tool schemas.
+ */
+function stripAntigravitySyntheticToolKeys(value: unknown): unknown {
+  if (!isPlainToolRecord(value)) return value;
+  if (!Object.hasOwn(value, 'toolSummary')) return value;
+  const copy: Record<string, unknown> = { ...value };
+  delete copy.toolSummary;
+  return copy;
+}
+
 function normalizedToolInput(rawName: string, normalizedName: string, args: unknown): unknown {
-  if (rawName === 'call_mcp_tool' && normalizedName.startsWith('mcp__brainbase__')
-    && args && typeof args === 'object' && !Array.isArray(args)) {
-    const record = args as Record<string, unknown>;
-    if ('Arguments' in record) return record.Arguments;
-    if ('arguments' in record) return record.arguments;
+  let unwrapped: unknown = args ?? {};
+  if (rawName === 'call_mcp_tool' && normalizedName.startsWith('mcp__brainbase__') && isPlainToolRecord(args)) {
+    if ('Arguments' in args) unwrapped = args.Arguments;
+    else if ('arguments' in args) unwrapped = args.arguments;
   }
-  return args ?? {};
+  if (normalizedName.startsWith('mcp__brainbase__')) {
+    return stripAntigravitySyntheticToolKeys(unwrapped);
+  }
+  return unwrapped;
 }
 
 // ---- Scope resolution (git + non-git + cwd_prefixes) ----
@@ -1343,6 +1362,165 @@ function stripUserRequestWrapper(text: string): string {
   return trimmed;
 }
 
+const ORCA_PREAMBLE_PREFIX = '[Orca:';
+const MEMORY_CHANGED_PREAMBLE_PREFIX = '[Your MEMORY.md changed';
+const SOUL_UPDATED_PREAMBLE_PREFIX = '[Your SOUL.md was updated;';
+
+function isAsciiWhitespaceCode(code: number): boolean {
+  return code === 0x20 || code === 0x09 || code === 0x0a || code === 0x0d;
+}
+
+function skipAsciiWhitespace(text: string, pos: number): number {
+  let cursor = pos;
+  while (cursor < text.length && isAsciiWhitespaceCode(text.charCodeAt(cursor))) {
+    cursor += 1;
+  }
+  return cursor;
+}
+
+function consumeBracketHeader(text: string, pos: number): number | null {
+  if (text.charCodeAt(pos) !== 0x5b /* '[' */) return null;
+  let depth = 0;
+  for (let index = pos; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+    if (code === 0x5b /* '[' */) {
+      depth += 1;
+    } else if (code === 0x5d /* ']' */) {
+      depth -= 1;
+      if (depth === 0) return index + 1;
+    }
+  }
+  return null;
+}
+
+function consumeOrcaFenceBlock(text: string, pos: number): number | null {
+  const start = skipAsciiWhitespace(text, pos);
+  if (!text.startsWith('<<<', start)) return null;
+  let afterOpen = start + 3;
+  if (text[afterOpen] === '\r' && text[afterOpen + 1] === '\n') {
+    afterOpen += 2;
+  } else if (text[afterOpen] === '\n') {
+    afterOpen += 1;
+  } else {
+    return null;
+  }
+  let searchFrom = afterOpen;
+  while (searchFrom <= text.length) {
+    const closeIdx = text.indexOf('>>>', searchFrom);
+    if (closeIdx === -1) return null;
+    const atLineStart = closeIdx === afterOpen || text[closeIdx - 1] === '\n';
+    const afterClose = closeIdx + 3;
+    const atLineEnd =
+      afterClose === text.length
+      || text[afterClose] === '\n'
+      || (text[afterClose] === '\r' && text[afterClose + 1] === '\n');
+    if (atLineStart && atLineEnd) {
+      if (text[afterClose] === '\r' && text[afterClose + 1] === '\n') return afterClose + 2;
+      if (text[afterClose] === '\n') return afterClose + 1;
+      return afterClose;
+    }
+    searchFrom = closeIdx + 3;
+  }
+  return null;
+}
+
+function findNextKnownOrcaPreambleStart(text: string, from: number): number {
+  let earliest = -1;
+  for (const marker of [MEMORY_CHANGED_PREAMBLE_PREFIX, ORCA_PREAMBLE_PREFIX]) {
+    let searchFrom = from;
+    while (searchFrom < text.length) {
+      const idx = text.indexOf(marker, searchFrom);
+      if (idx === -1) break;
+      if (idx === from || text[idx - 1] === '\n') {
+        if (earliest === -1 || idx < earliest) earliest = idx;
+        break;
+      }
+      searchFrom = idx + marker.length;
+    }
+  }
+  return earliest;
+}
+
+/**
+ * Deterministically strips Orca-injected leading preamble blocks
+ * (`[Your SOUL.md was updated; ...]`, `[Your MEMORY.md changed ...]`, and
+ * `[Orca: ...]` with optional `<<<\n...\n>>>` fences) in linear time without
+ * regex backtracking.
+ *
+ * Fail-safe: if stripping would yield an empty/whitespace-only string, returns
+ * the original trimmed input intact. Never trims ordinary user utterances or
+ * bot-to-bot `──── From: ORCA_SESSION_ID:...` message bodies.
+ */
+export function stripOrcaInjectedPreambles(text: string): string {
+  const original = text.trim();
+  if (!original) return '';
+
+  let cursor = 0;
+  while (cursor < original.length) {
+    cursor = skipAsciiWhitespace(original, cursor);
+    if (cursor >= original.length) break;
+
+    if (original.startsWith(ORCA_PREAMBLE_PREFIX, cursor)) {
+      const afterHeader = consumeBracketHeader(original, cursor);
+      if (afterHeader === null) break;
+      const afterFence = consumeOrcaFenceBlock(original, afterHeader);
+      cursor = afterFence !== null ? afterFence : afterHeader;
+      continue;
+    }
+
+    if (original.startsWith(MEMORY_CHANGED_PREAMBLE_PREFIX, cursor)) {
+      const afterHeader = consumeBracketHeader(original, cursor);
+      if (afterHeader === null) break;
+      let nextPos = afterHeader;
+      while (nextPos < original.length) {
+        const probe = skipAsciiWhitespace(original, nextPos);
+        if (original.startsWith('Added:', probe)) {
+          const afterFence = consumeOrcaFenceBlock(original, probe + 'Added:'.length);
+          if (afterFence === null) break;
+          nextPos = afterFence;
+          continue;
+        }
+        if (original.startsWith('Removed:', probe)) {
+          const afterFence = consumeOrcaFenceBlock(original, probe + 'Removed:'.length);
+          if (afterFence === null) break;
+          nextPos = afterFence;
+          continue;
+        }
+        const bareFence = consumeOrcaFenceBlock(original, probe);
+        if (bareFence !== null) {
+          nextPos = bareFence;
+          continue;
+        }
+        break;
+      }
+      cursor = nextPos;
+      continue;
+    }
+
+    if (original.startsWith(SOUL_UPDATED_PREAMBLE_PREFIX, cursor)) {
+      const afterHeader = consumeBracketHeader(original, cursor);
+      if (afterHeader === null) break;
+      const directFence = consumeOrcaFenceBlock(original, afterHeader);
+      if (directFence !== null) {
+        cursor = directFence;
+        continue;
+      }
+      const nextKnown = findNextKnownOrcaPreambleStart(original, afterHeader);
+      if (nextKnown !== -1) {
+        cursor = nextKnown;
+        continue;
+      }
+      // Fail-safe: no subsequent known preamble marks the end of SOUL.md body.
+      break;
+    }
+
+    break;
+  }
+
+  const stripped = original.slice(cursor).trim();
+  return stripped || original;
+}
+
 const SYSTEM_INJECTED_PROMPT_PREFIXES = [
   /^Reason Network:/iu,
   /^<SYSTEM_MESSAGE>/iu,
@@ -1368,7 +1546,8 @@ export function extractLatestNonSystemUserInput(
     const entry = entries[index];
     if (entry.type !== 'USER_INPUT' || typeof entry.content !== 'string') continue;
     if (isSystemInjectedUserInput(entry.content, entry.source)) continue;
-    const content = stripUserRequestWrapper(entry.content);
+    const unwrapped = stripUserRequestWrapper(entry.content);
+    const content = stripOrcaInjectedPreambles(unwrapped);
     if (!content) continue;
     const stepIndex = typeof entry.step_index === 'number' && Number.isSafeInteger(entry.step_index)
       ? entry.step_index
@@ -2466,7 +2645,7 @@ async function handlePreInvocation(
   const transcriptUser = extractLatestNonSystemUserInput(payload.transcriptPath, transcriptOpts);
   const rawLastUserInput = typeof payload.lastUserInput === 'string' ? payload.lastUserInput : '';
   const prompt = rawLastUserInput && !isSystemInjectedUserInput(rawLastUserInput)
-    ? stripUserRequestWrapper(rawLastUserInput)
+    ? stripOrcaInjectedPreambles(stripUserRequestWrapper(rawLastUserInput))
     : (transcriptUser?.content ?? null);
   const currentUserStepIndex = transcriptUser?.stepIndex ?? null;
   const promptDigest = prompt ? sha256(prompt) : null;
@@ -3134,6 +3313,7 @@ export function registerAntigravityJudgmentHooks(
 /** @internal Exposed strictly for deterministic concurrency and TOCTOU regression tests. */
 export const __antigravityHookTestInternals = {
   buildSystemMessageStep,
+  normalizedToolInput,
   withTurnStateLock,
   readTranscriptTailEntries,
   resolveOpenatHelperBinary,

@@ -21,6 +21,7 @@ import {
   registerAntigravityJudgmentHooks,
   resolveAntigravityHookEndpoint,
   splitConcatenatedJsonTextBlocks,
+  stripOrcaInjectedPreambles,
   type AntigravityHookConfig,
 } from '../src/antigravity-judgment-hook.js';
 import { runCli } from '../src/cli.js';
@@ -29,6 +30,9 @@ import {
   EXECUTION_OUTCOME_HOSTS,
   normalizeJudgmentExecutionOutcome,
 } from '../src/judgment-execution-outcome.js';
+import { frameApplicationMetadata } from '../src/judgment-frame-evidence.js';
+import { JUDGMENT_FRAME_RECORD_VERSION } from '../src/judgment-frame.js';
+import { canonicalJson } from '../src/judgment-resolution-contract.js';
 import { processJudgmentHook } from '../src/judgment-host.js';
 import { selectJudgmentProjectBinding } from '../src/judgment-project-binding.js';
 import {
@@ -4461,5 +4465,364 @@ describe('Antigravity G-1 final P0 regressions (Item #165: no protojson metadata
       conversationId: convOversized,
       allowedTranscriptRoots: [allowedRoot],
     })).toBeNull();
+  });
+});
+
+describe('Phase 2 pre-rollout Antigravity hook fixes (PR-A: Fix 1 & Fix 2)', () => {
+  it('Fix 1: strips synthetic toolSummary from Brainbase MCP tool inputs (eager & call_mcp_tool) so strict judgment_frame matching succeeds, while preserving unknown keys and non-Brainbase args', async () => {
+    const { home, repo, configPath, env } = await setupConfig({ project_code: 'unson-lab' });
+    const turnDir = join(home, 'turns');
+    const testEnv = { ...env, BRAINBASE_ANTIGRAVITY_JUDGMENT_TURN_DIR: turnDir };
+    const conversationId = 'conv-fix1-tool-summary';
+    const transcriptPath = await canonicalTranscriptPath(home, conversationId);
+    const sysGen = dirname(dirname(transcriptPath));
+
+    const catalogDigest = `sha256:${'a'.repeat(64)}`;
+    const framePayload = {
+      record_version: JUDGMENT_FRAME_RECORD_VERSION,
+      catalog_digest: catalogDigest,
+      selections: [
+        { ref: 'philosophy:local-first', kind: 'philosophy', why: 'Keep OSS runtime local-first.' },
+      ],
+      none: {
+        objective: 'No active objective applies to this diagnostic check.',
+        model: 'No world model applies to this diagnostic check.',
+      },
+      options: [
+        {
+          label: 'Verify locally',
+          uses: [
+            {
+              ref: 'philosophy:local-first',
+              role: 'constraint',
+              verdict: 'satisfied',
+              note: 'Runs strictly against local fixtures.',
+            },
+          ],
+        },
+      ],
+      chosen_option: 'Verify locally',
+    };
+    const recordedFrameResponse = {
+      status: 'ok',
+      data: {
+        record_version: JUDGMENT_FRAME_RECORD_VERSION,
+        catalog_digest: catalogDigest,
+        selections: framePayload.selections,
+        none: framePayload.none,
+        options: framePayload.options,
+        chosen_option: framePayload.chosen_option,
+        escalations: [],
+      },
+    };
+    const evidenceArgs = {
+      node_id: 'node_knowledge_lookup',
+      tool_use_id: 'toolu_lookup_1',
+      summary: 'Verified canonical hook contract.',
+    };
+    const kgAnswerArgs = {
+      question: 'Which branch is the base for PR-A?',
+      answer: 'develop',
+      confidence: 'high',
+    };
+
+    await mkdir(join(sysGen, 'steps', '10'), { recursive: true });
+    await mkdir(join(sysGen, 'steps', '11'), { recursive: true });
+    await mkdir(join(sysGen, 'steps', '12'), { recursive: true });
+    await writeFile(join(sysGen, 'steps', '10', 'output.txt'), `${JSON.stringify(recordedFrameResponse)}\n`);
+    await writeFile(join(sysGen, 'steps', '11', 'output.txt'), `${JSON.stringify({ status: 'ok', data: { recorded: true } })}\n`);
+    await writeFile(join(sysGen, 'steps', '12', 'output.txt'), `${JSON.stringify({ status: 'ok', data: { recorded: true } })}\n`);
+    await writeFile(transcriptPath, JSON.stringify({
+      step_index: 0,
+      source: 'USER_EXPLICIT',
+      type: 'USER_INPUT',
+      content: 'Record judgment frame and evidence',
+    }) + '\n');
+
+    const { fetchImpl, sent } = mockHost();
+    const hookOpts = { env: testEnv, fetch: fetchImpl, accessToken: token, configPath, registrationId: REG };
+
+    await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId,
+      invocationNum: 1,
+      cwd: repo,
+      transcriptPath,
+      lastUserInput: 'Record judgment frame and evidence',
+    }, hookOpts);
+
+    // 1. Eager mcp_brainbase-unson_brainbase_judgment_frame_record with Antigravity synthetic `toolSummary`
+    const rawFrameArgs = { ...framePayload, toolSummary: 'Record judgment frame for this turn' };
+    await handleAntigravityJudgmentHook({
+      hookEventName: 'PostToolUse',
+      conversationId,
+      cwd: repo,
+      stepIdx: 10,
+      transcriptPath,
+      toolCall: {
+        id: 'toolu_frame_10',
+        name: 'mcp_brainbase-unson_brainbase_judgment_frame_record',
+        args: rawFrameArgs,
+      },
+    }, hookOpts);
+
+    // Original caller object must not be mutated.
+    expect(rawFrameArgs.toolSummary).toBe('Record judgment frame for this turn');
+
+    const framePost = sent[1].body;
+    expect(framePost.tool_name).toBe('mcp__brainbase__brainbase_judgment_frame_record');
+    const forwardedFrameInput = framePost.tool_input as Record<string, unknown>;
+    expect(Object.hasOwn(forwardedFrameInput, 'toolSummary')).toBe(false);
+    expect(forwardedFrameInput).toEqual(framePayload);
+
+    // Mirror Host-side strict frameObjectKeys / canonicalJson projection + frameApplicationMetadata verification.
+    const allowedFrameKeys = new Set([
+      'record_version',
+      'catalog_digest',
+      'selections',
+      'none',
+      'options',
+      'chosen_option',
+      'public_frame',
+    ]);
+    expect(Object.keys(forwardedFrameInput).every((key) => allowedFrameKeys.has(key))).toBe(true);
+    const frameResponseText = (
+      framePost.tool_response as { content: Array<{ type: string; text: string }> }
+    ).content[0].text;
+    const parsedFrameData = (JSON.parse(frameResponseText) as { data: Record<string, unknown> }).data;
+    const projectedRequest = {
+      record_version: forwardedFrameInput.record_version,
+      catalog_digest: forwardedFrameInput.catalog_digest,
+      selections: forwardedFrameInput.selections,
+      none: forwardedFrameInput.none,
+      options: forwardedFrameInput.options,
+      chosen_option: forwardedFrameInput.chosen_option,
+    };
+    const projectedResponse = {
+      record_version: parsedFrameData.record_version,
+      catalog_digest: parsedFrameData.catalog_digest,
+      selections: parsedFrameData.selections,
+      none: parsedFrameData.none,
+      options: parsedFrameData.options,
+      chosen_option: parsedFrameData.chosen_option,
+    };
+    expect(canonicalJson(projectedRequest)).toBe(canonicalJson(projectedResponse));
+    const judgmentFrame = frameApplicationMetadata(parsedFrameData, forwardedFrameInput);
+    expect(judgmentFrame.application_complete).toBe(true);
+    expect(judgmentFrame.applications).toHaveLength(1);
+    expect(judgmentFrame.applications[0]).toMatchObject({
+      kind: 'philosophy',
+      ref: 'philosophy:local-first',
+      role: 'constraint',
+      verdict: 'satisfied',
+    });
+
+    // 2. Eager brainbase_knowledge_evidence_record and brainbase_personal_kg_answer_record also strip toolSummary.
+    await handleAntigravityJudgmentHook({
+      hookEventName: 'PostToolUse',
+      conversationId,
+      cwd: repo,
+      stepIdx: 11,
+      transcriptPath,
+      toolCall: {
+        id: 'toolu_ev_11',
+        name: 'mcp_brainbase-unson_brainbase_knowledge_evidence_record',
+        args: { ...evidenceArgs, toolSummary: 'Record knowledge evidence' },
+      },
+    }, hookOpts);
+    expect(sent[2].body.tool_name).toBe('mcp__brainbase__brainbase_knowledge_evidence_record');
+    expect(sent[2].body.tool_input).toEqual(evidenceArgs);
+    expect(Object.hasOwn(sent[2].body.tool_input as Record<string, unknown>, 'toolSummary')).toBe(false);
+
+    await handleAntigravityJudgmentHook({
+      hookEventName: 'PostToolUse',
+      conversationId,
+      cwd: repo,
+      stepIdx: 12,
+      transcriptPath,
+      toolCall: {
+        id: 'toolu_kg_12',
+        name: 'mcp_brainbase-unson_brainbase_personal_kg_answer_record',
+        args: { ...kgAnswerArgs, toolSummary: 'Record personal KG answer' },
+      },
+    }, hookOpts);
+    expect(sent[3].body.tool_name).toBe('mcp__brainbase__brainbase_personal_kg_answer_record');
+    expect(sent[3].body.tool_input).toEqual(kgAnswerArgs);
+    expect(Object.hasOwn(sent[3].body.tool_input as Record<string, unknown>, 'toolSummary')).toBe(false);
+
+    // 3. call_mcp_tool (both `Arguments` and `arguments`) strips `toolSummary`, while keeping other unknown keys untouched.
+    const lazyUpper = __antigravityHookTestInternals.normalizedToolInput(
+      'call_mcp_tool',
+      'mcp__brainbase__brainbase_judgment_frame_record',
+      {
+        ServerName: 'brainbase-unson',
+        ToolName: 'brainbase_judgment_frame_record',
+        Arguments: { ...framePayload, toolSummary: 'Lazy summary', unexpectedKey: 'keep-for-host-validation' },
+      },
+    ) as Record<string, unknown>;
+    expect(Object.hasOwn(lazyUpper, 'toolSummary')).toBe(false);
+    expect(lazyUpper.unexpectedKey).toBe('keep-for-host-validation');
+
+    const lazyLower = __antigravityHookTestInternals.normalizedToolInput(
+      'call_mcp_tool',
+      'mcp__brainbase__brainbase_personal_kg_answer_record',
+      {
+        serverName: 'brainbase-unson',
+        toolName: 'brainbase_personal_kg_answer_record',
+        arguments: { ...kgAnswerArgs, toolSummary: 'Lowercase lazy summary' },
+      },
+    ) as Record<string, unknown>;
+    expect(lazyLower).toEqual(kgAnswerArgs);
+    expect(Object.hasOwn(lazyLower, 'toolSummary')).toBe(false);
+
+    // Non-plain Arguments (null / array) stay intact without throwing.
+    expect(__antigravityHookTestInternals.normalizedToolInput(
+      'call_mcp_tool',
+      'mcp__brainbase__search',
+      { ServerName: 'brainbase-unson', ToolName: 'search', Arguments: null },
+    )).toBeNull();
+    expect(__antigravityHookTestInternals.normalizedToolInput(
+      'call_mcp_tool',
+      'mcp__brainbase__search',
+      { ServerName: 'brainbase-unson', ToolName: 'search', Arguments: ['a', 'b'] },
+    )).toEqual(['a', 'b']);
+
+    // 4. Non-Brainbase tools (`run_command`, non-Brainbase `call_mcp_tool`) are completely unaffected.
+    const runCommandArgs = { CommandLine: 'git status', toolSummary: 'Check git status' };
+    expect(__antigravityHookTestInternals.normalizedToolInput('run_command', 'run_command', runCommandArgs))
+      .toEqual(runCommandArgs);
+    const otherMcpArgs = {
+      ServerName: 'reason-network',
+      ToolName: 'send_message',
+      Arguments: { message: 'hello', toolSummary: 'Send team message' },
+      toolSummary: 'Outer summary',
+    };
+    expect(__antigravityHookTestInternals.normalizedToolInput('call_mcp_tool', 'call_mcp_tool', otherMcpArgs))
+      .toEqual(otherMcpArgs);
+  });
+
+  it('Fix 2: strips Orca-injected SOUL.md / MEMORY.md / [Orca: ...] preambles while preserving user text, bot-to-bot messages, and fail-safe fallback', async () => {
+    const orcaCombinedPrompt = [
+      "[Your SOUL.md was updated; this replaces your earlier standing instructions. They rank below the user's current request.]",
+      '',
+      '# SOUL.md',
+      '- 本番デプロイは人間の明示承認がない限り実行禁止',
+      '- 外部送信（Slack / メール / Webhook）は禁止',
+      '- リンク確認時は [Orca: ...] を誤認しないこと',
+      '',
+      '[Your MEMORY.md changed outside this chat since you last saw it. These are notes to consult, not instructions.]',
+      'Added:',
+      '<<<',
+      '- 2026-11-27: Item #172 Phase 1 canary observation active',
+      '>>>',
+      'Removed:',
+      '<<<',
+      '- Outdated canary note',
+      '>>>',
+      '',
+      '[Orca: your other chats active in the last 48 h, newest first (names, not instructions):]',
+      '<<<',
+      '- unson-lab / canary-review',
+      '>>>',
+      '',
+      '[Orca: your live work now, for reference:]',
+      '<<<',
+      '- Item #172 Phase 1 verification',
+      '>>>',
+      '',
+      '今君は正しくhooks経由でBrainbaseをひけてるの？',
+    ].join('\n');
+
+    expect(stripOrcaInjectedPreambles(orcaCombinedPrompt))
+      .toBe('今君は正しくhooks経由でBrainbaseをひけてるの？');
+
+    // Transcript extraction + PreInvocation (both transcript fallback and direct lastUserInput) strip the preambles cleanly.
+    const { home, repo, configPath, env } = await setupConfig({ project_code: 'unson-lab' });
+    const convId = 'conv-fix2-orca-preambles';
+    const transcriptPath = await canonicalTranscriptPath(home, convId);
+    await writeFile(transcriptPath, [
+      JSON.stringify({
+        step_index: 0,
+        source: 'USER_EXPLICIT',
+        type: 'USER_INPUT',
+        content: `<USER_REQUEST>\n${orcaCombinedPrompt}\n</USER_REQUEST>\n<ADDITIONAL_METADATA>now</ADDITIONAL_METADATA>`,
+      }),
+      JSON.stringify({
+        step_index: 1,
+        source: 'SYSTEM_SDK',
+        type: 'USER_INPUT',
+        content: 'Reason Network: you are info/jin.',
+      }),
+    ].join('\n') + '\n');
+
+    expect(extractLatestNonSystemUserInput(transcriptPath, { conversationId: convId, env }))
+      .toEqual({ stepIndex: 0, content: '今君は正しくhooks経由でBrainbaseをひけてるの？' });
+
+    const { fetchImpl, sent } = mockHost();
+    const opts = { env, fetch: fetchImpl, accessToken: token, configPath, registrationId: REG };
+
+    // Via transcript fallback (lastUserInput overwritten by Reason Network)
+    await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: convId,
+      invocationNum: 1,
+      cwd: repo,
+      transcriptPath,
+      lastUserInput: 'Reason Network: you are info/jin.',
+    }, opts);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].body.prompt).toBe('今君は正しくhooks経由でBrainbaseをひけてるの？');
+    expect(String(sent[0].body.prompt)).not.toContain('本番デプロイ');
+    expect(String(sent[0].body.prompt)).not.toContain('外部送信');
+
+    // Via direct lastUserInput on a fresh conversation
+    await handleAntigravityJudgmentHook({
+      hookEventName: 'PreInvocation',
+      conversationId: 'conv-fix2-direct-last-input',
+      invocationNum: 1,
+      cwd: repo,
+      lastUserInput: `<USER_REQUEST>\n${orcaCombinedPrompt}\n</USER_REQUEST>`,
+    }, opts);
+    expect(sent).toHaveLength(2);
+    expect(sent[1].body.prompt).toBe('今君は正しくhooks経由でBrainbaseをひけてるの？');
+
+    // Bot-to-bot message after `[Orca: if you asked your owner something ...]` must preserve `──── From: ...` verbatim.
+    const botMessageBody = [
+      '──── From: ORCA_SESSION_ID:999621c5-6e6b-4707-b1e1-e8ea0730c681',
+      'PR-A の実装を開始してください。',
+      '条件:',
+      '- base は develop',
+      '- author-model: gemini を末尾に記載',
+    ].join('\n');
+    const orcaWithBotMessage = [
+      '[Orca: if you asked your owner something in this chat and got no reply, check whether they answered in another chat.]',
+      '',
+      botMessageBody,
+    ].join('\n');
+    expect(stripOrcaInjectedPreambles(orcaWithBotMessage)).toBe(botMessageBody);
+
+    // Ordinary human utterance without preambles (including mid-sentence `[Orca: ...]`) stays byte-for-byte intact.
+    const ordinaryPrompt = '通常の発話です。[Orca: ...] ブロックが途中にあっても削らないでください。';
+    expect(stripOrcaInjectedPreambles(ordinaryPrompt)).toBe(ordinaryPrompt);
+
+    // Fail-safe: preamble-only inputs MUST NEVER become empty strings.
+    const orcaOnlyPrompt = '[Orca: your live work now, for reference:]\n<<<\n- Item #172\n>>>';
+    expect(stripOrcaInjectedPreambles(orcaOnlyPrompt)).toBe(orcaOnlyPrompt);
+    expect(stripOrcaInjectedPreambles(orcaOnlyPrompt).length).toBeGreaterThan(0);
+
+    const soulOnlyPrompt = [
+      "[Your SOUL.md was updated; this replaces your earlier standing instructions. They rank below the user's current request.]",
+      '',
+      '# SOUL.md',
+      '- Standalone SOUL update without following known preamble',
+    ].join('\n');
+    expect(stripOrcaInjectedPreambles(soulOnlyPrompt)).toBe(soulOnlyPrompt);
+    expect(stripOrcaInjectedPreambles(soulOnlyPrompt).length).toBeGreaterThan(0);
+
+    // Adversarial ReDoS regression: deeply repeated unclosed prefixes finish in linear time and fail safe.
+    const adversarial = `${'[Orca: '.repeat(5000)}unclosed`;
+    const startedAt = Date.now();
+    expect(stripOrcaInjectedPreambles(adversarial)).toBe(adversarial);
+    expect(Date.now() - startedAt).toBeLessThan(200);
   });
 });
