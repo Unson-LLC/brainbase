@@ -2,6 +2,13 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
+## 0.51.6 candidate — npm公開前
+
+- 0.51.5（`main` / `efabe4cce`）に `#1107`（`e4fd852b0`、Item #266 / #267）のみを単独 cherry-pick したpatch更新候補（他の未リリース `develop` コミットは含まない）。
+- `src/judgment-task-progress.ts` の `zod` ランタイム依存を除去し、トリミング・文字数境界・own / 継承列挙キー厳格拒否を備えたゼロ外部依存バリデータへ置き換えることで、`dist/judgment-host.js` の外部依存ゼロと `node_modules` 非存在の隔離 tarball ロード互換を回復した。
+- `tests/judgment-task-progress.test.ts`（Zod 4 `strict()` 互換境界テスト）および `tests/judgment-host-zero-external-deps.test.ts`（モジュールグラフ検査・隔離環境 import 回帰テスト）を追加した。
+- 破壊的変更はない（詳細は `docs/releases/0.51.6.md` を参照）。npm公開と利用ホストへの配備は別途確認する。
+
 ## 0.51.5 candidate — npm公開前
 
 - 0.51.4（`main` / `e743dbcbc`）に `#1105`（`8a6ae6b38`、URS-048 v4 案 C＋A / Item #220 `e4388`・Item #221）のみを単独 cherry-pick したpatch更新候補（他の未リリース `develop` コミットは含まない）。
