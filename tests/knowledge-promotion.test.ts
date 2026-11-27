@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildNormalizedGraphMutation,
+  buildOrganizationKnowledgeEvent,
+  buildPromotionEvidence,
   KnowledgePromotionError,
   KnowledgePromotionService,
   normalizePromotionPayload,
@@ -57,6 +60,7 @@ function harness({
   const requests = new Map<string, KnowledgePromotionRequest>();
   const lineage: Array<Record<string, unknown>> = [];
   const events: Array<Record<string, unknown>> = [];
+  const reconciliations: Array<Record<string, unknown>> = [];
   const graph: Array<Record<string, unknown>> = [];
   const outcomes: Array<Record<string, unknown>> = [];
   const withdrawals: Array<Record<string, unknown>> = [];
@@ -73,7 +77,8 @@ function harness({
       // Snapshot every side-effect so a thrown error rolls back like a DB transaction.
       const snapshot = {
         requests: new Map([...requests].map(([key, value]) => [key, structuredClone(value)])),
-        lineage: lineage.length, events: events.length, graph: graph.length, outcomes: outcomes.length,
+        lineage: lineage.length, events: events.length, reconciliations: reconciliations.length,
+        graph: graph.length, outcomes: outcomes.length,
         withdrawals: withdrawals.length, graphWithdrawals: graphWithdrawals.length,
         uses: new Set(authorityUses),
       };
@@ -86,6 +91,7 @@ function harness({
         for (const [key, value] of snapshot.requests) requests.set(key, value);
         lineage.length = snapshot.lineage;
         events.length = snapshot.events;
+        reconciliations.length = snapshot.reconciliations;
         graph.length = snapshot.graph;
         outcomes.length = snapshot.outcomes;
         withdrawals.length = snapshot.withdrawals;
@@ -149,6 +155,9 @@ function harness({
       events.push(structuredClone(event));
       return { event_id: event.event_id as string, candidate_id: `mc_${events.length}`, semantic_state: 'active' };
     },
+    async reconcileGraphProjection(input: Record<string, unknown>) {
+      reconciliations.push(structuredClone(input));
+    },
   };
   const graphPort = {
     async commitNormalizedPromotion(mutation: Record<string, unknown>) {
@@ -178,7 +187,7 @@ function harness({
     now: () => new Date(clock.value),
   });
   return {
-    service, store, requests, lineage, events, graph, outcomes, withdrawals, graphWithdrawals,
+    service, store, requests, lineage, events, reconciliations, graph, outcomes, withdrawals, graphWithdrawals,
     policyCalls, personal, candidateMap, clock, txLog,
   };
 }
@@ -235,9 +244,26 @@ describe('共通昇格処理：個人共有（本人承認→組織レビュー�
     expect(accepted.graph_entity_id).toBe('decision.pricing-2026');
     expect(h.events).toHaveLength(1);
     expect(h.graph).toHaveLength(1);
+    expect(h.reconciliations).toHaveLength(1);
     expect(h.lineage).toHaveLength(1);
-    const event = h.events[0] as { source: { type: string }; permission_snapshot: Record<string, unknown>; payload: Record<string, unknown> };
+    const event = h.events[0] as {
+      source: { type: string };
+      decision_authority: Record<string, unknown>;
+      permission_snapshot: Record<string, unknown>;
+      payload: Record<string, unknown>;
+    };
+    const mutation = h.graph[0] as { entity: { payload: Record<string, unknown> } };
     expect(event.source.type).toBe('personal_knowledge_promotion');
+    expect(event.decision_authority).toEqual({ authorized: true, decider_id: 'per_gm', domain: 'pricing' });
+    expect(event.decision_authority.decider_id).not.toBe(OWNER.personId);
+    expect(mutation.entity.payload.decision_authority).toEqual({ authorized: true, decider_id: 'per_gm', domain: 'pricing' });
+    expect(h.reconciliations[0]).toMatchObject({
+      candidate_id: 'mc_1',
+      graph_entity_id: 'decision.pricing-2026',
+      event_id: accepted.organization_event_id,
+      actor_person_id: 'per_gm',
+      decision_owner_person_id: 'per_gm',
+    });
     expect(event.permission_snapshot).toMatchObject({ owner_consented: true, organization_reviewed: true, approval_kind: 'personal_share' });
     // 原文も本人が書いた要約も組織側へ渡さない。
     for (const written of [h.events[0], h.graph[0], h.lineage[0]]) {
@@ -248,6 +274,7 @@ describe('共通昇格処理：個人共有（本人承認→組織レビュー�
       promotion_request_id: consented.request_id,
       source: { kind: 'personal_knowledge_v1', id: 'pfe_1', version: 'v1', evidence_hash: 'sha256:body1' },
       owner_person_id: 'per_owner',
+      approved_by_person_id: 'per_gm',
       organization_id: 'org_unson',
       project_code: 'brainbase',
       graph_entity_id: 'decision.pricing-2026',
@@ -255,6 +282,99 @@ describe('共通昇格処理：個人共有（本人承認→組織レビュー�
       sanitization: { raw_copied: false, personal_body_copied: false, sanitized_preview_copied: false },
     });
     expect(h.policyCalls.map((call) => call.action)).toEqual(['request', 'owner_consent', 'organization_review']);
+  });
+
+  it('personal_share の decision は承認者（policy の decider_person_id 含む）を決裁主体としつつ、所有者来歴と本人撤回権限を維持する', async () => {
+    const policyWithDecider: PromotionReviewPolicy = {
+      async authorize(input) {
+        return input.action === 'organization_review'
+          ? { allowed: true, decider_person_id: 'per_ceo' }
+          : { allowed: true };
+      },
+    };
+    const h = harness({ policy: policyWithDecider });
+    const { consented } = await sharedAndConsented(h);
+    h.clock.value = '2026-10-01T01:00:00.000Z';
+    const accepted = await h.service.reviewOrganization(consented.request_id, {
+      decision: 'approve', expected_revision: consented.revision,
+    }, { principal: GM });
+
+    // buildOrganizationKnowledgeEvent / buildNormalizedGraphMutation を直接呼んだ場合も承認者が決裁主体になる。
+    const normalized = normalizePromotionPayload(DECISION_PAYLOAD);
+    const directEvidence = buildPromotionEvidence(consented, accepted.organization_review_receipt_id as string);
+    const directEvent = buildOrganizationKnowledgeEvent(
+      consented, normalized.normalized, normalized.summary, directEvidence, 'per_ceo', '2026-10-01T01:00:00.000Z',
+    );
+    const directMutation = buildNormalizedGraphMutation(
+      consented, normalized.normalized, directEvidence, { event_id: directEvent.event_id, candidate_id: 'mc_direct' }, directEvent,
+    );
+    expect(directEvent.decision_authority).toEqual({ authorized: true, decider_id: 'per_ceo', domain: 'pricing' });
+    expect(directEvent.decision_authority.decider_id).not.toBe(consented.owner_person_id);
+    expect(directMutation.entity.payload.decision_authority).toEqual({ authorized: true, decider_id: 'per_ceo', domain: 'pricing' });
+
+    // サービス経路でも event / Graph mutation / reconcileGraphProjection の全てが approverPersonId になる。
+    const event = h.events[0] as {
+      decision_authority: { authorized: boolean; decider_id: string; domain: string };
+      permission_snapshot: Record<string, unknown>;
+      promotion_evidence: Record<string, unknown>;
+    };
+    const mutation = h.graph[0] as {
+      entity: { payload: { decision_authority: Record<string, unknown>; promotion_evidence: Record<string, unknown> } };
+      evidence: Record<string, unknown>;
+    };
+    expect(event.decision_authority).toEqual({ authorized: true, decider_id: 'per_ceo', domain: 'pricing' });
+    expect(event.decision_authority.decider_id).not.toBe(consented.owner_person_id);
+    expect(mutation.entity.payload.decision_authority).toEqual({ authorized: true, decider_id: 'per_ceo', domain: 'pricing' });
+    expect(h.reconciliations).toEqual([expect.objectContaining({
+      candidate_id: 'mc_1',
+      graph_entity_id: 'decision.pricing-2026',
+      event_id: accepted.organization_event_id,
+      actor_person_id: 'per_ceo',
+      decision_owner_person_id: 'per_ceo',
+    })]);
+
+    // 申請者・所有者来歴（owner_person_id / owner_consent_receipt_id）は元のオーナーに紐づいたまま維持される。
+    expect(accepted.owner_person_id).toBe('per_owner');
+    expect(accepted.owner_consent_receipt_id).toBe(consented.owner_consent_receipt_id);
+    expect(event.permission_snapshot.owner_consent_receipt_id).toBe(consented.owner_consent_receipt_id);
+    expect(event.promotion_evidence.owner_consent_receipt_id).toBe(consented.owner_consent_receipt_id);
+    expect(mutation.evidence.owner_consent_receipt_id).toBe(consented.owner_consent_receipt_id);
+    expect(mutation.entity.payload.promotion_evidence.owner_consent_receipt_id).toBe(consented.owner_consent_receipt_id);
+    expect(h.lineage[0]).toMatchObject({
+      owner_person_id: 'per_owner',
+      approved_by_person_id: 'per_ceo',
+      receipts: {
+        owner_consent_receipt_id: consented.owner_consent_receipt_id,
+        organization_review_receipt_id: accepted.organization_review_receipt_id,
+      },
+    });
+
+    // 撤回権限は決裁者ではなく引き続き本人（request.owner_person_id）に紐づく。
+    (h.personal.get('pfe_1') as Record<string, unknown>).active = false;
+    await expectCode(
+      h.service.withdrawPersonalShares({ personal_event_id: 'pfe_1' }, { principal: GM }),
+      'knowledge_promotion_source_not_found',
+      404,
+    );
+    await expectCode(
+      h.service.withdrawPersonalShares({ personal_event_id: 'pfe_1' }, { principal: { ...GM, personId: 'per_ceo', role: 'ceo' } }),
+      'knowledge_promotion_source_not_found',
+      404,
+    );
+    const withdrawn = await h.service.withdrawPersonalShares({ personal_event_id: 'pfe_1' }, { principal: OWNER });
+    expect(withdrawn.withdrawals).toHaveLength(1);
+    expect(withdrawn.withdrawals[0]).toMatchObject({
+      owner_person_id: 'per_owner',
+      withdrawn_by_person_id: 'per_owner',
+      graph_entity_id: 'decision.pricing-2026',
+      graph_withdrawn: true,
+      graph_outcome: 'retracted',
+    });
+    expect(h.graphWithdrawals).toHaveLength(1);
+    expect(h.graphWithdrawals[0]).toMatchObject({
+      request_id: accepted.request_id,
+      graph_entity_id: 'decision.pricing-2026',
+    });
   });
 
   it('S-2 本人承認の前の組織レビューは止まり、何も書かない', async () => {
