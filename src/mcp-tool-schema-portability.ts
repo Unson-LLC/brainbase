@@ -94,6 +94,24 @@ function appendDescriptions(existing: unknown, additions: readonly string[]): st
   return result || undefined;
 }
 
+function appendNullNote(existing: unknown): string {
+  const base = typeof existing === 'string' ? existing.trim() : '';
+  if (base.includes(NULLABLE_OMIT_NOTE)) return base;
+  return appendDescription(base, NULL_NOTE);
+}
+
+function replaceNullNoteWithOmitNote(existing: unknown): string {
+  const base = typeof existing === 'string' ? existing.trim() : '';
+  if (!base) return NULLABLE_OMIT_NOTE;
+  if (base.includes(NULLABLE_OMIT_NOTE)) {
+    return base.replaceAll(NULL_NOTE, '').replace(/\s+/gu, ' ').trim();
+  }
+  if (base.includes(NULL_NOTE)) {
+    return base.replace(NULL_NOTE, NULLABLE_OMIT_NOTE).replaceAll(NULL_NOTE, '').replace(/\s+/gu, ' ').trim();
+  }
+  return `${base} ${NULLABLE_OMIT_NOTE}`;
+}
+
 function uniqueStrings(values: readonly string[]): string[] {
   return [...new Set(values)];
 }
@@ -146,7 +164,7 @@ function mergeNormalizedSchemas(
       const mergedObject = mergeObjectSchemas(nonNull, mode);
       if (anyNullable) {
         mergedObject.nullable = true;
-        mergedObject.description = appendDescription(mergedObject.description, NULL_NOTE);
+        mergedObject.description = appendNullNote(mergedObject.description);
       }
       return { schema: mergedObject, notes: [] };
     }
@@ -172,7 +190,7 @@ function mergeNormalizedSchemas(
       }
       if (anyNullable) {
         result.nullable = true;
-        result.description = appendDescription(result.description, NULL_NOTE);
+        result.description = appendNullNote(result.description);
       }
       return { schema: result, notes };
     }
@@ -188,14 +206,14 @@ function mergeNormalizedSchemas(
       if (typeof description === 'string') result.description = description;
       if (anyNullable) {
         result.nullable = true;
-        result.description = appendDescription(result.description, NULL_NOTE);
+        result.description = appendNullNote(result.description);
       }
       return { schema: result, notes: [] };
     }
     const base = structuredClone(nonNull[0]);
     if (anyNullable) {
       base.nullable = true;
-      base.description = appendDescription(base.description, NULL_NOTE);
+      base.description = appendNullNote(base.description);
     }
     return { schema: base, notes: [] };
   }
@@ -208,7 +226,7 @@ function mergeNormalizedSchemas(
     };
     if (anyNullable) {
       result.nullable = true;
-      result.description = appendDescription(result.description, NULL_NOTE);
+      result.description = appendNullNote(result.description);
     }
     return { schema: result, notes: [] };
   }
@@ -229,7 +247,7 @@ function mergeNormalizedSchemas(
   }
   if (anyNullable) {
     merged.nullable = true;
-    merged.description = appendDescription(merged.description, NULL_NOTE);
+    merged.description = appendNullNote(merged.description);
   }
   return { schema: merged, notes };
 }
@@ -533,7 +551,7 @@ function normalizeSchemaNode(
       )) {
         const propSchema = props[key];
         if (isPlainObject(propSchema) && propSchema.nullable === true) {
-          propSchema.description = appendDescription(propSchema.description, NULLABLE_OMIT_NOTE);
+          propSchema.description = replaceNullNoteWithOmitNote(propSchema.description);
           continue;
         }
         filtered.push(key);
@@ -547,7 +565,7 @@ function normalizeSchemaNode(
   // Normalize `nullable`: preserve OpenAPI boolean `nullable` (and note `null` in description),
   // strip invalid non-boolean values.
   if (working.nullable === true) {
-    working.description = appendDescription(working.description, NULL_NOTE);
+    working.description = appendNullNote(working.description);
   } else if (working.nullable !== false && Object.hasOwn(working, 'nullable')) {
     delete working.nullable;
   }
