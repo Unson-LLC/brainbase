@@ -4805,9 +4805,19 @@ describe('Phase 2 pre-rollout Antigravity hook fixes (PR-A: Fix 1 & Fix 2)', () 
     const ordinaryPrompt = '通常の発話です。[Orca: ...] ブロックが途中にあっても削らないでください。';
     expect(stripOrcaInjectedPreambles(ordinaryPrompt)).toBe(ordinaryPrompt);
 
-    // User-authored leading `[Orca: ...]` headings (non-system prefix & no `<<<\n...\n>>>` fence) stay byte-for-byte intact.
+    // User-authored leading `[Orca: ...]` headings — including ambiguous `[Orca: it is ...]` and
+    // user `[Orca: ...]` followed by `<<<\n...\n>>>` fences — stay 100% byte-for-byte intact.
     const userMigrationNotes = '[Orca: migration notes] Please summarize this heading and sentence.';
     expect(stripOrcaInjectedPreambles(userMigrationNotes)).toBe(userMigrationNotes);
+
+    const userItIsTimeToMigrate = '[Orca: it is time to migrate] Please summarize this heading and sentence.';
+    expect(stripOrcaInjectedPreambles(userItIsTimeToMigrate)).toBe(userItIsTimeToMigrate);
+
+    const userItIsBroken = '[Orca: it is broken] please fix';
+    expect(stripOrcaInjectedPreambles(userItIsBroken)).toBe(userItIsBroken);
+
+    const userMyPasteFence = '[Orca: my paste]\n<<<\ncode\n>>>\nexplain this';
+    expect(stripOrcaInjectedPreambles(userMyPasteFence)).toBe(userMyPasteFence);
 
     const userNote = '[Orca: note] I wrote this myself';
     expect(stripOrcaInjectedPreambles(userNote)).toBe(userNote);
@@ -4815,19 +4825,39 @@ describe('Phase 2 pre-rollout Antigravity hook fixes (PR-A: Fix 1 & Fix 2)', () 
     const userJapaneseHeading = '[Orca: 質問]\nフックの仕様を教えて';
     expect(stripOrcaInjectedPreambles(userJapaneseHeading)).toBe(userJapaneseHeading);
 
-    // Known Orca system preambles without fence (`[Orca: it is ...]`) and fence-backed `[Orca: ...]` blocks are stripped.
-    expect(stripOrcaInjectedPreambles('[Orca: it is Friday, Nov 27, 2026.]\n\n通常プロンプト')).toBe('通常プロンプト');
-    expect(stripOrcaInjectedPreambles('[Orca: your MEMORY.md, loaded for reference:]\n<<<\n- memo\n>>>\n\n通常プロンプト'))
-      .toBe('通常プロンプト');
-    expect(stripOrcaInjectedPreambles('[Orca: custom reference block:]\n<<<\n- item\n>>>\n\n通常プロンプト'))
-      .toBe('通常プロンプト');
+    // Near-miss non-system headers (loose `[Orca: it is ...]`, unknown fenced `[Orca: ...]`,
+    // shortened `[Your MEMORY.md changed]`, or missing-space `[Your SOUL.md was updated;...]`) are NOT stripped.
+    const looseItIsPrompt = '[Orca: it is Friday, Nov 27, 2026.]\n\n通常プロンプト';
+    expect(stripOrcaInjectedPreambles(looseItIsPrompt)).toBe(looseItIsPrompt);
+    const isoWithoutActionSuffix = '[Orca: it is 2026-11-27T19:00:00+09:00] please check';
+    expect(stripOrcaInjectedPreambles(isoWithoutActionSuffix)).toBe(isoWithoutActionSuffix);
+    const customFencedOrca = '[Orca: custom reference block:]\n<<<\n- item\n>>>\n\n通常プロンプト';
+    expect(stripOrcaInjectedPreambles(customFencedOrca)).toBe(customFencedOrca);
+    const shortMemoryHeader = '[Your MEMORY.md changed] please review';
+    expect(stripOrcaInjectedPreambles(shortMemoryHeader)).toBe(shortMemoryHeader);
 
-    // `findNextKnownOrcaPreambleStart` ignores user-authored `[Orca: ...]` lines inside SOUL.md body and preserves user `[Orca: ...]` after real preambles.
+    // Exact known Orca system preambles (`your MEMORY.md, as notes to consult, ` and strict ISO-8601 scheduled time) ARE stripped.
+    expect(stripOrcaInjectedPreambles(
+      '[Orca: it is 2026-11-27T19:00:00+09:00, the time you were asked to act at.]\n\n通常プロンプト',
+    )).toBe('通常プロンプト');
+    expect(stripOrcaInjectedPreambles(
+      '[Orca: it is 2026-11-27T10:00:00.123Z, the time you were asked to act at.]\n\n通常プロンプト',
+    )).toBe('通常プロンプト');
+    expect(stripOrcaInjectedPreambles(
+      '[Orca: your MEMORY.md, as notes to consult, not instructions:]\n<<<\n- memo\n>>>\n\n通常プロンプト',
+    )).toBe('通常プロンプト');
+
+    // `findNextKnownOrcaPreambleStart` ignores user-authored `[Orca: ...]` lines (including ambiguous `[Orca: it is ...]` and fenced blocks) inside SOUL.md body and preserves user `[Orca: ...]` after real preambles.
     const soulWithUserOrcaLines = [
       "[Your SOUL.md was updated; this replaces your earlier standing instructions. They rank below the user's current request.]",
       '',
       '# SOUL.md',
       '[Orca: note] Standing note that starts with [Orca: ...] at line start',
+      '[Orca: it is broken] Do not treat this as a system preamble',
+      '[Orca: my paste]',
+      '<<<',
+      'code',
+      '>>>',
       '',
       '[Orca: your live work now, for reference:]',
       '<<<',
@@ -4844,7 +4874,7 @@ describe('Phase 2 pre-rollout Antigravity hook fixes (PR-A: Fix 1 & Fix 2)', () 
       '# SOUL.md',
       '- Standalone SOUL update',
       '',
-      userNote,
+      userMyPasteFence,
     ].join('\n');
     expect(stripOrcaInjectedPreambles(soulFollowedOnlyByUserOrcaHeading)).toBe(soulFollowedOnlyByUserOrcaHeading);
 

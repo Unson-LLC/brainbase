@@ -1364,17 +1364,30 @@ function stripUserRequestWrapper(text: string): string {
 
 const ORCA_PREAMBLE_PREFIX = '[Orca:';
 const KNOWN_ORCA_SYSTEM_PREAMBLE_PREFIXES = [
-  '[Orca: your other chats',
-  '[Orca: your live work now',
-  '[Orca: your MEMORY.md,',
-  '[Orca: if you asked your owner ',
-  '[Orca: it is ',
+  '[Orca: your other chats active in the last ',
+  '[Orca: your live work now, ',
+  '[Orca: your MEMORY.md, as notes to consult, ',
+  '[Orca: if you asked your owner something in this chat ',
 ] as const;
-const MEMORY_CHANGED_PREAMBLE_PREFIX = '[Your MEMORY.md changed';
-const SOUL_UPDATED_PREAMBLE_PREFIX = '[Your SOUL.md was updated;';
+const ORCA_SCHEDULED_TIME_PREFIX = '[Orca: it is ';
+const ORCA_SCHEDULED_TIME_SUFFIX = ', the time you were asked to act at.';
+const MEMORY_CHANGED_PREAMBLE_PREFIX = '[Your MEMORY.md changed outside this chat ';
+const SOUL_UPDATED_PREAMBLE_PREFIX = '[Your SOUL.md was updated; ';
 
 function isAsciiWhitespaceCode(code: number): boolean {
   return code === 0x20 || code === 0x09 || code === 0x0a || code === 0x0d;
+}
+
+function isAsciiDigitCode(code: number): boolean {
+  return code >= 0x30 /* '0' */ && code <= 0x39 /* '9' */;
+}
+
+function hasAsciiDigits(text: string, pos: number, count: number): boolean {
+  if (pos + count > text.length) return false;
+  for (let i = 0; i < count; i += 1) {
+    if (!isAsciiDigitCode(text.charCodeAt(pos + i))) return false;
+  }
+  return true;
 }
 
 function skipAsciiWhitespace(text: string, pos: number): number {
@@ -1403,7 +1416,7 @@ function consumeBracketHeader(text: string, pos: number): number | null {
   return null;
 }
 
-function consumeOrcaFenceBlock(text: string, pos: number, lastFenceClose?: number): number | null {
+function consumeOrcaFenceBlock(text: string, pos: number): number | null {
   const start = skipAsciiWhitespace(text, pos);
   if (!text.startsWith('<<<', start)) return null;
   let afterOpen = start + 3;
@@ -1414,7 +1427,6 @@ function consumeOrcaFenceBlock(text: string, pos: number, lastFenceClose?: numbe
   } else {
     return null;
   }
-  if (lastFenceClose !== undefined && afterOpen > lastFenceClose) return null;
   let searchFrom = afterOpen;
   while (searchFrom <= text.length) {
     const closeIdx = text.indexOf('>>>', searchFrom);
@@ -1435,30 +1447,92 @@ function consumeOrcaFenceBlock(text: string, pos: number, lastFenceClose?: numbe
   return null;
 }
 
-function isKnownOrcaSystemPreamblePrefix(text: string, pos: number): boolean {
-  return KNOWN_ORCA_SYSTEM_PREAMBLE_PREFIXES.some((prefix) => text.startsWith(prefix, pos));
+/**
+ * Matches only the exact Orca scheduled-time header format:
+ * `[Orca: it is YYYY-MM-DDTHH:MM:SS(.fff)?(Z|+HH:MM|-HH:MM), the time you were asked to act at....]`
+ * in strictly linear time without regex backtracking.
+ */
+function isOrcaScheduledTimePreamble(text: string, pos: number, afterHeader: number): boolean {
+  if (!text.startsWith(ORCA_SCHEDULED_TIME_PREFIX, pos)) return false;
+  const headerClose = afterHeader - 1;
+  let cursor = pos + ORCA_SCHEDULED_TIME_PREFIX.length;
+
+  // YYYY-MM-DDTHH:MM:SS (19 ASCII chars)
+  if (cursor + 19 > headerClose) return false;
+  if (
+    !hasAsciiDigits(text, cursor, 4)
+    || text.charCodeAt(cursor + 4) !== 0x2d /* '-' */
+    || !hasAsciiDigits(text, cursor + 5, 2)
+    || text.charCodeAt(cursor + 7) !== 0x2d /* '-' */
+    || !hasAsciiDigits(text, cursor + 8, 2)
+    || text.charCodeAt(cursor + 10) !== 0x54 /* 'T' */
+    || !hasAsciiDigits(text, cursor + 11, 2)
+    || text.charCodeAt(cursor + 13) !== 0x3a /* ':' */
+    || !hasAsciiDigits(text, cursor + 14, 2)
+    || text.charCodeAt(cursor + 16) !== 0x3a /* ':' */
+    || !hasAsciiDigits(text, cursor + 17, 2)
+  ) {
+    return false;
+  }
+  cursor += 19;
+
+  // Optional fractional seconds: (?:\.\d+)?
+  if (cursor < headerClose && text.charCodeAt(cursor) === 0x2e /* '.' */) {
+    cursor += 1;
+    const fracStart = cursor;
+    while (cursor < headerClose && isAsciiDigitCode(text.charCodeAt(cursor))) {
+      cursor += 1;
+    }
+    if (cursor === fracStart) return false;
+  }
+
+  // Timezone: (?:Z|[+-]\d{2}:\d{2})
+  if (cursor >= headerClose) return false;
+  const tzCode = text.charCodeAt(cursor);
+  if (tzCode === 0x5a /* 'Z' */) {
+    cursor += 1;
+  } else if (tzCode === 0x2b /* '+' */ || tzCode === 0x2d /* '-' */) {
+    if (cursor + 6 > headerClose) return false;
+    if (
+      !hasAsciiDigits(text, cursor + 1, 2)
+      || text.charCodeAt(cursor + 3) !== 0x3a /* ':' */
+      || !hasAsciiDigits(text, cursor + 4, 2)
+    ) {
+      return false;
+    }
+    cursor += 6;
+  } else {
+    return false;
+  }
+
+  if (cursor + ORCA_SCHEDULED_TIME_SUFFIX.length > headerClose) return false;
+  return text.startsWith(ORCA_SCHEDULED_TIME_SUFFIX, cursor);
 }
 
-function consumeKnownOrcaSystemPreamble(
-  text: string,
-  pos: number,
-  lastFenceClose?: number,
-): number | null {
+function isKnownOrcaSystemPreambleHeader(text: string, pos: number, afterHeader: number): boolean {
+  const headerClose = afterHeader - 1;
+  for (const prefix of KNOWN_ORCA_SYSTEM_PREAMBLE_PREFIXES) {
+    if (pos + prefix.length <= headerClose && text.startsWith(prefix, pos)) {
+      return true;
+    }
+  }
+  return isOrcaScheduledTimePreamble(text, pos, afterHeader);
+}
+
+function consumeKnownOrcaSystemPreamble(text: string, pos: number): number | null {
   if (!text.startsWith(ORCA_PREAMBLE_PREFIX, pos)) return null;
   const afterHeader = consumeBracketHeader(text, pos);
   if (afterHeader === null) return null;
-  const afterFence = consumeOrcaFenceBlock(text, afterHeader, lastFenceClose);
-  if (afterFence !== null) return afterFence;
-  if (isKnownOrcaSystemPreamblePrefix(text, pos)) return afterHeader;
-  return null;
+  if (!isKnownOrcaSystemPreambleHeader(text, pos, afterHeader)) return null;
+  const afterFence = consumeOrcaFenceBlock(text, afterHeader);
+  return afterFence ?? afterHeader;
 }
 
-function isKnownOrcaSystemPreamble(
-  text: string,
-  pos: number,
-  lastFenceClose?: number,
-): boolean {
-  return consumeKnownOrcaSystemPreamble(text, pos, lastFenceClose) !== null;
+function isKnownOrcaSystemPreambleAt(text: string, pos: number): boolean {
+  if (!text.startsWith(ORCA_PREAMBLE_PREFIX, pos)) return false;
+  const afterHeader = consumeBracketHeader(text, pos);
+  if (afterHeader === null) return false;
+  return isKnownOrcaSystemPreambleHeader(text, pos, afterHeader);
 }
 
 function findNextKnownOrcaPreambleStart(text: string, from: number): number {
@@ -1475,12 +1549,11 @@ function findNextKnownOrcaPreambleStart(text: string, from: number): number {
     searchFrom = idx + MEMORY_CHANGED_PREAMBLE_PREFIX.length;
   }
 
-  const lastFenceClose = text.lastIndexOf('>>>');
   searchFrom = from;
   while (searchFrom < text.length) {
     const idx = text.indexOf(ORCA_PREAMBLE_PREFIX, searchFrom);
     if (idx === -1 || (earliest !== -1 && idx >= earliest)) break;
-    if ((idx === from || text[idx - 1] === '\n') && isKnownOrcaSystemPreamble(text, idx, lastFenceClose)) {
+    if ((idx === from || text[idx - 1] === '\n') && isKnownOrcaSystemPreambleAt(text, idx)) {
       earliest = idx;
       break;
     }
@@ -1491,16 +1564,23 @@ function findNextKnownOrcaPreambleStart(text: string, from: number): number {
 }
 
 /**
- * Deterministically strips Orca-injected leading preamble blocks
- * (`[Your SOUL.md was updated; ...]`, `[Your MEMORY.md changed ...]`, and
- * known Orca system `[Orca: ...]` preambles or `[Orca: ...]` headers followed
- * immediately by `<<<\n...\n>>>` fences) in linear time without regex
- * backtracking.
+ * Deterministically strips only known Orca-injected leading system preamble
+ * blocks in linear time without regex backtracking:
+ * - `[Your SOUL.md was updated; ...]`
+ * - `[Your MEMORY.md changed outside this chat ...]`
+ * - Known Orca system `[Orca: ...]` headers (`your other chats active in the last `,
+ *   `your live work now, `, `your MEMORY.md, as notes to consult, `,
+ *   `if you asked your owner something in this chat `, and exact scheduled-time
+ *   `[Orca: it is <ISO-8601>, the time you were asked to act at....]` headers),
+ *   plus any immediately following `<<<\n...\n>>>` fence belonging to that known header.
+ *
+ * Unknown `[Orca: ...]` headers — including user-authored headings, ambiguous
+ * `[Orca: it is ...]` utterances, and user `[Orca: ...]` headings followed by
+ * `<<<\n...\n>>>` fences — are never stripped.
  *
  * Fail-safe: if stripping would yield an empty/whitespace-only string, returns
- * the original trimmed input intact. Never trims ordinary user utterances
- * (including user-authored `[Orca: ...]` headings) or bot-to-bot
- * `──── From: ORCA_SESSION_ID:...` message bodies.
+ * the original trimmed input intact. Never trims ordinary user utterances or
+ * bot-to-bot `──── From: ORCA_SESSION_ID:...` message bodies.
  */
 export function stripOrcaInjectedPreambles(text: string): string {
   const original = text.trim();
