@@ -4,6 +4,10 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
+## Candidate — v0.51.3（npm公開前）
+
+0.51.2（`main` / `4a7abf68a`）に `#1092`（`c8374b248`、Item #165）のみを単独 cherry-pick したpatch更新候補です（他の `develop` コミットは含みません）。Antigravity CLI判断フックで `buildSystemMessageStep()` から `metadata.user_markdown` を削除して `hookcaller.go:56` の protojson panic を解消し、`systemMessage`（監査サマリ行）と `additionalContext` をモデル文脈へ統合します。あわせて `PostToolUse` 発火時に `transcript.jsonl` が未 flush でも `transcript_full.jsonl` および `steps/<stepIdx>/output.txt` から既存の安全境界（`openat2`・no-symlink・512 KiB 上限・`[stepIdx]` 厳密限定・非 `ENOENT` 即 `null`・`toolUseId` 整合）を通して fail-closed にツール結果を回収し、並列ツール実行時の隣接ステップ誤回収を防止します。破壊的変更はありません（詳細は `docs/releases/0.51.3.md` を参照）。npm公開と利用ホストへの配備は別途確認します。
+
 ## Candidate — v0.51.2（npm公開前）
 
 0.51.1（`main` / `1a653d52`）に `#1090`（`543991814`、Item #165）およびテスト専用の実行時間閾値安定化（`6580029ef`）のみを cherry-pick したpatch更新候補です（他の `develop` コミットは含みません）。Antigravity CLI判断フックで複数 JSON ブロックが連結された MCP ツール応答を O(n) で分割して `isTruncatedToolResult`・`extractToolResultTextBlocksFromTranscript`・`handlePostToolUse` で複数 text block として復元し、JSON 文字列値内の `<truncated N bytes>` による誤判定を防ぎます。あわせて 500k+ 文字線形時間テストの上限を 5,000ms に調整し、共有 CI ランナー負荷時のフレークを防止します。破壊的変更はありません（詳細は `docs/releases/0.51.2.md` を参照）。npm公開と利用ホストへの配備は別途確認します。
