@@ -15,22 +15,15 @@ import {
 /** Shared state and receipt vocabulary for host onboarding runtimes. */
 export const ONBOARDING_RUNTIME_CONTRACT_VERSION = 'connected_onboarding.v1' as const;
 
-export const ONBOARDING_WORKFLOW_STATES = [
-  'initialized',
-  'source_ready',
-  'candidates_ready',
-  'promotion_reviewed',
-  'first_value_ready',
-  'first_value_answer_reviewed'
-] as const;
+export { ONBOARDING_WORKFLOW_STATES } from './connected-onboarding.js';
 
-export const ONBOARDING_SOURCE_MODES = ['mcp', 'drive', 'gmail', 'local_folder', 'single_document'] as const;
-export const ONBOARDING_SOURCE_STATUSES = ['ready', 'waiting_for_authorization', 'unavailable', 'error', 'unconfirmed'] as const;
-export const ONBOARDING_OBSERVATION_CLASSES = ['observed', 'inferred'] as const;
+export const ONBOARDING_SOURCE_MODES = Object.freeze(['mcp', 'drive', 'gmail', 'local_folder', 'single_document'] as const);
+export const ONBOARDING_SOURCE_STATUSES = Object.freeze(['ready', 'waiting_for_authorization', 'unavailable', 'error', 'unconfirmed'] as const);
+export const ONBOARDING_OBSERVATION_CLASSES = Object.freeze(['observed', 'inferred'] as const);
 
 export const FIRST_VALUE_PRESENTATION_CONTRACT = Object.freeze({
   version: 'first_value_clarity.v1',
-  sections: ['覚えていたこと', 'つながったこと', '次にできること'] as const,
+  sections: Object.freeze(['覚えていたこと', 'つながったこと', '次にできること'] as const),
   humanReviewRequired: true
 });
 
