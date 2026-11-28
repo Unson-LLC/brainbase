@@ -40,6 +40,8 @@ jobs:
           --health-timeout 5s
           --health-retries 20
     strategy:
+      # Run the two full suites sequentially on the shared EVO-X2.
+      max-parallel: 1
       fail-fast: false
       matrix:
         include:
@@ -78,8 +80,8 @@ jobs:
         if: ${{ matrix.suite == 'complete' }}
         env:
           BRAINBASE_TEST_SKIP_BUILD: '1'
-          CANONICAL_TASK_PG_TEST_ADMIN_URL: postgresql://postgres:local-ci-test-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgres
-          CANONICAL_TASK_PG_TEST_URL: postgresql://postgres:local-ci-test-only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/postgres
+          CANONICAL_TASK_PG_TEST_ADMIN_URL: postgresql://postgres:local-ci-test-only@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/postgres
+          CANONICAL_TASK_PG_TEST_URL: postgresql://postgres:local-ci-test-only@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/postgres
           CANONICAL_TASK_PG_TEST_REQUIRED: '1'
         run: |
           set -o pipefail
@@ -108,11 +110,14 @@ jobs:
           if [ "$main_status" -ne 0 ]; then exit "$main_status"; fi
           exit "$git_smoke_status"
 
-      - name: Run representative integration suite on Node 20
+      - name: Run complete package suite on Node 20
         if: ${{ matrix.suite == 'representative' }}
         env:
           BRAINBASE_TEST_SKIP_BUILD: '1'
-        run: npm run test:integration -- --maxWorkers=6 --testTimeout=30000 --hookTimeout=30000
+          CANONICAL_TASK_PG_TEST_ADMIN_URL: postgresql://postgres:local-ci-test-only@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/postgres
+          CANONICAL_TASK_PG_TEST_URL: postgresql://postgres:local-ci-test-only@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/postgres
+          CANONICAL_TASK_PG_TEST_REQUIRED: '1'
+        run: npm test -- --maxWorkers=6 --testTimeout=30000 --hookTimeout=30000
 
       - name: Run routine runtime regression tests on Node 20
         if: ${{ matrix.suite == 'representative' }}
@@ -124,8 +129,8 @@ jobs:
           {
             echo '## Package CI failure/cancellation summary'
             echo
-            echo '- Protection: Node 22 complete package validation and Node 20 representative integration validation.'
-            echo '- Reproduce: `npm ci --ignore-scripts && npm run build && npm test -- --maxWorkers=6 --testTimeout=30000 --hookTimeout=30000` (Node 22), or `npm ci --ignore-scripts && npm run build && npm run test:integration -- --maxWorkers=6 --testTimeout=30000 --hookTimeout=30000 && npx vitest run tests/stage3c-runtime.test.ts --maxWorkers=1` (Node 20).'
+            echo '- Protection: Node 22 and Node 20 complete package validation.'
+            echo '- Reproduce: `npm ci --ignore-scripts && npm run build && npm test -- --maxWorkers=6 --testTimeout=30000 --hookTimeout=30000` on Node 22 or Node 20.'
             echo '- Expected: package changes pass the build and required suite; docs-only changes use the docs workflow.'
             echo '- Unknown: inspect the failed step and runner log; this workflow has no release or deployment side effect.'
           } >> "$GITHUB_STEP_SUMMARY"
