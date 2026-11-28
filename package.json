@@ -649,13 +649,13 @@
     }
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.8",
+    "@electric-sql/pglite": "^0.6.0",
     "@types/node": "^22.15.29",
     "@types/pg": "^8.23.1",
     "esbuild": "0.28.2",
-    "modern-web-guidance": "1.0.0",
+    "modern-web-guidance": "1.0.2",
     "pg": "^8.23.1",
-    "three": "0.186.1",
+    "three": "0.187.0",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "vitepress": "^1.6.4",
