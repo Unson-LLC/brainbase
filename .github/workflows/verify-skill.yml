@@ -30,7 +30,7 @@ jobs:
     # 編集と削除は必ず判定し直す。証拠のコメントは RUNNER_VERIFY を含まないことがあり、本文と有無が判定に効く。
     if: ${{ (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) || (github.event_name == 'issue_comment' && github.event.issue.pull_request && github.event.issue.state == 'open' && (github.event.action != 'created' || contains(github.event.comment.body, 'RUNNER_VERIFY'))) }}
     name: Post verify-skill status
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, unson-ci-light]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
