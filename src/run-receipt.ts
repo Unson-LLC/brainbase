@@ -3,7 +3,8 @@
 import { createHash } from 'node:crypto';
 
 const CONTRACT_VERSION = 'run_receipt.v1';
-const SOURCE_TYPES = new Set(['mana', 'codex_automations', 'github_actions', 'salestailor', 'openryoko', 'openclaw']);
+const SOURCE_TYPE_VALUES = ['mana', 'codex_automations', 'github_actions', 'salestailor', 'openryoko', 'openclaw', 'orca'] as const;
+const SOURCE_TYPES = new Set(SOURCE_TYPE_VALUES);
 const RUN_STATUSES = new Set(['success', 'failed', 'blocked', 'waiting_human', 'cancelled']);
 const EVIDENCE_STATES = new Set(['confirmed', 'unconfirmed', 'no_data']);
 const OBSERVATION_KINDS = new Set(['source_run', 'connector_observation']);
@@ -52,6 +53,8 @@ const RUN_KEYS = new Set([
     'evidence_refs',
     'judgment_trace'
 ]);
+const ORCA_RUN_KEYS = new Set([...RUN_KEYS, 'cost_basis', 'observed_at', 'stall_reason']);
+const ORCA_COST_METRICS = new Set(['cost_usd', 'cost_usd_24h']);
 const DELIVERY_KEYS = new Set(['idempotency_key', 'attempt', 'sent_at']);
 const EVIDENCE_KEYS = new Set(['kind', 'ref', 'label']);
 const TRACE_KEYS = new Set([
@@ -106,13 +109,7 @@ const RFC3339_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]
 const CONTROL_OR_NEWLINE_PATTERN = /[\u0000-\u001f\u007f]/;
 const METRIC_CONTENT_PATTERN = /(?:^|[_-])(content|body|raw|log|transcript|customer)(?:$|[_-])/i;
 
-export type RunReceiptSourceType =
-    | 'mana'
-    | 'codex_automations'
-    | 'github_actions'
-    | 'salestailor'
-    | 'openryoko'
-    | 'openclaw';
+export type RunReceiptSourceType = typeof SOURCE_TYPE_VALUES[number];
 export type RunReceiptStatus = 'success' | 'failed' | 'blocked' | 'waiting_human' | 'cancelled';
 export type RunReceiptEvidenceState = 'confirmed' | 'unconfirmed' | 'no_data';
 export type RunReceiptObservationKind = 'source_run' | 'connector_observation';
@@ -265,7 +262,7 @@ function hasIndependentEvidence(leftRefs, rightRefs) {
     return rightRefs.some((ref) => !left.has(`${ref.kind}:${ref.ref}`));
 }
 
-function validateMetrics(value) {
+function validateMetrics(value, isOrca) {
     if (value === undefined || value === null) return undefined;
     const metrics = requireObject(value, 'run.metrics');
     const normalized = {};
@@ -275,6 +272,15 @@ function validateMetrics(value) {
             fail('forbidden_metric_name', `run.metrics.${key} is content-like`, { path: `run.metrics.${key}` });
         }
         const metric = metrics[key];
+        if (isOrca && metric !== null) {
+            const path = `run.metrics.${key}`;
+            if (ORCA_COST_METRICS.has(key) && (!Number.isFinite(metric) || metric < 0)) {
+                fail('invalid_orca_cost', `${path} must be a non-negative finite number or null`, { path });
+            }
+            if (key === 'staleness_threshold_sec' && (!Number.isInteger(metric) || metric <= 0)) {
+                fail('invalid_orca_staleness_threshold', `${path} must be a positive integer or null`, { path });
+            }
+        }
         if (metric !== null && typeof metric !== 'boolean' && !(typeof metric === 'number' && Number.isFinite(metric))) {
             fail('invalid_metric_value', `run.metrics.${key} must be a finite number, boolean, or null`, {
                 path: `run.metrics.${key}`
@@ -283,6 +289,34 @@ function validateMetrics(value) {
         normalized[key] = metric;
     });
     return normalized;
+}
+
+function validateOrcaRunFields(run) {
+    const { cost_basis, observed_at, stall_reason } = run;
+    if (cost_basis !== undefined && cost_basis !== 'run_estimated') {
+        fail('unsupported_orca_cost_basis', 'run.cost_basis must be run_estimated', { path: 'run.cost_basis' });
+    }
+    if (observed_at !== undefined) {
+        const path = 'run.observed_at';
+        if (typeof observed_at !== 'string' || observed_at.length > 64
+            || observed_at !== observed_at.trim() || !RFC3339_PATTERN.test(observed_at)
+            || !Number.isFinite(Date.parse(observed_at)) || Number(observed_at.slice(11, 13)) >= 24
+            // Date.parse can roll impossible days forward. Check the local calendar date in UTC.
+            || new Date(`${observed_at.slice(0, 10)}T00:00:00Z`).toISOString().slice(0, 10) !== observed_at.slice(0, 10)) {
+            fail('invalid_timestamp', `${path} must be a valid RFC 3339 timestamp`, { path });
+        }
+    }
+    if (stall_reason !== undefined) {
+        requireString(stall_reason, 'run.stall_reason', 300);
+        if (/[\u0080-\u009f\u2028\u2029]/.test(stall_reason)) {
+            fail('invalid_string', 'run.stall_reason must be single-line and control-character free', { path: 'run.stall_reason' });
+        }
+    }
+    return {
+        ...(cost_basis !== undefined ? { cost_basis } : {}),
+        ...(observed_at !== undefined ? { observed_at } : {}),
+        ...(stall_reason !== undefined ? { stall_reason } : {})
+    };
 }
 
 function validateEvidenceRefs(value, path = 'run.evidence_refs', maxLength = null) {
@@ -613,7 +647,8 @@ export function normalizeRunReceipt(payload: unknown): NormalizedRunReceipt {
     const runValue = requireObject(envelope.run, 'run');
     const deliveryValue = requireObject(envelope.delivery, 'delivery');
     rejectUnknownKeys(sourceValue, SOURCE_KEYS, 'source');
-    rejectUnknownKeys(runValue, RUN_KEYS, 'run');
+    const isOrca = sourceValue.type === 'orca';
+    rejectUnknownKeys(runValue, isOrca ? ORCA_RUN_KEYS : RUN_KEYS, 'run');
     rejectUnknownKeys(deliveryValue, DELIVERY_KEYS, 'delivery');
 
     const source = {
@@ -631,7 +666,7 @@ export function normalizeRunReceipt(payload: unknown): NormalizedRunReceipt {
         fail('invalid_timestamp_order', 'run.finished_at may not precede run.started_at');
     }
     const evidenceRefs = validateEvidenceRefs(runValue.evidence_refs);
-    const metrics = validateMetrics(runValue.metrics);
+    const metrics = validateMetrics(runValue.metrics, isOrca);
     const judgmentTrace = validateJudgmentTrace(runValue.judgment_trace);
     const actionRequired = optionalEnum(
         runValue.action_required,
@@ -670,6 +705,7 @@ export function normalizeRunReceipt(payload: unknown): NormalizedRunReceipt {
             : {}),
         ...(actionRequired ? { action_required: actionRequired } : {}),
         ...(metrics !== undefined ? { metrics } : {}),
+        ...(isOrca ? validateOrcaRunFields(runValue) : {}),
         ...(judgmentTrace !== undefined ? { judgment_trace: judgmentTrace } : {}),
         evidence_refs: evidenceRefs
     };

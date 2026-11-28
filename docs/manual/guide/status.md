@@ -4,6 +4,10 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
+## Candidate — v0.51.8（npm公開前）
+
+`0.51.7`（`main` / `e15a6fd96`）に #1111（`9ef785cec`、Item #305 PR-1A）を cherry-pick したパッチ候補です。公開 subpath `@unson/brainbase-mcp/run-receipt` で、Orca の5分スナップショットと任意のコスト・鮮度・停滞情報を検証できます。npm 公開と利用ホストへの配備は別途確認します。詳細は `docs/releases/0.51.8.md` を参照してください。
+
 ## Candidate — v0.51.7（npm公開前）
 
 `0.51.6`（`e249e7f92`）以降 `main` に既収録の `#1068`（`29973bff0`、`UNS-4244`：端末ログイン応答途切れ時の期限内再試行・Claude Code 判断フック再登録時の進行中ターン後続送信停止）を含む `main`（`29973bff0`）へ、`#1109`（`7d633cb45`、Item #172 / #330）のみを単独 cherry-pick したpatch更新候補です（他の未リリース `develop` コミットは含みません）。Antigravity CLI 判断フックの `stripOrcaInjectedPreambles` に線形時間の厳密な ISO-8601 暦・時刻・閏年・タイムゾーン検証と 0 件剥離 no-op 時の先頭・末尾空白無改変保持を導入し（Fix 2 / `UNS-7129` 修正）、あわせて `splitConcatenatedJsonTextBlocks` で Antigravity 連結テキスト末尾の既知 MCP トレーラー最大 2 行（`connection_scope`・`brainbase-knowledge-owner-audit`）を偽装拒否付きで決定的に分離・復元します（Bug B Trap 2）。破壊的変更はありません（詳細は `docs/releases/0.51.7.md` を参照）。npm公開と利用ホストへの配備は別途確認します。
