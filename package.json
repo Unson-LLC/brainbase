@@ -650,7 +650,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
-    "@types/node": "^22.15.29",
+    "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
     "esbuild": "0.28.2",
     "modern-web-guidance": "1.0.0",
