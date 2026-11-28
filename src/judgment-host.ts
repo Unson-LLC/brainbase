@@ -14,8 +14,7 @@ import {
   unlinkSync,
   writeFileSync
 } from 'node:fs';
-import { homedir } from 'node:os';
-import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import {
   evaluateJudgmentAutonomy,
   renderJudgmentAutonomyContinuation,
@@ -63,6 +62,47 @@ import {
 } from './judgment-session-world-model.js';
 
 import { taskProgressScopeSchema, taskProgressObservationSchema, type JudgmentTaskProgressAdapter } from './judgment-task-progress.js';
+import {
+  assertExplicitOrResolvedJournalRoot,
+  DEFAULT_JUDGMENT_HOST_BINDING,
+  JUDGMENT_AUTONOMY_MODES,
+  normalizeExpectedHostBinding,
+  resolveAutonomyConfig,
+  resolveEffectiveReasoningGateMode,
+  resolveJudgmentJournalRoot,
+  resolveJudgmentJournalRootWithSource,
+  resolveJudgmentRuntimeConfig,
+  resolveTranscriptRootCandidates,
+  type JudgmentAutonomyMode,
+  type JudgmentHostBinding,
+  type JudgmentJournalRootResolution,
+  type JudgmentJournalRootSource,
+  type JudgmentRuntimeConfig,
+  type JudgmentRuntimeConfigOptions,
+  type JudgmentRuntimeEnvironment,
+  type ResolveJudgmentJournalRootOptions
+} from './judgment-runtime-config.js';
+
+export {
+  assertExplicitOrResolvedJournalRoot,
+  DEFAULT_JUDGMENT_HOST_BINDING,
+  JUDGMENT_AUTONOMY_MODES,
+  normalizeExpectedHostBinding,
+  resolveAutonomyConfig,
+  resolveEffectiveReasoningGateMode,
+  resolveJudgmentJournalRoot,
+  resolveJudgmentJournalRootWithSource,
+  resolveJudgmentRuntimeConfig,
+  resolveTranscriptRootCandidates,
+  type JudgmentAutonomyMode,
+  type JudgmentHostBinding,
+  type JudgmentJournalRootResolution,
+  type JudgmentJournalRootSource,
+  type JudgmentRuntimeConfig,
+  type JudgmentRuntimeConfigOptions,
+  type JudgmentRuntimeEnvironment,
+  type ResolveJudgmentJournalRootOptions
+};
 
 export {
   AUDIT_LINE_STRIP_PREFIX,
@@ -155,23 +195,7 @@ export interface JudgmentNodeDefinition {
   instruction: string;
 }
 
-/**
- * The resolver adapter binding accepted by the Host. The adapter identity is
- * supplied by the Host configuration and is never inferred from a receipt.
- */
-export interface JudgmentHostBinding {
-  adapter_id: string;
-  adapter_version: string;
-  status: 'managed';
-  enforcement_level: 'host_contract';
-}
-
-const DEFAULT_HOST_BINDING: JudgmentHostBinding = Object.freeze({
-  adapter_id: 'brainbase-local',
-  adapter_version: '1',
-  status: 'managed',
-  enforcement_level: 'host_contract'
-});
+const DEFAULT_HOST_BINDING: JudgmentHostBinding = DEFAULT_JUDGMENT_HOST_BINDING;
 
 export interface JudgmentReceipt {
   resolution_id: string;
@@ -230,6 +254,8 @@ export interface ReasoningGateTelemetryEvent {
 
 export interface JudgmentHostOptions {
   env?: Environment;
+  /** Pre-resolved immutable runtime config; when provided, lower-level code never falls back to `process.env`. */
+  runtimeConfig?: JudgmentRuntimeConfig;
   taskProgress?: JudgmentTaskProgressAdapter;
   resolver?: (request: JudgmentRequest) => Promise<JudgmentReceipt>;
   /** Expected resolver binding; defaults to the built-in local adapter. */
@@ -252,8 +278,6 @@ export interface JudgmentHostOptions {
   /** Optional adapter-owned queue. The default Host lifecycle remains unchanged. */
   knowledgeEventSink?: JudgmentKnowledgeEventSink;
 }
-
-export type JudgmentAutonomyMode = 'off' | 'canary' | 'on';
 
 interface LocalResolverOptions {
   now?: () => Date;
@@ -447,25 +471,6 @@ function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
 
-function normalizeExpectedHostBinding(value: JudgmentHostBinding | undefined): JudgmentHostBinding {
-  const candidate = value === undefined ? DEFAULT_HOST_BINDING : record(value);
-  if (!candidate
-    || typeof candidate.adapter_id !== 'string'
-    || candidate.adapter_id.trim().length === 0
-    || typeof candidate.adapter_version !== 'string'
-    || candidate.adapter_version.trim().length === 0
-    || candidate.status !== 'managed'
-    || candidate.enforcement_level !== 'host_contract') {
-    throw new Error('judgment_host_binding_config_invalid');
-  }
-  return {
-    adapter_id: candidate.adapter_id,
-    adapter_version: candidate.adapter_version,
-    status: 'managed',
-    enforcement_level: 'host_contract'
-  };
-}
-
 function contentText(content: unknown): string {
   if (typeof content === 'string') return content;
   if (!Array.isArray(content)) return '';
@@ -491,17 +496,8 @@ function pathInside(path: string, root: string): boolean {
   return delta === '' || (!delta.startsWith(`..${sep}`) && delta !== '..' && !isAbsolute(delta));
 }
 
-function transcriptRoots(env: Environment): string[] {
-  const configured = (env.BRAINBASE_JUDGMENT_TRANSCRIPT_ROOTS ?? '')
-    .split(delimiter)
-    .map((value) => value.trim())
-    .filter(Boolean);
-  const defaultCodexHome = join(homedir(), '.codex');
-  const defaultRoots = [...new Set([
-    env.CODEX_HOME ? join(env.CODEX_HOME, 'sessions') : null,
-    join(defaultCodexHome, 'sessions')
-  ].filter((value): value is string => Boolean(value)))];
-  return (configured.length > 0 ? configured : defaultRoots)
+function transcriptRoots(runtimeConfig: JudgmentRuntimeConfig): string[] {
+  return runtimeConfig.transcriptRootCandidates
     .flatMap((path) => {
       try {
         return [realpathSync(path)];
@@ -527,7 +523,7 @@ function normalizeMessages(messages: ConversationMessage[]): Required<Conversati
 
 function readCanonicalTranscript(
   payload: JudgmentHookPayload,
-  env: Environment,
+  runtimeConfig: JudgmentRuntimeConfig,
   trustedConversationMessages?: ConversationMessage[]
 ): { messages: Required<ConversationMessage>[]; complete: boolean } {
   if (Array.isArray(trustedConversationMessages)) {
@@ -542,7 +538,7 @@ function readCanonicalTranscript(
   } catch {
     return { messages: [], complete: false };
   }
-  const roots = transcriptRoots(env);
+  const roots = transcriptRoots(runtimeConfig);
   if (roots.length === 0 || !roots.some((root) => pathInside(canonicalPath, root))) {
     return { messages: [], complete: false };
   }
@@ -655,13 +651,7 @@ function instructionBindings(cwd: string, discoveredRoot: string | null): Array<
   });
 }
 
-function journalRoot(env: Environment): string {
-  if (env.BRAINBASE_JUDGMENT_JOURNAL_DIR) return resolve(env.BRAINBASE_JUDGMENT_JOURNAL_DIR);
-  const personalOs = resolve(env.BRAINBASE_PERSONAL_OS_DIR ?? join(homedir(), '.brainbase', 'personal-os'));
-  return join(personalOs, 'judgment-journal');
-}
-
-function journalPaths(sessionRef: string, turnId: string, env: Environment): {
+function journalPaths(sessionRef: string, turnId: string, journalRootPath: string): {
   directory: string;
   target: string;
   episode: string;
@@ -671,7 +661,7 @@ function journalPaths(sessionRef: string, turnId: string, env: Environment): {
   autonomy: string;
   lock: string;
 } {
-  const directory = join(journalRoot(env), sessionRef);
+  const directory = join(journalRootPath, sessionRef);
   const turnRef = sha256(turnId);
   return {
     directory,
@@ -758,10 +748,9 @@ function readAdoptionEntry(
 function priorReceipts(
   sessionRef: string,
   currentTurnId: string,
-  env: Environment,
-  expectedHostBinding: JudgmentHostBinding = DEFAULT_HOST_BINDING
+  runtimeConfig: JudgmentRuntimeConfig
 ): Array<Record<string, unknown>> {
-  const { directory, target } = journalPaths(sessionRef, currentTurnId, env);
+  const { directory, target } = journalPaths(sessionRef, currentTurnId, runtimeConfig.journalRoot);
   let names: string[];
   try {
     names = readdirSync(directory).filter((name) => /^[a-f0-9]{64}\.json$/u.test(name));
@@ -770,7 +759,7 @@ function priorReceipts(
     throw error;
   }
   return names.filter((name) => name !== basename(target)).map((name) => {
-    const entry = readAdoptionEntry(join(directory, name), expectedHostBinding);
+    const entry = readAdoptionEntry(join(directory, name), runtimeConfig.expectedHostBinding);
     if (entry.request.conversation_context.session_ref !== sessionRef) {
       throw new Error(`judgment_journal_session_mismatch:${name}`);
     }
@@ -784,20 +773,23 @@ export function buildJudgmentRequest(
   {
     env = process.env,
     trustedConversationMessages,
-    expectedHostBinding
+    expectedHostBinding,
+    runtimeConfig
   }: {
     env?: Environment;
     trustedConversationMessages?: ConversationMessage[];
     expectedHostBinding?: JudgmentHostBinding;
+    runtimeConfig?: JudgmentRuntimeConfig;
   } = {}
 ): JudgmentRequest {
+  const resolvedConfig = resolveJudgmentRuntimeConfig({ runtimeConfig, expectedHostBinding }, env);
   const request = typeof payload.prompt === 'string' && payload.prompt.trim() ? payload.prompt : '';
   const turnId = typeof payload.turn_id === 'string' ? payload.turn_id.trim() : '';
   const sessionId = typeof payload.session_id === 'string' ? payload.session_id : '';
   if (!request || !turnId || !sessionId) throw new TypeError('UserPromptSubmit requires prompt, turn_id, and session_id');
 
   const sessionRef = sha256(sessionId);
-  const transcript = readCanonicalTranscript(payload, env, trustedConversationMessages);
+  const transcript = readCanonicalTranscript(payload, resolvedConfig, trustedConversationMessages);
   const messages = transcript.messages.filter((message) => !(
     message.role === 'user' && message.turn_id === turnId && message.text === request
   ));
@@ -809,13 +801,13 @@ export function buildJudgmentRequest(
   }
   const cwd = typeof payload.cwd === 'string' && payload.cwd ? payload.cwd : process.cwd();
   const repoRoot = findRepoRoot(cwd);
-  const projectBinding = env.BRAINBASE_JUDGMENT_PROJECT_CODE
+  const projectBinding = resolvedConfig.projectCode
     ?? (repoRoot ? basename(repoRoot).replace(/\.git$/u, '') : null);
   const contextWithoutDigest = {
     schema_version: 'brainbase-conversation-context-v1' as const,
     session_ref: sessionRef,
     messages: messages.map((message, sequence) => ({ ...message, sequence })),
-    prior_receipts: priorReceipts(sessionRef, turnId, env, expectedHostBinding),
+    prior_receipts: priorReceipts(sessionRef, turnId, resolvedConfig),
     runtime: {
       host: 'codex' as const,
       model: typeof payload.model === 'string' && payload.model ? payload.model : null,
@@ -1065,12 +1057,11 @@ function verifyReceipt(
 
 function existingAdoption(
   request: JudgmentRequest,
-  env: Environment,
-  expectedHostBinding: JudgmentHostBinding = DEFAULT_HOST_BINDING
+  runtimeConfig: JudgmentRuntimeConfig
 ): JudgmentAdoptionEntry | null {
-  const { target } = journalPaths(request.conversation_context.session_ref, request.turn_id, env);
+  const { target } = journalPaths(request.conversation_context.session_ref, request.turn_id, runtimeConfig.journalRoot);
   try {
-    const entry = readAdoptionEntry(target, expectedHostBinding);
+    const entry = readAdoptionEntry(target, runtimeConfig.expectedHostBinding);
     if (entry.request_text_digest !== sha256(request.request)
       || entry.request.turn_id !== request.turn_id
       || entry.request.conversation_context.session_ref !== request.conversation_context.session_ref) {
@@ -1085,17 +1076,16 @@ function existingAdoption(
 
 function existingAdoptionForPayload(
   payload: JudgmentHookPayload,
-  env: Environment,
-  expectedHostBinding: JudgmentHostBinding = DEFAULT_HOST_BINDING
+  runtimeConfig: JudgmentRuntimeConfig
 ): JudgmentAdoptionEntry | null {
   const request = typeof payload.prompt === 'string' && payload.prompt.trim() ? payload.prompt : '';
   const turnId = typeof payload.turn_id === 'string' ? payload.turn_id.trim() : '';
   const sessionId = typeof payload.session_id === 'string' ? payload.session_id : '';
   if (!request || !turnId || !sessionId) return null;
   const sessionRef = sha256(sessionId);
-  const { target } = journalPaths(sessionRef, turnId, env);
+  const { target } = journalPaths(sessionRef, turnId, runtimeConfig.journalRoot);
   try {
-    const entry = readAdoptionEntry(target, expectedHostBinding);
+    const entry = readAdoptionEntry(target, runtimeConfig.expectedHostBinding);
     if (entry.request_text_digest !== sha256(request)
       || entry.request.turn_id !== turnId
       || entry.request.conversation_context.session_ref !== sessionRef) {
@@ -1111,10 +1101,9 @@ function existingAdoptionForPayload(
 function adoptReceipt(
   request: JudgmentRequest,
   receipt: JudgmentReceipt,
-  env: Environment,
-  expectedHostBinding: JudgmentHostBinding = DEFAULT_HOST_BINDING
+  runtimeConfig: JudgmentRuntimeConfig
 ): JudgmentAdoptionEntry {
-  const { directory, target } = journalPaths(request.conversation_context.session_ref, request.turn_id, env);
+  const { directory, target } = journalPaths(request.conversation_context.session_ref, request.turn_id, runtimeConfig.journalRoot);
   mkdirSync(directory, { recursive: true, mode: 0o700 });
   const ownerAudit = buildOwnerAudit(request, receipt);
   const entry: JudgmentAdoptionEntry = {
@@ -1139,7 +1128,7 @@ function adoptReceipt(
       return entry;
     } catch (error) {
       if (!(error instanceof Error && 'code' in error && error.code === 'EEXIST')) throw error;
-      return existingAdoption(request, env, expectedHostBinding) as JudgmentAdoptionEntry;
+      return existingAdoption(request, runtimeConfig) as JudgmentAdoptionEntry;
     }
   } finally {
     if (descriptor !== null) {
@@ -1524,11 +1513,11 @@ function invokeFailOpenObserver<T>(observer: ((event: T) => void) | undefined, e
 
 function emitReasoningGateTelemetry(
   options: JudgmentHostOptions,
-  env: Environment,
+  runtimeConfig: JudgmentRuntimeConfig,
   telemetry: ReasoningGateTelemetryEvent
 ): void {
   invokeFailOpenObserver(options.onReasoningGateTelemetry, telemetry);
-  const stderrMode = env.BRAINBASE_JUDGMENT_REASONING_GATE_TELEMETRY?.trim().toLowerCase();
+  const stderrMode = runtimeConfig.reasoningGateTelemetry;
   const shouldWriteStderr = stderrMode === 'stderr'
     || (telemetry.reasoning_gate_mode !== 'off' && stderrMode !== 'off');
   if (shouldWriteStderr) {
@@ -1544,26 +1533,26 @@ function successOutput(
   request: JudgmentRequest,
   receipt: JudgmentReceipt,
   ownerAudit: JudgmentOwnerAudit = buildOwnerAudit(request, receipt),
-  options: JudgmentHostOptions = {},
-  env: Environment = {},
-  { replay = false }: { replay?: boolean } = {}
+  runtimeConfig: JudgmentRuntimeConfig,
+  options: JudgmentHostOptions,
+  replay = false
 ): JudgmentHookOutput {
   const ownerReferenceLine = ownerAudit.display_line;
   const projectCode = request.project_code ?? receipt.project_code;
-  const reasoningGateMode = resolveReasoningGateMode(options, env, projectCode);
+  const reasoningGateMode = resolveEffectiveReasoningGateMode(runtimeConfig, projectCode);
   const reasoningGateEligible = shouldApplyReasoningGate(receipt);
   const applyReasoningGate = reasoningGateMode !== 'off' && reasoningGateEligible;
   let sessionWmPin: string | null = null;
   if (applyReasoningGate && reasoningGateMode === 'compact_4block_with_wm') {
     const wmState = readSessionMiniWorldModelV2(
-      journalRoot(env),
+      runtimeConfig.journalRoot,
       request.conversation_context.session_ref
     );
     if (wmState) {
       sessionWmPin = renderSessionMiniWorldModelPinV2(wmState, containsJudgmentFrameCredential);
     }
   }
-  emitReasoningGateTelemetry(options, env, {
+  emitReasoningGateTelemetry(options, runtimeConfig, {
     event: 'judgment_reasoning_gate_evaluated',
     session_ref: request.conversation_context.session_ref,
     turn_id: request.turn_id,
@@ -1613,39 +1602,35 @@ function successOutput(
 }
 
 export async function runJudgmentHost(payload: JudgmentHookPayload, options: JudgmentHostOptions = {}): Promise<JudgmentHookOutput> {
-  const env = options.env ?? process.env;
-  const expectedHostBinding = normalizeExpectedHostBinding(options.expectedHostBinding);
-  // Fail fast on invalid reasoning gate configuration before acquiring locks or invoking a resolver.
-  resolveReasoningGateMode(options, env);
+  // Resolve and validate all runtime configuration once before acquiring locks or invoking a resolver.
+  const runtimeConfig = resolveJudgmentRuntimeConfig(options, options.env ?? process.env);
   const sessionId = typeof payload.session_id === 'string' ? payload.session_id : '';
   const turnId = typeof payload.turn_id === 'string' ? payload.turn_id.trim() : '';
   if (!sessionId || !turnId) throw new TypeError('UserPromptSubmit requires prompt, turn_id, and session_id');
-  const paths = journalPaths(sha256(sessionId), turnId, env);
+  const paths = journalPaths(sha256(sessionId), turnId, runtimeConfig.journalRoot);
   return withTurnLock(paths.lock, async () => {
     try {
       const episode = readEpisode(paths.episode);
-      verifyEpisodeAdoption(episode, paths.target, expectedHostBinding);
+      verifyEpisodeAdoption(episode, paths.target, runtimeConfig.expectedHostBinding);
       const requestText = typeof payload.prompt === 'string' ? payload.prompt.trim() : '';
       if (!requestText || episode.request_text_digest !== sha256(requestText)) {
         throw new Error('judgment_episode_binding_mismatch');
       }
-      return successOutput(episode.adoption.request, episode.adoption.receipt, episode.adoption.owner_audit, options, env, { replay: true });
+      return successOutput(episode.adoption.request, episode.adoption.receipt, episode.adoption.owner_audit, runtimeConfig, options, true);
     } catch (error) {
       if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
     }
 
-    const adopted = existingAdoptionForPayload(payload, env, expectedHostBinding);
+    const adopted = existingAdoptionForPayload(payload, runtimeConfig);
     const request = adopted?.request ?? buildJudgmentRequest(payload, {
-      env,
-      trustedConversationMessages: options.trustedConversationMessages,
-      expectedHostBinding
+      runtimeConfig,
+      trustedConversationMessages: options.trustedConversationMessages
     });
-    const existing = adopted ?? existingAdoption(request, env, expectedHostBinding);
+    const existing = adopted ?? existingAdoption(request, runtimeConfig);
     const adoption = existing ?? adoptReceipt(
       request,
-      verifyReceipt(await (options.resolver ?? resolveLocalJudgment)(request), request, expectedHostBinding),
-      env,
-      expectedHostBinding
+      verifyReceipt(await (options.resolver ?? resolveLocalJudgment)(request), request, runtimeConfig.expectedHostBinding),
+      runtimeConfig
     );
     const episodeWithoutDigest = {
       schema_version: 'brainbase-judgment-episode-v1' as const,
@@ -1672,7 +1657,7 @@ export async function runJudgmentHost(payload: JudgmentHookPayload, options: Jud
       episode_digest: sha256(canonicalJson(episodeWithoutDigest))
     };
     writeImmutableJson(paths.episode, episode as unknown as Record<string, unknown>);
-    return successOutput(adoption.request, adoption.receipt, adoption.owner_audit, options, env, { replay: false });
+    return successOutput(adoption.request, adoption.receipt, adoption.owner_audit, runtimeConfig, options);
   });
 }
 
@@ -1773,11 +1758,10 @@ function toolDisplayLine(
 
 async function recordToolUse(
   payload: JudgmentHookPayload,
-  env: Environment,
-  expectedHostBinding: JudgmentHostBinding = DEFAULT_HOST_BINDING
+  runtimeConfig: JudgmentRuntimeConfig
 ): Promise<JudgmentToolEvent | null> {
   const { sessionRef, turnId } = hookIdentity(payload);
-  const paths = journalPaths(sessionRef, turnId, env);
+  const paths = journalPaths(sessionRef, turnId, runtimeConfig.journalRoot);
   const toolUseId = typeof payload.tool_use_id === 'string' ? payload.tool_use_id.trim() : '';
   const toolName = typeof payload.tool_name === 'string' ? payload.tool_name.trim() : '';
   if (!toolUseId || !toolName) throw new TypeError('PostToolUse requires tool_use_id and tool_name');
@@ -1787,7 +1771,7 @@ async function recordToolUse(
     let episode: JudgmentEpisode;
     try {
       episode = readEpisode(paths.episode);
-      verifyEpisodeAdoption(episode, paths.target, expectedHostBinding);
+      verifyEpisodeAdoption(episode, paths.target, runtimeConfig.expectedHostBinding);
     } catch (error) {
       if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
         throw new Error('judgment_orphan_post_tool_use');
@@ -1837,23 +1821,6 @@ async function recordToolUse(
     writeImmutableJson(join(paths.events, name), event as unknown as Record<string, unknown>);
     return event;
   });
-}
-
-function resolveAutonomyMode(options: JudgmentHostOptions, env: Environment): {
-  mode: JudgmentAutonomyMode;
-  canaryProjects: string[];
-} {
-  const rawMode = options.autonomyMode ?? env.BRAINBASE_JUDGMENT_AUTONOMY_MODE ?? 'off';
-  if (!['off', 'canary', 'on'].includes(rawMode)) {
-    throw new Error('judgment_autonomy_mode_invalid');
-  }
-  const configuredProjects = options.autonomyCanaryProjects
-    ?? (env.BRAINBASE_JUDGMENT_AUTONOMY_CANARY_PROJECTS ?? '').split(',');
-  const canaryProjects = [...new Set(configuredProjects.map((value) => value.trim()).filter(Boolean))];
-  if (rawMode === 'canary' && canaryProjects.length === 0) {
-    throw new Error('judgment_autonomy_canary_project_missing');
-  }
-  return { mode: rawMode as JudgmentAutonomyMode, canaryProjects };
 }
 
 interface JudgmentAutonomyStopSnapshot {
@@ -1939,18 +1906,17 @@ function persistAutonomyReceipt(
 
 async function autonomyStopSnapshot(
   payload: JudgmentHookPayload,
-  env: Environment,
-  expectedHostBinding: JudgmentHostBinding = DEFAULT_HOST_BINDING
+  runtimeConfig: JudgmentRuntimeConfig
 ): Promise<JudgmentAutonomyStopSnapshot | null> {
   const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : '';
   if (!answer.trim()) return null;
   const { sessionRef, turnId } = hookIdentity(payload);
-  const paths = journalPaths(sessionRef, turnId, env);
+  const paths = journalPaths(sessionRef, turnId, runtimeConfig.journalRoot);
   return withTurnLock(paths.lock, async () => {
     let episode: JudgmentEpisode;
     try {
       episode = readEpisode(paths.episode);
-      verifyEpisodeAdoption(episode, paths.target, expectedHostBinding);
+      verifyEpisodeAdoption(episode, paths.target, runtimeConfig.expectedHostBinding);
     } catch (error) {
       if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
         throw new Error('judgment_orphan_stop');
@@ -1984,10 +1950,10 @@ async function autonomyStopSnapshot(
 }
 
 async function evaluateTaskProgressStop(
-  payload: JudgmentHookPayload, env: Environment, options: JudgmentHostOptions
+  payload: JudgmentHookPayload, runtimeConfig: JudgmentRuntimeConfig, options: JudgmentHostOptions
 ): Promise<JudgmentStopBlock | null> {
   const { sessionRef, turnId } = hookIdentity(payload);
-  const paths = journalPaths(sessionRef, turnId, env);
+  const paths = journalPaths(sessionRef, turnId, runtimeConfig.journalRoot);
   return withTurnLock(paths.lock, async () => {
     let episode: JudgmentEpisode;
     try { episode = readEpisode(paths.episode); } catch (error) {
@@ -1996,7 +1962,7 @@ async function evaluateTaskProgressStop(
       }
       throw error;
     }
-    verifyEpisodeAdoption(episode, paths.target, options.expectedHostBinding);
+    verifyEpisodeAdoption(episode, paths.target, runtimeConfig.expectedHostBinding);
     if (!episode.task_progress_scope) return null;
     const scope = taskProgressScopeSchema.parse(episode.task_progress_scope);
     const adapter = options.taskProgress;
@@ -2014,7 +1980,7 @@ async function evaluateTaskProgressStop(
       events
     };
     const scopeRef = sha256(canonicalJson(scope));
-    const directory = join(journalRoot(env), 'task-progress', scopeRef);
+    const directory = join(runtimeConfig.journalRoot, 'task-progress', scopeRef);
     return withTurnLock(`${directory}.lock`, async () => {
       mkdirSync(directory, { recursive: true, mode: 0o700 });
       const entries = readdirSync(directory).sort().map((name) => {
@@ -2076,15 +2042,14 @@ async function evaluateTaskProgressStop(
 
 async function evaluateAutonomyStop(
   payload: JudgmentHookPayload,
-  env: Environment,
+  runtimeConfig: JudgmentRuntimeConfig,
   options: JudgmentHostOptions
 ): Promise<JudgmentStopBlock | null> {
-  const config = resolveAutonomyMode(options, env);
-  if (config.mode === 'off') return null;
-  const snapshot = await autonomyStopSnapshot(payload, env, options.expectedHostBinding);
+  if (runtimeConfig.autonomyMode === 'off') return null;
+  const snapshot = await autonomyStopSnapshot(payload, runtimeConfig);
   if (!snapshot) return null;
-  if (config.mode === 'canary'
-    && (!snapshot.context.project_code || !config.canaryProjects.includes(snapshot.context.project_code))) {
+  if (runtimeConfig.autonomyMode === 'canary'
+    && (!snapshot.context.project_code || !runtimeConfig.autonomyCanaryProjects.includes(snapshot.context.project_code))) {
     return null;
   }
 
@@ -2096,10 +2061,10 @@ async function evaluateAutonomyStop(
   );
 
   const { sessionRef, turnId } = hookIdentity(payload);
-  const paths = journalPaths(sessionRef, turnId, env);
+  const paths = journalPaths(sessionRef, turnId, runtimeConfig.journalRoot);
   const stillActive = await withTurnLock(paths.lock, async () => {
     const episode = readEpisode(paths.episode);
-    verifyEpisodeAdoption(episode, paths.target, options.expectedHostBinding);
+    verifyEpisodeAdoption(episode, paths.target, runtimeConfig.expectedHostBinding);
     if (episode.episode_digest !== snapshot.episode_digest) {
       throw new Error('judgment_autonomy_episode_changed');
     }
@@ -2121,7 +2086,7 @@ async function evaluateAutonomyStop(
   }
   if (evaluation.verdict !== 'not_applicable') {
     await withTurnLock(paths.lock, async () => {
-      persistAutonomyReceipt(paths, sessionRef, snapshot, evaluation, config.mode as Exclude<JudgmentAutonomyMode, 'off'>);
+      persistAutonomyReceipt(paths, sessionRef, snapshot, evaluation, runtimeConfig.autonomyMode as Exclude<JudgmentAutonomyMode, 'off'>);
     });
   }
   if (evaluation.verdict !== 'continue') return null;
@@ -2141,7 +2106,7 @@ interface SessionWorldModelFinalizeCandidate {
 }
 
 async function enqueueSessionWorldModelUpdateFailOpen(input: {
-  env: Environment;
+  runtimeConfig: JudgmentRuntimeConfig;
   options: JudgmentHostOptions;
   sessionRef: string;
   turnId: string;
@@ -2149,15 +2114,10 @@ async function enqueueSessionWorldModelUpdateFailOpen(input: {
 }): Promise<void> {
   const updater = input.options.sessionWorldModelUpdater;
   if (!updater || !input.candidate.ownerAuditComplete) return;
-  let mode: ReasoningGateMode;
-  try {
-    mode = resolveReasoningGateMode(input.options, input.env, input.candidate.projectCode);
-  } catch {
-    return;
-  }
+  const mode = resolveEffectiveReasoningGateMode(input.runtimeConfig, input.candidate.projectCode);
   if (mode !== 'compact_4block_with_wm') return;
 
-  const previousState = readSessionMiniWorldModelV2(journalRoot(input.env), input.sessionRef);
+  const previousState = readSessionMiniWorldModelV2(input.runtimeConfig.journalRoot, input.sessionRef);
   if (previousState?.updated_after_turn_id === input.turnId) return;
 
   const turnSequence = Math.max(
@@ -2194,13 +2154,12 @@ async function enqueueSessionWorldModelUpdateFailOpen(input: {
 
 async function finalizeEpisode(
   payload: JudgmentHookPayload,
-  env: Environment,
-  options: JudgmentHostOptions = {},
-  expectedHostBinding: JudgmentHostBinding = DEFAULT_HOST_BINDING
+  runtimeConfig: JudgmentRuntimeConfig,
+  options: JudgmentHostOptions
 ): Promise<JudgmentFinalReceipt | JudgmentStopBlock> {
   const knowledgeEventSink = options.knowledgeEventSink;
   const { sessionRef, turnId } = hookIdentity(payload);
-  const paths = journalPaths(sessionRef, turnId, env);
+  const paths = journalPaths(sessionRef, turnId, runtimeConfig.journalRoot);
   const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : '';
   const answerDigest = sha256(answer);
   const lockedResult = await withTurnLock<{
@@ -2210,7 +2169,7 @@ async function finalizeEpisode(
     let episode: JudgmentEpisode;
     try {
       episode = readEpisode(paths.episode);
-      verifyEpisodeAdoption(episode, paths.target, expectedHostBinding);
+      verifyEpisodeAdoption(episode, paths.target, runtimeConfig.expectedHostBinding);
     } catch (error) {
       if (error instanceof Error && 'code' in error && error.code === 'ENOENT') throw new Error('judgment_orphan_stop');
       throw error;
@@ -2346,7 +2305,7 @@ async function finalizeEpisode(
   // Strictly AFTER withTurnLock has released: fail-open PR-B session mini WM v2 enqueue.
   if (lockedResult.wmCandidate) {
     await enqueueSessionWorldModelUpdateFailOpen({
-      env,
+      runtimeConfig,
       options,
       sessionRef,
       turnId,
@@ -2389,19 +2348,18 @@ export async function processJudgmentHook(
   options: JudgmentHostOptions = {}
 ): Promise<JudgmentHookOutput | JudgmentFinalReceipt | JudgmentStopBlock | { systemMessage: string } | Record<string, never>> {
   const eventName = payload.hook_event_name ?? payload.hookEventName ?? 'UserPromptSubmit';
-  const env = options.env ?? process.env;
-  const expectedHostBinding = normalizeExpectedHostBinding(options.expectedHostBinding);
-  if (eventName === 'UserPromptSubmit') return runJudgmentHost(payload, options);
+  const runtimeConfig = resolveJudgmentRuntimeConfig(options, options.env ?? process.env);
+  if (eventName === 'UserPromptSubmit') return runJudgmentHost(payload, { ...options, runtimeConfig });
   if (eventName === 'PostToolUse') {
-    const event = await recordToolUse(payload, env, expectedHostBinding);
+    const event = await recordToolUse(payload, runtimeConfig);
     return event ? { systemMessage: event.display_line } : {};
   }
   if (eventName === 'Stop') {
-    const progressBlock = await evaluateTaskProgressStop(payload, env, options);
+    const progressBlock = await evaluateTaskProgressStop(payload, runtimeConfig, options);
     if (progressBlock) return progressBlock;
-    const autonomyBlock = await evaluateAutonomyStop(payload, env, options);
+    const autonomyBlock = await evaluateAutonomyStop(payload, runtimeConfig, options);
     if (autonomyBlock) return autonomyBlock;
-    const output = await finalizeEpisode(payload, env, options, expectedHostBinding);
+    const output = await finalizeEpisode(payload, runtimeConfig, options);
     if ('decision' in output && output.decision === 'block' && payload.stop_hook_active === true) {
       throw new Error('judgment_stop_repair_exhausted');
     }

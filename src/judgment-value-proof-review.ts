@@ -7,6 +7,11 @@ import {
   type JudgmentValueProof
 } from './judgment-value-proof.js';
 import { defaultDataDir } from './paths.js';
+import {
+  resolveJudgmentJournalRoot,
+  type JudgmentRuntimeConfig,
+  type JudgmentRuntimeEnvironment
+} from './judgment-runtime-config.js';
 
 export const JUDGMENT_VALUE_PROOF_FILE_SUFFIX = '.value-proof.json';
 /** The judgment Host's per-turn final record, next to the turn's value proof. */
@@ -226,8 +231,14 @@ export interface JudgmentDelegationMap {
   readonly continued_after_ask: readonly JudgmentDelegationItemRef[];
 }
 
-export function defaultJudgmentJournalRoot(dataDir: string = defaultDataDir()): string {
-  return join(resolve(dataDir), 'judgment-journal');
+export function defaultJudgmentJournalRoot(
+  dataDir?: string,
+  env: JudgmentRuntimeEnvironment = process.env
+): string {
+  if (dataDir !== undefined) {
+    return join(resolve(dataDir), 'judgment-journal');
+  }
+  return resolveJudgmentJournalRoot(env);
 }
 
 function errorMessage(error: unknown): string {
@@ -356,9 +367,18 @@ export class JudgmentValueProofJournalCache {
  * With `cache`, folders unchanged since an earlier read are not listed again; without it every folder is listed.
  */
 export async function readJudgmentValueProofJournal(
-  options: { readonly root?: string; readonly cache?: JudgmentValueProofJournalCache } = {}
+  options: {
+    readonly root?: string;
+    readonly runtimeConfig?: Pick<JudgmentRuntimeConfig, 'journalRoot'>;
+    readonly env?: JudgmentRuntimeEnvironment;
+    readonly cache?: JudgmentValueProofJournalCache;
+  } = {}
 ): Promise<JudgmentValueProofJournalRead> {
-  const root = resolve(options.root ?? defaultJudgmentJournalRoot());
+  const root = resolve(
+    options.root
+    ?? options.runtimeConfig?.journalRoot
+    ?? defaultJudgmentJournalRoot(undefined, options.env)
+  );
   let topLevel;
   try {
     topLevel = await readdir(root, { withFileTypes: true });

@@ -70,8 +70,12 @@ import {
   type ReasoningGateHostConfig,
   type ReasoningGateMode
 } from './judgment-host.js';
+import {
+  resolveAutonomyConfig,
+  resolveJudgmentJournalRoot,
+  resolveJudgmentRuntimeConfig
+} from './judgment-runtime-config.js';
 import { applyCanonicalWrites, buildCanonicalEdge } from './canonical-edge-builder.js';
-import { defaultJudgmentJournalRoot } from './judgment-value-proof-review.js';
 import { createWorldExtension, readWorldVocabulary } from './world-extension.js';
 import {
   buildRevalidationQueue,
@@ -261,11 +265,16 @@ function judgmentAutonomyOptions(parsed: ParsedArgs): {
   autonomyCanaryProjects?: string[];
 } {
   const rawMode = first(parsed, 'autonomy-mode');
-  if (rawMode !== undefined && !['off', 'canary', 'on'].includes(rawMode)) {
-    throw new Error('judgment_autonomy_mode_invalid');
-  }
   const project = first(parsed, 'autonomy-project')?.trim();
-  if (rawMode === 'canary' && !project) throw new Error('judgment_autonomy_canary_project_missing');
+  if (rawMode !== undefined) {
+    resolveAutonomyConfig(
+      {
+        autonomyMode: rawMode as JudgmentAutonomyMode,
+        ...(project ? { autonomyCanaryProjects: [project] } : {})
+      },
+      {}
+    );
+  }
   return {
     ...(rawMode ? { autonomyMode: rawMode as JudgmentAutonomyMode } : {}),
     ...(project ? { autonomyCanaryProjects: [project] } : {})
@@ -293,11 +302,11 @@ async function judgmentHook(parsed: ParsedArgs, io: CliIo): Promise<number> {
   try {
     const input = await readHookStdin(io.stdin ?? process.stdin);
     payload = JSON.parse(input || '{}') as JudgmentHookPayload;
-    const hookOptions = {
+    const runtimeConfig = resolveJudgmentRuntimeConfig({
       ...judgmentAutonomyOptions(parsed),
       ...judgmentReasoningGateOptions(parsed)
-    };
-    write(io, `${JSON.stringify(await processJudgmentHook(payload, hookOptions))}\n`);
+    }, process.env);
+    write(io, `${JSON.stringify(await processJudgmentHook(payload, { runtimeConfig }))}\n`);
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     const eventName = payload.hook_event_name ?? payload.hookEventName;
@@ -2138,9 +2147,10 @@ function graphDiagnosisExitCode(status: GraphDiagnosis['status']): number {
 
 async function webServe(parsed: ParsedArgs, io: CliIo, command: string): Promise<number> {
   const dataDir = resolveDataDir(first(parsed, 'dir'));
-  const journalRoot = first(parsed, 'journal')
-    ?? process.env.BRAINBASE_JUDGMENT_JOURNAL_DIR
-    ?? defaultJudgmentJournalRoot(dataDir);
+  const journalRoot = resolveJudgmentJournalRoot(process.env, {
+    journalRoot: first(parsed, 'journal'),
+    dataDir
+  });
   const port = Number(first(parsed, 'port') ?? String(LOCAL_WEB_DEFAULT_PORT));
   if (!Number.isInteger(port) || port < 0 || port > 65535) {
     throw new Error(`${command} requires --port to be an integer between 0 and 65535`);
