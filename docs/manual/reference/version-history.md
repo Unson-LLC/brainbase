@@ -2,6 +2,14 @@
 
 このページでは、公開マニュアルと公開packageに関係する履歴を記録します。実装済み・`develop`・計画中の境界は[現在の状態](/guide/status)を優先してください。
 
+## 0.51.7 candidate — npm公開前
+
+- `0.51.6`（`e249e7f92`）に `#1068`（`29973bff0`、`UNS-4244`）が既収録の `main`（`29973bff0`）へ、`#1109`（`7d633cb45`、Item #172 / #330）のみを単独 cherry-pick したpatch更新候補（他の未リリース `develop` コミットは含まない）。
+- Antigravity CLI 判断フックの `stripOrcaInjectedPreambles`（Fix 2 / `UNS-7129` 修正）で、線形時間の厳密な ISO-8601 暦・時刻・閏年・タイムゾーン検証と 0 件剥離 no-op 時の原文無改変保持を実装し、無効日時の誤剥離と意図しない空白トリミングを解消した。
+- `splitConcatenatedJsonTextBlocks`（Bug B Trap 2）で、Antigravity CLI が `\n` 連結した Markdown 先頭ツール出力から末尾の既知 MCP トレーラー最大 2 行（`connection_scope`・`brainbase-knowledge-owner-audit`）を偽装拒否付きで決定的に分離・復元できるようにし、`tests/antigravity-judgment-hook.test.ts` に回帰テストを追加した。
+- `0.51.6` 以降 `main` に既収録の `#1068`（`29973bff0`）により、端末ログイン時の応答途切れ再試行と Claude Code 判断フック再登録時の進行中ターン後続送信停止を含む。
+- 破壊的変更はない（詳細は `docs/releases/0.51.7.md` を参照）。npm公開と利用ホストへの配備は別途確認する。
+
 ## 0.51.6 candidate — npm公開前
 
 - 0.51.5（`main` / `efabe4cce`）に `#1107`（`e4fd852b0`、Item #266 / #267）のみを単独 cherry-pick したpatch更新候補（他の未リリース `develop` コミットは含まない）。
