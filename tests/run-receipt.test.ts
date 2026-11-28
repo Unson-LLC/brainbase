@@ -370,3 +370,161 @@ describe('normalizeRunReceipt', () => {
         });
     });
 });
+
+function makeOrcaCollectorReceipt() {
+    return {
+        contract_version: 'run_receipt.v1',
+        source: {
+            type: 'orca',
+            workflow_id: 'agent_test_01',
+            name: 'ノヴ｜インフラ',
+            runtime_target: 'unson-lightsail-orca-01:ci'
+        },
+        run: {
+            project_id: 'unson',
+            external_run_id: 'orca:agent_test_01:20261128T0340Z',
+            status: 'success',
+            evidence_state: 'confirmed',
+            started_at: '2026-11-28T03:40:00.000Z',
+            finished_at: '2026-11-28T03:40:20.056Z',
+            summary: 'Orca bot ci 5m snapshot: status=success, active_workers=0, needs_you=0, open_items=4, stalled=false, cost_usd_24h=unavailable',
+            action_required: 'none',
+            metrics: {
+                active_workers: 0,
+                needs_you_count: 0,
+                open_items_count: 4,
+                stalled: false,
+                stall_age_sec: null,
+                heartbeat_age_sec: 774,
+                cost_usd_24h: null,
+                cost_is_estimated: null,
+                tokens_input_24h: null,
+                tokens_output_24h: null
+            },
+            evidence_refs: [
+                { kind: 'artifact_ref', ref: 'orca-snapshot:unson-lightsail-orca-01/ci/20261128T0340Z', label: 'Orca 5m bot snapshot' },
+                { kind: 'log_ref', ref: 'orca-collector:unson-lightsail-orca-01/ci/20261128T0340Z', label: 'Orca 5m collector run' }
+            ]
+        },
+        delivery: {
+            idempotency_key: idempotencyKey('unson', 'orca', 'orca:agent_test_01:20261128T0340Z'),
+            attempt: 1,
+            sent_at: '2026-11-28T03:40:20.056Z'
+        }
+    };
+}
+
+describe('Orca run receipts', () => {
+    it('accepts the PR-1C collector payload and deduplicates delivery retries', () => {
+        const receipt = makeOrcaCollectorReceipt();
+        const normalized = normalizeRunReceipt(receipt);
+        expect(normalized.immutable).toEqual({
+            contract_version: receipt.contract_version,
+            source: receipt.source,
+            run: { ...receipt.run, observation_kind: 'source_run' }
+        });
+        expect(normalized.identity.idempotency_key).toBe(receipt.delivery.idempotency_key);
+
+        const retry = normalizeRunReceipt({
+            ...receipt,
+            delivery: { ...receipt.delivery, attempt: 2, sent_at: '2026-11-28T03:41:00Z' }
+        });
+        expect(retry.identity).toEqual(normalized.identity);
+        expect(retry.payload_digest).toBe(normalized.payload_digest);
+    });
+
+    it('accepts the collector failure shape with finished_at and blocker_reason', () => {
+        const { started_at, ...run } = makeOrcaCollectorReceipt().run;
+        const receipt = makeOrcaCollectorReceipt();
+        expect(normalizeRunReceipt({
+            ...receipt,
+            run: { ...run, status: 'blocked', blocker_reason: 'worker stalled', action_required: 'resolve_blocker' }
+        }).run.blocker_reason).toBe('worker stalled');
+    });
+
+    it.each([1.25, 0, null])('preserves cost %s and optional Orca fields', (cost) => {
+        const receipt = makeOrcaCollectorReceipt();
+        const fields = {
+            cost_basis: 'run_estimated',
+            observed_at: '2024-02-29T23:59:59.123+09:00',
+            stall_reason: 'x'.repeat(300)
+        };
+        const metrics = {
+            ...receipt.run.metrics,
+            cost_usd: cost,
+            cost_usd_24h: cost,
+            staleness_threshold_sec: cost === null ? null : 1800
+        };
+        const normalized = normalizeRunReceipt({
+            ...receipt,
+            run: { ...receipt.run, ...fields, metrics }
+        });
+        expect(normalized.immutable.run).toMatchObject({ ...fields, metrics });
+        const baseline = normalizeRunReceipt(receipt);
+        expect(normalized.identity).toEqual(baseline.identity);
+        expect(normalized.payload_digest).not.toBe(baseline.payload_digest);
+    });
+
+    it.each(['cost_usd', 'cost_usd_24h'].flatMap((key) =>
+        [-0.01, NaN, Infinity, false, '1'].map((value) => [key, value] as const)
+    ))('rejects %s=%s', (key, value) => {
+        const receipt = makeOrcaCollectorReceipt();
+        expect(() => normalizeRunReceipt({
+            ...receipt,
+            run: { ...receipt.run, metrics: { ...receipt.run.metrics, [key]: value } }
+        })).toThrowError(expect.objectContaining({
+            code: 'invalid_orca_cost', details: { path: `run.metrics.${key}` }
+        }));
+    });
+
+    it.each([0, -1, 1.5, '1800', false, Infinity])('rejects staleness threshold %s', (value) => {
+        const receipt = makeOrcaCollectorReceipt();
+        expect(() => normalizeRunReceipt({
+            ...receipt,
+            run: { ...receipt.run, metrics: { ...receipt.run.metrics, staleness_threshold_sec: value } }
+        })).toThrowError(expect.objectContaining({ code: 'invalid_orca_staleness_threshold' }));
+    });
+
+    it.each([
+        ['cost_basis', 'measured', 'unsupported_orca_cost_basis'],
+        ['cost_basis', null, 'unsupported_orca_cost_basis'],
+        ['observed_at', '2026-11-28', 'invalid_timestamp'],
+        ['observed_at', '2026-11-28T03:40:00', 'invalid_timestamp'],
+        ['observed_at', '2026-02-29T03:40:00Z', 'invalid_timestamp'],
+        ['observed_at', '2026-11-28T24:00:00Z', 'invalid_timestamp'],
+        ['observed_at', null, 'invalid_timestamp'],
+        ['stall_reason', 'line1\nline2', 'invalid_string'],
+        ['stall_reason', 'a\u0085b', 'invalid_string'],
+        ['stall_reason', 'a\u2028b', 'invalid_string'],
+        ['stall_reason', 'a\u0000b', 'invalid_string'],
+        ['stall_reason', 'x'.repeat(301), 'string_too_long'],
+        ['stall_reason', null, 'missing_string'],
+        ['evidence_refs', [], 'missing_confirmed_evidence'],
+        ['metrics', { raw_count: 1 }, 'forbidden_metric_name'],
+        ['metrics', { active_workers: '0' }, 'invalid_metric_value'],
+        ['unexpected', true, 'unknown_field']
+    ])('validates run.%s with %s', (field, value, code) => {
+        const receipt = makeOrcaCollectorReceipt();
+        expect(() => normalizeRunReceipt({
+            ...receipt,
+            run: { ...receipt.run, [field]: value }
+        })).toThrowError(expect.objectContaining({ code }));
+    });
+
+    it('rejects a mismatched idempotency key', () => {
+        const receipt = makeOrcaCollectorReceipt();
+        receipt.delivery.idempotency_key = idempotencyKey('unson', 'mana', receipt.run.external_run_id);
+        expect(() => normalizeRunReceipt(receipt))
+            .toThrowError(expect.objectContaining({ code: 'invalid_idempotency_key' }));
+    });
+
+    it.each(['observed_at', 'cost_basis', 'stall_reason'])('rejects run.%s on non-Orca sources', (field) => {
+        expect(() => normalizeRunReceipt(makeReceipt({ run: { [field]: null } })))
+            .toThrowError(expect.objectContaining({ code: 'unknown_field', details: { path: `run.${field}` } }));
+    });
+
+    it('keeps the common numeric metric rules for non-Orca sources', () => {
+        const metrics = { cost_usd: -1, cost_usd_24h: false, staleness_threshold_sec: 0.5 };
+        expect(normalizeRunReceipt(makeReceipt({ run: { metrics } })).run.metrics).toEqual(metrics);
+    });
+});
