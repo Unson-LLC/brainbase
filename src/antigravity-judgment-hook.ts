@@ -1362,6 +1362,401 @@ function stripUserRequestWrapper(text: string): string {
   return trimmed;
 }
 
+const ORCA_PREAMBLE_PREFIX = '[Orca:';
+const FENCED_ORCA_SYSTEM_PREAMBLE_PREFIXES = [
+  '[Orca: your other chats active in the last ',
+  '[Orca: your live work now, ',
+  '[Orca: your MEMORY.md, as notes to consult, ',
+] as const;
+const ORCA_UNANSWERED_QUESTION_PREAMBLE =
+  '[Orca: if you asked your owner something in this chat that they\'ve clearly left unanswered and that still matters, put it on an item as Needs you ("${ORCA_CLI_COMMAND:-orca}" bot item set <n> --status needs-you --comment "<context>" --ask "<question>", adding --option "..." per choice when it has choices), or add an item for it. Skip anything already on an item, and items your owner snoozed.]';
+const ORCA_SCHEDULED_TIME_PREFIX = '[Orca: it is ';
+const ORCA_SCHEDULED_TIME_SUFFIX = ', the time you were asked to act at.';
+const ORCA_SCHEDULED_TIME_ONLY_RUN_TAIL = ' This is the only run.';
+const MEMORY_CHANGED_PREAMBLE_PREFIX = '[Your MEMORY.md changed outside this chat ';
+const SOUL_UPDATED_PREAMBLE_PREFIX = '[Your SOUL.md was updated; ';
+
+function isAsciiWhitespaceCode(code: number): boolean {
+  return code === 0x20 || code === 0x09 || code === 0x0a || code === 0x0d;
+}
+
+function isAsciiDigitCode(code: number): boolean {
+  return code >= 0x30 /* '0' */ && code <= 0x39 /* '9' */;
+}
+
+function parseAsciiUint(text: string, pos: number, count: number): number | null {
+  if (pos + count > text.length) return null;
+  let value = 0;
+  for (let i = 0; i < count; i += 1) {
+    const code = text.charCodeAt(pos + i);
+    if (!isAsciiDigitCode(code)) return null;
+    value = value * 10 + (code - 0x30);
+  }
+  return value;
+}
+
+function daysInMonth(year: number, month: number): number {
+  if (month === 2) {
+    return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0 ? 29 : 28;
+  }
+  if (month === 4 || month === 6 || month === 9 || month === 11) {
+    return 30;
+  }
+  return 31;
+}
+
+function skipAsciiWhitespace(text: string, pos: number): number {
+  let cursor = pos;
+  while (cursor < text.length && isAsciiWhitespaceCode(text.charCodeAt(cursor))) {
+    cursor += 1;
+  }
+  return cursor;
+}
+
+function consumeBracketHeader(text: string, pos: number): number | null {
+  if (text.charCodeAt(pos) !== 0x5b /* '[' */) return null;
+  let depth = 0;
+  for (let index = pos; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+    if (code === 0x0a /* '\n' */ || code === 0x0d /* '\r' */) {
+      return null;
+    }
+    if (code === 0x5b /* '[' */) {
+      depth += 1;
+    } else if (code === 0x5d /* ']' */) {
+      depth -= 1;
+      if (depth === 0) return index + 1;
+    }
+  }
+  return null;
+}
+
+function findLastValidOrcaFenceClose(text: string, minPos: number): number {
+  let searchFrom = text.length;
+  while (searchFrom >= minPos) {
+    const closeIdx = text.lastIndexOf('>>>', searchFrom);
+    if (closeIdx === -1 || closeIdx < minPos) return -1;
+    const atLineStart = closeIdx === 0 || text[closeIdx - 1] === '\n';
+    const afterClose = closeIdx + 3;
+    const atLineEnd =
+      afterClose === text.length
+      || text[afterClose] === '\n'
+      || (text[afterClose] === '\r' && text[afterClose + 1] === '\n');
+    if (atLineStart && atLineEnd) return closeIdx;
+    searchFrom = closeIdx - 1;
+  }
+  return -1;
+}
+
+function consumeOrcaFenceBlock(text: string, pos: number, maxFenceClose?: number): number | null {
+  const start = skipAsciiWhitespace(text, pos);
+  if (!text.startsWith('<<<', start)) return null;
+  let afterOpen = start + 3;
+  if (text[afterOpen] === '\r' && text[afterOpen + 1] === '\n') {
+    afterOpen += 2;
+  } else if (text[afterOpen] === '\n') {
+    afterOpen += 1;
+  } else {
+    return null;
+  }
+  if (maxFenceClose !== undefined && (maxFenceClose === -1 || afterOpen > maxFenceClose)) {
+    return null;
+  }
+  let searchFrom = afterOpen;
+  while (searchFrom <= text.length) {
+    const closeIdx = text.indexOf('>>>', searchFrom);
+    if (closeIdx === -1) return null;
+    const atLineStart = closeIdx === afterOpen || text[closeIdx - 1] === '\n';
+    const afterClose = closeIdx + 3;
+    const atLineEnd =
+      afterClose === text.length
+      || text[afterClose] === '\n'
+      || (text[afterClose] === '\r' && text[afterClose + 1] === '\n');
+    if (atLineStart && atLineEnd) {
+      if (text[afterClose] === '\r' && text[afterClose + 1] === '\n') return afterClose + 2;
+      if (text[afterClose] === '\n') return afterClose + 1;
+      return afterClose;
+    }
+    searchFrom = closeIdx + 3;
+  }
+  return null;
+}
+
+/**
+ * Matches only the exact Orca scheduled-time header format:
+ * `[Orca: it is YYYY-MM-DDTHH:MM:SS(.fff)?(Z|+HH:MM|-HH:MM), the time you were asked to act at.( This is the only run.)?]`
+ * with strict calendar, clock, leap-year, and timezone offset validation in linear time without regex backtracking.
+ */
+function isOrcaScheduledTimePreamble(text: string, pos: number, afterHeader: number): boolean {
+  if (!text.startsWith(ORCA_SCHEDULED_TIME_PREFIX, pos)) return false;
+  const headerClose = afterHeader - 1;
+  let cursor = pos + ORCA_SCHEDULED_TIME_PREFIX.length;
+
+  // YYYY-MM-DDTHH:MM:SS (19 ASCII chars)
+  if (cursor + 19 > headerClose) return false;
+  const year = parseAsciiUint(text, cursor, 4);
+  const month = parseAsciiUint(text, cursor + 5, 2);
+  const day = parseAsciiUint(text, cursor + 8, 2);
+  const hour = parseAsciiUint(text, cursor + 11, 2);
+  const minute = parseAsciiUint(text, cursor + 14, 2);
+  const second = parseAsciiUint(text, cursor + 17, 2);
+  if (
+    year === null
+    || text.charCodeAt(cursor + 4) !== 0x2d /* '-' */
+    || month === null
+    || month < 1
+    || month > 12
+    || text.charCodeAt(cursor + 7) !== 0x2d /* '-' */
+    || day === null
+    || day < 1
+    || day > daysInMonth(year, month)
+    || text.charCodeAt(cursor + 10) !== 0x54 /* 'T' */
+    || hour === null
+    || hour > 23
+    || text.charCodeAt(cursor + 13) !== 0x3a /* ':' */
+    || minute === null
+    || minute > 59
+    || text.charCodeAt(cursor + 16) !== 0x3a /* ':' */
+    || second === null
+    || second > 59
+  ) {
+    return false;
+  }
+  cursor += 19;
+
+  // Optional fractional seconds: (?:\.\d+)?
+  if (cursor < headerClose && text.charCodeAt(cursor) === 0x2e /* '.' */) {
+    cursor += 1;
+    const fracStart = cursor;
+    while (cursor < headerClose && isAsciiDigitCode(text.charCodeAt(cursor))) {
+      cursor += 1;
+    }
+    if (cursor === fracStart) return false;
+  }
+
+  // Timezone: (?:Z|[+-]HH:MM) with strict tzHour 0..23 and tzMinute 0..59
+  if (cursor >= headerClose) return false;
+  const tzCode = text.charCodeAt(cursor);
+  if (tzCode === 0x5a /* 'Z' */) {
+    cursor += 1;
+  } else if (tzCode === 0x2b /* '+' */ || tzCode === 0x2d /* '-' */) {
+    if (cursor + 6 > headerClose) return false;
+    const tzHour = parseAsciiUint(text, cursor + 1, 2);
+    const tzMinute = parseAsciiUint(text, cursor + 4, 2);
+    if (
+      tzHour === null
+      || tzHour > 23
+      || text.charCodeAt(cursor + 3) !== 0x3a /* ':' */
+      || tzMinute === null
+      || tzMinute > 59
+    ) {
+      return false;
+    }
+    cursor += 6;
+  } else {
+    return false;
+  }
+
+  if (cursor + ORCA_SCHEDULED_TIME_SUFFIX.length > headerClose) return false;
+  if (!text.startsWith(ORCA_SCHEDULED_TIME_SUFFIX, cursor)) return false;
+  cursor += ORCA_SCHEDULED_TIME_SUFFIX.length;
+  return (
+    cursor === headerClose
+    || (
+      headerClose - cursor === ORCA_SCHEDULED_TIME_ONLY_RUN_TAIL.length
+      && text.startsWith(ORCA_SCHEDULED_TIME_ONLY_RUN_TAIL, cursor)
+    )
+  );
+}
+
+function isFencedOrcaSystemPreambleHeader(text: string, pos: number, afterHeader: number): boolean {
+  const headerClose = afterHeader - 1;
+  for (const prefix of FENCED_ORCA_SYSTEM_PREAMBLE_PREFIXES) {
+    if (pos + prefix.length <= headerClose && text.startsWith(prefix, pos)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isOrcaUnansweredQuestionPreamble(text: string, pos: number, afterHeader: number): boolean {
+  return (
+    afterHeader - pos === ORCA_UNANSWERED_QUESTION_PREAMBLE.length
+    && text.startsWith(ORCA_UNANSWERED_QUESTION_PREAMBLE, pos)
+  );
+}
+
+function consumeKnownOrcaSystemPreamble(
+  text: string,
+  pos: number,
+  maxFenceClose?: number,
+): number | null {
+  if (!text.startsWith(ORCA_PREAMBLE_PREFIX, pos)) return null;
+  const afterHeader = consumeBracketHeader(text, pos);
+  if (afterHeader === null) return null;
+  if (isFencedOrcaSystemPreambleHeader(text, pos, afterHeader)) {
+    return consumeOrcaFenceBlock(text, afterHeader, maxFenceClose);
+  }
+  if (
+    isOrcaUnansweredQuestionPreamble(text, pos, afterHeader)
+    || isOrcaScheduledTimePreamble(text, pos, afterHeader)
+  ) {
+    // Standalone system preambles never carry a fence block; keep any user-authored
+    // `<<<\n...\n>>>` block immediately following them intact.
+    return afterHeader;
+  }
+  return null;
+}
+
+function consumeMemoryChangedPreamble(
+  text: string,
+  pos: number,
+  maxFenceClose?: number,
+): number | null {
+  if (!text.startsWith(MEMORY_CHANGED_PREAMBLE_PREFIX, pos)) return null;
+  const afterHeader = consumeBracketHeader(text, pos);
+  if (afterHeader === null) return null;
+  let nextPos = afterHeader;
+  let consumedFences = 0;
+  while (nextPos < text.length) {
+    const probe = skipAsciiWhitespace(text, nextPos);
+    if (text.startsWith('Added:', probe)) {
+      const afterFence = consumeOrcaFenceBlock(text, probe + 'Added:'.length, maxFenceClose);
+      if (afterFence === null) break;
+      nextPos = afterFence;
+      consumedFences += 1;
+      continue;
+    }
+    if (text.startsWith('Removed:', probe)) {
+      const afterFence = consumeOrcaFenceBlock(text, probe + 'Removed:'.length, maxFenceClose);
+      if (afterFence === null) break;
+      nextPos = afterFence;
+      consumedFences += 1;
+      continue;
+    }
+    const bareFence = consumeOrcaFenceBlock(text, probe, maxFenceClose);
+    if (bareFence !== null) {
+      nextPos = bareFence;
+      consumedFences += 1;
+      continue;
+    }
+    break;
+  }
+  return consumedFences > 0 ? nextPos : null;
+}
+
+function findNextKnownOrcaPreambleStart(text: string, from: number): number {
+  const lastFenceClose = findLastValidOrcaFenceClose(text, from);
+  let earliest = -1;
+
+  let searchFrom = from;
+  while (searchFrom < text.length) {
+    const idx = text.indexOf(MEMORY_CHANGED_PREAMBLE_PREFIX, searchFrom);
+    if (idx === -1) break;
+    if (
+      (idx === from || text[idx - 1] === '\n')
+      && consumeMemoryChangedPreamble(text, idx, lastFenceClose) !== null
+    ) {
+      earliest = idx;
+      break;
+    }
+    searchFrom = idx + MEMORY_CHANGED_PREAMBLE_PREFIX.length;
+  }
+
+  searchFrom = from;
+  while (searchFrom < text.length) {
+    const idx = text.indexOf(ORCA_PREAMBLE_PREFIX, searchFrom);
+    if (idx === -1 || (earliest !== -1 && idx >= earliest)) break;
+    if (
+      (idx === from || text[idx - 1] === '\n')
+      && consumeKnownOrcaSystemPreamble(text, idx, lastFenceClose) !== null
+    ) {
+      earliest = idx;
+      break;
+    }
+    searchFrom = idx + ORCA_PREAMBLE_PREFIX.length;
+  }
+
+  return earliest;
+}
+
+/**
+ * Deterministically strips only exact Orca-injected leading system preamble
+ * blocks in linear time without regex backtracking:
+ * - `[Your SOUL.md was updated; ...]` (with an accompanying `<<<\n...\n>>>` fence
+ *   or bounded by a subsequent valid known Orca / MEMORY.md preamble)
+ * - `[Your MEMORY.md changed outside this chat ...]` ONLY when followed by at least
+ *   one `Added:` / `Removed:` / bare `<<<\n...\n>>>` fence block
+ * - Fenced Orca `[Orca: ...]` preambles (`your other chats active in the last `,
+ *   `your live work now, `, `your MEMORY.md, as notes to consult, `) ONLY when
+ *   immediately followed by a `<<<\n...\n>>>` fence block
+ * - Exact full-string `[Orca: if you asked your owner something in this chat ...]`
+ *   system reminder (standalone; never consumes a following `<<<\n...\n>>>` block)
+ * - Strict ISO-8601 `[Orca: it is <ISO-8601>, the time you were asked to act at.( This is the only run.)?]`
+ *   scheduled-time header with strict calendar/clock/timezone validation
+ *   (standalone; never consumes a following `<<<\n...\n>>>` block)
+ *
+ * Any utterance that does not match one of these exact system formats — including
+ * invalid ISO-8601 timestamps, fenceless known prefixes, shortened unanswered-question
+ * headers, unknown `[Orca: ...]` headers (with or without fences), and ordinary prompts
+ * with leading/trailing whitespace — is returned 100% byte-for-byte untouched.
+ *
+ * Fail-safe: when 0 preambles are consumed or stripping would yield an empty/whitespace-only
+ * string, returns the original `text` untouched. Never alters ordinary user utterances or
+ * bot-to-bot `──── From: ORCA_SESSION_ID:...` message bodies.
+ */
+export function stripOrcaInjectedPreambles(text: string): string {
+  if (!text) return text;
+
+  let cursor = 0;
+  let strippedCount = 0;
+  while (cursor < text.length) {
+    cursor = skipAsciiWhitespace(text, cursor);
+    if (cursor >= text.length) break;
+
+    if (text.startsWith(ORCA_PREAMBLE_PREFIX, cursor)) {
+      const nextPos = consumeKnownOrcaSystemPreamble(text, cursor);
+      if (nextPos === null) break;
+      cursor = nextPos;
+      strippedCount += 1;
+      continue;
+    }
+
+    if (text.startsWith(MEMORY_CHANGED_PREAMBLE_PREFIX, cursor)) {
+      const nextPos = consumeMemoryChangedPreamble(text, cursor);
+      if (nextPos === null) break;
+      cursor = nextPos;
+      strippedCount += 1;
+      continue;
+    }
+
+    if (text.startsWith(SOUL_UPDATED_PREAMBLE_PREFIX, cursor)) {
+      const afterHeader = consumeBracketHeader(text, cursor);
+      if (afterHeader === null) break;
+      const directFence = consumeOrcaFenceBlock(text, afterHeader);
+      if (directFence !== null) {
+        cursor = directFence;
+        strippedCount += 1;
+        continue;
+      }
+      const nextKnown = findNextKnownOrcaPreambleStart(text, afterHeader);
+      if (nextKnown !== -1) {
+        cursor = nextKnown;
+        strippedCount += 1;
+        continue;
+      }
+      // Fail-safe: no subsequent known preamble marks the end of SOUL.md body.
+      break;
+    }
+
+    break;
+  }
+
+  if (strippedCount === 0) return text;
+  const stripped = text.slice(cursor).trim();
+  return stripped || text;
+}
+
 const SYSTEM_INJECTED_PROMPT_PREFIXES = [
   /^Reason Network:/iu,
   /^<SYSTEM_MESSAGE>/iu,
@@ -1387,7 +1782,8 @@ export function extractLatestNonSystemUserInput(
     const entry = entries[index];
     if (entry.type !== 'USER_INPUT' || typeof entry.content !== 'string') continue;
     if (isSystemInjectedUserInput(entry.content, entry.source)) continue;
-    const content = stripUserRequestWrapper(entry.content);
+    const unwrapped = stripUserRequestWrapper(entry.content);
+    const content = stripOrcaInjectedPreambles(unwrapped);
     if (!content) continue;
     const stepIndex = typeof entry.step_index === 'number' && Number.isSafeInteger(entry.step_index)
       ? entry.step_index
@@ -1452,19 +1848,115 @@ function isValidJsonText(text: string): boolean {
   }
 }
 
+const OWNER_AUDIT_TRAILER_PREFIX = '<!-- brainbase-knowledge-owner-audit:';
+const OWNER_AUDIT_TRAILER_SUFFIX = ' -->';
+const OWNER_AUDIT_SCHEMA_VERSION = 'brainbase-knowledge-owner-audit-v1';
+
+function isConnectionScopeTrailerLine(line: string): boolean {
+  if (line.length < 2 || !line.startsWith('{') || !line.endsWith('}')) {
+    return false;
+  }
+  if (line.includes('\r') || line.includes('\n')) {
+    return false;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(line);
+  } catch {
+    return false;
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return false;
+  }
+  const keys = Object.keys(parsed);
+  if (keys.length !== 1 || keys[0] !== 'connection_scope') {
+    return false;
+  }
+  const scope = (parsed as Record<string, unknown>).connection_scope;
+  return Boolean(scope) && typeof scope === 'object' && !Array.isArray(scope);
+}
+
+function isOwnerAuditTrailerLine(line: string): boolean {
+  if (
+    !line.startsWith(OWNER_AUDIT_TRAILER_PREFIX)
+    || !line.endsWith(OWNER_AUDIT_TRAILER_SUFFIX)
+  ) {
+    return false;
+  }
+  const jsonText = line.slice(
+    OWNER_AUDIT_TRAILER_PREFIX.length,
+    line.length - OWNER_AUDIT_TRAILER_SUFFIX.length,
+  );
+  if (jsonText.length < 2 || !jsonText.startsWith('{') || !jsonText.endsWith('}')) {
+    return false;
+  }
+  if (jsonText.includes('\r') || jsonText.includes('\n')) {
+    return false;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonText);
+  } catch {
+    return false;
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return false;
+  }
+  return (parsed as Record<string, unknown>).schema_version === OWNER_AUDIT_SCHEMA_VERSION;
+}
+
+function popLastLine(text: string, end: number): { nextEnd: number; line: string } | null {
+  if (end <= 0) return null;
+  const lastNl = text.lastIndexOf('\n', end - 1);
+  const lineStart = lastNl === -1 ? 0 : lastNl + 1;
+  const lineEnd = end > lineStart && text.charCodeAt(end - 1) === 0x0d /* '\r' */ ? end - 1 : end;
+  const line = text.slice(lineStart, lineEnd);
+  const nextEnd = lastNl === -1
+    ? 0
+    : (lastNl > 0 && text.charCodeAt(lastNl - 1) === 0x0d /* '\r' */ ? lastNl - 1 : lastNl);
+  return { nextEnd, line };
+}
+
 /**
- * Splits whitespace/newline-concatenated top-level JSON objects/arrays (`{...}` / `[...]`)
- * in a single strict O(n) character scan without regex backtracking.
+ * Extracts at most 2 known MCP trailer lines from the very end of a concatenated tool output:
+ * 1. At most one trailing single-line `{"connection_scope":{...}}` JSON object line.
+ * 2. At most one single-line `<!-- brainbase-knowledge-owner-audit:{...} -->` line
+ *    immediately preceding `connection_scope` (or at the very end if absent).
  *
- * Antigravity CLI concatenates multiple MCP text content blocks with `\n` when writing
- * `steps/<n>/output.txt` and `transcript*.jsonl` (for example, a primary tool result JSON
- * followed by a trailing `{"connection_scope":{...}}` block). When 2+ top-level JSON
- * containers are found and every block validates via `JSON.parse`, returns the individual
- * blocks so `tool_response.content` restores the original multi-block MCP structure.
- * For a single JSON value, non-JSON text, or any malformed/partial block, fails open and
- * returns `[text]`.
+ * Strictly ignores any `owner-audit` or `connection_scope` markers embedded in the middle
+ * of the body, on the same line as body text, or behind duplicate `connection_scope` lines.
  */
-export function splitConcatenatedJsonTextBlocks(text: string): string[] {
+function extractTrailingMcpBlocks(text: string): { body: string; trailers: string[] } {
+  let end = text.length;
+  while (end > 0 && text.charCodeAt(end - 1) === 0x0a /* '\n' */) {
+    end -= 1;
+    if (end > 0 && text.charCodeAt(end - 1) === 0x0d /* '\r' */) {
+      end -= 1;
+    }
+  }
+
+  let scopeBlock: string | null = null;
+  let auditBlock: string | null = null;
+
+  const last = popLastLine(text, end);
+  if (last && isConnectionScopeTrailerLine(last.line)) {
+    scopeBlock = last.line;
+    end = last.nextEnd;
+  }
+
+  const prev = popLastLine(text, end);
+  if (prev && isOwnerAuditTrailerLine(prev.line)) {
+    auditBlock = prev.line;
+    end = prev.nextEnd;
+  }
+
+  const trailers: string[] = [];
+  if (auditBlock !== null) trailers.push(auditBlock);
+  if (scopeBlock !== null) trailers.push(scopeBlock);
+  return { body: text.slice(0, end), trailers };
+}
+
+function splitPureConcatenatedJsonBlocks(text: string): string[] {
   const length = text.length;
   if (length === 0) return [text];
 
@@ -1550,9 +2042,43 @@ export function splitConcatenatedJsonTextBlocks(text: string): string[] {
   return candidates;
 }
 
+/**
+ * Restores Antigravity's `\n`-concatenated MCP text content blocks into individual
+ * blocks in strictly linear O(n) time without regex backtracking:
+ * 1. When the entire text consists of 2+ whitespace/newline-separated valid top-level
+ *    JSON containers (`{...}` / `[...]`), splits them into individual JSON blocks.
+ * 2. Otherwise, inspects at most 2 known MCP trailer lines from the very end of the
+ *    output — an optional single-line `{"connection_scope":{...}}` block and an optional
+ *    immediately preceding single-line `<!-- brainbase-knowledge-owner-audit:{...} -->`
+ *    block (`schema_version === 'brainbase-knowledge-owner-audit-v1'`) — and restores
+ *    `[...bodyBlocks, ...trailers]` (applying pure JSON splitting to `body` when applicable,
+ *    or preserving non-JSON Markdown/text `body` as a single leading block).
+ *
+ * Fails open and returns `[text]` for single blocks, non-matching text, or any
+ * embedded/spoofed markers not strictly positioned as trailing MCP blocks.
+ */
+export function splitConcatenatedJsonTextBlocks(text: string): string[] {
+  if (text.length === 0) return [text];
+
+  const pureJsonBlocks = splitPureConcatenatedJsonBlocks(text);
+  if (pureJsonBlocks.length > 1) {
+    return pureJsonBlocks;
+  }
+
+  const { body, trailers } = extractTrailingMcpBlocks(text);
+  if (trailers.length === 0) {
+    return [text];
+  }
+  if (body.trim().length === 0) {
+    return trailers;
+  }
+  const bodyBlocks = splitPureConcatenatedJsonBlocks(body);
+  return [...bodyBlocks, ...trailers];
+}
+
 function isValidJsonOrConcatenatedJsonText(text: string): boolean {
   if (isValidJsonText(text)) return true;
-  return splitConcatenatedJsonTextBlocks(text).length > 1;
+  return splitPureConcatenatedJsonBlocks(text).length > 1;
 }
 
 function isTruncatedToolResult(entry: TranscriptEntry, strippedContent: string): boolean {
@@ -2485,7 +3011,7 @@ async function handlePreInvocation(
   const transcriptUser = extractLatestNonSystemUserInput(payload.transcriptPath, transcriptOpts);
   const rawLastUserInput = typeof payload.lastUserInput === 'string' ? payload.lastUserInput : '';
   const prompt = rawLastUserInput && !isSystemInjectedUserInput(rawLastUserInput)
-    ? stripUserRequestWrapper(rawLastUserInput)
+    ? stripOrcaInjectedPreambles(stripUserRequestWrapper(rawLastUserInput))
     : (transcriptUser?.content ?? null);
   const currentUserStepIndex = transcriptUser?.stepIndex ?? null;
   const promptDigest = prompt ? sha256(prompt) : null;
