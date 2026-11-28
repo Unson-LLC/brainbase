@@ -639,7 +639,7 @@
     "@modelcontextprotocol/sdk": "^1.32.0",
     "graphology": "0.26.0",
     "js-yaml": "^4.1.1",
-    "sigma": "3.0.3",
+    "sigma": "4.0.6",
     "zod": "^4.6.7"
   },
   "overrides": {
