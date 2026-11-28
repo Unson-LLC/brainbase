@@ -57,6 +57,7 @@
 - **破壊的変更（組織機能のOSSからの削除）**: 予約（`./resource-reservations`・`./resource-reservation-http`、#1027）、メンバー招待（`./organization-member-invite`・`./organization-member-invite-http`、#1037、`develop` のみ存在）、実行の意図（`./execution-authority`・`./execution-authority-http`、#1040）をOSSから外した。前提となる組織版 `brainbase-organization` への移設PR（#1428・#1476・#1473）はいずれも `main` マージ済み。移行手順は `docs/releases/0.51.0.md` を参照。
 - **破壊的変更（TypeScript公開型）**: `judgment-event-outbox`（#1084、RFC-002 PR-3b）で `JudgmentOutboxPostAck['candidate_id']` と `JudgmentOutboxReadback['candidate_id']` を `string | null` へ拡張し、`event.subject.type === 'episode'` かつ post/readback 双方が整合するときに限り `candidate_id: null` を受理する（非 `episode` は従来どおり非空文字列必須で fail-closed）。
 - **新規追加・改善**: 世界モデルの逆引き影響インデックスと反証リンクを公開subpath `world-model-impact-index` として追加（#1044）。MCPツール定義へのポータビリティ適用（#1046・#1063）、Canonical Task の nullable `start_at` 追加（#1010）、`judgment-host` の有効Git作業ツリー探索とタスク準備再計画ゲート（#970・#973・#976）、`automation-run`・`knowledge-continuation`・`durable-waits` の状態遷移整合と再試行修正（#1015・#1034・#1035・#1036）、注意/エラー通知の区別と非キャンバス世界の凡例開閉・プロジェクト概要メトリクスの container query 化（#960・#961・#996）、運用runbook追記（#1057・#1079）を含む。npm公開と利用ホストへの配備は別途確認する。
+- 議事録テーブルで、議事録がまだないときの案内をホストから指定できるようにする（#1039）。検索や絞り込みで該当件数がゼロのときは、従来の文言を表示する。
 
 ## 0.50.31
 

@@ -36,6 +36,8 @@
 
 0.50.31に `develop`（`8271da54`）を統合するminor更新候補です。`main` に先行出荷済みの `0.50.25`〜`0.50.31` の全機能・セキュリティ修正を保持しつつ、組織固有機能3件をOSSから削除します：予約（`./resource-reservations`・`./resource-reservation-http`、#1027、移設先 `brainbase-organization#1428`）、メンバー招待（`./organization-member-invite`・`./organization-member-invite-http`、#1037、移設先 `brainbase-organization#1473`）、実行の意図（`./execution-authority`・`./execution-authority-http`、#1040、移設先 `brainbase-organization#1476`）。併せて `judgment-event-outbox`（#1084、RFC-002 PR-3b）で `JudgmentOutboxPostAck['candidate_id']` / `JudgmentOutboxReadback['candidate_id']` を `string | null` へ拡張し、`episode` イベントに限り整合した `candidate_id: null` を受理します（非 `episode` は従来どおり非空文字列必須で fail-closed）。新規公開subpathとして世界モデルの逆引き影響インデックス `world-model-impact-index`（#1044）を追加し、Canonical Task の nullable `start_at`（#1010）、MCPツール定義のポータビリティ適用（#1046・#1063）、`judgment-host` の有効Git作業ツリー探索と再計画ゲート（#970・#973・#976）、状態遷移整合・UI通知改善（#960・#961・#996・#1015・#1034・#1035・#1036）を含みます。破壊的変更の移行手順は `docs/releases/0.51.0.md` を参照してください。npm公開と利用ホストへの配備は別途確認します。
 
+議事録がまだないとき、ホストが指定した案内を議事録テーブルに表示できるようにするパッチ更新候補です（#1039）。検索や絞り込みで該当する議事録がないときは、従来の文言を表示します。npm公開と利用ホストへの配備は別途確認します。
+
 ## Released — v0.50.31
 
 0.50.30に、持ち込んだ記録の一覧をホストが組み立てる場合に、共通の右詳細だけを開ける明示選択を追加したpatch更新です（#1081、#1082）。手順の帯と押して選ぶ候補を共通部品に加え、同じ取り込みのID・照合用コードを確認して詳細を表示します。古い応答や閲覧できなくなった記録が詳細に残ることを防ぎます。個人版の既定の一覧・詳細と取得・認可・保存の契約は維持し、持込記録に関する表示語をそろえます。npmには2026-11-25 08:20:16 JSTに公開しました。利用ホストへの配備は、この記録だけでは確認できません。

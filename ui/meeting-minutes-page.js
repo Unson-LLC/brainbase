@@ -54,7 +54,7 @@ export function minutesConfirmation(doc, value) {
 }
 
 export function createMinutesPage({ doc, state, screen, toolbar, listPane, keyword, clock,
-  hostFilters, principalIds, projectContext, sortMeetings, matchesFilters, listState,
+  hostFilters, emptyListMessage, principalIds, projectContext, sortMeetings, matchesFilters, listState,
   versionNumber, onRender, onCreate, canCreate, appendCreateUnavailable, onOpen }) {
   let view = 'recommend', mine = true, noDate = false, period = '', sort = 'pending-first';
   let month = minutesDay(clock()).slice(0, 7), rangeStart = '';
@@ -261,7 +261,14 @@ export function createMinutesPage({ doc, state, screen, toolbar, listPane, keywo
     listPane.append(head,rows);motion.play();
     if(!canCreate())appendCreateUnavailable(listPane);
     const countNote=n(doc,'p','mp-count',`${ordered.length}件${state.nextCursor?'（続きあり・絞り込みは読込済みの会議が対象）':''}`);listPane.append(countNote);
-    if(!ordered.length&&!state.listError)listPane.append(n(doc,'p','bb-minutes-empty',state.loading?'会議一覧を読み込んでいます。':'条件に合う会議はありません。'));
+    if (!ordered.length && !state.listError) {
+      const explicitScope = hosts().some(filter => filter.multiple ? filter.values?.length : filter.value);
+      const hasFilters = explicitScope || period || Object.values(state.filters).some(Boolean)
+        || (view !== 'recommend' && view !== 'all');
+      const guidance = !entries.length && !state.nextCursor && !hasFilters && emptyListMessage;
+      const message = state.loading ? '会議一覧を読み込んでいます。' : guidance || '条件に合う会議はありません。';
+      listPane.append(n(doc, 'p', 'bb-minutes-empty', message));
+    }
     return ordered;
   }
   return { render, row, project, highlightCreated(id) {
